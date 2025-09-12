@@ -13,29 +13,48 @@
 # testing
 /coverage
 
-# next.js
+# next.js build
 /.next/
 /out/
+/dist
+/.turbo
 
 # production
 /build
 
-# misc
+# misc system files
 .DS_Store
+Thumbs.db
+
+# private keys / certs
 *.pem
 
-# debug
+# debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files (never commit secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# vercel
+# vercel config
 .vercel
 
-# typescript
+# typescript build info
 *.tsbuildinfo
 next-env.d.ts
+
+# uploads (user-uploaded files should not go to git)
+uploads/
+public/uploads/
+tmp/
+*.log
+
+# IDE/editor settings
+.vscode/
+.idea/
