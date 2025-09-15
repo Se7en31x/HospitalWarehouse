@@ -9,7 +9,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="th">
-      <body className="h-screen flex flex-col bg-gray-100 font-sans">
+      <body className="h-screen flex flex-col bg-gray-200 font-sans">
         {/* ✅ Navbar อยู่บนสุด */}
         <Navbar />
 
