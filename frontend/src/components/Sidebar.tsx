@@ -49,10 +49,9 @@ export default function Sidebar() {
       { name: 'ตั้งค่าระบบ', path: '/warehouse/settings', icon: Settings },
     ],
     procurement: [
-      { name: 'แดชบอร์ด', path: '/procurement', icon: LayoutDashboard },
-      { name: 'ใบขอซื้อ (PR)', path: '/procurement/pr', icon: FileSignature },
+      { name: 'คำขอสั่งซื้อ (PR)', path: '/procurement/pr', icon: FileSignature },
       { name: 'ขอราคา (RFQ)', path: '/procurement/rfq', icon: FileInput },
-      { name: 'ใบสั่งซื้อ (PO)', path: '/procurement/po', icon: FileOutput },
+      { name: 'ข้อมูลผู้จำหน่าย (Suppliers)', path: '/procurement/suppliers', icon: HandHelping },
       { name: 'รายงานการจัดซื้อ', path: '/procurement/reports', icon: FileText },
       { name: 'ตั้งค่า', path: '/procurement/settings', icon: Settings },
     ],
@@ -77,15 +76,13 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`relative h-screen ${
-        collapsed ? 'w-20' : 'w-72'
-      } bg-gradient-to-b from-white to-gray-50 border-r border-gray-200 flex flex-col transition-all duration-300 shadow-sm`}
+      className={`relative h-screen ${collapsed ? 'w-20' : 'w-72'
+        } bg-gradient-to-b from-white to-gray-50 border-r border-gray-200 flex flex-col transition-all duration-300 shadow-sm`}
     >
       {/* Toggle */}
       <div
-        className={`flex ${
-          collapsed ? 'justify-center' : 'justify-end'
-        } px-3 py-3 border-b border-gray-200 bg-white shadow-sm`}
+        className={`flex ${collapsed ? 'justify-center' : 'justify-end'
+          } px-3 py-3 border-b border-gray-200 bg-white shadow-sm`}
       >
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -114,18 +111,15 @@ export default function Sidebar() {
               >
                 <Link
                   href={menu.path}
-                  className={`flex items-center ${
-                    collapsed ? 'justify-center' : 'justify-start gap-4'
-                  } px-4 py-3 rounded-lg text-xs sm:text-sm transition-all duration-200 animate-fade-in ${
-                    active
+                  className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start gap-4'
+                    } px-4 py-3 rounded-lg text-xs sm:text-sm transition-all duration-200 animate-fade-in ${active
                       ? 'bg-gradient-to-r from-indigo-200 to-blue-200 text-indigo-800 font-medium shadow-sm'
                       : 'text-gray-800 font-light hover:bg-indigo-100 hover:text-indigo-900 hover:scale-105'
-                  }`}
+                    }`}
                 >
                   <Icon
-                    className={`w-5 h-5 sm:w-6 sm:h-6 ${
-                      active ? 'text-indigo-900 shadow-inner' : 'text-gray-700'
-                    }`}
+                    className={`w-5 h-5 sm:w-6 sm:h-6 ${active ? 'text-indigo-900 shadow-inner' : 'text-gray-700'
+                      }`}
                   />
                   {!collapsed && <span className="truncate">{menu.name}</span>}
                 </Link>
@@ -149,8 +143,8 @@ export default function Sidebar() {
               {type === 'warehouse'
                 ? 'Warehouse Management'
                 : type === 'procurement'
-                ? 'Procurement System'
-                : 'Request System'}
+                  ? 'Procurement System'
+                  : 'Request System'}
             </span>
           </div>
         )}
