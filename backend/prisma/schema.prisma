@@ -1,15 +1,204 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["inventory", "public"]
 }
+
+model category {
+  id          Int       @id @default(autoincrement())
+  name        String
+  code_prefix String?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+  items       items[]
+
+  @@schema("inventory")
+}
+
+model inventory_snapshot {
+  id           Int       @id @default(autoincrement())
+  date         DateTime  @db.Date
+  item_id      Int
+  warehouse_id Int
+  quantity     Int
+  avg_cost     Decimal?  @db.Decimal(10, 2)
+  items        items     @relation(fields: [item_id], references: [id], map: "inventory_snapshot_item_fk")
+  warehouse    warehouse @relation(fields: [warehouse_id], references: [id], map: "inventory_snapshot_warehouse_fk")
+
+  @@unique([date, item_id, warehouse_id], map: "inventory_snapshot_unique_idx")
+  @@index([date])
+  @@schema("inventory")
+}
+
+model item_allocation {
+  id               Int              @id @default(autoincrement())
+  req_item_id      Int
+  lot_id           String
+  qty              Int
+  status           String?          @default("PENDING") @db.VarChar(20)
+  item_lot         item_lot         @relation(fields: [lot_id], references: [id], map: "item_allocation_lot_fk")
+  requisition_item requisition_item @relation(fields: [req_item_id], references: [id], onDelete: Cascade, map: "item_allocation_req_item_fk")
+
+  @@index([req_item_id], map: "idx_alloc_req_item")
+  @@schema("inventory")
+}
+
+model item_lot {
+  id              String            @id
+  item_id         Int
+  warehouse_id    Int
+  quantity        Int?              @default(0)
+  cost_price      Decimal?          @default(0) @db.Decimal(10, 2)
+  supplier_id     Int?
+  expried_at      DateTime?         @db.Timestamp(6)
+  status          String?           @default("ACTIVE") @db.VarChar(20)
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  item_allocation item_allocation[]
+  items           items             @relation(fields: [item_id], references: [id], map: "item_lot_item_fk")
+  supplier        supplier?         @relation(fields: [supplier_id], references: [id], map: "item_lot_supplier_fk")
+  warehouse       warehouse         @relation(fields: [warehouse_id], references: [id], map: "item_lot_warehouse_fk")
+
+  @@schema("inventory")
+}
+
+model items {
+  id                 Int                  @id @default(autoincrement())
+  name               String
+  code               String               @unique(map: "items_code_unique")
+  category_id        Int
+  unit_id            Int
+  min_stock          Int?                 @default(0)
+  current_stock      Int?                 @default(0)
+  image_url          String?
+  status             String?              @default("ACTIVE") @db.VarChar(20)
+  sell_price         Decimal?             @default(0) @db.Decimal(10, 2)
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  deleted_at         DateTime?            @db.Timestamp(6)
+  inventory_snapshot inventory_snapshot[]
+  item_lot           item_lot[]
+  category           category             @relation(fields: [category_id], references: [id], map: "items_category_fk")
+  unit               unit                 @relation(fields: [unit_id], references: [id], map: "items_unit_fk")
+  requisition_item   requisition_item[]
+  stock_movement     stock_movement[]
+
+  @@schema("inventory")
+}
+
+model logs_transaction {
+  id            Int       @id @default(autoincrement())
+  action        String    @db.VarChar(50)
+  module        String    @db.VarChar(50)
+  code          String?   @db.VarChar(50)
+  status        String?   @db.VarChar(20)
+  description   String?
+  created_by    String?   @db.VarChar(100)
+  created_by_id Int?
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([action])
+  @@index([code])
+  @@index([created_at])
+  @@schema("inventory")
+}
+
+model requisition_header {
+  id               Int                @id @default(autoincrement())
+  doc_no           String             @unique @db.VarChar(50)
+  type             String             @db.VarChar(50)
+  status           String?            @default("DRAFT") @db.VarChar(50)
+  department_code  String?            @db.VarChar(255)
+  department_name  String?            @db.VarChar(255)
+  requester_id     Int
+  approver_id      Int?
+  request_date     DateTime?          @default(now()) @db.Timestamp(6)
+  due_date         DateTime?          @db.Timestamp(6)
+  return_date      DateTime?          @db.Timestamp(6)
+  note             String?
+  created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?          @default(now()) @db.Timestamp(6)
+  requisition_item requisition_item[]
+
+  @@index([doc_no], map: "idx_req_header_doc_no")
+  @@index([status], map: "idx_req_header_status")
+  @@schema("inventory")
+}
+
+model requisition_item {
+  id                 Int                @id @default(autoincrement())
+  header_id          Int
+  item_id            Int
+  req_qty            Int
+  approved_qty       Int?
+  issued_qty         Int?               @default(0)
+  returned_qty       Int?               @default(0)
+  note               String?
+  item_allocation    item_allocation[]
+  requisition_header requisition_header @relation(fields: [header_id], references: [id], onDelete: Cascade, map: "requisition_item_header_fk")
+  items              items              @relation(fields: [item_id], references: [id], map: "requisition_item_item_fk")
+
+  @@index([header_id], map: "idx_req_item_header")
+  @@schema("inventory")
+}
+
+model stock_movement {
+  id            Int       @id @default(autoincrement())
+  item_id       Int
+  lot_id        String?
+  quantity      Int?      @default(0)
+  type          String    @db.VarChar(50)
+  reason        String?
+  created_by    String?
+  created_by_id Int?
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  items         items     @relation(fields: [item_id], references: [id], map: "stock_movement_item_fk")
+
+  @@schema("inventory")
+}
+
+model supplier {
+  id         Int        @id @default(autoincrement())
+  name       String
+  contact    String?
+  address    String?
+  phone      String?
+  tax_id     String?
+  active     Boolean?   @default(true)
+  created_at DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at DateTime?  @default(now()) @db.Timestamp(6)
+  item_lot   item_lot[]
+
+  @@schema("inventory")
+}
+
+model unit {
+  id         Int       @id @default(autoincrement())
+  name       String
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  items      items[]
+
+  @@schema("inventory")
+}
+
+model warehouse {
+  id                 Int                  @id @default(autoincrement())
+  name               String
+  location           String?
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  inventory_snapshot inventory_snapshot[]
+  item_lot           item_lot[]
+
+  @@schema("inventory")
+}
+
+/// We could not retrieve columns for the underlying table. Either it has none or you are missing rights to see them. Please check your privileges.
+// model users {
+// @@schema("public")
+// }

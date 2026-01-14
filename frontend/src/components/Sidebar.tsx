@@ -77,12 +77,12 @@ export default function Sidebar() {
   return (
     <aside
       className={`relative h-screen ${collapsed ? 'w-20' : 'w-72'
-        } bg-gradient-to-b from-white to-gray-50 border-r border-gray-200 flex flex-col transition-all duration-300 shadow-sm`}
+        } bg-white border-r border-gray-200 flex flex-col transition-all duration-300 shadow-sm`}
     >
       {/* Toggle */}
       <div
         className={`flex ${collapsed ? 'justify-center' : 'justify-end'
-          } px-3 py-3 border-b border-gray-200 bg-white shadow-sm`}
+          } px-3 py-3 border-b border-gray-200 bg-gray-50 shadow-sm`}
       >
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -113,12 +113,12 @@ export default function Sidebar() {
                   href={menu.path}
                   className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start gap-4'
                     } px-4 py-3 rounded-lg text-xs sm:text-sm transition-all duration-200 animate-fade-in ${active
-                      ? 'bg-gradient-to-r from-indigo-200 to-blue-200 text-indigo-800 font-medium shadow-sm'
-                      : 'text-gray-800 font-light hover:bg-indigo-100 hover:text-indigo-900 hover:scale-105'
+                      ? 'bg-indigo-600 text-white font-medium shadow-sm'
+                      : 'text-gray-700 font-light hover:bg-indigo-100 hover:text-indigo-700 hover:scale-105'
                     }`}
                 >
                   <Icon
-                    className={`w-5 h-5 sm:w-6 sm:h-6 ${active ? 'text-indigo-900 shadow-inner' : 'text-gray-700'
+                    className={`w-5 h-5 sm:w-6 sm:h-6 ${active ? 'text-white' : 'text-gray-500'
                       }`}
                   />
                   {!collapsed && <span className="truncate">{menu.name}</span>}
@@ -135,10 +135,10 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-b-xl shadow-sm">
+      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl shadow-sm">
         {!collapsed && (
           <div className="flex items-center justify-center gap-2 text-xs text-gray-600 font-light">
-            <Settings className="w-4 h-4 text-gray-700" />
+            <Settings className="w-4 h-4 text-gray-500" />
             <span>
               {type === 'warehouse'
                 ? 'Warehouse Management'
