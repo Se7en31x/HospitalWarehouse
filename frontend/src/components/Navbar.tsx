@@ -10,29 +10,25 @@ export default function Navbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
 
-  // หาชื่อโมดูล
+  // หาชื่อโมดูลและกำหนดสี Badge ตามโมดูล
   let moduleTitle = "แดชบอร์ดหลัก";
+  let moduleColor = "bg-blue-500/20 text-blue-100 border-blue-400/30";
+
   if (pathname.startsWith("/warehouse")) {
     moduleTitle = "ระบบคลังหลักโรงพยาบาล";
+    moduleColor = "bg-emerald-500/20 text-emerald-100 border-emerald-400/30";
   } else if (pathname.startsWith("/procurement")) {
     moduleTitle = "ระบบการจัดซื้อ";
+    moduleColor = "bg-amber-500/20 text-amber-100 border-amber-400/30";
   } else if (pathname.startsWith("/requests")) {
     moduleTitle = "ระบบเบิก-ยืม-คืน";
+    moduleColor = "bg-purple-500/20 text-purple-100 border-purple-400/30";
   }
 
-  // mock user data
-  const userRole = "เจ้าหน้าที่คลังพัสดุ";
   const userName = "สมชาย ใจดี";
-  const userImage: string | null = null;
+  const userRole = "เจ้าหน้าที่คลังพัสดุ";
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005EB8&color=fff&rounded=true&size=128`;
 
-  // avatar fallback
-  const avatarUrl =
-    userImage ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(
-      userName
-    )}&background=F59E0B&color=fff&rounded=true&size=128`;
-
-  // Mock notification data with type for icons
   const notifications = [
     { id: 1, message: "มีการเบิกพัสดุใหม่ #1234", time: "10 นาทีที่แล้ว", type: "info" },
     { id: 2, message: "สต็อกยาครบกำหนดตรวจสอบ", time: "1 ชั่วโมงที่แล้ว", type: "warning" },
@@ -40,154 +36,109 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 text-white shadow-lg relative">
-      {/* Background decorative elements */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-        <div className="absolute top-4 right-4 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-4 left-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+    <header className="w-full bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-950 text-white shadow-xl relative z-[50]">
+      {/* <header className="w-full bg-gradient-to-r from-blue-800 via-blue-900 to-slate-900 text-white shadow-xl relative z-5000"> */}
+      {/* Decorative Background Elements */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <div className="absolute -top-10 -left-10 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-20 w-32 h-32 bg-blue-400 rounded-full blur-2xl"></div>
       </div>
       
-      <div className="relative z-10">
-        <div className="flex items-center justify-between px-6 py-3">
+      <div className="relative z-10 border-b border-white/5">
+        <div className="flex items-center justify-between px-6 py-2.5">
           {/* โลโก้และชื่อระบบ */}
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-md">
-                <Image
-                  src="/logo/logo.png"
-                  alt="Hospital Logo"
-                  width={32}
-                  height={32}
-                  className="object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    const parent = (e.target as HTMLImageElement).parentElement;
-                    if (parent) {
-                      parent.innerHTML = '<span class="text-2xl">🏥</span>';
-                    }
-                  }}
-                />
-              </div>
+            <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-inner">
+              <Image
+                src="/logo/logo.png"
+                alt="Logo"
+                width={28}
+                height={28}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  const parent = (e.target as HTMLImageElement).parentElement;
+                  if (parent) parent.innerHTML = '<span class="text-xl">🏥</span>';
+                }}
+              />
             </div>
             
-            <div className="space-y-1">
-              <h1 className="text-xl font-semibold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-                ระบบบริหารจัดการโรงพยาบาล
+            <div className="flex flex-col">
+              <h1 className="text-lg font-bold tracking-tight text-white/95">
+                HOSPITAL <span className="text-blue-400 font-medium text-sm ml-1 uppercase tracking-widest">InveSys</span>
               </h1>
-              <div className="flex items-center gap-2">
-                <span className="text-lg"></span>
-                <p className="text-sm text-blue-100 font-medium">{moduleTitle}</p>
+              <div className={`mt-0.5 px-2 py-0.5 rounded border text-[10px] font-semibold w-fit uppercase ${moduleColor}`}>
+                {moduleTitle}
               </div>
             </div>
           </div>
 
           {/* ไอคอนและโปรไฟล์ */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* กระดิ่งแจ้งเตือน */}
             <div className="relative">
               <button
                 onClick={() => setShowNotificationMenu(!showNotificationMenu)}
-                className="relative p-2 hover:bg-white/10 rounded-lg transition-all duration-300 group"
-                aria-label="เปิดการแจ้งเตือน"
+                className="p-2 hover:bg-white/10 rounded-full transition-colors relative group"
               >
-                <Bell className="w-5 h-5 group-hover:scale-105 transition-transform duration-300" />
-                <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white animate-pulse"></span>
+                <Bell className="w-5 h-5 text-blue-100 group-hover:text-white" />
+                <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-blue-900"></span>
               </button>
 
-              {/* Notification Popover */}
               {showNotificationMenu && (
-                <div className="fixed right-6 top-[4rem] w-80 bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-gray-100/50 z-50 animate-slide-in">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-base font-semibold text-gray-900">การแจ้งเตือน</p>
+                <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-900">การแจ้งเตือนล่าสุด</p>
                   </div>
-                  <div className="max-h-72 overflow-y-auto">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className="flex items-start gap-3 px-4 py-3 text-gray-800 hover:bg-indigo-50/50 transition-all duration-200 border-b border-gray-100/50 last:border-b-0"
-                      >
-                        {notification.type === "info" && <Package className="w-4 h-4 text-blue-600 mt-0.5" />}
-                        {notification.type === "warning" && <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />}
-                        {notification.type === "success" && <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />}
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.map((n) => (
+                      <div key={n.id} className="flex gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
+                        <div className={`mt-0.5 p-1.5 rounded-full ${n.type === 'warning' ? 'bg-amber-100 text-amber-600' : n.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {n.type === "info" && <Package className="w-3.5 h-3.5" />}
+                          {n.type === "warning" && <AlertCircle className="w-3.5 h-3.5" />}
+                          {n.type === "success" && <CheckCircle className="w-3.5 h-3.5" />}
+                        </div>
                         <div>
-                          <p className="text-sm font-medium">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{notification.time}</p>
+                          <p className="text-xs font-semibold text-gray-800">{n.message}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
                         </div>
                       </div>
                     ))}
-                    {notifications.length === 0 && (
-                      <div className="px-4 py-4 text-gray-600 text-sm text-center">
-                        ไม่มีการแจ้งเตือน
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
             </div>
 
+            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+
             {/* โปรไฟล์ */}
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2 p-2 hover:bg-white/10 rounded-lg transition-all duration-300 group"
-                aria-label="เปิดเมนูโปรไฟล์"
+                className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group"
               >
-                <div className="flex flex-col text-right">
-                  <span className="text-sm font-medium text-white group-hover:text-blue-100 transition-colors">
-                    {userName}
-                  </span>
-                  <span className="text-xs text-blue-100/80">
-                    {userRole}
-                  </span>
+                <div className="flex flex-col items-end leading-none">
+                  <span className="text-sm font-semibold text-white">{userName}</span>
+                  <span className="text-[10px] text-blue-200/70 mt-1 uppercase tracking-tighter font-medium">{userRole}</span>
                 </div>
-                
                 <div className="relative">
-                  <Image
-                    src={avatarUrl}
-                    alt="User Avatar"
-                    width={36}
-                    height={36}
-                    className="rounded-full border-2 border-white/50 object-cover shadow-sm group-hover:border-white transition-all duration-300"
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
+                  <Image src={avatarUrl} alt="User" width={32} height={32} className="rounded-full ring-2 ring-white/20 group-hover:ring-white/50 transition-all" />
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-blue-900"></div>
                 </div>
-                
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${showProfileMenu ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Profile Dropdown */}
               {showProfileMenu && (
-                <div className="fixed right-6 top-[4rem] w-64 bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-gray-100/50 z-50 animate-slide-in">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <Image
-                        src={avatarUrl}
-                        alt="User Avatar"
-                        width={32}
-                        height={32}
-                        className="rounded-full shadow-sm"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{userName}</p>
-                        <p className="text-xs text-gray-500">{userRole}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    <button className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-800 hover:bg-indigo-50/50 hover:text-indigo-700 transition-all duration-200">
-                      <User className="w-4 h-4 text-indigo-600" />
-                      <span>โปรไฟล์</span>
+                <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
+                  <div className="p-1">
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors">
+                      <User className="w-4 h-4 text-blue-600" /> โปรไฟล์
                     </button>
-                    <button className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-800 hover:bg-indigo-50/50 hover:text-indigo-700 transition-all duration-200">
-                      <Settings className="w-4 h-4 text-indigo-600" />
-                      <span>ตั้งค่า</span>
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors">
+                      <Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ
                     </button>
-                    <hr className="my-1 mx-4 border-gray-100/50" />
-                    <button className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50/50 hover:text-red-700 transition-all duration-200">
-                      <LogOut className="w-4 h-4 text-red-600" />
-                      <span>ออกจากระบบ</span>
+                    <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <LogOut className="w-4 h-4" /> ออกจากระบบ
                     </button>
                   </div>
                 </div>
@@ -195,21 +146,7 @@ export default function Navbar() {
             </div>
           </div>
         </div>
-
-        {/* Bottom gradient line */}
-        <div className="h-0.5 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
       </div>
-
-      {/* Click outside to close dropdowns */}
-      {(showProfileMenu || showNotificationMenu) && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => {
-            setShowProfileMenu(false);
-            setShowNotificationMenu(false);
-          }}
-        />
-      )}
     </header>
   );
 }

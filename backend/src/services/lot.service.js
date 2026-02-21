@@ -1,173 +1,68 @@
-const { PrismaClient } = require('@prisma/client')
-const prisma = new PrismaClient()
+const lotRepo = require('../repositories/lot.repo');
+const DTO = require('../dtos/lot.dto');
 
-const getAllLots = async () => {
-    try {
-        const lots = await prisma.item_lot.findMany({
-            where: { deleted_at: null },
-            orderBy: { created_at: 'desc' },
-            include: {
-                items: {
-                    select: {
-                        id: true,
-                        name: true,
-                        code: true,
-                        image_url: true,
-                        category: {
-                            select: { name: true }
-                        },
-                        unit: {
-                            select: { name: true }
-                        }
-                    }
-                },
-                warehouse: {
-                    select: {
-                        id: true,
-                        name: true,
-                        location: true
-                    }
-                }
-            }
-        });
-        const formatLots = lots.map(lot => {
-            return {
-                id: lot.id,
-                item_id: lot.item_id,
-                item_code: lot.items?.code || "-",
-                item_name: lot.items?.name || "ไม่ระบุชื่อสินค้า",
-                image_url: lot.image_url || lot.items?.image_url || "", // ใช้รูป Lot ก่อน ถ้าไม่มีใช้รูป Item
-                category_name: lot.items?.category?.name || "-",
-                unit_name: lot.items?.unit?.name || "ชิ้น",
-                quantity: lot.quantity || 0,
-                expiry_date: lot.expried_at,
-                status: lot.status || "active",
-                warehouse_name: lot.warehouse?.name || "-",
-                created_at: lot.created_at
-            };
-        });
+const getAllLots = async (query) => {
 
-        return formatLots;
+    const page = parseInt(query.page) || 1;
+    const limit = parseInt(query.limit) || 10;
+    const offset = (page - 1) * limit;
 
-    } catch (error) {
-        console.error("Error getting all lots:", error);
-        throw new Error("Cannot fetch lots data");
-    }
+    const where = lotRepo.whereClause({
+        search: query.search,
+        warehouse: query.warehouse,
+        category: query.category,
+        status: query.status
+    });
+    const { lots, total } = await lotRepo.selectAllLot({ where, offset, limit })
+
+    return {
+        metaData: {
+            page: page,
+            limit: limit,
+            total: total,
+            totalPages: Math.ceil(total / limit)
+        },
+        data: lots,
+
+    };
 }
 
 const getLotById = async (id) => {
-    try {
-        const lot = await prisma.item_lot.findUnique({
-            where: { id: id },
-            include: {
-                items: {
-                    include: {
-                        category: true,
-                        unit: true
-                    }
-                },
-                warehouse: true
-            }
-        });
-
-        if (!lot) return null;
-
-        // Format แบบเดียวกับ getAllLots
-        return {
-            id: lot.id,
-            item_id: lot.item_id,
-            item_code: lot.items?.code,
-            item_name: lot.items?.name,
-            image_url: lot.image_url || lot.items?.image_url,
-            category_name: lot.items?.category?.name,
-            unit_name: lot.items?.unit?.name,
-            quantity: lot.quantity,
-            expiry_date: lot.expried_at, // ⚠️ ตาม Schema
-            status: lot.status,
-            warehouse_name: lot.warehouse?.name,
-            warehouse_id: lot.warehouse_id,
-            created_at: lot.created_at
-        };
-
-    } catch (error) {
-        console.error(`Error getting lot id ${id}:`, error);
-        throw error;
-    }
-};
-
-const adjustLot = async (lot_id, payload, user) => {
-
-    const { quantity, type, reason } = payload;
-    const adjustQty = parseInt(quantity);
-
-    return await prisma.$transaction(async (tx) => {
-        const lot = await tx.item_lot.findUnique({
-            where: { id: lot_id }
-        });
-        if (!lot) throw new Error("ไม่พบช้อมูล Lot");
-
-        let newQuantity = 0;
-        let diffQuantity = 0;
-        const currentQty = lot.quantity || 0;
-
-        if (type === 'adjust') {
-            if (adjustQty < 0) throw new Error("จำนวนต้องไม่ติดลบ");
-            newQuantity = adjustQty;
-            diffQuantity = newQuantity - currentQty;
-        } else if (['damage', 'expire'].includes(type)) {
-            if (adjustQty <= 0) throw new Error("กรุณาระบุจำนวนที่ชำรุดให้ถูกต้อง");
-            if (adjustQty > currentQty) throw new Error("กรุณาระบุจำนวนที่หมดอายุให้ถูกต้อง");
-
-            newQuantity = currentQty - adjustQty;
-            diffQuantity = -adjustQty;
-        } else {
-            throw new Error("failed to adjust");
-        }
-
-        let newStatus = lot.status;
-        if (newQuantity === 0) {
-            newStatus = 'out_of_stock';
-        } else if (newQuantity > 0 && lot.status == 'out_of_stock') {
-            newStatus = 'active';
-        }
-
-        const updateLot = await tx.item_lot.update({
-            where: { id: lot_id },
-            data: {
-                quantity: newQuantity,
-                status: newStatus
-            }
-        });
-
-        await tx.stock_movement.create({
-            data: {
-                item_id: lot.item_id,
-                lot_id: lot.id,
-                quantity: diffQuantity,
-                type: type,
-                reason: reason,
-                created_by_id: parseInt(user.id) || 999,
-                created_by: user.name
-            }
-        });
-        return updateLot;
-    });
+    const lot = await lotRepo.selectLotById(id);
+    return lot;
 }
 
-const deleteLot = async (lot_id, user) => {
-    return await prisma.item_lot.update({
-        where: { id: lot_id },
-        data: {
-            deleted_at: new Date(),
-            deleted_by: user.name,
-            deleted_by_id: String(user.id)
-        }
-    });
-};
+const createLot = async (payload) => {
+    const generatedCode = await lotRepo.generateLotCode(payload.item_id);
+    const data = DTO.createLotDTO(payload, generatedCode);
+    const newLot = await lotRepo.createLot(data);
+    return newLot
+}
+
+const adjustLot = async (lotCode, payload) => {
+    const existingLot = await lotRepo.selectLotById(lotCode);
+    if (!existingLot) throw new Error("Lot id not found");
+
+    const data = DTO.adjustLotDTO(payload)
+    const updatedLot = await lotRepo.updateLot(lotCode, data)
+    return updatedLot;
+
+}
+
+const deleteLot = async (lotCode, claim) => {
+    const existingLot = await lotRepo.selectLotById(lotCode);
+    if (!existingLot) throw new Error("Lot id not found");
+
+    const data = DTO.deleteLotDTO(claim.user_id)
+    return await lotRepo.updateLot(lotCode, data)
+
+}
 
 module.exports = {
     getAllLots,
     getLotById,
+    createLot,
     adjustLot,
     deleteLot,
+
 };

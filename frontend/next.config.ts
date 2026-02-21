@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // output: 'standalone', 
   images: {
     remotePatterns: [
       {
@@ -8,7 +9,7 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "api.dicebear.com", // เผื่อใช้ dicebear
+        hostname: "api.dicebear.com",
       },
     ],
   },

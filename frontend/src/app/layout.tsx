@@ -16,7 +16,7 @@ export default function RootLayout({
         {/* ✅ Sidebar + Content */}
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
-            <main className="flex-1 p-6 overflow-y-auto">
+            <main className="flex-1  overflow-y-auto">
               <div className="max-w-8xl mx-auto">{children}</div>
             </main>
         </div>

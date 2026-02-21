@@ -18,7 +18,7 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
     unit: item.unit?.name || "ชิ้น",
     location: item.warehouse?.name || "-",
     stock: item.current_stock || 0,
-    minStock: item.min_stock || 0, // ✅ อิงตาม UiItem.minStock
+    minStock: item.min_stock || 0, 
     price: 0,
     status: item.status,
     imageUrl: item.image_url || "",
