@@ -46,7 +46,7 @@ export default function AuthPage() {
           router.push('/warehouse');
         } 
         else if (requesterRoles.includes(role)) {
-          // 3. ตรงนี้เปลี่ยนเป็น /requests/withdraw ตามที่คุณมีโฟลเดอร์ไว้
+
           router.push('/requests/withdraw'); 
         } 
         else if (procurementRoles.includes(role)) {
@@ -61,7 +61,7 @@ export default function AuthPage() {
         router.push('/login-error');
       }
     } else {
-       // ถ้าไม่มี token ใน URL เลย ให้ดีดไปหน้า error หรือหน้าแจ้งเตือน
+       
        router.push('/unauthorized');
     }
   }, [searchParams, router]);

@@ -16,6 +16,7 @@ const getItemById = async (id) => {
 }
 
 const createItem = async (data) => {
+    
     const itemCode = await itemRepo.generateItemCode(data.category_id);
     const payload = DTO.createItemDTO(data, itemCode);
     const newItem = await itemRepo.createItem(payload);

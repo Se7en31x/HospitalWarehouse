@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import * as ItemSvc from "@/services/inventoryService";
-import * as Item from "../../interfaces/item.interface"; 
+import * as Item from "../../interfaces/item.interface";
 import { socket } from "../../utils/socket";
 
 interface FormErrors {
@@ -55,7 +55,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [items, setItems] = useState<Item.UiItem[]>(initialItems || []);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
-  
+
   // ✅ State สำหรับ Options (Dropdowns)
   const [options, setOptions] = useState<Item.AllOptions>({
     category: [],
@@ -86,11 +86,10 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     if (!socket.connected) socket.connect();
 
     // 2. ฟังก์ชันจัดการเมื่อได้รับสัญญาณ
-    const handleRefreshSignal = (message: any) => {
-      // เช็คว่าสัญญาณที่ส่งมาคือ 'ITEMS' (ตรงกับ req.io.emit ใน Backend)
+    const handleRefreshSignal = (message: string) => {
       if (message === 'ITEMS') {
         console.log("⚡ Socket: Received Refresh Signal -> Reloading Data...");
-        refreshData(); // <--- สั่งดึงข้อมูลใหม่ทันที
+        refreshData();
       }
     };
 
@@ -101,9 +100,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     return () => {
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData]); // ใส่ refreshData เป็น dependency
+  }, [refreshData]);
 
-  // --- [Initial Load Options] ---
   useEffect(() => {
     const fetchOptions = async () => {
       try {
@@ -114,7 +112,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       }
     };
     fetchOptions();
-    
+
     // โหลดข้อมูลใหม่หากไม่มีข้อมูลเริ่มต้น
     if (!initialItems || initialItems.length === 0) {
       refreshData();
@@ -136,17 +134,17 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
   // Logic การ Filter
   const filterCategories = ["ทั้งหมด", ...(options.category || []).map(c => c.name)];
-  
+
   const filteredItems = items.filter((item) => {
     const term = searchTerm.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       (item.code || "").toLowerCase().includes(term) ||
       (item.name || "").toLowerCase().includes(term) ||
       (item.category || "").toLowerCase().includes(term);
-      
+
     const matchesCat = selectedCategory === "ทั้งหมด" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "ทั้งหมด" || item.status === selectedStatus;
-    
+
     return matchesSearch && matchesCat && matchesStatus;
   });
 
@@ -163,6 +161,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     return errors;
   };
 
+  // Handler สำหรับเพิ่มพัสดุใหม่
   const handleAddItem = async () => {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) return setFormErrors(errors);
@@ -178,8 +177,10 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
         status: "ACTIVE",
         image_url: formData.imageUrl
       };
+
       await ItemSvc.createInventoryItem(payload);
       toast.success("บันทึกสำเร็จ");
+
       // ไม่ต้องสั่ง refreshData() ตรงนี้ เพราะ Backend จะส่ง Socket กลับมาสั่งให้ refresh เอง
       setIsAddModalOpen(false);
       resetForm();
@@ -205,6 +206,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
         status: formData.status,
         image_url: formData.imageUrl
       };
+
       await ItemSvc.updateInventoryItem(selectedItem.id, payload);
       toast.success("แก้ไขข้อมูลเรียบร้อย");
       // รอ Socket สั่ง Refresh
@@ -282,7 +284,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
       <Toaster position="top-right" />
-      
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
@@ -356,7 +358,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                   <td colSpan={10} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+                  <td colSpan={10} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
                 </tr>
               )}
             </tbody>
@@ -382,17 +384,17 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               <h3 className="text-xl font-bold text-slate-800">{isAddModalOpen ? "เพิ่มรายการพัสดุ" : "แก้ไขข้อมูลพัสดุ"}</h3>
               <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
             </div>
-            
+
             <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-semibold mb-2 text-slate-700">ชื่อพัสดุ</label>
-                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded-xl border border-slate-200 p-3 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full rounded-xl border border-slate-200 p-3 focus:ring-2 focus:ring-indigo-500 outline-none" />
                 {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
               </div>
 
               <div>
                 <label className="block text-sm font-semibold mb-2 text-slate-700">หมวดหมู่</label>
-                <select disabled={isEditModalOpen} value={formData.category_id} onChange={e => setFormData({...formData, category_id: e.target.value})} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50">
+                <select disabled={isEditModalOpen} value={formData.category_id} onChange={e => setFormData({ ...formData, category_id: e.target.value })} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50">
                   <option value="">-- เลือกหมวดหมู่ --</option>
                   {options.category?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -401,7 +403,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
               <div>
                 <label className="block text-sm font-semibold mb-2 text-slate-700">หน่วยนับ</label>
-                <select value={formData.unit_id} onChange={e => setFormData({...formData, unit_id: e.target.value})} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500">
+                <select value={formData.unit_id} onChange={e => setFormData({ ...formData, unit_id: e.target.value })} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">-- เลือกหน่วย --</option>
                   {options.unit?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
@@ -409,7 +411,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
               <div>
                 <label className="block text-sm font-semibold mb-2 text-slate-700">ตำแหน่งเก็บ (คลัง)</label>
-                <select value={formData.warehouse_id} onChange={e => setFormData({...formData, warehouse_id: e.target.value})} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500">
+                <select value={formData.warehouse_id} onChange={e => setFormData({ ...formData, warehouse_id: e.target.value })} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">-- เลือกคลัง --</option>
                   {options.warehouse?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
@@ -417,7 +419,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
               <div>
                 <label className="block text-sm font-semibold mb-2 text-slate-700">จำนวนขั้นต่ำ (Min Stock)</label>
-                <input type="number" value={formData.min_stock} onChange={e => setFormData({...formData, min_stock: Number(e.target.value)})} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input type="number" value={formData.min_stock} onChange={e => setFormData({ ...formData, min_stock: Number(e.target.value) })} className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div className="md:col-span-2">

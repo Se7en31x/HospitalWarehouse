@@ -8,7 +8,6 @@ interface Department {
 }
 
 interface DecodedToken {
-  // 1. เปลี่ยนจาก id: string เป็น user_id: string ตามที่คุณต้องการ
   user_id: string; 
   user_fullname: string;
   role: string;

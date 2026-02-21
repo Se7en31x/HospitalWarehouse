@@ -41,7 +41,7 @@ model item_allocation {
   lot_id           String
   qty              Int
   status           String?          @default("PENDING") @db.VarChar(20)
-  item_lot         item_lot         @relation(fields: [lot_id], references: [id], map: "item_allocation_lot_fk")
+  item_lot         item_lot         @relation(fields: [lot_id], references: [lot_code], map: "item_allocation_lot_fk")
   requisition_item requisition_item @relation(fields: [req_item_id], references: [id], onDelete: Cascade, map: "item_allocation_req_item_fk")
 
   @@index([req_item_id], map: "idx_alloc_req_item")
@@ -49,7 +49,7 @@ model item_allocation {
 }
 
 model item_lot {
-  id              String            @id
+  lot_code        String            @id
   item_id         Int
   warehouse_id    Int
   quantity        Int?              @default(0)
@@ -62,6 +62,10 @@ model item_lot {
   items           items             @relation(fields: [item_id], references: [id], map: "item_lot_item_fk")
   supplier        supplier?         @relation(fields: [supplier_id], references: [id], map: "item_lot_supplier_fk")
   warehouse       warehouse         @relation(fields: [warehouse_id], references: [id], map: "item_lot_warehouse_fk")
+  deleted_at      DateTime?         @db.Timestamp(6)
+  deleted_by      Int?
+  updated_at      DateTime?         @default(now()) @db.Timestamp(6)
+  reason          String?           @db.VarChar(255)
 
   @@schema("inventory")
 }

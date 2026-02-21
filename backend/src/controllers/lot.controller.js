@@ -1,19 +1,12 @@
 const lotService = require('../services/lot.service');
+const { sendResponse } = require('../utils/response');
 
 const getAllLots = async (req, res) => {
     try {
-        const lots = await lotService.getAllLots();
-        res.status(200).json({
-            status: "ok",
-            message: "Get lots success",
-            data: lots
-        });
+        const lots = await lotService.getAllLots(req.query);
+        return sendResponse(res, 200, "List all lots success", lots);
     } catch (error) {
-        console.error("Get Lots Error:", error);
-        res.status(500).json({
-            status: "error",
-            error: error.message || "Internal Server Error"
-        });
+        return sendResponse(res, 500, error.message || "Internal Server Error");
     }
 }
 
@@ -22,59 +15,38 @@ const getLotById = async (req, res) => {
         const { id } = req.params;
         const lot = await lotService.getLotById(id);
         if (!lot) {
-            return res.status(404).json({
-                status: "error",
-                error: "Lot not found"
-            });
+            return sendResponse(res, 404, "Lot not found");
         }
 
-        res.status(200).json({
-            status: "ok",
-            data: lot
-        });
-
+        return sendResponse(res, 200, "Get lot by ID success", lot);
     } catch (error) {
-        console.error(`Get Lot ID ${req.params.id} Error:`, error);
-        res.status(500).json({
-            status: "error",
-            error: error.message || "Internal Server Error"
-        });
+        return sendResponse(res, 500, error.message || "Internal Server Error");
     }
 };
+
+const createLot = async (req, res) => {
+    try {
+        const newLot = await lotService.createLot(req.body);
+        
+        return sendResponse(res, 201, "Create lot success", newLot);
+    } catch (error) {
+        return sendResponse(res, 500, error.message || "Internal Server Error");
+    }
+}
+
 
 const adjustLot = async (req, res) => {
     try {
         const { id } = req.params;
-        const { quantity, type, reason, user_id, username } = req.body;
+        const payload = req.body;
         // validation
         if (!id) {
-            return res.status(400).json({ success: false, message: "ไม่ระบุ Lot ID" });
+            return res.status(400).json({ success: false, message: "Invalid lot code" });
         }
-        if (!type || quantity === undefined) {
-            return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน (quantity, type)" });
-        }
-
-        const user = {
-            id: user_id || req.user?.id || '0',
-            name: username || req.user?.username || 'System'
-        };
-
-        const result = await lotService.adjustLot(
-            id,
-            { quantity, type, reason },
-            user
-        );
-        return res.status(200).json({
-            success: true,
-            message: "บันทึกข้อมูลเรียบร้อย",
-            data: result
-        });
+        const result = await lotService.adjustLot(id, payload);
+        return sendResponse(res, 200, "adjust lot success", result);
     } catch (error) {
-        console.error("🔥 Adjust Lot Error:", error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || "เกิดข้อผิดพลาด"
-        });
+        return sendResponse(res, 500, error.message || "Internal Server Error");
     }
 }
 
@@ -82,33 +54,26 @@ const adjustLot = async (req, res) => {
 const deleteLot = async (req, res) => {
     try {
         const { id } = req.params;
-        const { user_id, username } = req.body;
-
         // Validation 
         if (!id) {
             return res.status(400).json({ success: false, message: "ไม่ระบุ Lot ID" });
         }
-        const user = {
-            id: user_id || req.user?.id || '0', 
-            name: username || req.user?.username || 'System'
-        };
-        await lotService.deleteLot(id, user);
-        return res.status(200).json({
-            success: true,
-            message: "ลบข้อมูลเรียบร้อย" 
-        });
+        const claim = {
+            user_id: req.user.user_id,
+        }
+
+        await lotService.deleteLot(id, claim);
+        return sendResponse(res, 200, "delete lot success");
 
     } catch (error) {
-        console.error("🔥 Delete Lot Error:", error);
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        return sendResponse(res, 500, error.message || "Internal Server Error");
     }
 };
+
 module.exports = {
     getAllLots,
     getLotById,
     adjustLot,
     deleteLot,
+    createLot,
 };
