@@ -9,16 +9,12 @@ dayjs.extend(timezone);
 const createLotDTO = (payload, generatedLotCode) => {
     return {
         lot_code: generatedLotCode,
-        item_id: Number(payload.item_id),
-        warehouse_id: Number(payload.warehouse_id),
+        item_id: payload.item_id,
+        warehouse_id: payload.warehouse_id,
         quantity: Number(payload.quantity),
         cost_price: payload.cost_price, 
-        supplier_id: payload.supplier_id ? Number(payload.supplier_id) : null,
-        
-        // แก้ตรงนี้: ใช้ dayjs แปลง
-        // .toDate() จะแปลงเป็น Date Object มาตรฐานของ JS ให้ Prisma เอาไปเก็บ
+        supplier_id: payload.supplier_id || null,
         expried_at: dayjs(payload.expried_at).toDate(),
-        
         status: 'ACTIVE',
         created_at: new Date()
     };
@@ -33,10 +29,11 @@ const adjustLotDTO = (payload) => {
 }
 
 const deleteLotDTO = (userID) => {
+    const deletedBy = Number(userID);
     return {
         status: 'DELETED',
         deleted_at: new Date(),
-        deleted_by: Number(userID),
+        deleted_by: Number.isNaN(deletedBy) ? null : deletedBy,
     };
 };
 

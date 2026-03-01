@@ -47,7 +47,7 @@ const createRequisition = async (data, userSession) => {
                 due_date: data.due_date ? new Date(data.due_date) : null,
                 requisition_item: {
                     create: data.items.map((item) => ({
-                        item_id: Number(item.item_id),
+                        item_id: item.item_id,
                         req_qty: Number(item.qty),
                         approved_qty: Number(item.qty),
                         note: item.note,
@@ -84,7 +84,7 @@ const getRequisitions = async (filters = {}) => {
         },
         include: {
             requisition_item: {
-                include: { item: { select: { name: true, code: true, current_stock: true } } }
+                include: { items: { select: { name: true, code: true, current_stock: true } } }
             }
         },
         orderBy: { request_date: 'desc' }
@@ -94,7 +94,7 @@ const getRequisitions = async (filters = {}) => {
 const getRequisitionById = async (id) => {
     return await prisma.requisition_header.findUnique({
         where: { id: Number(id) },
-        include: { requisition_item: { include: { item: true } } }
+        include: { requisition_item: { include: { items: true } } }
     });
 };
 
@@ -122,7 +122,7 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
             if (qtyNeeded <= 0) continue;
 
             // จัดการตัดสต็อกตามล็อต (FEFO)
-            const lots = await tx.item_lot.findMany({
+            const lots = await tx.item_lots.findMany({
                 where: { item_id: reqItem.item_id, quantity: { gt: 0 } },
                 orderBy: { expried_at: 'asc' }
             });
@@ -133,13 +133,13 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
                 const take = Math.min(remaining, lot.quantity);
                 remaining -= take;
 
-                await tx.item_lot.update({ where: { id: lot.id }, data: { quantity: { decrement: take } } });
-                await tx.item_allocation.create({ data: { req_item_id: rItemId, lot_id: lot.id, qty: take, status: "COMPLETED" } });
-                await tx.stock_movement.create({
+                await tx.item_lots.update({ where: { lot_code: lot.lot_code }, data: { quantity: { decrement: take } } });
+                await tx.item_allocation.create({ data: { req_item_id: rItemId, lot_id: lot.lot_code, qty: take, status: "COMPLETED" } });
+                await tx.stocks_movement.create({
                     data: {
-                        item_id: reqItem.item_id, lot_id: lot.id, quantity: take, type: "OUT",
+                        item_id: reqItem.item_id, lot_id: lot.lot_code, quantity: take, type: "OUT",
                         reason: `เบิกตามใบงาน: ${header.doc_no}`,
-                        created_by: userSession.user_fullname, created_by_id: parseInt(userSession.user_id)
+                        created_by: userSession.user_fullname, created_by_id: Number(userSession.user_id)
                     }
                 });
             }
@@ -151,13 +151,13 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
             data: {
                 action: "APPROVE", module: "WAREHOUSE", code: header.doc_no,
                 description: `อนุมัติจ่ายพัสดุ รวม ${totalQty} ชิ้น`,
-                status: "SUCCESS", created_by: userSession.user_fullname, created_by_id: parseInt(userSession.user_id)
+                status: "SUCCESS", created_by: userSession.user_fullname, created_by_id: Number(userSession.user_id)
             }
         });
 
         return await tx.requisition_header.update({
             where: { id: Number(headerId) },
-            data: { status: "COMPLETED", approver_id: parseInt(userSession.user_id), updated_at: new Date() }
+            data: { status: "COMPLETED", approver_id: Number(userSession.user_id), updated_at: new Date() }
         });
     });
 };
@@ -171,13 +171,13 @@ const rejectRequisition = async (headerId, note, userSession) => {
             data: {
                 action: "REJECT", module: "WAREHOUSE", code: header.doc_no,
                 description: `ปฏิเสธใบเบิก ${header.doc_no} เหตุผล: ${note || 'ไม่ระบุ'}`,
-                status: "SUCCESS", created_by: userSession.user_fullname, created_by_id: parseInt(userSession.user_id)
+                status: "SUCCESS", created_by: userSession.user_fullname, created_by_id: Number(userSession.user_id)
             }
         });
 
         return await tx.requisition_header.update({
             where: { id: Number(headerId) },
-            data: { status: "REJECTED", note: note, approver_id: parseInt(userSession.user_id), updated_at: new Date() }
+            data: { status: "REJECTED", note: note, approver_id: Number(userSession.user_id), updated_at: new Date() }
         });
     });
 };

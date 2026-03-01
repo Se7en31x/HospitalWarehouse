@@ -13,7 +13,7 @@ const getItems = async (req, res) => {
 const getItemById = async (req, res) => {
     try {
         // validator parameter 
-        const id = parseInt(req.params.id)
+        const { id } = req.params;
         if (!id) {
             return sendResponse(res, 400, "Invalid this parameter");
         }
@@ -53,7 +53,7 @@ const createItem = async (req, res) => {
 
 const updateItem = async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
+        const { id } = req.params;
         const data = req.body;
         if (!data) {
             return sendResponse(res, 400, "Invalid body data")
@@ -70,7 +70,7 @@ const updateItem = async (req, res) => {
 
 const softDeletedItem = async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
+        const { id } = req.params;
         if (!id) {
             return sendResponse(res, 400, "Invalid this parameter");
         }

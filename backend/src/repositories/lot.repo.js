@@ -5,13 +5,13 @@ const dayjs = require('dayjs');
 
 const generateLotCode = async (item_id) => {
     console.log("Generating lot code for item_id:", item_id);
-    const item = await prisma.items.findUnique({ where: { id: item_id }, include: { category: true } });
+    const item = await prisma.items.findUnique({ where: { id: item_id }, include: { categories: true } });
     if (!item) throw new Error("Item not found for generating lot code");
-    const prefix = item.category.code_prefix;
+    const prefix = item.categories?.code_prefix || 'ITEM';
     const dateStr = dayjs().format('YYMMDD');
 
     const searchPattern = `${prefix}-${dateStr}-`;
-    const lastLot = await prisma.item_lot.findFirst({
+    const lastLot = await prisma.item_lots.findFirst({
         where: {
             lot_code: { startsWith: searchPattern }
         },
@@ -43,10 +43,10 @@ const whereClause = ({ search, warehouse, category, status }) => {
         });
     }
     if (warehouse && warehouse !== 'ทั้งหมด') {
-        where.AND.push({ warehouse_id: Number(warehouse) });
+        where.AND.push({ warehouse_id: warehouse });
     }
     if (category && category !== 'ทั้งหมด') {
-        where.AND.push({ items: { category: { name: category } } });
+        where.AND.push({ items: { categories: { name: category } } });
     }
 
     const today = dayjs();
@@ -67,20 +67,20 @@ const whereClause = ({ search, warehouse, category, status }) => {
 
 const selectAllLot = async ({ where, offset, limit }) => {
     const [lots, total] = await prisma.$transaction([
-        prisma.item_lot.findMany({
+        prisma.item_lots.findMany({
             where,
             skip: offset,
             take: limit,
             include: {
                 items: {
-                    include: { category: true, unit: true }
+                    include: { categories: true, unit: true }
                 },
-                warehouse: true,
+                warehouses: true,
                 supplier: true
             },
             orderBy: { expried_at: 'asc' }
         }),
-        prisma.item_lot.count({ where })
+        prisma.item_lots.count({ where })
     ]);
     return { lots, total }
 };
@@ -88,16 +88,16 @@ const selectAllLot = async ({ where, offset, limit }) => {
 const selectLotById = async (id) => {
     if (!id) return null; 
 
-    const lot = await prisma.item_lot.findUnique({
+    const lot = await prisma.item_lots.findUnique({
         where: { lot_code: id },
         include: {
             items: {
                 include: { 
-                    category: true, 
+                    categories: true, 
                     unit: true 
                 }
             },
-            warehouse: true,
+            warehouses: true,
             supplier: true
         },
     });
@@ -106,12 +106,12 @@ const selectLotById = async (id) => {
 };
 
 const createLot = async (data) => {
-    const newLot = await prisma.item_lot.create({ data });
+    const newLot = await prisma.item_lots.create({ data });
     return newLot;
 }
 
 const updateLot = async (lotCode, data) => {
-    return await prisma.item_lot.update({
+    return await prisma.item_lots.update({
         where: { lot_code: lotCode },
         data: data
     });

@@ -19,8 +19,6 @@ const updateItemDTO = (data) => ({
 
 const softDeleteDTO = (user_id, user_name) => ({
     deleted_at: new Date(),
-    deleted_by: user_name,
-    deleted_by_id: user_id,
     status: "UNAVAILABLE",
 });
 

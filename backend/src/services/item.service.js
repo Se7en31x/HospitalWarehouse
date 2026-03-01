@@ -1,5 +1,3 @@
-const { PrismaClient } = require('@prisma/client')
-const prisma = new PrismaClient()
 const itemRepo = require('../repositories/item.repo')
 const DTO = require('../dtos/item.dto')
 
@@ -11,7 +9,6 @@ const getAllItems = async () => {
 const getItemById = async (id) => {
     const item = await itemRepo.SelectItemById(id);
     if (!item) throw new Error("Item id not found");
-
     return item
 }
 
@@ -38,7 +35,7 @@ const softDeletedItem = async (id, user_id, user_name) => {
     if (!existingItem) throw new Error("Item id not found");
 
     const payload = DTO.softDeleteDTO(user_id, user_name)
-    const itemDeleted = await itemRepo.softDeletedItem(payload)
+    const itemDeleted = await itemRepo.softDeletedItem(id, payload)
 
     return itemDeleted;
 }

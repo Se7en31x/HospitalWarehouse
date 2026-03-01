@@ -9,26 +9,15 @@ datasource db {
   schemas  = ["inventory", "public"]
 }
 
-model category {
-  id          Int       @id @default(autoincrement())
-  name        String
-  code_prefix String?
-  created_at  DateTime? @default(now()) @db.Timestamp(6)
-  updated_at  DateTime? @default(now()) @db.Timestamp(6)
-  items       items[]
-
-  @@schema("inventory")
-}
-
 model inventory_snapshot {
-  id           Int       @id @default(autoincrement())
-  date         DateTime  @db.Date
-  item_id      Int
-  warehouse_id Int
+  id           Int         @id @default(autoincrement())
+  date         DateTime    @db.Date
+  item_id      String?     @db.Uuid
+  warehouse_id String?     @db.Uuid
   quantity     Int
-  avg_cost     Decimal?  @db.Decimal(10, 2)
-  items        items     @relation(fields: [item_id], references: [id], map: "inventory_snapshot_item_fk")
-  warehouse    warehouse @relation(fields: [warehouse_id], references: [id], map: "inventory_snapshot_warehouse_fk")
+  avg_cost     Decimal?    @db.Decimal(10, 2)
+  items        items?      @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_snapshot_item_fk")
+  warehouse    warehouses? @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "inventory_snapshot_warehouse_fk")
 
   @@unique([date, item_id, warehouse_id], map: "inventory_snapshot_unique_idx")
   @@index([date])
@@ -41,55 +30,33 @@ model item_allocation {
   lot_id           String
   qty              Int
   status           String?          @default("PENDING") @db.VarChar(20)
-  item_lot         item_lot         @relation(fields: [lot_id], references: [lot_code], map: "item_allocation_lot_fk")
+  item_lot         item_lots        @relation(fields: [lot_id], references: [lot_code], map: "item_allocation_lot_fk")
   requisition_item requisition_item @relation(fields: [req_item_id], references: [id], onDelete: Cascade, map: "item_allocation_req_item_fk")
 
   @@index([req_item_id], map: "idx_alloc_req_item")
   @@schema("inventory")
 }
 
-model item_lot {
-  lot_code        String            @id
-  item_id         Int
-  warehouse_id    Int
-  quantity        Int?              @default(0)
-  cost_price      Decimal?          @default(0) @db.Decimal(10, 2)
-  supplier_id     Int?
-  expried_at      DateTime?         @db.Timestamp(6)
-  status          String?           @default("ACTIVE") @db.VarChar(20)
-  created_at      DateTime?         @default(now()) @db.Timestamp(6)
-  item_allocation item_allocation[]
-  items           items             @relation(fields: [item_id], references: [id], map: "item_lot_item_fk")
-  supplier        supplier?         @relation(fields: [supplier_id], references: [id], map: "item_lot_supplier_fk")
-  warehouse       warehouse         @relation(fields: [warehouse_id], references: [id], map: "item_lot_warehouse_fk")
-  deleted_at      DateTime?         @db.Timestamp(6)
-  deleted_by      Int?
-  updated_at      DateTime?         @default(now()) @db.Timestamp(6)
-  reason          String?           @db.VarChar(255)
-
-  @@schema("inventory")
-}
-
 model items {
-  id                 Int                  @id @default(autoincrement())
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String
   code               String               @unique(map: "items_code_unique")
-  category_id        Int
-  unit_id            Int
+  category_id        String?              @db.Uuid
+  unit_id            String?              @db.Uuid
   min_stock          Int?                 @default(0)
   current_stock      Int?                 @default(0)
   image_url          String?
   status             String?              @default("ACTIVE") @db.VarChar(20)
   sell_price         Decimal?             @default(0) @db.Decimal(10, 2)
   created_at         DateTime?            @default(now()) @db.Timestamp(6)
-  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @updatedAt @db.Timestamp(6)
   deleted_at         DateTime?            @db.Timestamp(6)
   inventory_snapshot inventory_snapshot[]
-  item_lot           item_lot[]
-  category           category             @relation(fields: [category_id], references: [id], map: "items_category_fk")
-  unit               unit                 @relation(fields: [unit_id], references: [id], map: "items_unit_fk")
+  item_lots          item_lots[]
+  categories         categories?          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_category_fk")
+  unit               units?               @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_unit_fk")
   requisition_item   requisition_item[]
-  stock_movement     stock_movement[]
+  stocks_movement    stocks_movement[]
 
   @@schema("inventory")
 }
@@ -125,7 +92,7 @@ model requisition_header {
   return_date      DateTime?          @db.Timestamp(6)
   note             String?
   created_at       DateTime?          @default(now()) @db.Timestamp(6)
-  updated_at       DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?          @default(now()) @updatedAt @db.Timestamp(6)
   requisition_item requisition_item[]
 
   @@index([doc_no], map: "idx_req_header_doc_no")
@@ -136,7 +103,7 @@ model requisition_header {
 model requisition_item {
   id                 Int                @id @default(autoincrement())
   header_id          Int
-  item_id            Int
+  item_id            String?            @db.Uuid
   req_qty            Int
   approved_qty       Int?
   issued_qty         Int?               @default(0)
@@ -144,15 +111,64 @@ model requisition_item {
   note               String?
   item_allocation    item_allocation[]
   requisition_header requisition_header @relation(fields: [header_id], references: [id], onDelete: Cascade, map: "requisition_item_header_fk")
-  items              items              @relation(fields: [item_id], references: [id], map: "requisition_item_item_fk")
+  items              items?             @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "requisition_item_item_fk")
 
   @@index([header_id], map: "idx_req_item_header")
   @@schema("inventory")
 }
 
-model stock_movement {
-  id            Int       @id @default(autoincrement())
-  item_id       Int
+model supplier {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  contact    String?
+  address    String?
+  phone      String?
+  tax_id     String?
+  active     Boolean?    @default(true)
+  created_at DateTime?   @default(now()) @db.Timestamp(6)
+  updated_at DateTime?   @default(now()) @updatedAt @db.Timestamp(6)
+  item_lots  item_lots[]
+
+  @@schema("inventory")
+}
+
+model categories {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String    @db.VarChar(255)
+  code_prefix String    @db.VarChar(10)
+  description String?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @updatedAt @db.Timestamptz(6)
+  items       items[]
+
+  @@schema("inventory")
+}
+
+model item_lots {
+  lot_code        String            @id(map: "item_lot_pkey")
+  item_id         String?           @db.Uuid
+  warehouse_id    String?           @db.Uuid
+  quantity        Int?              @default(0)
+  cost_price      Decimal?          @default(0) @db.Decimal(10, 2)
+  supplier_id     String?           @db.Uuid
+  expried_at      DateTime?         @db.Timestamp(6)
+  status          String?           @default("ACTIVE") @db.VarChar(20)
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  deleted_at      DateTime?         @db.Timestamp(6)
+  deleted_by      Int?
+  updated_at      DateTime?         @default(now()) @updatedAt @db.Timestamp(6)
+  reason          String?           @db.VarChar(255)
+  item_allocation item_allocation[]
+  items           items?            @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_lot_item_fk")
+  supplier        supplier?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_lot_supplier_fk")
+  warehouses      warehouses?       @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_lot_warehouse_fk")
+
+  @@schema("inventory")
+}
+
+model stocks_movement {
+  id            Int       @id(map: "stock_movement_pkey") @default(autoincrement())
+  item_id       String?   @db.Uuid
   lot_id        String?
   quantity      Int?      @default(0)
   type          String    @db.VarChar(50)
@@ -160,49 +176,31 @@ model stock_movement {
   created_by    String?
   created_by_id Int?
   created_at    DateTime? @default(now()) @db.Timestamp(6)
-  items         items     @relation(fields: [item_id], references: [id], map: "stock_movement_item_fk")
+  items         items?    @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_movement_item_fk")
 
   @@schema("inventory")
 }
 
-model supplier {
-  id         Int        @id @default(autoincrement())
-  name       String
-  contact    String?
-  address    String?
-  phone      String?
-  tax_id     String?
-  active     Boolean?   @default(true)
-  created_at DateTime?  @default(now()) @db.Timestamp(6)
-  updated_at DateTime?  @default(now()) @db.Timestamp(6)
-  item_lot   item_lot[]
+model units {
+  id          String    @id(map: "unit_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+  description String?
+  items       items[]
 
   @@schema("inventory")
 }
 
-model unit {
-  id         Int       @id @default(autoincrement())
-  name       String
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-  items      items[]
-
-  @@schema("inventory")
-}
-
-model warehouse {
-  id                 Int                  @id @default(autoincrement())
+model warehouses {
+  id                 String               @id(map: "warehouse_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String
   location           String?
   created_at         DateTime?            @default(now()) @db.Timestamp(6)
-  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @updatedAt @db.Timestamp(6)
+  description        String?
   inventory_snapshot inventory_snapshot[]
-  item_lot           item_lot[]
+  item_lots          item_lots[]
 
   @@schema("inventory")
 }
-
-/// We could not retrieve columns for the underlying table. Either it has none or you are missing rights to see them. Please check your privileges.
-// model users {
-// @@schema("public")
-// }

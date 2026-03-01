@@ -2,10 +2,10 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const generateItemCode = async (category_id) => {
-    const category = await prisma.category.findUnique({ where: { id: Number(category_id) } });
+    const category = await prisma.categories.findUnique({ where: { id: category_id } });
     const prefix = category?.code_prefix || "ITEM";
     const lastItem = await prisma.items.findFirst({
-        where: { category_id: Number(category_id), code: { startsWith: prefix } },
+        where: { category_id, code: { startsWith: prefix } },
         orderBy: { code: 'desc' }
     });
 
@@ -30,7 +30,7 @@ const SelectAllItems = (data = {}) => prisma.items.findMany({
     where: { deleted_at: null },
     orderBy: { id: 'desc' },
     include: {
-        category: {
+        categories: {
             select: { id: true, name: true }
         },
         unit: {
@@ -41,17 +41,15 @@ const SelectAllItems = (data = {}) => prisma.items.findMany({
 });
 
 const SelectItemById = (id, data = {}) => prisma.items.findUnique({
-    where: { id: Number(id) },
+    where: { id },
     include: {
-        category: {
+        categories: {
             select: { id: true, name: true }
         },
         unit: {
             select: { id: true, name: true }
         },
-        warehouse: {
-            select: { id: true, name: true }
-        }
+        item_lots: true,
     },
     ...data
 });
@@ -59,14 +57,19 @@ const SelectItemById = (id, data = {}) => prisma.items.findUnique({
 const createItem = (data) => prisma.items.create({ data });
 
 const updateItem = (id, data) => prisma.items.update({
-    where: { id: Number(id) },
+    where: { id },
+    data
+});
+
+const softDeletedItem = (id, data) => prisma.items.update({
+    where: { id },
     data
 });
 
 const selectOptions = () => Promise.all([
-    prisma.category.findMany({ select: { id: true, name: true } }),
-    prisma.unit.findMany({ select: { id: true, name: true } }),
-    prisma.warehouse.findMany({ select: { id: true, name: true } })
+    prisma.categories.findMany({ select: { id: true, name: true } }),
+    prisma.units.findMany({ select: { id: true, name: true } }),
+    prisma.warehouses.findMany({ select: { id: true, name: true } })
 ]);
 
 module.exports = {
@@ -75,5 +78,6 @@ module.exports = {
     SelectItemById,
     createItem,
     updateItem,
+    softDeletedItem,
     selectOptions,
 }
