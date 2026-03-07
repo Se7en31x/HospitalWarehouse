@@ -6,4 +6,18 @@ const sendResponse = (res, statusCode, message, data = null) => {
     });
 };
 
-module.exports = { sendResponse };
+const sendListResponse = (res, statusCode, message, result) => {
+    const { items, ...meta } = result;
+
+    return res.status(statusCode).json({
+        status: "ok",
+        message: message,
+        meta: meta,
+        data: items
+    });
+};
+
+module.exports = { 
+    sendResponse ,
+    sendListResponse,
+};

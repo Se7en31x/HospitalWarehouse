@@ -9,9 +9,9 @@ import {
   Trash2, Loader2
 } from "lucide-react";
 
-import * as ItemSvc from "@/services/inventoryService";
-import * as Item from "../../interfaces/item.interface";
-import { socket } from "../../../utils/socket";
+import * as ItemSvc from "@/services/itemsService";
+import * as Item from "@/types/items_type";
+import { socket } from "../../../lib/socket";
 
 interface FormErrors {
   name?: string;
@@ -25,7 +25,7 @@ interface FormErrors {
 interface FormDataFields {
   code: string;
   name: string;
-  category_id: string; // เก็บเป็น string เพื่อผูกกับ <select>
+  category_id: string; 
   unit_id: string;
   warehouse_id: string;
   min_stock: number;
@@ -171,9 +171,9 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       const payload: Item.CreatePayload = {
         name: formData.name,
         min_stock: Number(formData.min_stock),
-        category_id: Number(formData.category_id),
-        unit_id: Number(formData.unit_id),
-        warehouse_id: Number(formData.warehouse_id),
+        category_id: formData.category_id,
+        unit_id: formData.unit_id,
+        warehouse_id: formData.warehouse_id,
         status: "ACTIVE",
         image_url: formData.imageUrl
       };
@@ -201,8 +201,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       const payload: Item.UpdatePayload = {
         name: formData.name,
         min_stock: Number(formData.min_stock),
-        unit_id: Number(formData.unit_id),
-        warehouse_id: Number(formData.warehouse_id),
+        unit_id: formData.unit_id,
+        warehouse_id: formData.warehouse_id,
         status: formData.status,
         image_url: formData.imageUrl
       };

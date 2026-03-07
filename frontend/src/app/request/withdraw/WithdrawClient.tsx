@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Minus, ShoppingCart, X, PackagePlus } from 'lucide-react';
-import { UiItem, getItemOptions, ItemOptions, getInventoryItems } from '@/services/inventoryService';
+import { UiItem, getItemOptions, ItemOptions, getInventoryItems } from '@/services/itemsService';
 import { createRequisition, RequisitionPayload } from '@/services/requisitionService';
 import { useAuth } from '../../hooks/useAuth';
 import Swal from 'sweetalert2';

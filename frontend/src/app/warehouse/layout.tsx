@@ -10,13 +10,10 @@ import WarehouseSidebar from "@/components/layouts/WarehouseSidebar";
 
 export default function WarehouseLayout({ children }: { children: React.ReactNode }) {
   return (
-    // 1. เปลี่ยนตัวนอกสุดเป็น flex-col เพื่อให้เรียงจากบนลงล่าง
     <div className="flex flex-col h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
       
-      {/* 2. ย้าย Navbar มาไว้บนสุด มันจะกางเต็มความกว้างอัตโนมัติ */}
       <WarehouseNavbar />
       
-      {/* 3. สร้างกล่อง flex แนวนอน เพื่อแบ่งพื้นที่ซ้าย (Sidebar) ขวา (Content) */}
       <div className="flex flex-1 overflow-hidden w-full">
         <WarehouseSidebar />
         

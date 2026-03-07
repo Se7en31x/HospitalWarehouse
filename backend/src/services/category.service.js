@@ -1,8 +1,19 @@
 const categoryRepo = require('../repositories/category.repo')
 
-const getAllCategories = async () => {
-	const categories = await categoryRepo.SelectAllCategories();
-	return categories;
+const getAllCategories = async ({ page = 1, limit = 10, keyword = '' } = {}) => {
+	const [items, total] = await categoryRepo.SelectAllCategories({ page, limit, keyword });
+	const totalPages = Math.max(1, Math.ceil(total / limit));
+
+	return {
+		items,
+		total,
+		page,
+		limit,
+		totalPages,
+		nextPage: page < totalPages ? page + 1 : null,
+		prevPage: page > 1 ? page - 1 : null,
+		keyword,
+	};
 }
 
 const getCategoryById = async (id) => {

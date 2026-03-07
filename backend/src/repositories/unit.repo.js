@@ -1,10 +1,31 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const SelectAllUnits = (data = {}) => prisma.units.findMany({
-	orderBy: { id: 'desc' },
-	...data
-});
+const buildUnitWhere = (keyword = '') => {
+	if (!keyword) return {};
+
+	return {
+		OR: [
+			{ name: { contains: keyword, mode: 'insensitive' } },
+			{ description: { contains: keyword, mode: 'insensitive' } },
+		],
+	};
+};
+
+const SelectAllUnits = ({ page = 1, limit = 10, keyword = '' } = {}) => {
+	const where = buildUnitWhere(keyword);
+	const skip = (page - 1) * limit;
+
+	return prisma.$transaction([
+		prisma.units.findMany({
+			where,
+			orderBy: { id: 'desc' },
+			skip,
+			take: limit,
+		}),
+		prisma.units.count({ where }),
+	]);
+};
 
 const SelectUnitById = (id, data = {}) => prisma.units.findUnique({
 	where: { id },

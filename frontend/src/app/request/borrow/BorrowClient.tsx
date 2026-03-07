@@ -6,7 +6,7 @@ import {
   Clock, X, ChevronLeft, ChevronRight, PackagePlus, 
   HandHelping, RefreshCw 
 } from 'lucide-react';
-import { UiItem } from '@/services/inventoryService';
+import { UiItem } from '@/services/itemsService';
 
 interface Props {
   initialItems: UiItem[];

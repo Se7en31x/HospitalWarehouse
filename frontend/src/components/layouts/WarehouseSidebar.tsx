@@ -34,7 +34,6 @@ export default function WarehouseSidebar() {
       items: [
         { name: 'ประวัติรายการ', path: '/warehouse/history', icon: History },
         { name: 'รายงานคลัง', path: '/warehouse/reports', icon: FileBarChart },
-        { name: 'หมวดหมู่', path: '/warehouse/categories', icon: Tags },
         { name: 'ตั้งค่า', path: '/warehouse/settings', icon: Settings },
       ]
     }

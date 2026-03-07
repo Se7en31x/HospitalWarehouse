@@ -1,8 +1,19 @@
 const unitRepo = require('../repositories/unit.repo')
 
-const getAllUnits = async () => {
-	const units = await unitRepo.SelectAllUnits();
-	return units;
+const getAllUnits = async ({ page = 1, limit = 10, keyword = '' } = {}) => {
+	const [items, total] = await unitRepo.SelectAllUnits({ page, limit, keyword });
+	const totalPages = Math.max(1, Math.ceil(total / limit));
+
+	return {
+		items,
+		total,
+		page,
+		limit,
+		totalPages,
+		nextPage: page < totalPages ? page + 1 : null,
+		prevPage: page > 1 ? page - 1 : null,
+		keyword,
+	};
 }
 
 const getUnitById = async (id) => {
