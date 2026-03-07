@@ -11,7 +11,7 @@ import {
 
 import * as ItemSvc from "@/services/inventoryService";
 import * as Item from "../../interfaces/item.interface";
-import { socket } from "../../utils/socket";
+import { socket } from "../../../utils/socket";
 
 interface FormErrors {
   name?: string;

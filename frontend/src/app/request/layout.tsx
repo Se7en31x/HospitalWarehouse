@@ -1,35 +1,10 @@
-'use client';
-
-import WarehouseNavbar from "@/components/layouts/WarehouseNavbar";
-import WarehouseSidebar from "@/components/layouts/WarehouseSidebar";
+// 'use client';
 // import { useEffect, useState } from 'react';
 // import { useRouter } from 'next/navigation';
 // import Cookies from 'js-cookie';
 // import { jwtDecode } from 'jwt-decode';
 
-
-export default function WarehouseLayout({ children }: { children: React.ReactNode }) {
-  return (
-    // 1. เปลี่ยนตัวนอกสุดเป็น flex-col เพื่อให้เรียงจากบนลงล่าง
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
-      
-      {/* 2. ย้าย Navbar มาไว้บนสุด มันจะกางเต็มความกว้างอัตโนมัติ */}
-      <WarehouseNavbar />
-      
-      {/* 3. สร้างกล่อง flex แนวนอน เพื่อแบ่งพื้นที่ซ้าย (Sidebar) ขวา (Content) */}
-      <div className="flex flex-1 overflow-hidden w-full">
-        <WarehouseSidebar />
-        
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
-      </div>
-
-    </div>
-  );
-}
-
-
+// // นิยามโครงสร้าง Token เพื่อไม่ให้ใช้ any
 // interface DecodedToken {
 //   role: string;
 // }
@@ -49,7 +24,7 @@ export default function WarehouseLayout({ children }: { children: React.ReactNod
 //     try {
 //       // ระบุ Type ให้กับ jwtDecode
 //       const decoded = jwtDecode<DecodedToken>(token);
-//       const allowedRoles = ['admin', 'warehouse_manager', 'warehouse_staff'];
+//       const allowedRoles = ['doctor', 'nurse', 'pharmacist', 'nurse_assistant'];
       
 //       if (allowedRoles.includes(decoded.role)) {
 //         setIsAllowed(true);
@@ -66,3 +41,20 @@ export default function WarehouseLayout({ children }: { children: React.ReactNod
 
 //   return <>{children}</>;
 // }
+
+import RequestNavbar from '@/components/layouts/RequestNavbar';
+import RequestSidebar from '@/components/layouts/RequestSidebar';
+
+export default function RequestsLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
+      <RequestSidebar />
+      <div className="flex flex-col flex-1 overflow-hidden w-full">
+        <RequestNavbar />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
