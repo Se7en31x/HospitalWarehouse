@@ -1,44 +1,26 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname } from "next/navigation";
 import { Bell, ChevronDown, Settings, LogOut, User, Package, AlertCircle, CheckCircle } from "lucide-react";
 import { useState } from "react";
 
-export default function Navbar() {
-  const pathname = usePathname();
+export default function WarehouseNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
 
-  // หาชื่อโมดูลและกำหนดสี Badge ตามโมดูล
-  let moduleTitle = "แดชบอร์ดหลัก";
-  let moduleColor = "bg-blue-500/20 text-blue-100 border-blue-400/30";
-
-  if (pathname.startsWith("/warehouse")) {
-    moduleTitle = "ระบบคลังหลักโรงพยาบาล";
-    moduleColor = "bg-emerald-500/20 text-emerald-100 border-emerald-400/30";
-  } else if (pathname.startsWith("/procurement")) {
-    moduleTitle = "ระบบการจัดซื้อ";
-    moduleColor = "bg-amber-500/20 text-amber-100 border-amber-400/30";
-  } else if (pathname.startsWith("/requests")) {
-    moduleTitle = "ระบบเบิก-ยืม-คืน";
-    moduleColor = "bg-purple-500/20 text-purple-100 border-purple-400/30";
-  }
-
+  const moduleTitle = "ระบบคลังหลักโรงพยาบาล";
+  const moduleColor = "bg-emerald-500/20 text-emerald-100 border-emerald-400/30";
   const userName = "สมชาย ใจดี";
   const userRole = "เจ้าหน้าที่คลังพัสดุ";
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005EB8&color=fff&rounded=true&size=128`;
 
   const notifications = [
-    { id: 1, message: "มีการเบิกพัสดุใหม่ #1234", time: "10 นาทีที่แล้ว", type: "info" },
-    { id: 2, message: "สต็อกยาครบกำหนดตรวจสอบ", time: "1 ชั่วโมงที่แล้ว", type: "warning" },
-    { id: 3, message: "คำสั่งซื้อ #5678 ได้รับการอนุมัติ", time: "2 ชั่วโมงที่แล้ว", type: "success" },
+    { id: 1, message: "สต็อกยาพาราเซตามอลใกล้หมด", time: "10 นาทีที่แล้ว", type: "warning" },
+    { id: 2, message: "รับเข้าพัสดุล็อตใหม่สำเร็จ", time: "1 ชั่วโมงที่แล้ว", type: "success" },
   ];
 
   return (
     <header className="w-full bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-950 text-white shadow-xl relative z-[50]">
-      {/* <header className="w-full bg-gradient-to-r from-blue-800 via-blue-900 to-slate-900 text-white shadow-xl relative z-5000"> */}
-      {/* Decorative Background Elements */}
       <div className="absolute inset-0 opacity-10 pointer-events-none">
         <div className="absolute -top-10 -left-10 w-64 h-64 bg-white rounded-full blur-3xl"></div>
         <div className="absolute top-0 right-20 w-32 h-32 bg-blue-400 rounded-full blur-2xl"></div>
@@ -46,22 +28,10 @@ export default function Navbar() {
       
       <div className="relative z-10 border-b border-white/5">
         <div className="flex items-center justify-between px-6 py-2.5">
-          {/* โลโก้และชื่อระบบ */}
           <div className="flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-inner">
-              <Image
-                src="/logo/logo.png"
-                alt="Logo"
-                width={28}
-                height={28}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  const parent = (e.target as HTMLImageElement).parentElement;
-                  if (parent) parent.innerHTML = '<span class="text-xl">🏥</span>';
-                }}
-              />
+            <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-inner text-xl">
+              🏥
             </div>
-            
             <div className="flex flex-col">
               <h1 className="text-lg font-bold tracking-tight text-white/95">
                 HOSPITAL <span className="text-blue-400 font-medium text-sm ml-1 uppercase tracking-widest">InveSys</span>
@@ -72,30 +42,22 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* ไอคอนและโปรไฟล์ */}
           <div className="flex items-center gap-3">
-            {/* กระดิ่งแจ้งเตือน */}
             <div className="relative">
-              <button
-                onClick={() => setShowNotificationMenu(!showNotificationMenu)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors relative group"
-              >
+              <button onClick={() => setShowNotificationMenu(!showNotificationMenu)} className="p-2 hover:bg-white/10 rounded-full transition-colors relative group">
                 <Bell className="w-5 h-5 text-blue-100 group-hover:text-white" />
                 <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-blue-900"></span>
               </button>
-
               {showNotificationMenu && (
                 <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-100">
-                    <p className="text-sm font-bold text-gray-900">การแจ้งเตือนล่าสุด</p>
+                    <p className="text-sm font-bold text-gray-900">การแจ้งเตือนคลัง</p>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.map((n) => (
                       <div key={n.id} className="flex gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                        <div className={`mt-0.5 p-1.5 rounded-full ${n.type === 'warning' ? 'bg-amber-100 text-amber-600' : n.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
-                          {n.type === "info" && <Package className="w-3.5 h-3.5" />}
-                          {n.type === "warning" && <AlertCircle className="w-3.5 h-3.5" />}
-                          {n.type === "success" && <CheckCircle className="w-3.5 h-3.5" />}
+                        <div className={`mt-0.5 p-1.5 rounded-full ${n.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                          {n.type === "warning" ? <AlertCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-gray-800">{n.message}</p>
@@ -110,12 +72,8 @@ export default function Navbar() {
 
             <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-            {/* โปรไฟล์ */}
             <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group"
-              >
+              <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group">
                 <div className="flex flex-col items-end leading-none">
                   <span className="text-sm font-semibold text-white">{userName}</span>
                   <span className="text-[10px] text-blue-200/70 mt-1 uppercase tracking-tighter font-medium">{userRole}</span>
@@ -126,20 +84,13 @@ export default function Navbar() {
                 </div>
                 <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
               </button>
-
               {showProfileMenu && (
                 <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
                   <div className="p-1">
-                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors">
-                      <User className="w-4 h-4 text-blue-600" /> โปรไฟล์
-                    </button>
-                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors">
-                      <Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ
-                    </button>
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><User className="w-4 h-4 text-blue-600" /> โปรไฟล์</button>
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ</button>
                     <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
-                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                      <LogOut className="w-4 h-4" /> ออกจากระบบ
-                    </button>
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut className="w-4 h-4" /> ออกจากระบบ</button>
                   </div>
                 </div>
               )}

@@ -1,6 +1,4 @@
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Sidebar from "@/components/Sidebar";
 
 export default function RootLayout({
   children,
@@ -10,12 +8,7 @@ export default function RootLayout({
   return (
     <html lang="th">
       <body className="h-screen flex flex-col bg-gray-200 font-sans">
-        {/* ✅ Navbar อยู่บนสุด */}
-        <Navbar />
-
-        {/* ✅ Sidebar + Content */}
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
             <main className="flex-1  overflow-y-auto">
               <div className="max-w-8xl mx-auto">{children}</div>
             </main>
