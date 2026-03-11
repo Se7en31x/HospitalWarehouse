@@ -11,27 +11,23 @@ export default function RequestSidebar() {
 
   const menus = [
     {
-      group: 'เมนูหลัก',
-      items: [{ name: 'แดชบอร์ด', path: '/requests', icon: LayoutDashboard }]
-    },
-    {
       group: 'การทำรายการ',
       items: [
-        { name: 'เบิกใช้พัสดุ', path: '/requests/withdraw', icon: Archive },
-        { name: 'ยืมพัสดุ', path: '/requests/borrow', icon: HandHelping },
+        { name: 'เบิกใช้พัสดุ', path: '/request/withdraw', icon: Archive },
+        { name: 'ยืมพัสดุ', path: '/request/borrow', icon: HandHelping },
       ]
     },
     {
       group: 'ติดตามผล',
       items: [
-        { name: 'ประวัติการทำรายการ', path: '/requests/history', icon: History },
-        { name: 'รายงาน', path: '/requests/reports', icon: FileBarChart },
+        { name: 'ประวัติการทำรายการ', path: '/history', icon: History },
+        { name: 'รายงาน', path: '/reports', icon: FileBarChart },
       ]
     }
   ];
 
   const isActive = (menuPath: string) => {
-    return menuPath === '/requests' ? pathname === menuPath : pathname.startsWith(menuPath);
+    return menuPath === '/request/' ? pathname === menuPath : pathname.startsWith(menuPath);
   };
 
   return (
@@ -53,8 +49,8 @@ export default function RequestSidebar() {
                 const Icon = menu.icon;
                 return (
                   <li key={menu.path} className="relative group">
-                    <Link href={menu.path} className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start gap-3'} px-3 py-2 rounded-lg transition-all duration-150 ${active ? 'bg-purple-50 text-purple-600 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
-                      <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-purple-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                    <Link href={menu.path} className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start gap-3'} px-3 py-2 rounded-lg transition-all duration-150 ${active ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+                      <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
                       {!collapsed && <span className="text-sm">{menu.name}</span>}
                     </Link>
                     {collapsed && (
@@ -72,7 +68,7 @@ export default function RequestSidebar() {
 
       <div className="p-4 border-t border-slate-50">
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} transition-all`}>
-          <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]"></div>
+          <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]"></div>
           {!collapsed && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">requests system</span>}
         </div>
       </div>

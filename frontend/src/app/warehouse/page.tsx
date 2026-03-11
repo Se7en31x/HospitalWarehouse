@@ -20,7 +20,7 @@ export default function RequestsDashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       
       {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

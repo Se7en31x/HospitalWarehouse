@@ -7,7 +7,7 @@ export default function RequestsPage() {
 
   useEffect(() => {
     // ส่ง User ตรงไปที่หน้าที่คุณทำไว้ในโฟลเดอร์ withdraw ทันที
-    router.replace('/requests/withdraw'); 
+    router.replace('/request/withdraw'); 
   }, [router]);
 
   return (

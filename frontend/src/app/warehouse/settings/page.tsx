@@ -11,7 +11,9 @@ import {
   Trash2,
   Save,
   AlertTriangle,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import type {
   Category,
@@ -283,203 +285,277 @@ export default function SettingsPage() {
   const labelClass = "block text-sm font-semibold text-slate-700 mb-1.5";
 
   return (
-    <div className="w-full h-full bg-slate-50 flex flex-col font-sans">
-      
+    <div className="flex flex-col min-h-screen bg-white p-8">
       {/* Header Section */}
-      <div className="bg-white border-b border-slate-200 px-6 py-5 flex items-center gap-3">
-        <Settings className="w-7 h-7 text-indigo-600" />
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          การตั้งค่าระบบ
-        </h1>
+      <div className="flex items-center gap-4 mb-8">
+        <Settings className="w-8 h-8 text-indigo-600" />
+        <h1 className="text-3xl font-bold text-indigo-600">การตั้งค่าระบบ</h1>
       </div>
 
-      {/* Main Container */}
-      <div className="flex-1 flex flex-col w-full h-full">
-        
-        {/* Tabs */}
-        <div className="bg-white px-6 pt-4 border-b border-slate-200 flex overflow-x-auto">
-          {[
-            { id: "categories", label: "ประเภทพัสดุ", icon: <Package className="w-4 h-4" /> },
-            { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4" /> },
-            { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4" /> },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabType)}
-              className={`px-6 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === tab.id
-                  ? "border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-lg"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-lg"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-slate-200">
+        {[
+          { id: "categories", label: "ประเภทพัสดุ", icon: <Package className="w-4 h-4" /> },
+          { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4" /> },
+          { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4" /> },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as TabType)}
+            className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === tab.id
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Content Area - TABLE VIEW */}
-        <div className="flex-1 bg-slate-50 flex flex-col overflow-hidden">
-          <div className="px-6 py-4 flex items-center justify-between bg-slate-50">
-            <h2 className="text-lg font-bold text-slate-800">{sectionTitle}</h2>
-            <button
-              onClick={handleOpenCreateForm}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              เพิ่มรายการใหม่
-            </button>
+      {/* Search/Filter */}
+      <div className="flex items-center gap-3 mb-6">
+        <input
+          type="text"
+          placeholder={searchPlaceholder}
+          value={keywordByTab[activeTab]}
+          onChange={(e) => {
+            const keyword = e.target.value;
+            setKeywordByTab((prev) => ({ ...prev, [activeTab]: keyword }));
+            setPageByTab((prev) => ({ ...prev, [activeTab]: 1 }));
+          }}
+          className="w-72 border border-slate-200 bg-white rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+        />
+        <button
+          onClick={handleOpenCreateForm}
+          className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          เพิ่มรายการใหม่
+        </button>
+      </div>
+
+      {/* Table Container */}
+      <div className="h-[60vh] rounded-xl bg-white shadow-lg overflow-hidden relative border border-slate-100 mb-6">
+        {isLoading && (
+          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
+            <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
           </div>
-
-          <div className="px-6 pb-4 flex flex-col md:flex-row md:items-center gap-3 md:justify-between bg-slate-50">
-            <input
-              value={keywordByTab[activeTab]}
-              onChange={(e) => {
-                const keyword = e.target.value;
-                setKeywordByTab((prev) => ({ ...prev, [activeTab]: keyword }));
-                setPageByTab((prev) => ({ ...prev, [activeTab]: 1 }));
-              }}
-              placeholder={searchPlaceholder}
-              className="w-full md:max-w-md border border-slate-300 bg-white rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-
-            <div className="flex items-center justify-between md:justify-end gap-3 text-sm">
-              <span className="text-slate-600">Total: <span className="font-bold text-slate-800">{activeTotal}</span></span>
-              <button
-                onClick={() => setPageByTab((prev) => ({ ...prev, [activeTab]: Math.max(1, prev[activeTab] - 1) }))}
-                disabled={activePage <= 1}
-                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <span className="text-slate-700 font-semibold">{activePage} / {activeTotalPages}</span>
-              <button
-                onClick={() =>
-                  setPageByTab((prev) => ({
-                    ...prev,
-                    [activeTab]: Math.min(totalPagesByTab[activeTab], prev[activeTab] + 1),
-                  }))
-                }
-                disabled={activePage >= activeTotalPages}
-                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-white border-y border-slate-200">
-              <div className="w-8 h-8 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin mb-3"></div>
-              กำลังโหลดข้อมูล...
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto bg-white border-y border-slate-200">
-              <table className="w-full table-fixed divide-y divide-slate-100 min-w-[800px]">
-                
-                {/* --- CATEGORIES TABLE --- */}
-                {activeTab === "categories" && (
-                  <>
-                    <thead className="sticky top-0 z-10">
-                      <tr>
-                        <th className={`${tableThClass} w-[25%]`}>ชื่อประเภทพัสดุ</th>
-                        <th className={`${tableThClass} w-[15%]`}>Prefix Code</th>
-                        <th className={`${tableThClass} w-[45%]`}>รายละเอียด</th>
-                        <th className={`${tableThClass} w-[15%] text-center`}>จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {pagedCategories.map((cat, i) => (
-                        <tr key={cat.id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-indigo-50/50 transition-colors`}>
-                          <td className={`${tableTdClass} font-semibold`} title={cat.name}>{cat.name}</td>
-                          <td className={tableTdClass}>
-                            <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">{cat.code_prefix}</span>
-                          </td>
-                          <td className={tableTdClass} title={cat.description || "-"}>
-                            {cat.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
-                          </td>
-                          <td className={`${tableTdClass} text-center`}>
-                            <div className="flex items-center justify-center gap-2">
-                              <button onClick={() => { setFormMode("edit"); setEditingCategoryId(cat.id); setCategoryForm({ name: cat.name, code_prefix: cat.code_prefix, description: cat.description || "" }); setIsFormModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors" title="แก้ไข"><Edit2 className="w-4 h-4" /></button>
-                              <button onClick={() => confirmDelete(cat.id, "categories", cat.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="ลบ"><Trash2 className="w-4 h-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </>
+        )}
+        <div className="overflow-x-auto h-full flex flex-col">
+          {activeTab === "categories" && (
+            <table className="w-full text-sm text-left divide-y divide-slate-100">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-6 py-4 w-[30%]">ชื่อประเภทพัสดุ</th>
+                  <th className="px-6 py-4 w-[15%]">Prefix Code</th>
+                  <th className="px-6 py-4 w-[40%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[15%] text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 flex-1">
+                {pagedCategories.length > 0 ? (
+                  pagedCategories.map((cat) => (
+                    <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-semibold">{cat.name}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">
+                          {cat.code_prefix}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {cat.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setFormMode("edit");
+                              setEditingCategoryId(cat.id);
+                              setCategoryForm({
+                                name: cat.name,
+                                code_prefix: cat.code_prefix,
+                                description: cat.description || "",
+                              });
+                              setIsFormModalOpen(true);
+                            }}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(cat.id, "categories", cat.name)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="text-center py-10 text-slate-500">
+                      ไม่พบข้อมูล
+                    </td>
+                  </tr>
                 )}
-
-                {/* --- UNITS TABLE --- */}
-                {activeTab === "units" && (
-                  <>
-                    <thead className="sticky top-0 z-10">
-                      <tr>
-                        <th className={`${tableThClass} w-[30%]`}>ชื่อหน่วยนับ</th>
-                        <th className={`${tableThClass} w-[55%]`}>รายละเอียด</th>
-                        <th className={`${tableThClass} w-[15%] text-center`}>จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {pagedUnits.map((unit, i) => (
-                        <tr key={unit.id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-indigo-50/50 transition-colors`}>
-                          <td className={`${tableTdClass} font-semibold`} title={unit.name}>{unit.name}</td>
-                          <td className={tableTdClass} title={unit.description || "-"}>
-                            {unit.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
-                          </td>
-                          <td className={`${tableTdClass} text-center`}>
-                            <div className="flex items-center justify-center gap-2">
-                              <button onClick={() => { setFormMode("edit"); setEditingUnitId(unit.id); setUnitForm({ name: unit.name, description: unit.description || "" }); setIsFormModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
-                              <button onClick={() => confirmDelete(unit.id, "units", unit.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </>
-                )}
-
-                {/* --- WAREHOUSES TABLE --- */}
-                {activeTab === "warehouses" && (
-                  <>
-                    <thead className="sticky top-0 z-10">
-                      <tr>
-                        <th className={`${tableThClass} w-[25%]`}>ชื่อคลังสินค้า</th>
-                        <th className={`${tableThClass} w-[25%]`}>สถานที่ตั้ง</th>
-                        <th className={`${tableThClass} w-[35%]`}>รายละเอียด</th>
-                        <th className={`${tableThClass} w-[15%] text-center`}>จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {pagedWarehouses.map((wh, i) => (
-                        <tr key={wh.id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-indigo-50/50 transition-colors`}>
-                          <td className={`${tableTdClass} font-semibold`} title={wh.name}>{wh.name}</td>
-                          <td className={tableTdClass} title={wh.location || "-"}>{wh.location || "-"}</td>
-                          <td className={tableTdClass} title={wh.description || "-"}>
-                            {wh.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
-                          </td>
-                          <td className={`${tableTdClass} text-center`}>
-                            <div className="flex items-center justify-center gap-2">
-                              <button onClick={() => { setFormMode("edit"); setEditingWarehouseId(wh.id); setWarehouseForm({ name: wh.name, location: wh.location || "", description: wh.description || "" }); setIsFormModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
-                              <button onClick={() => confirmDelete(wh.id, "warehouses", wh.name)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </>
-                )}
-              </table>
-
-              {/* Empty States */}
-              {!isLoading && ((activeTab === "categories" && filteredCategories.length === 0) || (activeTab === "units" && filteredUnits.length === 0) || (activeTab === "warehouses" && filteredWarehouses.length === 0)) && (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <Package className="w-12 h-12 text-slate-200 mb-3" />
-                  <p>ไม่พบข้อมูลที่ค้นหา</p>
-                </div>
-              )}
-            </div>
+              </tbody>
+            </table>
           )}
+
+          {activeTab === "units" && (
+            <table className="w-full text-sm text-left divide-y divide-slate-100">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-6 py-4 w-[35%]">ชื่อหน่วยนับ</th>
+                  <th className="px-6 py-4 w-[50%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[15%] text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagedUnits.length > 0 ? (
+                  pagedUnits.map((unit) => (
+                    <tr key={unit.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-semibold">{unit.name}</td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {unit.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setFormMode("edit");
+                              setEditingUnitId(unit.id);
+                              setUnitForm({
+                                name: unit.name,
+                                description: unit.description || "",
+                              });
+                              setIsFormModalOpen(true);
+                            }}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(unit.id, "units", unit.name)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="text-center py-10 text-slate-500">
+                      ไม่พบข้อมูล
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {activeTab === "warehouses" && (
+            <table className="w-full text-sm text-left divide-y divide-slate-100">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-6 py-4 w-[25%]">ชื่อคลังสินค้า</th>
+                  <th className="px-6 py-4 w-[25%]">สถานที่ตั้ง</th>
+                  <th className="px-6 py-4 w-[35%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[15%] text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagedWarehouses.length > 0 ? (
+                  pagedWarehouses.map((wh) => (
+                    <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-semibold">{wh.name}</td>
+                      <td className="px-6 py-4 text-slate-600">{wh.location || "-"}</td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {wh.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setFormMode("edit");
+                              setEditingWarehouseId(wh.id);
+                              setWarehouseForm({
+                                name: wh.name,
+                                location: wh.location || "",
+                                description: wh.description || "",
+                              });
+                              setIsFormModalOpen(true);
+                            }}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(wh.id, "warehouses", wh.name)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="text-center py-10 text-slate-500">
+                      ไม่พบข้อมูล
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">
+          แสดง{" "}
+          {((activeTab === "categories" && pagedCategories.length) ||
+            (activeTab === "units" && pagedUnits.length) ||
+            (activeTab === "warehouses" && pagedWarehouses.length)) ||
+            0}{" "}
+          จาก {activeTotal} รายการ
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            disabled={activePage === 1}
+            onClick={() =>
+              setPageByTab((prev) => ({
+                ...prev,
+                [activeTab]: Math.max(1, prev[activeTab] - 1),
+              }))
+            }
+            className="p-2 border rounded-lg border-slate-300 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-medium">
+            หน้า {activePage} / {activeTotalPages || 1}
+          </span>
+          <button
+            disabled={activePage >= activeTotalPages}
+            onClick={() =>
+              setPageByTab((prev) => ({
+                ...prev,
+                [activeTab]: Math.min(totalPagesByTab[activeTab], prev[activeTab] + 1),
+              }))
+            }
+            className="p-2 border rounded-lg border-slate-300 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -569,7 +645,7 @@ export default function SettingsPage() {
               </div>
               <h3 className="text-xl font-bold text-slate-900 mb-2">ยืนยันการลบข้อมูล</h3>
               <p className="text-sm text-slate-500 mb-6">
-                คุณต้องการลบ <span className="font-bold text-slate-800">{itemToDelete.name}</span> ใช่หรือไม่?<br/>
+                คุณต้องการลบ <span className="font-bold text-slate-800">{itemToDelete?.name}</span> ใช่หรือไม่?<br/>
                 การกระทำนี้ไม่สามารถกู้คืนได้
               </p>
               <div className="flex w-full gap-3">
