@@ -12,7 +12,6 @@ const getAllUnits = async ({ page = 1, limit = 10, keyword = '' } = {}) => {
 		totalPages,
 		nextPage: page < totalPages ? page + 1 : null,
 		prevPage: page > 1 ? page - 1 : null,
-		keyword,
 	};
 }
 

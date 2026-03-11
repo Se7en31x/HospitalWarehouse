@@ -157,7 +157,7 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
 
         return await tx.requisition_header.update({
             where: { id: Number(headerId) },
-            data: { status: "COMPLETED", approver_id: Number(userSession.user_id), updated_at: new Date() }
+            data: { status: "COMPLETED", approver_id: Number(userSession.user_id) }
         });
     });
 };
@@ -177,7 +177,7 @@ const rejectRequisition = async (headerId, note, userSession) => {
 
         return await tx.requisition_header.update({
             where: { id: Number(headerId) },
-            data: { status: "REJECTED", note: note, approver_id: Number(userSession.user_id), updated_at: new Date() }
+            data: { status: "REJECTED", note: note, approver_id: Number(userSession.user_id) }
         });
     });
 };

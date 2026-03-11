@@ -10,14 +10,17 @@ const createItemDTO = (data, itemCode) => ({
 
 const updateItemDTO = (data) => ({
     name: data.name,
+    description: data.description,
     min_stock: data.min_stock,
     unit_id: data.unit_id,
+    warehouse_id: data.warehouse_id, 
+    category_id: data.category_id,
+    sell_price: data.sell_price,    
     status: data.status,
     image_url: data.image_url,
-    updated_at: new Date(),
 });
 
-const softDeleteDTO = (user_id, user_name) => ({
+const softDeleteDTO = () => ({
     deleted_at: new Date(),
     status: "UNAVAILABLE",
 });

@@ -1,12 +1,22 @@
 const itemService = require('../services/item.service')
-const { sendResponse } = require('../utils/response');
+const util = require('../utils/response');
+
+const parseListQuery = (query) => {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const keyword = (query.keyword || '').toString().trim();
+    const start_date = (query.start_date || '').toString().trim();
+    const end_date = (query.end_date || '').toString().trim();
+    return { page, limit, keyword, start_date, end_date };
+};
 
 const getItems = async (req, res) => {
     try {
-        const items = await itemService.getAllItems()
-        return sendResponse(res, 200, "List all items success", items)
+        const query = parseListQuery(req.query);
+        const items = await itemService.getAllItems(query)
+        return util.sendListResponse(res, 200, "List all items success", items)
     } catch (error) {
-        return sendResponse(res, 500, error.message);
+        return util.sendResponse(res, 500, error.message);
     }
 };
 
@@ -15,23 +25,23 @@ const getItemById = async (req, res) => {
         // validator parameter 
         const { id } = req.params;
         if (!id) {
-            return sendResponse(res, 400, "Invalid this parameter");
+            return util.sendResponse(res, 400, "Invalid this parameter");
         }
 
         const item = await itemService.getItemById(id)
-        return sendResponse(res, 200, "List item by id success", item)
+        return util.sendResponse(res, 200, "List item by id success", item)
 
     } catch (error) {
-        return sendResponse(res, 500, error.message);
+        return util.sendResponse(res, 500, error.message);
     }
 }
 
 const getItemOption = async (req, res) => {
     try {
         const data = await itemService.getItemOption()
-        return sendResponse(res, 200, "list item options success", data)
+        return util.sendResponse(res, 200, "list item options success", data)
     } catch (error) {
-        return sendResponse(res, 500, error.message);
+        return util.sendResponse(res, 500, error.message);
     }
 }
 
@@ -39,15 +49,15 @@ const createItem = async (req, res) => {
     try {
         const data = req.body
         if (!data) {
-            return sendResponse(res, 400, "Invalid body data")
+            return util.sendResponse(res, 400, "Invalid body data")
         }
 
         const newItem = await itemService.createItem(data)
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
-        return sendResponse(res, 201, "create item success", newItem)
+        return util.sendResponse(res, 201, "create item success", newItem)
     } catch (error) {
-        return sendResponse(res, 500, error.message);
+        return util.sendResponse(res, 500, error.message);
     }
 }
 
@@ -56,15 +66,15 @@ const updateItem = async (req, res) => {
         const { id } = req.params;
         const data = req.body;
         if (!data) {
-            return sendResponse(res, 400, "Invalid body data")
+            return util.sendResponse(res, 400, "Invalid body data")
         }
 
         const updatedItem = await itemService.updateItem(id, data);
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
-        return sendResponse(res, 200, "update item success", updatedItem)
+        return util.sendResponse(res, 200, "update item success", updatedItem)
     } catch (error) {
-        return sendResponse(res, 500, error.message);
+        return util.sendResponse(res, 500, error.message);
     }
 }
 
@@ -72,15 +82,15 @@ const softDeletedItem = async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return sendResponse(res, 400, "Invalid this parameter");
+            return util.sendResponse(res, 400, "Invalid this parameter");
         }
         const deletedItem = await itemService.softDeletedItem(id, req.user.user_id, req.user.user_fullname)
 
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
-        return sendResponse(res, 200, "delete item success", deletedItem)
+        return util.sendResponse(res, 200, "delete item success", deletedItem)
     } catch (error) {
-        return sendResponse(res, 500, error.message);
+        return util.sendResponse(res, 500, error.message);
     }
 }
 

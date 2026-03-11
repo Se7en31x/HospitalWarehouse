@@ -1,9 +1,25 @@
 const itemRepo = require('../repositories/item.repo')
 const DTO = require('../dtos/item.dto')
 
-const getAllItems = async () => {
-    const items = await itemRepo.SelectAllItems();
-    return items
+const getAllItems = async ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '' } = {}) => {
+    const [items, total] = await itemRepo.SelectAllItems({
+        page,
+        limit,
+        keyword,
+        start_date,
+        end_date,
+    });
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+        items,
+        total,
+        page,
+        limit,
+        totalPages,
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
+    };
 }
 
 const getItemById = async (id) => {
@@ -30,11 +46,11 @@ const updateItem = async (id, data) => {
     return itemUpdated;
 }
 
-const softDeletedItem = async (id, user_id, user_name) => {
+const softDeletedItem = async (id) => {
     const existingItem = await itemRepo.SelectItemById(id);
     if (!existingItem) throw new Error("Item id not found");
 
-    const payload = DTO.softDeleteDTO(user_id, user_name)
+    const payload = DTO.softDeleteDTO()
     const itemDeleted = await itemRepo.softDeletedItem(id, payload)
 
     return itemDeleted;

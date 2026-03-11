@@ -26,9 +26,19 @@ const getLotById = async (req, res) => {
 
 const createLot = async (req, res) => {
     try {
-        const newLot = await lotService.createLot(req.body);
+        const newLot = await lotService.stockInLot(req.body, req.user || {});
         
-        return sendResponse(res, 201, "Create lot success", newLot);
+        return sendResponse(res, 201, "Stock in success", newLot);
+    } catch (error) {
+        return sendResponse(res, 500, error.message || "Internal Server Error");
+    }
+}
+
+
+const stockInLot = async (req, res) => {
+    try {
+        const newLot = await lotService.stockInLot(req.body, req.user || {});
+        return sendResponse(res, 201, "Stock in success", newLot);
     } catch (error) {
         return sendResponse(res, 500, error.message || "Internal Server Error");
     }
@@ -43,8 +53,36 @@ const adjustLot = async (req, res) => {
         if (!id) {
             return res.status(400).json({ success: false, message: "Invalid lot code" });
         }
-        const result = await lotService.adjustLot(id, payload);
-        return sendResponse(res, 200, "adjust lot success", result);
+        const result = await lotService.adjustLotStock(id, payload, req.user || {});
+        return sendResponse(res, 200, "adjust lot stock success", result);
+    } catch (error) {
+        return sendResponse(res, 500, error.message || "Internal Server Error");
+    }
+}
+
+const adjustLotStock = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const payload = req.body;
+        if (!id) {
+            return res.status(400).json({ success: false, message: "Invalid lot code" });
+        }
+        const result = await lotService.adjustLotStock(id, payload, req.user || {});
+        return sendResponse(res, 200, "adjust lot stock success", result);
+    } catch (error) {
+        return sendResponse(res, 500, error.message || "Internal Server Error");
+    }
+}
+
+const updateLot = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ success: false, message: "Invalid lot code" });
+        }
+
+        const result = await lotService.updateLot(id, req.body || {});
+        return sendResponse(res, 200, "update lot success", result);
     } catch (error) {
         return sendResponse(res, 500, error.message || "Internal Server Error");
     }
@@ -74,6 +112,9 @@ module.exports = {
     getAllLots,
     getLotById,
     adjustLot,
+    adjustLotStock,
+    updateLot,
+    stockInLot,
     deleteLot,
     createLot,
 };

@@ -3,15 +3,14 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const dayjs = require('dayjs');
 
-const generateLotCode = async (item_id) => {
-    console.log("Generating lot code for item_id:", item_id);
-    const item = await prisma.items.findUnique({ where: { id: item_id }, include: { categories: true } });
+const generateLotCode = async (item_id, tx = prisma) => {
+    const item = await tx.items.findUnique({ where: { id: item_id }, include: { categories: true } });
     if (!item) throw new Error("Item not found for generating lot code");
     const prefix = item.categories?.code_prefix || 'ITEM';
     const dateStr = dayjs().format('YYMMDD');
 
     const searchPattern = `${prefix}-${dateStr}-`;
-    const lastLot = await prisma.item_lots.findFirst({
+    const lastLot = await tx.item_lots.findFirst({
         where: {
             lot_code: { startsWith: searchPattern }
         },
@@ -36,9 +35,9 @@ const whereClause = ({ search, warehouse, category, status }) => {
     if (search) {
         where.AND.push({
             OR: [
-                { lot_code: { contains: search } },
-                { items: { name: { contains: search } } },
-                { items: { code: { contains: search } } }
+                { lot_code: { contains: search, mode: 'insensitive' } },
+                { items: { name: { contains: search, mode: 'insensitive' } } },
+                { items: { code: { contains: search, mode: 'insensitive' } } }
             ]
         });
     }
@@ -88,8 +87,8 @@ const selectAllLot = async ({ where, offset, limit }) => {
 const selectLotById = async (id) => {
     if (!id) return null; 
 
-    const lot = await prisma.item_lots.findUnique({
-        where: { lot_code: id },
+    const lot = await prisma.item_lots.findFirst({
+        where: { lot_code: id, deleted_at: null },
         include: {
             items: {
                 include: { 
@@ -105,17 +104,45 @@ const selectLotById = async (id) => {
     return lot;
 };
 
-const createLot = async (data) => {
-    const newLot = await prisma.item_lots.create({ data });
+const createLot = async (data, tx = prisma) => {
+    const newLot = await tx.item_lots.create({ data });
     return newLot;
 }
 
-const updateLot = async (lotCode, data) => {
-    return await prisma.item_lots.update({
-        where: { lot_code: lotCode },
-        data: data
+const updateLot = async (lotCode, data, tx = prisma) => {
+    await tx.item_lots.updateMany({
+        where: { lot_code: lotCode, deleted_at: null },
+        data
     });
 
+    return tx.item_lots.findFirst({
+        where: { lot_code: lotCode, deleted_at: null },
+        include: {
+            items: {
+                include: {
+                    categories: true,
+                    unit: true
+                }
+            },
+            warehouses: true,
+            supplier: true
+        }
+    });
+};
+
+const updateItemCurrentStock = async (itemId, qtyDiff, tx = prisma) => {
+    return tx.items.update({
+        where: { id: itemId },
+        data: {
+            current_stock: {
+                increment: qtyDiff
+            }
+        }
+    });
+};
+
+const withTransaction = async (callback) => {
+    return prisma.$transaction((tx) => callback(tx));
 };
 
 module.exports = {
@@ -124,5 +151,7 @@ module.exports = {
     whereClause,
     selectLotById,
     createLot,
-    updateLot
+    updateLot,
+    updateItemCurrentStock,
+    withTransaction,
 };

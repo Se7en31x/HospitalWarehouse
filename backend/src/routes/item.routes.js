@@ -9,7 +9,7 @@ router.get('/:id', itemController.getItemById)
 
 // Authorization warehouse
 router.post('/', itemController.createItem)
-router.put('/:id', itemController.updateItem)
+router.patch('/:id', itemController.updateItem)
 router.delete('/:id', itemController.softDeletedItem)
 
 module.exports = router
