@@ -134,11 +134,14 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
                 remaining -= take;
 
                 await tx.item_lots.update({ where: { lot_code: lot.lot_code }, data: { quantity: { decrement: take } } });
-                await tx.item_allocation.create({ data: { req_item_id: rItemId, lot_id: lot.lot_code, qty: take, status: "COMPLETED" } });
+                await tx.item_allocation.create({ data: { req_item_id: rItemId, lot_id: lot.id, qty: take, status: "COMPLETED" } });
                 await tx.stocks_movement.create({
                     data: {
-                        item_id: reqItem.item_id, lot_id: lot.lot_code, quantity: take, type: "OUT",
-                        reason: `เบิกตามใบงาน: ${header.doc_no}`,
+                        lot_id: lot.id,
+                        quantity: take,
+                        type: "OUT",
+                        note: `เบิกตามใบงาน: ${header.doc_no}`,
+                        items: { connect: { id: reqItem.item_id } },
                         created_by: userSession.user_fullname, created_by_id: Number(userSession.user_id)
                     }
                 });

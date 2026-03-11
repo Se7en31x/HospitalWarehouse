@@ -121,21 +121,6 @@ model requisition_item {
   @@schema("inventory")
 }
 
-model supplier {
-  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String
-  contact    String?
-  address    String?
-  phone      String?
-  tax_id     String?
-  active     Boolean?    @default(true)
-  created_at DateTime?   @default(now()) @db.Timestamptz(6)
-  updated_at DateTime?   @default(now()) @updatedAt @db.Timestamptz(6)
-  item_lots  item_lots[]
-
-  @@schema("inventory")
-}
-
 model categories {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String    @db.VarChar(255)
@@ -158,7 +143,7 @@ model item_lots {
   cost_price      Decimal?          @default(0) @db.Decimal(10, 2)
   status          String?           @default("ACTIVE") @db.VarChar(20)
   expried_at      DateTime?         @db.Timestamptz(6)
-  reason          String?           @db.VarChar(255)
+  note            String?           @db.VarChar(255)
   created_at      DateTime?         @default(now()) @db.Timestamptz(6)
   updated_at      DateTime?         @default(now()) @updatedAt @db.Timestamptz(6)
   deleted_at      DateTime?         @db.Timestamptz(6)
@@ -178,7 +163,7 @@ model stocks_movement {
   lot_id        String?   @db.Uuid
   quantity      Int?      @default(0)
   type          String    @db.VarChar(50)
-  reason        String?
+  note          String?
   created_by    String?
   created_by_id Int?
   created_at    DateTime? @default(now()) @db.Timestamptz(6)
@@ -224,6 +209,55 @@ model departments {
   @@schema("public")
 }
 
+model sex {
+  id          Int     @id
+  name        String? @db.VarChar(25)
+  description String? @db.VarChar
+
+  @@schema("public")
+}
+
+model supplier {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  contact    String?
+  address    String?
+  phone      String?
+  tax_id     String?
+  active     Boolean?    @default(true)
+  created_at DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at DateTime?   @default(now()) @db.Timestamptz(6)
+  item_lots  item_lots[]
+
+  @@schema("public")
+}
+
+model users {
+  id                String    @id @db.Uuid
+  firstname_th      String?   @db.VarChar(255)
+  lastname_th       String?   @db.VarChar(255)
+  firstname_en      String?   @db.VarChar(255)
+  lastname_en       String?   @db.VarChar(255)
+  sex_id            Int?
+  birth_date        DateTime? @db.Date
+  nationality       Int?
+  race              Int?
+  mstatus           Int?
+  occupation        Int?
+  phone             String?   @db.VarChar(15)
+  current_maininscl Int?
+  subdistrict_code  Int?
+  district_code     Int?
+  province_code     Int?
+  zip_code          Int?
+  address_detail    String?   @db.VarChar(255)
+  cid               String?   @db.VarChar(13)
+  profession_id     String?   @db.VarChar(50)
+  title             Int?
+
+  @@schema("public")
+}
+
 /// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 view view_items {
   id             String    @id @db.Uuid
@@ -244,6 +278,42 @@ view view_items {
   created_at     DateTime? @db.Timestamptz(6)
   updated_at     DateTime? @db.Timestamptz(6)
   deleted_at     DateTime? @db.Timestamptz(6)
+
+  @@schema("inventory")
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view view_item_lots {
+  id                 String   @id @db.Uuid
+  lot_code           String?   @db.VarChar(100)
+  quantity           Int?
+  cost_price         Decimal?  @db.Decimal(10, 2)
+  status             String?   @db.VarChar(20)
+  note               String?   @db.VarChar(255)
+  expried_at         DateTime? @db.Timestamptz(6)
+  item_id            String?   @db.Uuid
+  item_name          String?
+  item_code          String?
+  item_description   String?
+  item_image         String?
+  category_id        String?   @db.Uuid
+  category_name      String?   @db.VarChar(255)
+  unit_id            String?   @db.Uuid
+  unit_name          String?
+  warehouse_id       String?   @db.Uuid
+  warehouse_name     String?
+  warehouse_location String?
+  supplier_id        String?   @db.Uuid
+  supplier_name      String?
+  supplier_contact   String?
+  supplier_phone     String?
+  days_until_expiry  Int?
+  total_value        Decimal?  @db.Decimal
+  expiry_status      String?
+  created_at         DateTime? @db.Timestamptz(6)
+  updated_at         DateTime? @db.Timestamptz(6)
+  deleted_at         DateTime? @db.Timestamptz(6)
+  deleted_by         Int?
 
   @@schema("inventory")
 }

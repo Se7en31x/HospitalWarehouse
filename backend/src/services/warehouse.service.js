@@ -1,4 +1,5 @@
 const warehouseRepo = require('../repositories/warehouse.repo')
+const DTO = require('../dtos/warehouse.dto')
 
 const getAllWarehouses = async ({ page = 1, limit = 10, keyword = '' } = {}) => {
 	const [items, total] = await warehouseRepo.SelectAllWarehouses({ page, limit, keyword });
@@ -30,7 +31,8 @@ const updateWarehouse = async (id, data) => {
 	const existingWarehouse = await warehouseRepo.SelectWarehouseById(id);
 	if (!existingWarehouse) throw new Error('Warehouse id not found');
 
-	const updatedWarehouse = await warehouseRepo.updateWarehouse(id, data);
+	const payload = DTO.updateWarehouseDTO(data);
+	const updatedWarehouse = await warehouseRepo.updateWarehouse(id, payload);
 	return updatedWarehouse;
 }
 

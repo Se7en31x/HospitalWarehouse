@@ -1,4 +1,5 @@
 const unitRepo = require('../repositories/unit.repo')
+const DTO = require('../dtos/unit.dto')
 
 const getAllUnits = async ({ page = 1, limit = 10, keyword = '' } = {}) => {
 	const [items, total] = await unitRepo.SelectAllUnits({ page, limit, keyword });
@@ -30,7 +31,8 @@ const updateUnit = async (id, data) => {
 	const existingUnit = await unitRepo.SelectUnitById(id);
 	if (!existingUnit) throw new Error('Unit id not found');
 
-	const updatedUnit = await unitRepo.updateUnit(id, data);
+	const payload = DTO.updateUnitDTO(data);
+	const updatedUnit = await unitRepo.updateUnit(id, payload);
 	return updatedUnit;
 }
 

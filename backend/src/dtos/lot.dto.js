@@ -27,6 +27,7 @@ const createLotDTO = (payload, generatedLotCode) => {
         cost_price: payload.cost_price, 
         supplier_id: payload.supplier_id || null,
         expried_at: parseClientDate(payload.expried_at),
+        note: payload.note || null,
         status: 'ACTIVE',
     };
 };
@@ -34,7 +35,7 @@ const createLotDTO = (payload, generatedLotCode) => {
 const adjustLotDTO = (payload) => {
     return {
         quantity: Number(payload.new_quantity),
-        reason: payload.reason,
+        note: payload.note,
         status: payload.status,
     }
 }
@@ -59,19 +60,17 @@ const updateLotDTO = (payload = {}) => {
     if (Object.prototype.hasOwnProperty.call(payload, 'status')) {
         data.status = payload.status;
     }
-    if (Object.prototype.hasOwnProperty.call(payload, 'reason')) {
-        data.reason = payload.reason;
+    if (Object.prototype.hasOwnProperty.call(payload, 'note')) {
+        data.note = payload.note;
     }
 
     return data;
 };
 
-const deleteLotDTO = (userID) => {
-    const deletedBy = Number(userID);
+const deleteLotDTO = () => {
     return {
         status: 'DELETED',
         deleted_at: new Date(),
-        deleted_by: Number.isNaN(deletedBy) ? null : deletedBy,
     };
 };
 

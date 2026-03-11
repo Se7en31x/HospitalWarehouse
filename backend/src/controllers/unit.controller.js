@@ -45,15 +45,15 @@ const createUnit = async (req, res) => {
 	try {
 		const data = req.body;
 		if (!data) {
-			return sendResponse(res, 400, 'Invalid body data');
+			return util.sendResponse(res, 400, 'Invalid body data');
 		}
 
 		const newUnit = await unitService.createUnit(data);
 		req.io.emit('REFRESH_DATA', 'UNITS');
 
-		return sendResponse(res, 201, 'Create unit success', newUnit);
+		return util.sendMutationResponse(res, 201, 'Create unit success', newUnit?.id || null);
 	} catch (error) {
-		return sendResponse(res, 500, error.message);
+		return util.sendResponse(res, 500, error.message);
 	}
 }
 
@@ -68,7 +68,7 @@ const updateUnit = async (req, res) => {
 		const updatedUnit = await unitService.updateUnit(id, data);
 		req.io.emit('REFRESH_DATA', 'UNITS');
 
-		return util.sendResponse(res, 200, 'Update unit success', updatedUnit);
+		return util.sendMutationResponse(res, 200, 'Update unit success', updatedUnit?.id || id);
 	} catch (error) {
 		return util.sendResponse(res, 500, error.message);
 	}
@@ -84,7 +84,7 @@ const softDeletedUnit = async (req, res) => {
 		const deletedUnit = await unitService.softDeletedUnit(id);
 		req.io.emit('REFRESH_DATA', 'UNITS');
 
-		return util.sendResponse(res, 200, 'Delete unit success', deletedUnit);
+		return util.sendMutationResponse(res, 200, 'Delete unit success', deletedUnit?.id || id);
 	} catch (error) {
 		return util.sendResponse(res, 500, error.message);
 	}

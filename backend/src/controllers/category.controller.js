@@ -51,7 +51,7 @@ const createCategory = async (req, res) => {
 		const newCategory = await categoryService.createCategory(data);
 		req.io.emit('REFRESH_DATA', 'CATEGORIES');
 
-		return util.sendResponse(res, 201, 'Create category success', newCategory);
+		return util.sendMutationResponse(res, 201, 'Create category success', newCategory?.id || null);
 	} catch (error) {
 		return util.sendResponse(res, 500, "failed to create category");
 	}
@@ -68,7 +68,7 @@ const updateCategory = async (req, res) => {
 		const updatedCategory = await categoryService.updateCategory(id, data);
 		req.io.emit('REFRESH_DATA', 'CATEGORIES');
 
-		return util.sendResponse(res, 200, 'Update category success', updatedCategory);
+		return util.sendMutationResponse(res, 200, 'Update category success', updatedCategory?.id || id);
 	} catch (error) {
 		return util.sendResponse(res, 500, "failed to update category");
 	}
@@ -84,7 +84,7 @@ const softDeletedCategory = async (req, res) => {
 		const deletedCategory = await categoryService.softDeletedCategory(id);
 		req.io.emit('REFRESH_DATA', 'CATEGORIES');
 
-		return util.sendResponse(res, 200, 'Delete category success', deletedCategory);
+		return util.sendMutationResponse(res, 200, 'Delete category success', deletedCategory?.id || id);
 	} catch (error) {
 		return util.sendResponse(res, 500, "failed to delete category");
 	}

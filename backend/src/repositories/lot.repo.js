@@ -29,104 +29,125 @@ const generateLotCode = async (item_id, tx = prisma) => {
 
 }
 
-const whereClause = ({ search, warehouse, category, status }) => {
-    const where = { AND: [] };
-    where.AND.push({ deleted_at: null });
-    if (search) {
-        where.AND.push({
-            OR: [
-                { lot_code: { contains: search, mode: 'insensitive' } },
-                { items: { name: { contains: search, mode: 'insensitive' } } },
-                { items: { code: { contains: search, mode: 'insensitive' } } }
-            ]
-        });
-    }
-    if (warehouse && warehouse !== 'ทั้งหมด') {
-        where.AND.push({ warehouse_id: warehouse });
-    }
-    if (category && category !== 'ทั้งหมด') {
-        where.AND.push({ items: { categories: { name: category } } });
+const buildLotWhere = ({ keyword = '', warehouse_id = '', category_id = '', status = '', expiry_status = '' } = {}) => {
+    const where = { deleted_at: null };
+    const normalizedKeyword = (keyword || '').trim();
+
+    if (normalizedKeyword) {
+        where.OR = [
+            { lot_code: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { item_name: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { item_code: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { category_name: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { warehouse_name: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { supplier_name: { contains: normalizedKeyword, mode: 'insensitive' } },
+        ];
     }
 
-    const today = dayjs();
-
-    // 4. แก้ expired_at -> expried_at (ตาม Schema)
-    if (status === 'EXPIRED') {
-        where.AND.push({ expried_at: { lt: today.toDate() } });
-    } else if (status === 'NEAR') {
-        where.AND.push({
-            expried_at: {
-                gte: today.toDate(),
-                lte: today.add(3, 'month').toDate()
-            }
-        });
+    if (warehouse_id && warehouse_id !== 'ทั้งหมด') {
+        where.warehouse_id = warehouse_id;
     }
+
+    if (category_id && category_id !== 'ทั้งหมด') {
+        where.category_id = category_id;
+    }
+
+    const normalizedStatus = (status || '').toString().trim().toUpperCase();
+    const normalizedExpiryStatus = (expiry_status || '').toString().trim().toUpperCase();
+
+    if (normalizedStatus) {
+        if (normalizedStatus === 'NEAR') {
+            where.expiry_status = 'NEAR_EXPIRY';
+        } else if (['EXPIRED', 'NEAR_EXPIRY', 'NORMAL', 'NO_EXPIRY'].includes(normalizedStatus)) {
+            where.expiry_status = normalizedStatus;
+        } else {
+            where.status = normalizedStatus;
+        }
+    }
+
+    if (normalizedExpiryStatus) {
+        where.expiry_status = normalizedExpiryStatus === 'NEAR' ? 'NEAR_EXPIRY' : normalizedExpiryStatus;
+    }
+
     return where;
 };
 
-const selectAllLot = async ({ where, offset, limit }) => {
-    const [lots, total] = await prisma.$transaction([
-        prisma.item_lots.findMany({
+const lotViewSelect = {
+    id: true,
+    lot_code: true,
+    quantity: true,
+    cost_price: true,
+    status: true,
+    note: true,
+    expried_at: true,
+    item_id: true,
+    item_name: true,
+    item_code: true,
+    item_description: true,
+    item_image: true,
+    category_id: true,
+    category_name: true,
+    unit_id: true,
+    unit_name: true,
+    warehouse_id: true,
+    warehouse_name: true,
+    warehouse_location: true,
+    supplier_id: true,
+    supplier_name: true,
+    supplier_contact: true,
+    supplier_phone: true,
+    days_until_expiry: true,
+    total_value: true,
+    expiry_status: true,
+    created_at: true,
+    updated_at: true,
+};
+
+const selectAllLot = ({ page = 1, limit = 10, keyword = '', warehouse_id = '', category_id = '', status = '', expiry_status = '' } = {}) => {
+    const where = buildLotWhere({ keyword, warehouse_id, category_id, status, expiry_status });
+    const skip = (page - 1) * limit;
+
+    return prisma.$transaction([
+        prisma.view_item_lots.findMany({
             where,
-            skip: offset,
+            select: lotViewSelect,
+            orderBy: [{ expried_at: 'asc' }, { created_at: 'desc' }],
+            skip,
             take: limit,
-            include: {
-                items: {
-                    include: { categories: true, unit: true }
-                },
-                warehouses: true,
-                supplier: true
-            },
-            orderBy: { expried_at: 'asc' }
         }),
-        prisma.item_lots.count({ where })
+        prisma.view_item_lots.count({ where }),
     ]);
-    return { lots, total }
 };
 
 const selectLotById = async (id) => {
-    if (!id) return null; 
+    if (!id) return null;
 
-    const lot = await prisma.item_lots.findFirst({
-        where: { lot_code: id, deleted_at: null },
-        include: {
-            items: {
-                include: { 
-                    categories: true, 
-                    unit: true 
-                }
-            },
-            warehouses: true,
-            supplier: true
-        },
+    const lot = await prisma.view_item_lots.findFirst({
+        where: { id, deleted_at: null },
+        select: lotViewSelect,
     });
 
     return lot;
 };
 
 const createLot = async (data, tx = prisma) => {
-    const newLot = await tx.item_lots.create({ data });
-    return newLot;
+    return tx.item_lots.create({
+        data,
+        select: {
+            id: true,
+        },
+    });
 }
 
-const updateLot = async (lotCode, data, tx = prisma) => {
+const updateLot = async (lotId, data, tx = prisma) => {
     await tx.item_lots.updateMany({
-        where: { lot_code: lotCode, deleted_at: null },
+        where: { id: lotId, deleted_at: null },
         data
     });
 
     return tx.item_lots.findFirst({
-        where: { lot_code: lotCode, deleted_at: null },
-        include: {
-            items: {
-                include: {
-                    categories: true,
-                    unit: true
-                }
-            },
-            warehouses: true,
-            supplier: true
-        }
+        where: { id: lotId, deleted_at: null },
+        select: { id: true },
     });
 };
 
@@ -148,7 +169,6 @@ const withTransaction = async (callback) => {
 module.exports = {
     generateLotCode,
     selectAllLot,
-    whereClause,
     selectLotById,
     createLot,
     updateLot,

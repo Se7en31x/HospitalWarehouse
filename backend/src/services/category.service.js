@@ -1,4 +1,5 @@
 const categoryRepo = require('../repositories/category.repo')
+const DTO = require('../dtos/category.dto')
 
 const getAllCategories = async ({ page = 1, limit = 10, keyword = '' } = {}) => {
 	const [items, total] = await categoryRepo.SelectAllCategories({ page, limit, keyword });
@@ -30,7 +31,8 @@ const updateCategory = async (id, data) => {
 	const existingCategory = await categoryRepo.SelectCategoryById(id);
 	if (!existingCategory) throw new Error('Category id not found');
 
-	const updatedCategory = await categoryRepo.updateCategory(id, data);
+	const payload = DTO.updateCategoryDTO(data);
+	const updatedCategory = await categoryRepo.updateCategory(id, payload);
 	return updatedCategory;
 }
 

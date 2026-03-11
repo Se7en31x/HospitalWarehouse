@@ -16,28 +16,34 @@ const normalizeAdjustType = (value = '') => {
 };
 
 const getAllLots = async (query) => {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const keyword = (query.keyword || query.search || '').toString().trim();
+    const warehouse_id = (query.warehouse_id || query.warehouse || '').toString().trim();
+    const category_id = (query.category_id || query.category || '').toString().trim();
+    const status = (query.status || '').toString().trim();
+    const expiry_status = (query.expiry_status || '').toString().trim();
 
-    const page = parseInt(query.page) || 1;
-    const limit = parseInt(query.limit) || 10;
-    const offset = (page - 1) * limit;
-
-    const where = lotRepo.whereClause({
-        search: query.search,
-        warehouse: query.warehouse,
-        category: query.category,
-        status: query.status
+    const [items, total] = await lotRepo.selectAllLot({
+        page,
+        limit,
+        keyword,
+        warehouse_id,
+        category_id,
+        status,
+        expiry_status,
     });
-    const { lots, total } = await lotRepo.selectAllLot({ where, offset, limit })
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return {
-        metaData: {
-            page: page,
-            limit: limit,
-            total: total,
-            totalPages: Math.ceil(total / limit)
-        },
-        data: lots,
-
+        items,
+        total,
+        page,
+        limit,
+        totalPages,
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
     };
 }
 
@@ -45,6 +51,8 @@ const getLotById = async (id) => {
     const lot = await lotRepo.selectLotById(id);
     return lot;
 }
+
+const resolveNote = (payload = {}) => payload.note || null;
 
 const stockInLot = async (payload, user = {}) => {
     const qty = Number(payload.quantity);
@@ -61,10 +69,10 @@ const stockInLot = async (payload, user = {}) => {
 
         await stockMovementRepo.createStockMovement({
             item_id: payload.item_id,
-            lot_id: newLot.lot_code,
+            lot_id: newLot.id,
             quantity: qty,
             type: 'STOCK_IN',
-            reason: payload.reason || 'รับเข้าสินค้า',
+            note: resolveNote(payload) || 'รับเข้าสินค้า',
             created_by: user.user_fullname || null,
             created_by_id: user.user_id ? Number(user.user_id) : null,
         }, tx);
@@ -73,8 +81,8 @@ const stockInLot = async (payload, user = {}) => {
     });
 }
 
-const adjustLotStock = async (lotCode, payload, user = {}) => {
-    const existingLot = await lotRepo.selectLotById(lotCode);
+const adjustLotStock = async (lotId, payload, user = {}) => {
+    const existingLot = await lotRepo.selectLotById(lotId);
     if (!existingLot) throw new Error("Lot id not found");
 
     const type = normalizeAdjustType(payload.type || '');
@@ -108,26 +116,27 @@ const adjustLotStock = async (lotCode, payload, user = {}) => {
     const qtyDiff = newQty - currentQty;
     const movementDirection = qtyDiff >= 0 ? 'IN' : 'OUT';
     const movementQty = Math.abs(qtyDiff);
+    const note = resolveNote(payload);
 
     return lotRepo.withTransaction(async (tx) => {
         const nextStatus = payload.status || (type === 'EXPIRED' || type === 'DAMAGED' ? type : existingLot.status);
         const data = DTO.adjustLotDTO({
             new_quantity: newQty,
-            reason: payload.reason,
+            note,
             status: nextStatus,
         });
 
-        const updatedLot = await lotRepo.updateLot(lotCode, data, tx);
+        const updatedLot = await lotRepo.updateLot(lotId, data, tx);
 
         if (qtyDiff !== 0) {
             await lotRepo.updateItemCurrentStock(existingLot.item_id, qtyDiff, tx);
 
             await stockMovementRepo.createStockMovement({
                 item_id: existingLot.item_id,
-                lot_id: lotCode,
+                lot_id: existingLot.id,
                 quantity: movementQty,
                 type,
-                reason: `${movementDirection} | ${payload.reason || 'ปรับยอดสต็อก'}`,
+                note: `${movementDirection} | ${note || 'ปรับยอดสต็อก'}`,
                 created_by: user.user_fullname || null,
                 created_by_id: user.user_id ? Number(user.user_id) : null,
             }, tx);
@@ -137,23 +146,22 @@ const adjustLotStock = async (lotCode, payload, user = {}) => {
     });
 
 }
-
-const updateLot = async (lotCode, payload) => {
-    const existingLot = await lotRepo.selectLotById(lotCode);
+const updateLot = async (lotId, payload) => {
+    const existingLot = await lotRepo.selectLotById(lotId);
     if (!existingLot) throw new Error('Lot id not found');
 
     const data = DTO.updateLotDTO(payload);
-    const updatedLot = await lotRepo.updateLot(lotCode, data);
+    const updatedLot = await lotRepo.updateLot(lotId, data);
     return updatedLot;
 
 }
 
-const deleteLot = async (lotCode, claim) => {
-    const existingLot = await lotRepo.selectLotById(lotCode);
+const deleteLot = async (lotId) => {
+    const existingLot = await lotRepo.selectLotById(lotId);
     if (!existingLot) throw new Error("Lot id not found");
 
-    const data = DTO.deleteLotDTO(claim.user_id)
-    return await lotRepo.updateLot(lotCode, data)
+    const data = DTO.deleteLotDTO()
+    return await lotRepo.updateLot(lotId, data)
 
 }
 
@@ -164,7 +172,4 @@ module.exports = {
     adjustLotStock,
     updateLot,
     deleteLot,
-    createLot: stockInLot,
-    adjustLot: adjustLotStock,
-
 };

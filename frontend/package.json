@@ -2,14 +2,16 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-    "dev": "next dev --turbopack -p 3001",
-    "build": "next build --turbopack",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.16.0",
+    "baseline-browser-mapping": "^2.10.0",
+    "caniuse-lite": "^1.0.30001777",
     "chart.js": "^4.5.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.13",

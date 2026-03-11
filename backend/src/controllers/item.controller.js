@@ -55,7 +55,7 @@ const createItem = async (req, res) => {
         const newItem = await itemService.createItem(data)
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
-        return util.sendResponse(res, 201, "create item success", newItem)
+        return util.sendMutationResponse(res, 201, "create item success", newItem?.id || null)
     } catch (error) {
         return util.sendResponse(res, 500, error.message);
     }
@@ -72,7 +72,7 @@ const updateItem = async (req, res) => {
         const updatedItem = await itemService.updateItem(id, data);
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
-        return util.sendResponse(res, 200, "update item success", updatedItem)
+        return util.sendMutationResponse(res, 200, "update item success", updatedItem?.id || id)
     } catch (error) {
         return util.sendResponse(res, 500, error.message);
     }
@@ -88,7 +88,7 @@ const softDeletedItem = async (req, res) => {
 
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
-        return util.sendResponse(res, 200, "delete item success", deletedItem)
+        return util.sendMutationResponse(res, 200, "delete item success", deletedItem?.id || id)
     } catch (error) {
         return util.sendResponse(res, 500, error.message);
     }

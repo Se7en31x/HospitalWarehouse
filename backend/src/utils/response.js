@@ -17,7 +17,16 @@ const sendListResponse = (res, statusCode, message, result) => {
     });
 };
 
+const sendMutationResponse = (res, statusCode, message, id = null) => {
+    return res.status(statusCode).json({
+        status: statusCode < 400 ? "ok" : "error",
+        message,
+        id,
+    });
+};
+
 module.exports = { 
     sendResponse ,
     sendListResponse,
+    sendMutationResponse,
 };

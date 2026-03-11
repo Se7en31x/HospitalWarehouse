@@ -51,7 +51,7 @@ const createWarehouse = async (req, res) => {
 		const newWarehouse = await warehouseService.createWarehouse(data);
 		req.io.emit('REFRESH_DATA', 'WAREHOUSES');
 
-		return util.sendResponse(res, 201, 'Create warehouse success', newWarehouse);
+		return util.sendMutationResponse(res, 201, 'Create warehouse success', newWarehouse?.id || null);
 	} catch (error) {
 		return util.sendResponse(res, 500, error.message);
 	}
@@ -68,7 +68,7 @@ const updateWarehouse = async (req, res) => {
 		const updatedWarehouse = await warehouseService.updateWarehouse(id, data);
 		req.io.emit('REFRESH_DATA', 'WAREHOUSES');
 
-		return util.sendResponse(res, 200, 'Update warehouse success', updatedWarehouse);
+		return util.sendMutationResponse(res, 200, 'Update warehouse success', updatedWarehouse?.id || id);
 	} catch (error) {
 		return util.sendResponse(res, 500, error.message);
 	}
@@ -84,7 +84,7 @@ const softDeletedWarehouse = async (req, res) => {
 		const deletedWarehouse = await warehouseService.softDeletedWarehouse(id);
 		req.io.emit('REFRESH_DATA', 'WAREHOUSES');
 
-		return util.sendResponse(res, 200, 'Delete warehouse success', deletedWarehouse);
+		return util.sendMutationResponse(res, 200, 'Delete warehouse success', deletedWarehouse?.id || id);
 	} catch (error) {
 		return util.sendResponse(res, 500, error.message);
 	}
