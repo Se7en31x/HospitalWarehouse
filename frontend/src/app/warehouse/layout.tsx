@@ -2,6 +2,8 @@
 
 import WarehouseNavbar from "@/components/layouts/WarehouseNavbar";
 import WarehouseSidebar from "@/components/layouts/WarehouseSidebar";
+import MainContentWrapper from "@/components/layouts/MainContentWrapper"; // ← เพิ่มบรรทัดนี้
+
 // import { useEffect, useState } from 'react';
 // import { useRouter } from 'next/navigation';
 // import Cookies from 'js-cookie';
@@ -17,9 +19,7 @@ export default function WarehouseLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 overflow-hidden w-full">
         <WarehouseSidebar />
         
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
+         <MainContentWrapper>{children}</MainContentWrapper>
       </div>
 
     </div>

@@ -26,7 +26,7 @@ export default function WarehouseSidebar() {
       group: 'ธุรกรรม',
       items: [
         { name: 'ตรวจสอบคำขอ', path: '/warehouse/requests', icon: ClipboardCheck },
-        { name: 'จัดการการคืน', path: '/warehouse/returns', icon: Undo2 },
+        { name: 'จัดการการคืน', path: '/warehouse/managereturns', icon: Undo2 },
       ]
     },
     {
