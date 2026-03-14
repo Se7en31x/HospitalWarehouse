@@ -59,6 +59,7 @@ model items {
   categories         categories?          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_category_fk")
   unit               units?               @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_unit_fk")
   warehouses         warehouses?          @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_warehouse_fk")
+  receive_item       receive_item[]
   requisition_item   requisition_item[]
   stocks_movement    stocks_movement[]
 
@@ -138,19 +139,15 @@ model item_lots {
   lot_code        String            @db.VarChar(100)
   item_id         String?           @db.Uuid
   warehouse_id    String?           @db.Uuid
-  supplier_id     String?           @db.Uuid
   quantity        Int?              @default(0)
-  cost_price      Decimal?          @default(0) @db.Decimal(10, 2)
   status          String?           @default("ACTIVE") @db.VarChar(20)
-  expried_at      DateTime?         @db.Timestamptz(6)
+  expired_at      DateTime?         @db.Timestamptz(6)
   note            String?           @db.VarChar(255)
   created_at      DateTime?         @default(now()) @db.Timestamptz(6)
   updated_at      DateTime?         @default(now()) @updatedAt @db.Timestamptz(6)
   deleted_at      DateTime?         @db.Timestamptz(6)
-  deleted_by      Int?
   item_allocation item_allocation[]
   items           items?            @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_lot_item_fk")
-  supplier        supplier?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_lot_supplier_fk")
   warehouses      warehouses?       @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_lot_warehouse_fk")
 
   @@unique([item_id, lot_code], map: "item_lot_unique_idx")
@@ -218,42 +215,110 @@ model sex {
 }
 
 model supplier {
-  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String
-  contact    String?
-  address    String?
-  phone      String?
-  tax_id     String?
-  active     Boolean?    @default(true)
-  created_at DateTime?   @default(now()) @db.Timestamptz(6)
-  updated_at DateTime?   @default(now()) @db.Timestamptz(6)
-  item_lots  item_lots[]
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  contact        String?
+  address        String?
+  phone          String?
+  tax_id         String?
+  active         Boolean?         @default(true)
+  created_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  receive_header receive_header[]
 
   @@schema("public")
 }
 
 model users {
-  id                String    @id @db.Uuid
-  firstname_th      String?   @db.VarChar(255)
-  lastname_th       String?   @db.VarChar(255)
-  firstname_en      String?   @db.VarChar(255)
-  lastname_en       String?   @db.VarChar(255)
+  id                String           @id @db.Uuid
+  firstname_th      String?          @db.VarChar(255)
+  lastname_th       String?          @db.VarChar(255)
+  firstname_en      String?          @db.VarChar(255)
+  lastname_en       String?          @db.VarChar(255)
   sex_id            Int?
-  birth_date        DateTime? @db.Date
+  birth_date        DateTime?        @db.Date
   nationality       Int?
   race              Int?
   mstatus           Int?
   occupation        Int?
-  phone             String?   @db.VarChar(15)
+  phone             String?          @db.VarChar(15)
   current_maininscl Int?
   subdistrict_code  Int?
   district_code     Int?
   province_code     Int?
   zip_code          Int?
-  address_detail    String?   @db.VarChar(255)
-  cid               String?   @db.VarChar(13)
-  profession_id     String?   @db.VarChar(50)
-  title             Int?
+  address_detail    String?          @db.VarChar(255)
+  cid               String?          @db.VarChar(13)
+  profession_id     String?          @db.VarChar(50)
+  title_code        String?          @db.VarChar(3)
+  receive_header    receive_header[]
+  lookup_titles     lookup_titles?   @relation(fields: [title_code], references: [title_code], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_title")
+
+  @@schema("public")
+}
+
+model receive_header {
+  id           Int            @id @default(autoincrement())
+  doc_no       String         @unique @db.VarChar(50)
+  type         String         @db.VarChar(50)
+  status       String?        @default("COMPLETED") @db.VarChar(50)
+  supplier_id  String?        @db.Uuid
+  donor_name   String?        @db.VarChar(255)
+  receive_date DateTime?      @default(now()) @db.Timestamptz(6)
+  note         String?
+  created_by   String?        @db.Uuid
+  created_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  supplier     supplier?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "receive_header_supplier_fk")
+  users        users?         @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "receive_header_users_fk")
+  receive_item receive_item[]
+
+  @@index([doc_no], map: "idx_receive_header_doc_no")
+  @@index([type], map: "idx_receive_header_type")
+  @@schema("inventory")
+}
+
+model receive_item {
+  id             Int            @id @default(autoincrement())
+  header_id      Int
+  item_id        String         @db.Uuid
+  lot_code       String         @db.VarChar(100)
+  qty            Int
+  cost_price     Decimal?       @default(0) @db.Decimal(10, 2)
+  expired_at     DateTime?      @db.Timestamptz(6)
+  receive_header receive_header @relation(fields: [header_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "receive_item_header_fk")
+  items          items          @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "receive_item_item_fk")
+
+  @@index([header_id], map: "idx_receive_item_header")
+  @@schema("inventory")
+}
+
+model lookup_mstatus {
+  mstatus_code String @id(map: "PK_a8d2ed3ebeea14eeb4377c29ef3") @db.VarChar(1)
+  mstatus      String @db.VarChar(100)
+
+  @@schema("public")
+}
+
+model lookup_nations {
+  nation_code String @id(map: "PK_aa8e225d54e36f787ea37fb1284") @db.VarChar(3)
+  nation      String @db.VarChar(100)
+
+  @@schema("public")
+}
+
+model lookup_occupations {
+  occup_code String @id(map: "PK_ca5c5d4461da50573a0bbbcb199") @db.VarChar(5)
+  name       String
+
+  @@schema("public")
+}
+
+model lookup_titles {
+  title_code String  @id(map: "PK_7d56771b6d78cbe8690a44481cc") @db.VarChar(3)
+  short_name String? @db.VarChar(50)
+  name       String  @db.VarChar(100)
+  users      users[]
 
   @@schema("public")
 }
@@ -278,42 +343,6 @@ view view_items {
   created_at     DateTime? @db.Timestamptz(6)
   updated_at     DateTime? @db.Timestamptz(6)
   deleted_at     DateTime? @db.Timestamptz(6)
-
-  @@schema("inventory")
-}
-
-/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-view view_item_lots {
-  id                 String   @id @db.Uuid
-  lot_code           String?   @db.VarChar(100)
-  quantity           Int?
-  cost_price         Decimal?  @db.Decimal(10, 2)
-  status             String?   @db.VarChar(20)
-  note               String?   @db.VarChar(255)
-  expried_at         DateTime? @db.Timestamptz(6)
-  item_id            String?   @db.Uuid
-  item_name          String?
-  item_code          String?
-  item_description   String?
-  item_image         String?
-  category_id        String?   @db.Uuid
-  category_name      String?   @db.VarChar(255)
-  unit_id            String?   @db.Uuid
-  unit_name          String?
-  warehouse_id       String?   @db.Uuid
-  warehouse_name     String?
-  warehouse_location String?
-  supplier_id        String?   @db.Uuid
-  supplier_name      String?
-  supplier_contact   String?
-  supplier_phone     String?
-  days_until_expiry  Int?
-  total_value        Decimal?  @db.Decimal
-  expiry_status      String?
-  created_at         DateTime? @db.Timestamptz(6)
-  updated_at         DateTime? @db.Timestamptz(6)
-  deleted_at         DateTime? @db.Timestamptz(6)
-  deleted_by         Int?
 
   @@schema("inventory")
 }

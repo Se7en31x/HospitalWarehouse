@@ -1,82 +1,61 @@
-const dayjs = require('dayjs');
-const utc = require('dayjs/plugin/utc');
-const customParseFormat = require('dayjs/plugin/customParseFormat');
+const calcExpiryStatus = (expiredAt) => {
+    if (!expiredAt) return 'NO_EXPIRY';
 
-dayjs.extend(utc);
-dayjs.extend(customParseFormat);
+    const now = new Date();
+    const expireDate = new Date(expiredAt);
+    const diffMs = expireDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-const parseClientDate = (value) => {
-    if (!value) return null;
-
-    const raw = value.toString().trim();
-    if (!raw) return null;
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-        return dayjs.utc(raw, 'YYYY-MM-DD', true).startOf('day').toDate();
-    }
-
-    return dayjs(raw).toDate();
-};
-
-const createLotDTO = (payload, generatedLotCode) => {
-    return {
-        lot_code: generatedLotCode,
-        item_id: payload.item_id,
-        warehouse_id: payload.warehouse_id,
-        quantity: Number(payload.quantity),
-        cost_price: payload.cost_price, 
-        supplier_id: payload.supplier_id || null,
-        expried_at: parseClientDate(payload.expried_at),
-        note: payload.note || null,
-        status: 'ACTIVE',
-    };
+    if (diffDays < 0) return 'EXPIRED';
+    if (diffDays <= 30) return 'NEAR_EXPIRY';
+    return 'NORMAL';
 };
 
 const adjustLotDTO = (payload) => {
     return {
         quantity: Number(payload.new_quantity),
-        note: payload.note,
+        note: payload.note || null,
         status: payload.status,
     }
 }
 
-const updateLotDTO = (payload = {}) => {
-    const data = {};
+const mapLotItem = (lot = {}) => ({
+    id: lot.id,
+    lot_code: lot.lot_code,
+    item_id: lot.item_id,
+    item_code: lot.items?.code || null,
+    item_name: lot.items?.name || null,
+    category_id: lot.items?.category_id || null,
+    category_name: lot.items?.categories?.name || null,
+    unit_id: lot.items?.unit_id || null,
+    unit_name: lot.items?.unit?.name || null,
+    warehouse_id: lot.warehouse_id,
+    warehouse_name: lot.warehouses?.name || null,
+    warehouse_location: lot.warehouses?.location || null,
+    quantity: lot.quantity || 0,
+    status: lot.status,
+    expiry_status: calcExpiryStatus(lot.expired_at),
+    expired_at: lot.expired_at,
+    note: lot.note,
+    created_at: lot.created_at,
+    updated_at: lot.updated_at,
+});
 
-    if (Object.prototype.hasOwnProperty.call(payload, 'warehouse_id')) {
-        data.warehouse_id = payload.warehouse_id || null;
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'supplier_id')) {
-        data.supplier_id = payload.supplier_id || null;
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'cost_price')) {
-        data.cost_price = payload.cost_price === null || payload.cost_price === undefined
-            ? null
-            : Number(payload.cost_price);
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'expried_at')) {
-        data.expried_at = parseClientDate(payload.expried_at);
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'status')) {
-        data.status = payload.status;
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, 'note')) {
-        data.note = payload.note;
-    }
-
-    return data;
-};
-
-const deleteLotDTO = () => {
-    return {
-        status: 'DELETED',
-        deleted_at: new Date(),
-    };
-};
+const mapLotMovement = (movement = {}) => ({
+    id: movement.id,
+    type: movement.type,
+    quantity: movement.quantity || 0,
+    note: movement.note,
+    created_by: movement.created_by,
+    created_by_id: movement.created_by_id,
+    created_at: movement.created_at,
+    item_id: movement.item_id,
+    item_code: movement.items?.code || null,
+    item_name: movement.items?.name || null,
+});
 
 module.exports = {
-    createLotDTO,
     adjustLotDTO,
-    deleteLotDTO,
-    updateLotDTO,
+    mapLotItem,
+    mapLotMovement,
 };

@@ -1,5 +1,5 @@
 const lotService = require('../services/lot.service');
-const { sendListResponse, sendMutationResponse, sendResponse } = require('../utils/response');
+const { sendListResponse, sendResponse } = require('../utils/response');
 
 const parseListQuery = (query = {}) => {
     const page = Math.max(1, Number(query.page) || 1);
@@ -26,6 +26,9 @@ const getAllLots = async (req, res) => {
 const getLotById = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!id) {
+            return sendResponse(res, 400, "Invalid lot id");
+        }
         const lot = await lotService.getLotById(id);
         if (!lot) {
             return sendResponse(res, 404, "Lot not found");
@@ -37,15 +40,6 @@ const getLotById = async (req, res) => {
     }
 };
 
-const stockInLot = async (req, res) => {
-    try {
-        const newLot = await lotService.stockInLot(req.body, req.user || {});
-        return sendMutationResponse(res, 201, "Stock in success", newLot?.id || null);
-    } catch (error) {
-        return sendResponse(res, 500, error.message || "Internal Server Error");
-    }
-}
-
 const adjustLotStock = async (req, res) => {
     try {
         const { id } = req.params;
@@ -54,48 +48,17 @@ const adjustLotStock = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid lot code" });
         }
         const result = await lotService.adjustLotStock(id, payload, req.user || {});
-        return sendMutationResponse(res, 200, "adjust lot stock success", result?.id);
+        return sendResponse(res, 200, "adjust lot stock success", result);
     } catch (error) {
-        return sendResponse(res, 500, error.message || "Internal Server Error");
+        if (error.message === 'Lot id not found' || error.message === 'Lot not found') {
+            return sendResponse(res, 404, error.message);
+        }
+        return sendResponse(res, 400, error.message || "adjust lot stock failed");
     }
 }
-
-const updateLot = async (req, res) => {
-    try {
-        const { id } = req.params;
-        if (!id) {
-            return res.status(400).json({ success: false, message: "Invalid lot code" });
-        }
-
-        const result = await lotService.updateLot(id, req.body || {});
-        return sendMutationResponse(res, 200, "update lot success", result?.id);
-    } catch (error) {
-        return sendResponse(res, 500, error.message || "Internal Server Error");
-    }
-}
-
-
-const deleteLot = async (req, res) => {
-    try {
-        const { id } = req.params;
-        // Validation 
-        if (!id) {
-            return res.status(400).json({ success: false, message: "ไม่ระบุ Lot ID" });
-        }
-
-        await lotService.deleteLot(id);
-        return sendMutationResponse(res, 200, "delete lot success", id);
-
-    } catch (error) {
-        return sendResponse(res, 500, error.message || "Internal Server Error");
-    }
-};
 
 module.exports = {
     getAllLots,
     getLotById,
     adjustLotStock,
-    updateLot,
-    stockInLot,
-    deleteLot,
 };
