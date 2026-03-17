@@ -5,7 +5,8 @@ const util = require('../utils/response');
 /**
  * @typedef {Object} ReceiveItemInput
  * @property {string} item_id
- * @property {string} lot_code
+ * @property {number} expected_qty
+ * @property {string=} lot_code
  * @property {number} qty
  * @property {number|string=} cost_price
  * @property {string|null=} expired_at
@@ -20,7 +21,7 @@ const util = require('../utils/response');
  * @property {string|null=} donor_name
  * @property {string|null=} receive_date
  * @property {string|null=} note
- * @property {string|null=} status
+ * @property {string} status
  * @property {ReceiveItemInput[]} items
  */
 
@@ -28,11 +29,23 @@ const parseListQuery = (query) => {
     return DTO.listReceivesQueryDTO(query);
 };
 
+const RECEIVE_STATUSES = {
+    PENDING: 'PENDING',
+    COMPLETED: 'COMPLETED',
+};
+
 /** @param {CreateReceiveBody} data */
 const validateCreateReceive = (data) => {
     if (!data || typeof data !== 'object') return 'Invalid body data';
     if (!data.doc_no || !data.doc_no.toString().trim()) return 'doc_no is required';
     if (!data.type || !data.type.toString().trim()) return 'type is required';
+
+    const normalizedStatus = (data.status || '').toString().trim().toUpperCase();
+    if (!normalizedStatus) return 'status is required';
+    if (![RECEIVE_STATUSES.PENDING, RECEIVE_STATUSES.COMPLETED].includes(normalizedStatus)) {
+        return 'status must be PENDING or COMPLETED';
+    }
+
     if (!Array.isArray(data.items) || data.items.length === 0) {
         return 'items must be a non-empty array';
     }
@@ -40,11 +53,32 @@ const validateCreateReceive = (data) => {
     for (let i = 0; i < data.items.length; i += 1) {
         const item = data.items[i];
         if (!item?.item_id) return `items[${i}].item_id is required`;
-        if (!item?.lot_code || !item.lot_code.toString().trim()) {
-            return `items[${i}].lot_code is required`;
+
+        const expectedQty = Number(item?.expected_qty);
+        const qty = Number(item?.qty);
+
+        if (!Number.isInteger(expectedQty) || expectedQty <= 0) {
+            return `items[${i}].expected_qty must be an integer greater than 0`;
         }
-        if (!Number.isInteger(Number(item?.qty)) || Number(item.qty) <= 0) {
-            return `items[${i}].qty must be an integer greater than 0`;
+
+        if (!Number.isInteger(qty) || qty < 0) {
+            return `items[${i}].qty must be an integer greater than or equal to 0`;
+        }
+
+        if (normalizedStatus === RECEIVE_STATUSES.PENDING) {
+            if (qty !== 0) {
+                return `items[${i}].qty must be 0 when status is PENDING`;
+            }
+        }
+
+        if (normalizedStatus === RECEIVE_STATUSES.COMPLETED) {
+            if (!item?.lot_code || !item.lot_code.toString().trim()) {
+                return `items[${i}].lot_code is required when status is COMPLETED`;
+            }
+
+            if (qty !== expectedQty) {
+                return `items[${i}].qty must be equal to expected_qty when status is COMPLETED`;
+            }
         }
     }
 
@@ -53,7 +87,10 @@ const validateCreateReceive = (data) => {
 
 const createReceive = async (req, res) => {
     try {
-        const data = req.body;
+        const data = {
+            ...req.body,
+            status: (req.body?.status || '').toString().trim().toUpperCase(),
+        };
         const validationMessage = validateCreateReceive(data);
         if (validationMessage) {
             return util.sendResponse(res, 400, validationMessage);
@@ -61,8 +98,11 @@ const createReceive = async (req, res) => {
 
         const created = await receiveService.createReceive(data, req.user || null);
 
-        req.io.emit('REFRESH_DATA', 'LOTS');
-        req.io.emit('REFRESH_DATA', 'ITEMS');
+        req.io.emit('REFRESH_DATA', 'RECEIVES');
+        if (created?.status === RECEIVE_STATUSES.COMPLETED) {
+            req.io.emit('REFRESH_DATA', 'LOTS');
+            req.io.emit('REFRESH_DATA', 'ITEMS');
+        }
 
         return util.sendResponse(res, 201, 'create receive success', created);
     } catch (error) {
