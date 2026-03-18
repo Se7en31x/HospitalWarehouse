@@ -3,6 +3,12 @@ const receiveRepo = require('../repositories/receive.repo');
 const lotRepo = require('../repositories/lot.repo');
 const stockMovementRepo = require('../repositories/stockmovement.repo');
 
+const RECEIVE_STATUS = {
+    PENDING: 'PENDING',
+    COMPLETED: 'COMPLETED',
+    CANCELLED: 'CANCELLED',
+};
+
 const createHttpError = (statusCode, message) => {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -20,26 +26,28 @@ const createReceive = async (data, userSession) => {
         const receiveItemsPayload = DTO.createReceiveItemsDTO(data.items, header.id);
         await receiveRepo.createReceiveItems(receiveItemsPayload, tx);
 
-        for (const item of data.items) {
-            const lotUpsertPayload = DTO.createLotUpsertDTO(item);
+        if (header.status === RECEIVE_STATUS.COMPLETED) {
+            for (const item of receiveItemsPayload) {
+                const lotUpsertPayload = DTO.createLotUpsertDTO(item);
 
-            const lot = await lotRepo.upsertItemLot(
-                {
-                    where: lotUpsertPayload.where,
-                    update: lotUpsertPayload.update,
-                    create: lotUpsertPayload.create,
-                },
-                tx
-            );
+                const lot = await lotRepo.upsertItemLot(
+                    {
+                        where: lotUpsertPayload.where,
+                        update: lotUpsertPayload.update,
+                        create: lotUpsertPayload.create,
+                    },
+                    tx
+                );
 
-            const stockMovementPayload = DTO.createStockMovementDTO(
-                item,
-                data.doc_no,
-                createdByName,
-                createdById,
-                lot.id
-            );
-            await stockMovementRepo.createStockMovement(stockMovementPayload, tx);
+                const stockMovementPayload = DTO.createStockMovementDTO(
+                    item,
+                    data.doc_no,
+                    createdByName,
+                    createdById,
+                    lot.id
+                );
+                await stockMovementRepo.createStockMovement(stockMovementPayload, tx);
+            }
         }
 
         const createdHeader = await receiveRepo.SelectReceiveById(header.id, tx);
@@ -89,8 +97,26 @@ const cancelReceive = async (headerId, userSession, reason = '') => {
             throw createHttpError(404, 'Receive document not found');
         }
 
-        if (header.status === 'CANCELLED') {
+        if (header.status === RECEIVE_STATUS.CANCELLED) {
             throw createHttpError(400, 'This receive document has already been cancelled');
+        }
+
+        const cancelNote = reason?.trim()
+            ? `[CANCEL] ${reason.trim()}`
+            : '[CANCEL] receive document cancelled';
+
+        if (header.status !== RECEIVE_STATUS.COMPLETED) {
+            await receiveRepo.updateReceiveHeader(
+                headerId,
+                {
+                    status: RECEIVE_STATUS.CANCELLED,
+                    note: header.note ? `${header.note}\n${cancelNote}` : cancelNote,
+                },
+                tx
+            );
+
+            const cancelledHeader = await receiveRepo.SelectReceiveById(headerId, tx);
+            return DTO.mapReceiveHeaderResponse(cancelledHeader);
         }
 
         for (const receiveItem of header.receive_item) {
@@ -122,14 +148,10 @@ const cancelReceive = async (headerId, userSession, reason = '') => {
             await stockMovementRepo.createStockMovement(movementPayload, tx);
         }
 
-        const cancelNote = reason?.trim()
-            ? `[CANCEL] ${reason.trim()}`
-            : '[CANCEL] receive document cancelled';
-
         await receiveRepo.updateReceiveHeader(
             headerId,
             {
-                status: 'CANCELLED',
+                status: RECEIVE_STATUS.CANCELLED,
                 note: header.note ? `${header.note}\n${cancelNote}` : cancelNote,
             },
             tx
@@ -140,9 +162,213 @@ const cancelReceive = async (headerId, userSession, reason = '') => {
     });
 };
 
+const confirmReceive = async (headerId, itemsPayload = [], userSession = null) => {
+    const updatedById = userSession?.user_id || null;
+    const updatedByName = userSession?.user_fullname || updatedById || 'SYSTEM';
+
+    const header = await receiveRepo.SelectReceiveById(headerId);
+    if (!header) {
+        throw createHttpError(404, 'Receive document not found');
+    }
+
+    if (header.status !== RECEIVE_STATUS.PENDING) {
+        throw createHttpError(400, 'Only PENDING receive documents can be confirmed');
+    }
+
+    if (!Array.isArray(itemsPayload) || itemsPayload.length === 0) {
+        throw createHttpError(400, 'itemsPayload must be a non-empty array');
+    }
+
+    return receiveRepo.withTransaction(async (tx) => {
+        const currentHeader = await receiveRepo.SelectReceiveById(headerId, tx);
+        if (!currentHeader) {
+            throw createHttpError(404, 'Receive document not found');
+        }
+
+        if (currentHeader.status !== RECEIVE_STATUS.PENDING) {
+            throw createHttpError(400, 'Only PENDING receive documents can be confirmed');
+        }
+
+        const existingItems = Array.isArray(currentHeader.receive_item) ? currentHeader.receive_item : [];
+        if (!existingItems.length) {
+            throw createHttpError(400, 'No receive items found for this document');
+        }
+
+        const existingById = new Map();
+        const existingByItemId = new Map();
+
+        for (const dbItem of existingItems) {
+            existingById.set(Number(dbItem.id), dbItem);
+
+            if (!existingByItemId.has(dbItem.item_id)) {
+                existingByItemId.set(dbItem.item_id, []);
+            }
+            existingByItemId.get(dbItem.item_id).push(dbItem);
+        }
+
+        const matchedReceiveItemIds = new Set();
+        const backorderItems = [];
+
+        for (const payloadItem of itemsPayload) {
+            const payloadReceiveItemId = Number(payloadItem?.receive_item_id);
+            const payloadItemId = payloadItem?.item_id;
+
+            let existingItem = null;
+
+            if (Number.isInteger(payloadReceiveItemId) && existingById.has(payloadReceiveItemId)) {
+                existingItem = existingById.get(payloadReceiveItemId);
+            } else if (payloadItemId && existingByItemId.has(payloadItemId)) {
+                const candidate = existingByItemId.get(payloadItemId).find((it) => !matchedReceiveItemIds.has(it.id));
+                existingItem = candidate || null;
+            }
+
+            if (!existingItem) {
+                throw createHttpError(400, 'Some itemsPayload entries do not match existing receive items');
+            }
+
+            if (matchedReceiveItemIds.has(existingItem.id)) {
+                throw createHttpError(400, 'Duplicate itemsPayload entry for the same receive item');
+            }
+
+            matchedReceiveItemIds.add(existingItem.id);
+
+            const actualQty = Number(payloadItem?.qty);
+            if (!Number.isInteger(actualQty) || actualQty < 0) {
+                throw createHttpError(400, 'qty must be an integer greater than or equal to 0');
+            }
+
+            const expectedQty = Number(existingItem.expected_qty || 0);
+            if (actualQty > expectedQty) {
+                throw createHttpError(
+                    400,
+                    `actual qty cannot be greater than expected_qty for item_id: ${existingItem.item_id}`
+                );
+            }
+
+            const lotCode = payloadItem?.lot_code ? payloadItem.lot_code.toString().trim() : null;
+            if (actualQty > 0 && !lotCode) {
+                throw createHttpError(
+                    400,
+                    `lot_code is required when actual qty is greater than 0 for item_id: ${existingItem.item_id}`
+                );
+            }
+
+            const expiredAt = payloadItem?.expired_at ? new Date(payloadItem.expired_at) : null;
+            if (payloadItem?.expired_at && Number.isNaN(expiredAt.getTime())) {
+                throw createHttpError(400, `invalid expired_at for item_id: ${existingItem.item_id}`);
+            }
+
+            await tx.receive_item.update({
+                where: { id: existingItem.id },
+                data: {
+                    qty: actualQty,
+                    lot_code: lotCode,
+                    expired_at: expiredAt,
+                },
+            });
+
+            if (actualQty > 0) {
+                const lotUpsertPayload = DTO.createLotUpsertDTO({
+                    item_id: existingItem.item_id,
+                    lot_code: lotCode,
+                    qty: actualQty,
+                    expired_at: payloadItem?.expired_at || null,
+                    warehouse_id: payloadItem?.warehouse_id || null,
+                });
+
+                const lot = await lotRepo.upsertItemLot(
+                    {
+                        where: lotUpsertPayload.where,
+                        update: lotUpsertPayload.update,
+                        create: lotUpsertPayload.create,
+                    },
+                    tx
+                );
+
+                const stockMovementPayload = DTO.createStockMovementDTO(
+                    {
+                        item_id: existingItem.item_id,
+                        qty: actualQty,
+                    },
+                    currentHeader.doc_no,
+                    updatedByName,
+                    updatedById,
+                    lot.id
+                );
+
+                await stockMovementRepo.createStockMovement(stockMovementPayload, tx);
+            }
+
+            const missingQty = expectedQty - actualQty;
+            if (missingQty > 0) {
+                backorderItems.push({
+                    item_id: existingItem.item_id,
+                    expected_qty: missingQty,
+                    qty: 0,
+                    lot_code: null,
+                    cost_price:
+                        existingItem.cost_price !== null && existingItem.cost_price !== undefined
+                            ? Number(existingItem.cost_price)
+                            : 0,
+                    expired_at: null,
+                });
+            }
+        }
+
+        if (matchedReceiveItemIds.size !== existingItems.length) {
+            throw createHttpError(400, 'itemsPayload must include all receive items in this document');
+        }
+
+        if (backorderItems.length > 0) {
+            const baseBackorderDocNo = `${currentHeader.doc_no}-B`;
+            const existingBackorderCount = await tx.receive_header.count({
+                where: {
+                    OR: [
+                        { doc_no: baseBackorderDocNo },
+                        { doc_no: { startsWith: `${baseBackorderDocNo}-` } },
+                    ],
+                },
+            });
+
+            const backorderDocNo =
+                existingBackorderCount === 0
+                    ? baseBackorderDocNo
+                    : `${baseBackorderDocNo}-${String(existingBackorderCount + 1)}`;
+
+            const backorderHeader = await receiveRepo.createReceiveHeader(
+                {
+                    doc_no: backorderDocNo,
+                    type: currentHeader.type,
+                    status: RECEIVE_STATUS.PENDING,
+                    supplier_id: currentHeader.supplier_id || null,
+                    donor_name: currentHeader.donor_name || null,
+                    receive_date: new Date(),
+                    note: `Auto-generated backorder from ${currentHeader.doc_no}`,
+                    created_by: updatedById,
+                    parent_id: currentHeader.id,
+                },
+                tx
+            );
+
+            const backorderItemsPayload = DTO.createReceiveItemsDTO(backorderItems, backorderHeader.id);
+            await receiveRepo.createReceiveItems(backorderItemsPayload, tx);
+        }
+
+        await receiveRepo.updateReceiveHeader(
+            currentHeader.id,
+            { status: RECEIVE_STATUS.COMPLETED },
+            tx
+        );
+
+        const updatedHeader = await receiveRepo.SelectReceiveById(currentHeader.id, tx);
+        return DTO.mapReceiveHeaderResponse(updatedHeader);
+    });
+};
+
 module.exports = {
     createReceive,
     getReceives,
     getReceiveById,
     cancelReceive,
+    confirmReceive,
 };

@@ -6,15 +6,17 @@ const createReceiveHeaderDTO = (data = {}, createdBy = null) => ({
     receive_date: data.receive_date ? new Date(data.receive_date) : new Date(),
     note: data.note || null,
     created_by: createdBy || null,
-    status: data.status || 'COMPLETED',
+    status: data.status,
 });
 
 const createReceiveItemsDTO = (items = [], headerId) => {
     return items.map((item) => ({
         header_id: headerId,
         item_id: item.item_id,
-        lot_code: item.lot_code.toString().trim(),
+        warehouse_id: item.warehouse_id || null,
+        lot_code: item.lot_code ? item.lot_code.toString().trim() : null,
         qty: Number(item.qty),
+        expected_qty: Number(item.expected_qty),
         cost_price: item.cost_price !== undefined ? Number(item.cost_price) : 0,
         expired_at: item.expired_at ? new Date(item.expired_at) : null,
     }));
@@ -85,6 +87,7 @@ const mapReceiveItemResponse = (item = {}) => ({
     item_code: item.items?.code || null,
     item_name: item.items?.name || null,
     lot_code: item.lot_code,
+    expected_qty: item.expected_qty,
     qty: item.qty,
     cost_price: item.cost_price,
     expired_at: item.expired_at,
