@@ -3,18 +3,28 @@
 import React, { useState, useEffect, useCallback, ReactNode } from "react";
 import {
   Search, X, PackageCheck,
-  Building2, Minus, Plus, User, Loader2, ChevronLeft, ChevronRight
+  Building2, ChevronLeft, ChevronRight, Eye
 } from "lucide-react";
 import {
   getRequisitionHistory,
-  approveRequisition,
-  rejectRequisition,
   RequisitionHeader
 } from "../../../services/requisitionService";
 import { useAuth } from "@/lib/useAuth";
 import toast, { Toaster } from "react-hot-toast";
+import RequisitionDetailsModal from "./RequisitionDetailsModal";
 
 // ✅ Mock Data สำหรับการทดสอบและตัวอย่าง
+// ✅ Requester name mapping
+const REQUESTER_NAMES: Record<string, string> = {
+  "EMP001": "นางสาว กิตติยา สัตย์สิงห์",
+  "EMP002": "นายธีรภูมิ ศรีสวัสดิ์",
+  "EMP003": "นางสมศรี บุญรอด",
+  "EMP004": "นายเดชรัฐ ปรีชาศักดิ์",
+  "EMP005": "นางสาวจริยา กิจจารม",
+  "EMP006": "นายประสิทธิ์ วิลัยสิน",
+  "EMP007": "นางมณฑา สิทธิการ"
+};
+
 const MOCK_REQUESTS: RequisitionHeader[] = [
   {
     id: 1,
@@ -25,6 +35,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP001",
     status: "PENDING",
     type: "WITHDRAW",
+    requester_name: "นางสาว กิตติยา สัตย์สิงห์",
     requisition_item: [
       {
         id: 101,
@@ -52,6 +63,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP002",
     status: "PENDING",
     type: "BORROW",
+    requester_name: "นายธีรภูมิ ศรีสวัสดิ์",
     requisition_item: [
       {
         id: 104,
@@ -74,6 +86,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP003",
     status: "APPROVED",
     type: "WITHDRAW",
+    requester_name: "นางสมศรี บุญรอด",
     requisition_item: [
       {
         id: 106,
@@ -96,6 +109,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP004",
     status: "PENDING",
     type: "BORROW",
+    requester_name: "นายเดชรัฐ ปรีชาศักดิ์",
     requisition_item: [
       {
         id: 108,
@@ -113,6 +127,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP005",
     status: "REJECTED",
     type: "WITHDRAW",
+    requester_name: "นางสาวจริยา กิจจารม",
     requisition_item: [
       {
         id: 109,
@@ -130,6 +145,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP006",
     status: "PENDING",
     type: "WITHDRAW",
+    requester_name: "นายประสิทธิ์ วิลัยสิน",
     requisition_item: [
       {
         id: 110,
@@ -152,6 +168,7 @@ const MOCK_REQUESTS: RequisitionHeader[] = [
     requester_id: "EMP007",
     status: "PENDING",
     type: "BORROW",
+    requester_name: "นางมณฑา สิทธิการ",
     requisition_item: [
       {
         id: 112,
@@ -172,7 +189,6 @@ const RequestClient = () => {
   // ✅ State สำหรับรายการเบิก
   const { departments } = useAuth();
   const [requests, setRequests] = useState<RequisitionHeader[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [useMockData, setUseMockData] = useState(
     typeof window !== 'undefined' && localStorage.getItem('SHOW_MOCK_DATA') === 'true'
@@ -186,7 +202,6 @@ const RequestClient = () => {
 
   // ✅ State สำหรับ Modal & Form
   const [showDetailsModal, setShowDetailsModal] = useState<RequisitionHeader | null>(null);
-  const [issuedQtys, setIssuedQtys] = useState<Record<number, number>>({});
 
   // --- [Data Fetching Logic] ---
   // ฟังก์ชันดึงข้อมูลใหม่ (ใช้ useCallback เพื่อให้เรียกซ้ำใน useEffect ได้โดยไม่ loop)
@@ -240,73 +255,19 @@ const RequestClient = () => {
     return req.department_code ? `แผนก (${req.department_code})` : "ไม่ระบุแผนก";
   };
 
+  // ฟังก์ชันแสดงชื่อผู้ทำรายการ
+  const displayRequesterName = (req: any): string => {
+    if (req.requester_name) return req.requester_name;
+    return REQUESTER_NAMES[(req as any).requester_id] || req.requester_id || "ไม่ระบุผู้ทำรายการ";
+  };
+
   // --- [Modal Handlers] ---
   const handleOpenDetails = (req: any) => {
-    const initialQtys: Record<number, number> = {};
-    req.requisition_item.forEach((item: any) => {
-      initialQtys[item.id] = Math.min(item.req_qty, item.item?.current_stock || 0);
-    });
-    setIssuedQtys(initialQtys);
     setShowDetailsModal(req);
   };
 
   const handleCloseModal = () => {
     setShowDetailsModal(null);
-    setIssuedQtys({});
-  };
-
-  const updateQty = (id: number, delta: number, maxStock: number, reqQty: number) => {
-    setIssuedQtys(prev => {
-      const current = prev[id] || 0;
-      const next = current + delta;
-      if (next < 0 || next > maxStock || next > reqQty) return prev;
-      return { ...prev, [id]: next };
-    });
-  };
-
-  const handleApprove = async (): Promise<void> => {
-    if (!showDetailsModal) return;
-
-    const loadId = toast.loading("กำลังบันทึกการอนุมัติและตัดสต็อก...");
-    setIsLoading(true);
-    try {
-      const res = await approveRequisition(showDetailsModal.id, issuedQtys);
-      if (res.success) {
-        toast.success("อนุมัติรายการสำเร็จ", { id: loadId });
-        handleCloseModal();
-        await refreshData();
-      } else {
-        throw new Error(res.message);
-      }
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err), { id: loadId });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleReject = async (): Promise<void> => {
-    if (!showDetailsModal) return;
-
-    const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธการเบิก:");
-    if (!reason?.trim()) return;
-
-    const loadId = toast.loading("กำลังดำเนินการ...");
-    setIsLoading(true);
-    try {
-      const res = await rejectRequisition(showDetailsModal.id, reason.trim());
-      if (res.success) {
-        toast.success("ปฏิเสธรายการแล้ว", { id: loadId });
-        handleCloseModal();
-        await refreshData();
-      } else {
-        throw new Error(res.message);
-      }
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err), { id: loadId });
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   // --- [Search & Filter Logic] ---
@@ -328,9 +289,9 @@ const RequestClient = () => {
   // --- [UI Components] ---
   const StatusBadge = ({ status }: { status: string }) => {
     const styles: Record<string, string> = {
-      "PENDING": "bg-amber-50 text-amber-600 border-amber-100",
-      "APPROVED": "bg-emerald-50 text-emerald-600 border-emerald-100",
-      "REJECTED": "bg-rose-50 text-rose-600 border-rose-100"
+      "PENDING": "text-amber-600",
+      "APPROVED": "text-emerald-600",
+      "REJECTED": "text-rose-600"
     };
     const labels: Record<string, string> = {
       "PENDING": "รออนุมัติ",
@@ -338,7 +299,7 @@ const RequestClient = () => {
       "REJECTED": "ปฏิเสธแล้ว"
     };
     return (
-      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${styles[status] || "bg-slate-50"}`}>
+      <span className={`text-sm font-bold ${styles[status] || "text-slate-600"}`}>
         {labels[status] || status}
       </span>
     );
@@ -346,17 +307,17 @@ const RequestClient = () => {
 
   const TypeBadge = ({ type }: { type: string }): React.ReactNode => {
     const styles: Record<string, string> = {
-      "WITHDRAW": "bg-blue-50 border-blue-200 text-blue-600",
-      "BORROW": "bg-orange-50 border-orange-200 text-orange-600"
+      "WITHDRAW": "text-blue-600",
+      "BORROW": "text-orange-600"
     };
     const labels: Record<string, string> = {
       "WITHDRAW": "เบิก",
       "BORROW": "ยืม"
     };
-    const styleClass = styles[type] || "bg-slate-50";
+    const styleClass = styles[type] || "text-slate-600";
     const labelText = labels[type] || type;
     return (
-      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${styleClass}`}>
+      <span className={`text-sm font-bold uppercase ${styleClass}`}>
         {labelText}
       </span>
     );
@@ -414,26 +375,27 @@ const RequestClient = () => {
           </div>
         )}
         <div className="overflow-x-auto flex-shrink-0">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
-                <th className="px-6 py-4 w-[150px]">วันที่เบิก</th>
-                <th className="px-6 py-4 w-[180px]">แผนกที่เบิก</th>
-                <th className="px-6 py-4 w-[100px] text-center">ประเภท</th>
-                <th className="px-6 py-4 w-[120px] text-center">สถานะ</th>
-                <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
+                <th className="px-6 py-4 w-[130px]">เลขที่เอกสาร</th>
+                <th className="px-6 py-4 w-[130px]">วันที่</th>
+                <th className="px-6 py-4 w-[160px]">ชื่อผู้ทำรายการ</th>
+                <th className="px-6 py-4 w-[140px]">แผนก</th>
+                <th className="px-6 py-4 w-[90px] text-center">ประเภท</th>
+                <th className="px-6 py-4 w-[110px] text-center">สถานะ</th>
+                <th className="px-6 py-4 text-right w-[90px]">จัดการ</th>
               </tr>
             </thead>
           </table>
         </div>
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left table-fixed">
             <tbody className="divide-y divide-slate-100">
               {paginatedItems.map((req) => (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[150px] text-slate-800">{req.doc_no}</td>
-                  <td className="px-6 py-4 w-[150px] text-slate-600">
+                  <td className="px-6 py-4 w-[130px] text-slate-800">{req.doc_no}</td>
+                  <td className="px-6 py-4 w-[130px] text-slate-600">
                     {new Date(req.request_date).toLocaleString('th-TH', {
                       year: 'numeric',
                       month: 'short',
@@ -442,28 +404,31 @@ const RequestClient = () => {
                       minute: '2-digit'
                     })}
                   </td>
-                  <td className="px-6 py-4 w-[180px] font-medium text-indigo-900">
+                  <td className="px-6 py-4 w-[160px] font-medium text-slate-700">
+                    {(req as any).requester_name || REQUESTER_NAMES[(req as any).requester_id] || req.requester_id}
+                  </td>
+                  <td className="px-6 py-4 w-[140px] font-medium text-indigo-900">
                     {displayDeptName(req)}
                   </td>
-                  <td className="px-6 py-4 w-[100px] text-center">
+                  <td className="px-6 py-4 w-[90px] text-center">
                     <TypeBadge type={req.type} />
                   </td>
-                  <td className="px-6 py-4 w-[120px] text-center">
+                  <td className="px-6 py-4 w-[110px] text-center">
                     <StatusBadge status={req.status} />
                   </td>
-                  <td className="px-6 py-4 text-right w-[100px]">
+                  <td className="px-6 py-4 text-right w-[90px]">
                     <button
                       onClick={() => handleOpenDetails(req)}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                      className="p-2.5 bg-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-lg" title="ตรวจสอบรายละเอียด"
                     >
-                      ตรวจสอบ
+                      <Eye size={20} strokeWidth={2} />
                     </button>
                   </td>
                 </tr>
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+                  <td colSpan={7} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
                 </tr>
               )}
             </tbody>
@@ -496,134 +461,16 @@ const RequestClient = () => {
           </button>
         </div>
       </div>
-      {showDetailsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-            <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50/50">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg">
-                  <PackageCheck size={20} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">{showDetailsModal.doc_no}</h2>
-                  <p className="text-xs text-slate-500">ตรวจสอบและยืนยันจำนวนการจ่ายพัสดุ</p>
-                </div>
-              </div>
-              <button
-                onClick={handleCloseModal}
-                className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-8 overflow-y-auto space-y-6">
-              <div className="grid grid-cols-2 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                <div className="flex items-center gap-3">
-                  <Building2 size={18} className="text-indigo-600" />
-                  <div>
-                    <p className="text-[10px] text-indigo-400 uppercase font-bold">แผนกที่ร้องขอ</p>
-                    <p className="text-sm font-bold text-indigo-900">{displayDeptName(showDetailsModal)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <User size={18} className="text-indigo-600" />
-                  <div>
-                    <p className="text-[10px] text-indigo-400 uppercase font-bold">ID ผู้เบิก</p>
-                    <p className="text-sm font-bold text-indigo-900">{showDetailsModal.requester_id}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                    <tr>
-                      <th className="px-6 py-4 text-left">รายการพัสดุ</th>
-                      <th className="px-4 py-4 text-center w-[120px]">ยอดที่ขอ</th>
-                      <th className="px-4 py-4 text-center w-[120px]">คงเหลือในคลัง</th>
-                      <th className="px-6 py-4 text-right w-[240px]">อนุมัติจ่ายจริง</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {showDetailsModal.requisition_item.map((row: any) => {
-                      const currentIssued = issuedQtys[row.id] || 0;
-                      const dbStock = row.item?.current_stock || 0;
-                      const dbReq = row.req_qty || 0;
-
-                      return (
-                        <tr key={row.id} className="h-[80px]">
-                          <td className="px-6">
-                            <p className="font-bold text-slate-800">{row.item?.name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono italic">Code: {row.item?.code}</p>
-                          </td>
-                          <td className="px-4 text-center font-bold text-slate-400 text-lg">{dbReq}</td>
-                          <td className="px-4 text-center font-bold text-slate-800 text-lg bg-slate-50/50">{dbStock}</td>
-                          <td className="px-6">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center bg-white p-1 rounded-xl border-2 border-slate-200 shadow-sm focus-within:border-indigo-500 transition-all">
-                                <button
-                                  type="button"
-                                  onClick={() => updateQty(row.id, -1, dbStock, dbReq)}
-                                  className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500"
-                                >
-                                  <Minus size={14} strokeWidth={3} />
-                                </button>
-                                <input
-                                  type="number"
-                                  value={currentIssued}
-                                  readOnly
-                                  className="w-14 bg-transparent text-center font-black text-lg outline-none text-indigo-600"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => updateQty(row.id, 1, dbStock, dbReq)}
-                                  className="p-1.5 hover:bg-slate-50 rounded-lg text-indigo-600"
-                                >
-                                  <Plus size={14} strokeWidth={3} />
-                                </button>
-                              </div>
-                              <span className={`text-[10px] font-bold pr-1 ${dbStock - currentIssued < 5 ? 'text-rose-500' : 'text-slate-400'}`}>
-                                คงเหลือหลังจ่าย: {dbStock - currentIssued}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="px-8 py-6 border-t bg-slate-50/50 flex justify-end gap-3">
-              <button
-                onClick={handleCloseModal}
-                className="px-6 py-2.5 text-sm font-bold text-slate-500 bg-white border rounded-xl hover:bg-slate-50"
-              >
-                ปิดหน้าต่าง
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={isLoading || showDetailsModal.status !== 'PENDING'}
-                className="px-6 py-2.5 bg-rose-600 text-white text-sm font-bold rounded-xl hover:bg-rose-700 transition-all disabled:opacity-50"
-              >
-                ปฏิเสธการเบิก
-              </button>
-              {showDetailsModal.status === 'PENDING' && (
-                <button
-                  onClick={handleApprove}
-                  disabled={isLoading}
-                  className="px-10 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-slate-900 shadow-lg shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  ยืนยันการอนุมัติ
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      
+      {/* Requisition Details Modal */}
+      <RequisitionDetailsModal
+        isOpen={showDetailsModal !== null}
+        requisition={showDetailsModal}
+        onClose={handleCloseModal}
+        onSuccess={refreshData}
+        displayDeptName={displayDeptName}
+        displayRequesterName={displayRequesterName}
+      />
     </div>
   );
 };

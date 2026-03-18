@@ -5,20 +5,10 @@ import type * as StockIn from "@/types/stockin_type";
 export type StockInRecord = StockIn.StockInRecord;
 export type StockInItem = StockIn.StockInItem;
 export type CreatePayload = StockIn.CreatePayload;
-export type AllOptions = StockIn.AllOptions;
+export type DraftPayload = StockIn.DraftPayload;
 export type Option = StockIn.Option;
-export type ItemOption = StockIn.ItemOption;
 
-// API Constants
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-const LOTS_BASE = "/v1/lots";
-const ITEMS_BASE = "/v1/items";
-const CATEGORIES_BASE = "/v1/categories";
-const UNITS_BASE = "/v1/units";
-const WAREHOUSES_BASE = "/v1/warehouses";
-const SUPPLIERS_BASE = "/v1/suppliers";
-
-// ============ Helper Functions ============
 
 const getHeaders = () => ({
 	"Content-Type": "application/json",
@@ -29,147 +19,78 @@ async function parseJson<T>(res: Response): Promise<T> {
 	const contentType = res.headers.get("content-type") || "";
 	if (!contentType.includes("application/json")) {
 		const raw = await res.text();
-		throw new Error(raw.slice(0, 120) || "Invalid response");
+		console.warn(`Response content-type is not JSON (${contentType}), status: ${res.status}`);
+		console.warn("Response body:", raw.substring(0, 500)); // Log first 500 chars of response
+		if (res.status === 404) {
+			console.warn("Endpoint not found (404)");
+		}
+		throw new Error(`Expected JSON but got ${contentType || "unknown type"}. Status: ${res.status}. Response: ${raw.substring(0, 200)}`);
 	}
-	return (await res.json()) as T;
+	try {
+		return (await res.json()) as T;
+	} catch (error) {
+		console.warn("Failed to parse JSON response:", error);
+		throw new Error("Invalid JSON response from server");
+	}
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
 
-	const res = await fetch(`${API_URL}${path}`, {
-		...options,
-		headers: {
-			...getHeaders(),
-			...(options?.headers || {}),
-		},
-		cache: "no-store",
-	});
+	const fullUrl = `${API_URL}${path}`;
+	const method = options?.method || "GET";
+	
+	try {
+		console.log(`[API] ${method} ${fullUrl}`);
+		
+		const res = await fetch(fullUrl, {
+			...options,
+			headers: {
+				...getHeaders(),
+				...(options?.headers || {}),
+			},
+			cache: "no-store",
+		});
 
-	const body = await parseJson<{ data: T; message?: string; error?: string }>(res);
-	if (!res.ok) {
-		throw new Error(body.error || body.message || "Request failed");
-	}
-
-	return body.data;
-}
-
-// ============ Mapping Functions ============
-
-/**
- * Map item from API response to option format
- */
-function mapApiItemToOption(item: any): ItemOption {
-	// Handle various possible API response structures for category and unit
-	const categoryName =
-		item.categories?.name ||
-		item.category?.name ||
-		item.categoryName ||
-		item.category ||
-		"";
-
-	const unitName =
-		item.unit?.name ||
-		item.units?.name ||
-		item.unitName ||
-		item.unit ||
-		"";
-
-	return {
-		id: String(item.id),
-		name: item.name || "ไม่ระบุ",
-		category: categoryName,
-		unit: unitName,
-	};
-}
-
-/**
- * Map item detail from API with warehouse info
- */
-function mapApiItemDetail(item: any): any {
-	// Handle various possible API response structures for category and unit
-	const categoryName =
-		item.categories?.name ||
-		item.category?.name ||
-		item.categoryName ||
-		item.category ||
-		"";
-
-	const unitName =
-		item.unit?.name ||
-		item.units?.name ||
-		item.unitName ||
-		item.unit ||
-		"";
-
-	// Try to find warehouse from item_lots (get the one with highest quantity)
-	let warehouseId = "";
-	if (item.item_lots && Array.isArray(item.item_lots) && item.item_lots.length > 0) {
-		// Find lot with highest quantity to determine default warehouse
-		const lotWithMaxQty = item.item_lots.reduce(
-			(max: any, lot: any) =>
-				(lot.quantity || 0) > (max.quantity || 0) ? lot : max,
-			item.item_lots[0]
-		);
-		warehouseId = lotWithMaxQty.warehouse_id || "";
-	}
-
-	return {
-		id: String(item.id),
-		name: item.name || "ไม่ระบุ",
-		category: categoryName,
-		unit: unitName,
-		warehouseId: warehouseId,
-	};
-}
-
-/**
- * Map option from API response
- */
-function mapApiOption(option: any): Option {
-	return {
-		id: String(option.id),
-		name: option.name || "ไม่ระบุ",
-	};
-}
-
-/**
- * Transform lot records into stock in document format
- * Groups multiple lot records by supplier to create document-level summaries
- */
-function transformLotsToStockInDocs(lots: any[]): any[] {
-	const docMap = new Map<string, any>();
-
-	lots.forEach((lot: any) => {
-		const supplierId = lot.supplier?.id || "UNKNOWN";
-		const createdDate = lot.created_at
-			? new Date(lot.created_at).toISOString().split("T")[0]
-			: "";
-		const docKey = `${supplierId}-${createdDate}`;
-
-		if (!docMap.has(docKey)) {
-			docMap.set(docKey, {
-				id: lot.id || "",
-				date: createdDate,
-				docNo: lot.po_number || lot.lot_code || "",
-				supplier: lot.supplier?.name || "ไม่ระบุ",
-				supplierId: supplierId,
-				totalAmount: 0,
-				status:
-					lot.status === "deleted"
-						? "CANCELLED"
-						: lot.status || "PENDING",
-				items: [],
-			});
+		let body;
+		try {
+			body = await parseJson<{ data: T; message?: string; error?: string }>(res);
+		} catch (parseError) {
+			console.error(`[API] Failed to parse response for ${method} ${fullUrl}. Status: ${res.status}`);
+			// Return empty array for GET requests on parse errors
+			if (options?.method !== "POST" && options?.method !== "PUT" && options?.method !== "DELETE") {
+				return [] as unknown as T;
+			}
+			throw parseError;
 		}
 
-		const doc = docMap.get(docKey)!;
-		doc.totalAmount += (lot.cost_price || 0) * (lot.quantity_received || 0);
-		doc.items.push(lot);
-	});
+		if (!res.ok) {
+			const errorMessage = body?.error || body?.message || `HTTP ${res.status}`;
+			console.warn(`[API] Error response from ${method} ${fullUrl}:`, errorMessage);
+			// Return empty array for GET requests on HTTP errors
+			if (options?.method !== "POST" && options?.method !== "PUT" && options?.method !== "DELETE") {
+				return [] as unknown as T;
+			}
+			throw new Error(errorMessage);
+		}
 
-	return Array.from(docMap.values());
+		if (!body || body.data === undefined) {
+			console.warn("[API] Empty data returned from:", path);
+			return [] as unknown as T; // Return empty array for list endpoints
+		}
+
+		return body.data;
+	} catch (error) {
+		const errorMsg = error instanceof Error ? error.message : String(error);
+		console.error(`[API] Request failed for ${method} ${fullUrl}:`, errorMsg);
+		// Re-throw for POST/PUT/DELETE, but return empty for GET
+		if (options?.method !== "POST" && options?.method !== "PUT" && options?.method !== "DELETE") {
+			return [] as unknown as T;
+		}
+		throw error;
+	}
 }
+
 
 // ============ API Functions ============
 
@@ -181,97 +102,205 @@ function transformLotsToStockInDocs(lots: any[]): any[] {
 export async function createStockIn(
 	payload: CreatePayload
 ): Promise<StockInRecord> {
+	// Build payload directly without Prisma-style transformation
+	const newPayload: Record<string, any> = {};
+
+	if (payload.item_id) {
+		newPayload.item_id = payload.item_id;
+	}
+	if (payload.warehouse_id) {
+		newPayload.warehouse_id = payload.warehouse_id;
+	}
+	if (payload.quantity || payload.quantity_received) {
+		newPayload.quantity = payload.quantity_received || payload.quantity;
+	}
+	if (payload.cost_price) {
+		newPayload.cost_price = payload.cost_price;
+	}
+	if (payload.supplier_id) {
+		newPayload.supplier_id = payload.supplier_id;
+	}
+	if (payload.expried_at) {
+		newPayload.expried_at = payload.expried_at;
+	}
+
+	console.log("Creating stock in with payload:", newPayload);
+
+	return request<StockInRecord>("/v1/lots", {
+		method: "POST",
+		body: JSON.stringify(newPayload),
+	});
+}
+
+/**
+ * Save multiple lots to the API
+ * @param items - Array of stock in items to save
+ * @returns Response from API with lot codes
+ */
+export async function saveLots(items: StockIn.StockInItem[]): Promise<any> {
+	const lotsPayload = items.map((item) => {
+		const payload: Record<string, any> = {};
+
+		if (item.itemId) {
+			payload.item_id = item.itemId;
+		}
+		if (item.warehouseId) {
+			payload.warehouse_id = item.warehouseId;
+		}
+		if (item.quantityReceived) {
+			payload.quantity = item.quantityReceived;
+		}
+		if (item.costPrice) {
+			payload.cost_price = item.costPrice;
+		}
+		if (item.supplierId) {
+			payload.supplier_id = item.supplierId;
+		}
+		if (item.expiryDate) {
+			payload.expried_at = item.expiryDate;
+		}
+		if (item.poNumber) {
+			payload.po_number = item.poNumber;
+		}
+		if (item.lotCode) {
+			payload.lot_code = item.lotCode;
+		}
+		if (item.mfgDate) {
+			payload.mfg_date = item.mfgDate;
+		}
+
+		return payload;
+	});
+
+	console.log("Saving lots with payload:", lotsPayload);
+
 	try {
-		const response = await request<StockInRecord>(LOTS_BASE, {
-			method: "POST",
-			body: JSON.stringify(payload),
-		});
-		return response;
+		// Handle both single and batch submissions
+		if (lotsPayload.length === 1) {
+			// Single item - use /stock-in endpoint
+			return await request<any>("/v1/lots/stock-in", {
+				method: "POST",
+				body: JSON.stringify(lotsPayload[0]),
+			});
+		} else {
+			// Multiple items - save each individually
+			const results = [];
+			for (const payload of lotsPayload) {
+				const result = await request<any>("/v1/lots/stock-in", {
+					method: "POST",
+					body: JSON.stringify(payload),
+				});
+				results.push(result);
+			}
+			return results;
+		}
 	} catch (error) {
-		console.error("Error creating stock in:", error);
-		throw error instanceof Error
-			? error
-			: new Error("Unknown error creating stock in");
+		console.error("Error saving lots:", error);
+		// Re-throw with more context
+		if (error instanceof Error) {
+			throw new Error(`Failed to save lots: ${error.message}`);
+		}
+		throw error;
 	}
 }
 
 /**
- * Fetch all stock in options (items, categories, units, warehouses, suppliers)
- * @returns AllOptions containing all available options
+ * Save draft lots (PENDING items without received quantity)
+ * @param items - Array of stock in items to save as draft
+ * @returns Response from API
  */
-export async function getStockInOptions(): Promise<AllOptions> {
-	try {
-		// Fetch all items
-		const itemsRes = await request<any[]>(ITEMS_BASE);
-		console.log("Items response:", itemsRes);
-		
-		// Fetch items options (category, unit, warehouse)
-		const itemOptionsRes = await request<any>(`${ITEMS_BASE}/option`);
-		console.log("Items option response:", itemOptionsRes);
-		
-		// Fetch warehouses options
-		const warehousesRes = await request<any[]>(`${WAREHOUSES_BASE}/option`);
-		console.log("Warehouses response:", warehousesRes);
-		
-		// Fetch suppliers - fallback to empty array if not available
-		let suppliersArray: any[] = [];
-		try {
-			suppliersArray = await request<any[]>(SUPPLIERS_BASE);
-			console.log("Suppliers response:", suppliersArray);
-		} catch (error) {
-			console.debug("Suppliers endpoint not available, using empty array");
+export async function saveDraftLots(items: StockIn.StockInItem[]): Promise<any> {
+	const draftsPayload = items.map((item) => {
+		const payload: Record<string, any> = {
+			item_id: item.itemId,
+			warehouse_id: item.warehouseId,
+			expected_qty: item.quantityOrdered,
+			qty: 0, // Draft items have qty 0
+			status: "PENDING",
+		};
+
+		if (item.costPrice) {
+			payload.cost_price = item.costPrice;
+		}
+		if (item.supplierId) {
+			payload.supplier_id = item.supplierId;
+		}
+		if (item.poNumber) {
+			payload.po_number = item.poNumber;
 		}
 
-		// Extract items
-		const itemsArray = itemsRes || [];
-		
-		// Extract options from items/option
-		const categoriesArray = itemOptionsRes?.category || [];
-		const unitsArray = itemOptionsRes?.unit || [];
-		
-		// Warehouses from warehouses/option endpoint
-		const warehousesArray = warehousesRes || [];
+		return payload;
+	});
 
-		// Map items and log for debugging
-		const mappedItems = (itemsArray || []).map((item) => {
-			const mapped = mapApiItemToOption(item);
-			console.log("Mapping item:", item, "→", mapped);
-			return mapped;
-		});
+	console.log("Saving draft lots with payload:", draftsPayload);
 
-		return {
-			items: mappedItems,
-			categories: (categoriesArray || []).map(mapApiOption),
-			units: (unitsArray || []).map(mapApiOption),
-			warehouses: (warehousesArray || []).map(mapApiOption),
-			suppliers: (suppliersArray || []).map(mapApiOption),
-		};
+	try {
+		// Handle both single and batch submissions
+		if (draftsPayload.length === 1) {
+			// Single item - use /stock-in/draft endpoint
+			return await request<any>("/v1/lots/stock-in/draft", {
+				method: "POST",
+				body: JSON.stringify(draftsPayload[0]),
+			});
+		} else {
+			// Multiple items - save each individually
+			const results = [];
+			for (const payload of draftsPayload) {
+				const result = await request<any>("/v1/lots/stock-in/draft", {
+					method: "POST",
+					body: JSON.stringify(payload),
+				});
+				results.push(result);
+			}
+			return results;
+		}
 	} catch (error) {
-		console.error("Error fetching stock in options:", error);
-		return {
-			items: [],
-			categories: [],
-			units: [],
-			warehouses: [],
-			suppliers: [],
-		};
+		console.error("Error saving draft lots:", error);
+		// Re-throw with more context
+		if (error instanceof Error) {
+			throw new Error(`Failed to save draft lots: ${error.message}`);
+		}
+		throw error;
+	}
+}
+
+/**
+ * Fetch suppliers list
+ * @returns Array of suppliers
+ */
+export async function getSuppliers(): Promise<Option[]> {
+	try {
+		console.log("Fetching suppliers from /v1/suppliers/option");
+		const data = await request<Option[]>(`/v1/suppliers/option`);
+		return data || [];
+	} catch (error) {
+		console.debug("Suppliers endpoint /v1/suppliers/option not available, trying alternative endpoint");
+		
+		// Try alternative endpoint
+		try {
+			const data = await request<Option[]>(`/v1/suppliers`);
+			if (Array.isArray(data)) {
+				return data;
+			}
+		} catch (altError) {
+			console.debug("Alternative suppliers endpoint also not available");
+		}
+		
+		// Gracefully return empty array if endpoints unavailable
+		console.debug("Suppliers data will be unavailable");
+		return [];
 	}
 }
 
 /**
  * Fetch detailed item information
  * @param itemId - Item ID to fetch details for
- * @returns Item option with detailed information
+ * @returns Item detail with warehouse information
  */
 export async function getItemDetail(itemId: string): Promise<any | null> {
 	try {
-		const itemData = await request<any>(`${ITEMS_BASE}/${itemId}`);
-
-		if (!itemData) {
-			return null;
-		}
-
-		return mapApiItemDetail(itemData);
+		const itemData = await request<any>(`/v1/items/${itemId}`);
+		return itemData || null;
 	} catch (error) {
 		console.error("Error fetching item detail:", error);
 		return null;
@@ -279,39 +308,151 @@ export async function getItemDetail(itemId: string): Promise<any | null> {
 }
 
 /**
- * Fetch all stock in records/documents
- * @returns Array of stock in documents
+ * Fetch detailed lot information
+ * @param lotId - Lot ID to fetch details for
+ * @returns Lot detail with quantity information
+ */
+export async function getLotDetail(lotId: string): Promise<any | null> {
+	try {
+		console.log(`Fetching lot detail for ${lotId}`);
+		const lotData = await request<any>(`/v1/lots/${lotId}`);
+		return lotData || null;
+	} catch (error) {
+		console.error("Error fetching lot detail:", error);
+		return null;
+	}
+}
+
+/**
+ * Update lot quantity received
+ * @param lotId - Lot ID to update
+ * @param quantityReceived - New quantity received amount
+ * @returns Updated lot record
+ */
+export async function updateLotQuantity(lotId: string, quantityReceived: number): Promise<any> {
+	try {
+		console.log(`Updating lot ${lotId} with quantity: ${quantityReceived}`);
+		return await request<any>(`/v1/lots/${lotId}`, {
+			method: "PATCH",
+			body: JSON.stringify({
+				quantity_received: quantityReceived,
+			}),
+		});
+	} catch (error) {
+		console.error("Error updating lot quantity:", error);
+		throw error;
+	}
+}
+
+/**
+ * Fetch all stock in records
+ * Transforms lot data into stock in document format
+ * @returns Array of stock in records with supplier and item details
  */
 export async function getAllStockIn(): Promise<any[]> {
 	try {
-		const lotsData = await request<any[]>(`${LOTS_BASE}?limit=100`);
+		console.log("Fetching stock in records from /v1/lots");
+		
+		// Try fetching with different query parameters to find the right one
+		let data;
+		try {
+			data = await request<any[]>(`/v1/lots`);
+		} catch (error) {
+			console.warn("Failed to fetch /v1/lots without params, attempting with limit param");
+			data = await request<any[]>(`/v1/lots?limit=100`);
+		}
+		
+		if (!Array.isArray(data)) {
+			console.warn("API returned non-array data:", data);
+			return [];
+		}
 
-		// Transform lot records into stock in document format
-		const stockInDocs = transformLotsToStockInDocs(lotsData || []);
-		return stockInDocs;
+		// Map each lot directly to StockInRecord format
+		const records = data.map((lot: any) => {
+			// Generate readable lot code if not present (fallback)
+			let lotCode = lot.lot_code || "";
+			if (!lotCode) {
+				// Format: PREFIX-YYMMDD-XXXXX (readable format)
+				const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+				const dateStr = today.replace(/-/g, "").slice(-6); // YYMMDD from end
+				const shortId = lot.id?.substring(0, 5).toUpperCase() || "XXXX";
+				lotCode = `SR-${dateStr}-${shortId}`;
+			}
+			
+			return {
+				id: lot.id || "",
+				date: lot.created_at 
+					? new Date(lot.created_at).toISOString().split("T")[0]
+					: new Date().toISOString().split("T")[0],
+				docNo: lotCode,
+				supplier: lot.supplier?.name || lot.supplier_name || "ไม่ระบุ",
+				supplierId: lot.supplier_id || lot.supplier?.id || "",
+				totalAmount: (lot.cost_price || 0) * (lot.quantity || lot.quantity_received || 0),
+				status: lot.status || "PENDING",
+			};
+		});
+
+		console.log("Stock in records fetched successfully:", records.length);
+		return records;
 	} catch (error) {
-		console.error("Error fetching stock in records:", error);
+		console.warn("Error fetching stock in records:", error);
+		// Log detailed error for debugging
+		if (error instanceof Error) {
+			console.warn("Error details:", error.message);
+		}
+		// Always return empty array as fallback to avoid breaking the UI
 		return [];
 	}
 }
 
 /**
- * Fetch a specific stock in record by ID
- * @param id - Stock in record ID
- * @returns Stock in record or null if not found
+ * Create Receive Document - PO Based (Normal or Draft Mode)
+ * @param payload - Receive document payload
+ * @returns Response from API
  */
-export async function getStockInById(id: string): Promise<StockInRecord | null> {
+export async function createReceive(payload: any): Promise<any> {
 	try {
-		const data = await request<StockInRecord>(`${LOTS_BASE}/${id}`);
-
-		if (!data) {
-			return null;
-		}
-
-		return data;
+		console.log("Create receive payload:", payload);
+		
+		const response = await request<any>("/v1/receives", {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		
+		console.log("Create receive successful:", response);
+		return response;
 	} catch (error) {
-		console.error("Error fetching stock in record:", error);
-		return null;
+		console.error("Error creating receive:", error);
+		if (error instanceof Error) {
+			throw new Error(`Failed to create receive: ${error.message}`);
+		}
+		throw error;
+	}
+}
+
+/**
+ * Quick Receive - One-Stop receive for DONATION or PURCHASE
+ * Automatically creates PENDING bill for shortfall items
+ * @param payload - Receive payload with items
+ * @returns Response from API
+ */
+export async function quickReceive(payload: any): Promise<any> {
+	try {
+		console.log("Quick receive payload:", payload);
+		
+		const response = await request<any>("/v1/receives", {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		
+		console.log("Quick receive successful:", response);
+		return response;
+	} catch (error) {
+		console.error("Error in quick receive:", error);
+		if (error instanceof Error) {
+			throw new Error(`Failed to process quick receive: ${error.message}`);
+		}
+		throw error;
 	}
 }
 

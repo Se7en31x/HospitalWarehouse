@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 import { 
   Plus, Eye, Search, Calendar,
-  FileText, DollarSign, Clock, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownToLine
+  MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownToLine, AlertCircle, X, Save
 } from "lucide-react";
-import StockInFormModal from "./StockInFormModal";
 import * as stockInService from "@/services/stockInService";
 
 interface StockInRecord {
@@ -13,6 +14,7 @@ interface StockInRecord {
   date: string;
   docNo: string;
   supplier: string;
+  poNumber?: string;
   totalAmount: number;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
 }
@@ -48,34 +50,57 @@ const mapStatus = (apiStatus: string): 'PENDING' | 'COMPLETED' | 'CANCELLED' => 
   return statusMap[apiStatus] || 'PENDING';
 };
 
+// Helper: Generate auto-incremented document number
+const generateDocNumber = (index: number): string => {
+  return `DOC-${String(index + 1).padStart(6, '0')}`;
+};
+
 export default function StockInClient({ initialHistory = [] }: Props) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [history, setHistory] = useState<StockInRecord[]>(initialHistory);
   const [isFetching, setIsFetching] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<StockInRecord | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [editedQuantity, setEditedQuantity] = useState(0);
+  const [orderedQuantity, setOrderedQuantity] = useState(0);
+  const [isSavingDetail, setIsSavingDetail] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const itemsPerPage = 10;
 
   // Fetch data function
   const refreshData = useCallback(async () => {
     setIsFetching(true);
+    setApiError(null);
     try {
+      console.log("Attempting to fetch stock in data...");
       const data = await stockInService.getAllStockIn();
+      
       const transformedData = data.map((item: any) => ({
         id: item.id || '',
         date: item.date || new Date().toISOString().split('T')[0],
-        docNo: item.docNo || item.id,
+        docNo: item.docNo || item.id || '',
         supplier: item.supplier || 'ไม่ระบุ',
+        poNumber: item.poNumber || item.po_number || '-',
         totalAmount: item.totalAmount || 0,
         status: mapStatus(item.status)
       }));
+      
       setHistory(transformedData);
+      if (data.length === 0) {
+        console.log("No stock in records found");
+      }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการดึงข้อมูล";
       console.error("Error fetching stock in data:", error);
-      setHistory([]);
+      setApiError(errorMsg);
+      toast.error("ไม่สามารถดึงข้อมูลได้: " + errorMsg);
+      // Keep previous data on error instead of clearing
     } finally {
       setIsFetching(false);
     }
@@ -87,6 +112,103 @@ export default function StockInClient({ initialHistory = [] }: Props) {
       refreshData();
     }
   }, [refreshData]);
+
+  // Handler: Open detail modal
+  const handleOpenDetail = async (record: StockInRecord) => {
+    setIsLoadingDetail(true);
+    setSelectedRecord(record);
+    
+    try {
+      // Fetch actual lot details from API
+      const lotDetail = await stockInService.getLotDetail(record.id);
+      
+      if (lotDetail) {
+        // Use actual data from API
+        // total_value = จำนวนที่สั่งซื้อ (quantity ordered)
+        // quantity = จำนวนที่รับจริง (quantity received)
+        const quantityOrdered = lotDetail.total_value || lotDetail.quantityOrdered || 0;
+        const quantityReceived = lotDetail.quantity || 0;
+        
+        setOrderedQuantity(quantityOrdered);
+        setEditedQuantity(quantityReceived);
+        
+        console.log("Lot detail loaded:", { quantityOrdered, quantityReceived });
+      } else {
+        // Fallback if API returns no data
+        setOrderedQuantity(0);
+        setEditedQuantity(0);
+        toast.error("ไม่สามารถดึงข้อมูลรายละเอียดได้");
+      }
+    } catch (error) {
+      console.error("Error loading lot detail:", error);
+      toast.error("เกิดข้อผิดพลาดในการดึงข้อมูล");
+      setOrderedQuantity(0);
+      setEditedQuantity(0);
+    } finally {
+      setIsLoadingDetail(false);
+      setIsDetailModalOpen(true);
+    }
+  };
+
+  // Handler: Close detail modal
+  const handleCloseDetail = () => {
+    setIsDetailModalOpen(false);
+    setSelectedRecord(null);
+    setEditedQuantity(0);
+    setOrderedQuantity(0);
+  };
+
+  // Handler: Save edited quantity
+  const handleSaveQuantity = async () => {
+    if (!selectedRecord) return;
+
+    setIsSavingDetail(true);
+    try {
+      console.log("Starting save with:", { lotId: selectedRecord.id, editedQuantity, orderedQuantity });
+      
+      // Call API to update quantity
+      const updateResponse = await stockInService.updateLotQuantity(selectedRecord.id, editedQuantity);
+      console.log("Update response:", updateResponse);
+
+      // Determine status based on quantity completion
+      const isComplete = editedQuantity >= orderedQuantity;
+      const newStatus: 'PENDING' | 'COMPLETED' | 'CANCELLED' = isComplete ? 'COMPLETED' : 'PENDING';
+
+      console.log("New status:", newStatus, "isComplete:", isComplete);
+
+      // Update the record in history with new status
+      setHistory((prevHistory) => {
+        const updatedHistory = prevHistory.map((item) =>
+          item.id === selectedRecord.id
+            ? { ...item, status: newStatus }
+            : item
+        );
+        console.log("Updated history:", updatedHistory);
+        return updatedHistory;
+      });
+
+      // Show appropriate message
+      if (isComplete) {
+        toast.success("ได้รับสินค้าครบแล้ว - สถานะเปลี่ยนเป็น เสร็จสมบูรณ์");
+      } else {
+        toast.success("บันทึกการแก้ไข - สถานะคงเป็น รอดำเนินการ");
+      }
+
+      handleCloseDetail();
+      
+      // Refresh data after short delay to ensure backend is updated
+      setTimeout(() => {
+        console.log("Refreshing data from backend...");
+        refreshData();
+      }, 500);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "เกิดข้อผิดพลาด";
+      console.error("Error saving quantity:", error);
+      toast.error("ไม่สามารถบันทึกได้: " + errorMsg);
+    } finally {
+      setIsSavingDetail(false);
+    }
+  };
 
   // --- Logic: Filter ข้อมูล ---
   const filteredHistory = useMemo(() => {
@@ -126,17 +248,26 @@ export default function StockInClient({ initialHistory = [] }: Props) {
     currentPage * itemsPerPage
   );
 
-  // --- Logic: คำนวณยอดสรุป (Stats) ---
-  const stats = useMemo(() => {
-    return {
-        totalDocs: history.length,
-        totalAmount: history.reduce((sum, item) => item.status !== 'CANCELLED' ? sum + item.totalAmount : sum, 0),
-        pendingDocs: history.filter(item => item.status === 'PENDING').length
-    };
-  }, [history]);
-
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
+      <Toaster position="top-right" />
+      
+      {/* API Error Alert */}
+      {apiError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-red-900">ข้อผิดพลาดในการดึงข้อมูล</h3>
+            <p className="text-sm text-red-700 mt-1">{apiError}</p>
+            <button 
+              onClick={() => refreshData()}
+              className="mt-2 text-sm font-semibold text-red-600 hover:text-red-700 underline"
+            >
+              ลองอีกครั้ง
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* 1. Header Section */}
       <div className="flex items-center justify-between mb-8">
@@ -146,7 +277,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => router.push("/warehouse/stockin/createform")}
             className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md"
           >
             <Plus className="w-4 h-4" /> สร้างใบรับสินค้า
@@ -154,39 +285,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         </div>
       </div>
 
-      {/* 2. Stats Cards (Dashboard View) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        {/* Card 1 */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-lg">
-                <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-                <p className="text-sm text-gray-500 font-medium">เอกสารทั้งหมด</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalDocs} <span className="text-xs text-gray-400 font-normal">ฉบับ</span></p>
-            </div>
-        </div>
-        {/* Card 2 */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 rounded-lg">
-                <DollarSign className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-                <p className="text-sm text-gray-500 font-medium">ยอดรับเข้าสุทธิ</p>
-                <p className="text-2xl font-bold text-emerald-600">฿{stats.totalAmount.toLocaleString()}</p>
-            </div>
-        </div>
-        {/* Card 3 */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-amber-50 rounded-lg">
-                <Clock className="w-6 h-6 text-amber-600" />
-            </div>
-            <div>
-                <p className="text-sm text-gray-500 font-medium">รอดำเนินการ</p>
-                <p className="text-2xl font-bold text-amber-600">{stats.pendingDocs} <span className="text-xs text-gray-400 font-normal">รายการ</span></p>
-            </div>
-        </div>
-      </div>
+
 
       {/* 3. Filter Toolbar */}
       <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
@@ -249,6 +348,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
                 <th className="px-6 py-4 w-[150px]">วันที่รับ</th>
+                <th className="px-6 py-4 w-[200px]">Lot Code</th>
                 <th className="px-6 py-4 w-[200px]">PO/Invoice</th>
                 <th className="px-6 py-4">ผู้จำหน่าย</th>
                 <th className="px-6 py-4 text-right w-[120px]">ยอดรวม</th>
@@ -260,16 +360,20 @@ export default function StockInClient({ initialHistory = [] }: Props) {
               {paginatedHistory.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 font-medium text-indigo-600">{item.id}</td>
+                  <td className="px-6 py-4 font-medium text-indigo-600">{generateDocNumber((currentPage - 1) * itemsPerPage + idx)}</td>
                   <td className="px-6 py-4 text-slate-600">{item.date}</td>
                   <td className="px-6 py-4 font-mono text-sm">{item.docNo || '-'}</td>
+                  <td className="px-6 py-4 font-medium text-indigo-600">{item.poNumber}</td>
                   <td className="px-6 py-4 text-slate-900">{item.supplier}</td>
                   <td className="px-6 py-4 text-right font-bold">฿{item.totalAmount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
                     <StatusBadge status={item.status} />
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                    <button 
+                      onClick={() => handleOpenDetail(item)}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    >
                       <Eye className="w-4 h-4" />
                     </button>
                   </td>
@@ -299,14 +403,160 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         </div>
       </div>
 
-      {/* Stock In Form Modal */}
-      <StockInFormModal 
-        isOpen={isModalOpen} 
-        onCloseAction={() => setIsModalOpen(false)}
-        onSuccessAction={() => {
-          refreshData();
-        }}
-      />
+      {/* Detail Modal */}
+      {isDetailModalOpen && selectedRecord && (
+        <>
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
+            onClick={handleCloseDetail}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
+              {/* Header */}
+              <div className="border-b border-slate-200 px-8 py-6 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-slate-900">
+                  รายละเอียดการรับสินค้า
+                </h2>
+                <button
+                  onClick={handleCloseDetail}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-8 space-y-6">
+                {isLoadingDetail ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                    <p className="ml-3 text-slate-600">กำลังดึงข้อมูล...</p>
+                  </div>
+                ) : (
+                  <>
+                {/* Status indicator */}
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-slate-900">สถานะการรับสินค้า</h3>
+                    <StatusBadge status={selectedRecord.status} />
+                  </div>
+                  
+                  {/* Document info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-600">เลขที่เอกสาร</p>
+                      <p className="font-semibold text-slate-900">{selectedRecord.id}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">วันที่รับ</p>
+                      <p className="font-semibold text-slate-900">{selectedRecord.date}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Lot Code</p>
+                      <p className="font-semibold text-slate-900">{selectedRecord.docNo || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">ผู้จำหน่าย</p>
+                      <p className="font-semibold text-slate-900">{selectedRecord.supplier}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">PO/Invoice</p>
+                      <p className="font-semibold text-slate-900">{selectedRecord.poNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">ยอดรวม</p>
+                      <p className="font-bold text-indigo-600">฿{selectedRecord.totalAmount.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quantity section */}
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                  <h3 className="font-semibold text-slate-900 mb-4">ปรับปรุงจำนวนรับสินค้า</h3>
+                  
+                  <div className="space-y-4">
+                    {/* Display quantity ordered */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        จำนวนที่สั่งซื้อ
+                      </label>
+                      <input
+                        type="number"
+                        readOnly
+                        value={orderedQuantity}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm bg-slate-100 text-slate-600 cursor-not-allowed opacity-70 outline-none"
+                      />
+                    </div>
+
+                    {/* Editable quantity received */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        จำนวนที่รับจริง
+                      </label>
+                      <input
+                        type="number"
+                        value={editedQuantity}
+                        onChange={(e) => setEditedQuantity(Number(e.target.value))}
+                        min="0"
+                        max={orderedQuantity}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm bg-indigo-50 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      {editedQuantity >= orderedQuantity && (
+                        <p className="text-sm text-emerald-600 mt-2 font-semibold">
+                          ✓ ได้รับสินค้าครบแล้ว - สถานะจะเป็น เสร็จสมบูรณ์
+                        </p>
+                      )}
+                      {editedQuantity < orderedQuantity && (
+                        <p className="text-sm text-amber-600 mt-2">
+                          ⚠ ยังขาดลังหลายชิ้น - สถานะจะเป็น รอดำเนินการ
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Difference indicator */}
+                    <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+                      <p className="text-sm text-slate-600 mb-1">ผลต่างจากสั่งซื้อ</p>
+                      <p className="text-2xl font-bold text-indigo-600">
+                        {orderedQuantity - editedQuantity} ชิ้น
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-200 px-8 py-4 flex justify-end gap-3">
+                <button
+                  onClick={handleCloseDetail}
+                  disabled={isSavingDetail || isLoadingDetail}
+                  className="px-6 py-2.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-semibold transition-colors disabled:opacity-50"
+                >
+                  ปิด
+                </button>
+                <button
+                  onClick={handleSaveQuantity}
+                  disabled={isSavingDetail || isLoadingDetail}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSavingDetail ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      กำลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      {editedQuantity >= orderedQuantity ? 'บันทึก - เปลี่ยนเป็น เสร็จสมบูรณ์' : 'บันทึก - คงเป็น รอดำเนินการ'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

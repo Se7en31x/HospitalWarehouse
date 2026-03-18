@@ -1,3 +1,5 @@
+import { UUID } from "crypto";
+
 export type ItemStatus =
 	| "ACTIVE"
 	| "INACTIVE"
@@ -7,11 +9,6 @@ export type ItemStatus =
 	| "ระงับ"
 	| string;
 
-export interface Option {
-	id: string;
-	name: string;
-}
-
 export interface ApiItem {
 	id: number | string;
 	code?: string | null;
@@ -20,6 +17,12 @@ export interface ApiItem {
 	min_stock?: number | null;
 	status?: ItemStatus | null;
 	image_url?: string | null;
+	category_id?: string | null;
+	category_name?: string | null;
+	unit_id?: string | null;
+	unit_name?: string | null;
+	warehouse_id?: string | null;
+	warehouse_name?: string | null;
 	categories?: Option | null;
 	category?: Option | null;
 	unit?: Option | null;
@@ -30,8 +33,11 @@ export interface UiItem {
 	id: string;
 	code: string;
 	name: string;
+	categoryId: string;
 	category: string;
+	unitId: string;
 	unit: string;
+	warehouseId: string;
 	location: string;
 	stock: number;
 	minStock: number;
@@ -40,13 +46,14 @@ export interface UiItem {
 	imageUrl: string;
 }
 
-export interface AllOptions {
-	category: Option[];
-	unit: Option[];
-	warehouse: Option[];
+export interface Option {
+	id: UUID;
+	name: string;
 }
 
-export type ItemOptions = AllOptions;
+export type categoryOptions = Option[];
+export type warehouseOptions = Option[];
+export type unitOptions = Option[];
 
 export interface CreatePayload {
 	name: string;

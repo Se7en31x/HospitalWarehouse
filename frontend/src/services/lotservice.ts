@@ -126,7 +126,7 @@ export async function adjustLot(
 	payload: Lot.AdjustLotPayload
 ): Promise<{ success: boolean; message: string; data?: Lot.UiLot }> {
 	try {
-		const data = await request<Lot.ApiLot>(`${LOTS_BASE}/adjust/${lotId}`, {
+		const data = await request<Lot.ApiLot>(`${LOTS_BASE}/${lotId}/adjust`, {
 			method: "PUT",
 			body: JSON.stringify(payload),
 		});

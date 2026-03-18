@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Search, Plus, Minus, ShoppingCart, X, PackagePlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 
 import * as ItemSvc from "@/services/itemsService";
-import * as RequisitionSvc from "@/services/requisitionService";
 import { useAuth } from "@/lib/useAuth";
 import { socket } from "@/lib/socket";
+import CartModal from "./CartModal";
+import ItemDetailModal from "./ItemDetailModal";
 
 const MySwal = withReactContent(Swal);
 
@@ -31,11 +32,10 @@ export default function WithdrawClient({ initialItems }: Props) {
 
   // ✅ State สำหรับรายการ Items
   const [items, setItems] = useState<ItemSvc.UiItem[]>(initialItems || []);
-  const [options, setOptions] = useState<ItemSvc.ItemOptions>({
-    category: [],
-    unit: [],
-    warehouse: []
-  });
+  
+  // ✅ State สำหรับ Options (Dropdowns)
+  const [categories, setCategories] = useState<ItemSvc.categoryOptions>([]);
+  const [units, setUnits] = useState<ItemSvc.unitOptions>([]);
 
   // ✅ State สำหรับ Cart และ Shopping
   const [selectedItems, setSelectedItems] = useState<CartItem[]>([]);
@@ -44,16 +44,22 @@ export default function WithdrawClient({ initialItems }: Props) {
 
   // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
-  const [selectedUnit, setSelectedUnit] = useState("ทั้งหมด");
+  const [selectedCategory, setSelectedCategory] = useState("ประเภททั้งหมด");
+  const [selectedUnit, setSelectedUnit] = useState("หน่วยทั้งหมด");
+  const [selectedLocation, setSelectedLocation] = useState("ตำแหน่งทั้งหมด");
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const [showCartModal, setShowCartModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCartBouncing, setIsCartBouncing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+
+  const [showItemDetailModal, setShowItemDetailModal] = useState(false);
+  const [selectedItemForDetail, setSelectedItemForDetail] = useState<ItemSvc.UiItem | null>(null);
 
   // --- [Data Fetching Logic] ---
   const refreshData = useCallback(async () => {
@@ -107,8 +113,10 @@ export default function WithdrawClient({ initialItems }: Props) {
     // โหลด Options
     const fetchOptions = async () => {
       try {
-        const data = await ItemSvc.getItemOptions();
-        setOptions(data || { category: [], unit: [], warehouse: [] });
+        const categoryData = await ItemSvc.getcategoriesOptions();
+        setCategories(categoryData || []);
+        const unitData = await ItemSvc.getUnitsOptions();
+        setUnits(unitData || []);
       } catch (err) {
         console.error("Load options failed", err);
       }
@@ -141,9 +149,34 @@ export default function WithdrawClient({ initialItems }: Props) {
     }
   }, [selectedItems, selectedDeptId, isMounted]);
 
+  // --- [Close dropdowns when clicking outside] ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-category-dropdown]")) {
+        setIsCategoryDropdownOpen(false);
+      }
+      if (!target.closest("[data-unit-dropdown]")) {
+        setIsUnitDropdownOpen(false);
+      }
+      if (!target.closest("[data-location-dropdown]")) {
+        setIsLocationDropdownOpen(false);
+      }
+    };
+
+    if (isCategoryDropdownOpen || isUnitDropdownOpen || isLocationDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isCategoryDropdownOpen, isUnitDropdownOpen, isLocationDropdownOpen]);
+
   // --- [Filter Logic] ---
-  const filterCategories = ["ทั้งหมด", ...(options.category || []).map((c) => c.name)];
-  const filterUnits = ["ทั้งหมด", ...(options.unit || []).map((u) => u.name)];
+  const filterCategories = ["ประเภททั้งหมด", ...(categories || []).map((c) => c.name)];
+  const filterUnits = ["หน่วยทั้งหมด", ...(units || []).map((u) => u.name)];
+  const filterLocations = useMemo(() => {
+    const locations = new Set(items.map((item) => item.location).filter(Boolean));
+    return ["ตำแหน่งทั้งหมด", ...Array.from(locations)];
+  }, [items]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -152,12 +185,13 @@ export default function WithdrawClient({ initialItems }: Props) {
         (item.code || "").toLowerCase().includes(term) ||
         (item.name || "").toLowerCase().includes(term);
 
-      const matchesCat = selectedCategory === "ทั้งหมด" || item.category === selectedCategory;
-      const matchesUnit = selectedUnit === "ทั้งหมด" || item.unit === selectedUnit;
+      const matchesCat = selectedCategory === "ประเภททั้งหมด" || item.category === selectedCategory;
+      const matchesUnit = selectedUnit === "หน่วยทั้งหมด" || item.unit === selectedUnit;
+      const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
 
-      return matchesSearch && matchesCat && matchesUnit;
+      return matchesSearch && matchesCat && matchesUnit && matchesLocation;
     });
-  }, [items, selectedCategory, selectedUnit, searchTerm]);
+  }, [items, selectedCategory, selectedUnit, selectedLocation, searchTerm]);
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const displayItems = useMemo(() => {
@@ -165,42 +199,30 @@ export default function WithdrawClient({ initialItems }: Props) {
     return filteredItems.slice(start, start + itemsPerPage);
   }, [filteredItems, currentPage, itemsPerPage]);
 
-  // --- [Handlers] ---
-  const addToCart = useCallback(
-    (item: ItemSvc.UiItem) => {
-      const qty = quantities[item.id] || 1;
-      if (qty <= 0 || qty > item.stock) {
-        MySwal.fire({
-          icon: "error",
-          title: "สินค้าไม่พอ",
-          timer: 1000,
-          showConfirmButton: false,
-        });
-        return;
+  const openItemDetail = useCallback((item: ItemSvc.UiItem) => {
+    setSelectedItemForDetail(item);
+    setShowItemDetailModal(true);
+  }, []);
+
+  const handleItemDetailConfirm = useCallback((quantity: number) => {
+    if (!selectedItemForDetail) return;
+    
+    setIsCartBouncing(true);
+    setTimeout(() => setIsCartBouncing(false), 300);
+    
+    setSelectedItems((prev) => {
+      const exist = prev.find((i) => i.id === selectedItemForDetail.id);
+      if (exist) {
+        const newQty = exist.quantity + quantity;
+        return newQty > selectedItemForDetail.stock
+          ? prev
+          : prev.map((i) =>
+              i.id === selectedItemForDetail.id ? { ...i, quantity: newQty } : i
+            );
       }
-      setIsCartBouncing(true);
-      setTimeout(() => setIsCartBouncing(false), 300);
-      setSelectedItems((prev) => {
-        const exist = prev.find((i) => i.id === item.id);
-        if (exist) {
-          const newQty = exist.quantity + qty;
-          return newQty > item.stock
-            ? prev
-            : prev.map((i) =>
-                i.id === item.id ? { ...i, quantity: newQty } : i
-              );
-        }
-        return [...prev, { ...item, quantity: qty }];
-      });
-      // รีเซ็ต quantity input หลังเพิ่มลงตะกร้า
-      setQuantities((prev) => {
-        const newQty = { ...prev };
-        delete newQty[item.id];
-        return newQty;
-      });
-    },
-    [quantities]
-  );
+      return [...prev, { ...selectedItemForDetail, quantity }];
+    });
+  }, [selectedItemForDetail]);
 
   const removeItem = useCallback((id: string) => {
     setSelectedItems((prev) => prev.filter((i) => i.id !== id));
@@ -222,77 +244,16 @@ export default function WithdrawClient({ initialItems }: Props) {
     [items]
   );
 
-  const handleSubmit = async () => {
-    if (!selectedDeptId || selectedItems.length === 0) {
-      MySwal.fire({
-        icon: "warning",
-        title: "ข้อมูลไม่ครบ",
-        text: "กรุณาเลือกแผนกและสินค้า",
-      });
-      return;
-    }
-
-    // ค้นหาชื่อแผนกจาก Code ที่เลือก
-    const currentDept = departments.find((d) => d.code === selectedDeptId);
-    const deptName = currentDept ? currentDept.name : "แผนกทั่วไป";
-
+  const handleCartSuccess = () => {
+    setSelectedItems([]);
+    localStorage.removeItem("withdraw_cart");
     setShowCartModal(false);
-
-    const confirm = await MySwal.fire({
-      title: "ยืนยันการส่งใบเบิก?",
-      html: `เบิกในนามแผนก: <b class="text-indigo-600">${deptName}</b>`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: "#4f46e5",
-      reverseButtons: true,
-    });
-
-    if (!confirm.isConfirmed) {
-      setShowCartModal(true);
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const payload: RequisitionSvc.RequisitionPayload = {
-        type: "WITHDRAW",
-        department_id: selectedDeptId,
-        department_name: deptName,
-        items: selectedItems.map((i) => ({
-          item_id: Number(i.id),
-          qty: i.quantity,
-        })),
-        note: "เบิกออนไลน์ผ่านระบบ",
-      };
-
-      const res = await RequisitionSvc.createRequisition(payload);
-      if (res.success) {
-        await MySwal.fire({
-          icon: "success",
-          title: "สำเร็จ",
-          text: "ส่งใบเบิกเรียบร้อย",
-          timer: 1500,
-        });
-        setSelectedItems([]);
-        localStorage.removeItem("withdraw_cart");
-      } else throw new Error(res.message);
-    } catch (err: unknown) {
-      const msg = getErrorMessage(err);
-      await MySwal.fire({
-        icon: "error",
-        title: "ผิดพลาด",
-        text: msg,
-      });
-      setShowCartModal(true);
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   if (!isMounted) return null;
 
   return (
-    <div className="w-full bg-slate-50 min-h-screen p-4 font-sans">
+    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
       <style
         dangerouslySetInnerHTML={{
           __html: `@keyframes cart-bounce { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } } .animate-bounce-custom { animation: cart-bounce 0.3s ease-in-out; }`,
@@ -300,62 +261,151 @@ export default function WithdrawClient({ initialItems }: Props) {
       />
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-600 rounded-lg text-white">
-            <PackagePlus size={20} />
-          </div>
-          <h1 className="text-lg font-bold text-slate-800">เบิกพัสดุ</h1>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <PackagePlus className="w-8 h-8 text-indigo-600" />
+          <h2 className="text-3xl font-bold text-indigo-600">เบิกพัสดุ</h2>
         </div>
-        <button
-          onClick={() => setShowCartModal(true)}
-          className={`bg-slate-900 text-white px-5 py-2 rounded-lg flex items-center gap-2 relative transition-transform active:scale-95 ${
-            isCartBouncing ? "animate-bounce-custom" : ""
-          }`}
-        >
-          <ShoppingCart size={18} />
-          <span className="text-sm font-bold">ตะกร้า ({selectedItems.length})</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowCartModal(true)}
+            className={`px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
+              isCartBouncing ? "animate-bounce-custom" : ""
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+            ตะกร้า ({selectedItems.length})
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-3 mb-6 md:items-center">
-        <div className="relative w-full md:flex-1">
+      <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
+        <div className="relative w-full md:w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="ค้นหาชื่อหรือรหัส..."
+            placeholder="ค้นหา..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
           />
         </div>
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          {filterCategories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select
-          value={selectedUnit}
-          onChange={(e) => setSelectedUnit(e.target.value)}
-          className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          {filterUnits.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
+
+        {/* Category Dropdown */}
+        <div className="relative ml-auto" data-category-dropdown>
+          <button
+            onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+          >
+            {selectedCategory}
+            <ChevronDown className={`w-4 h-4 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Category Dropdown Menu */}
+          {isCategoryDropdownOpen && (
+            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterCategories.map((c) => (
+                  <li key={c}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(c);
+                        setIsCategoryDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        selectedCategory === c
+                          ? "bg-indigo-100 text-indigo-900 font-medium"
+                          : "text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Unit Dropdown */}
+        <div className="relative" data-unit-dropdown>
+          <button
+            onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
+            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+          >
+            {selectedUnit}
+            <ChevronDown className={`w-4 h-4 transition-transform ${isUnitDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Unit Dropdown Menu */}
+          {isUnitDropdownOpen && (
+            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterUnits.map((u) => (
+                  <li key={u}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUnit(u);
+                        setIsUnitDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        selectedUnit === u
+                          ? "bg-indigo-100 text-indigo-900 font-medium"
+                          : "text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      {u}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Location Dropdown */}
+        <div className="relative" data-location-dropdown>
+          <button
+            onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+          >
+            {selectedLocation}
+            <ChevronDown className={`w-4 h-4 transition-transform ${isLocationDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Location Dropdown Menu */}
+          {isLocationDropdownOpen && (
+            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterLocations.map((loc) => (
+                  <li key={loc}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedLocation(loc);
+                        setIsLocationDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        selectedLocation === loc
+                          ? "bg-indigo-100 text-indigo-900 font-medium"
+                          : "text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      {loc}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table Content */}
-      <div className="rounded-lg bg-white shadow-sm border border-slate-200 overflow-hidden relative flex flex-col mb-6">
+      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -363,55 +413,52 @@ export default function WithdrawClient({ initialItems }: Props) {
             </div>
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 border-b text-slate-600 font-semibold uppercase text-xs tracking-widest sticky top-0">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
+          <table className="w-full text-sm text-left table-fixed">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3">#</th>
-                <th className="px-4 py-3">รหัสพัสดุ</th>
-                <th className="px-4 py-3">ชื่อรายการ</th>
-                <th className="px-4 py-3">ประเภท</th>
-                <th className="px-4 py-3">ตำแหน่ง</th>
-                <th className="px-4 py-3 text-center">คงเหลือ</th>
-                <th className="px-4 py-3 text-center w-[120px]">จำนวน</th>
-                <th className="px-4 py-3 text-right w-[80px]">จัดการ</th>
+                <th className="px-6 py-4 w-[50px]">#</th>
+                <th className="px-6 py-4 w-[100px]">รูป</th>
+                <th className="px-6 py-4 w-[120px]">รหัสพัสดุ</th>
+                <th className="px-6 py-4 w-[300px]">ชื่อรายการ</th>
+                <th className="px-6 py-4 w-[140px]">ประเภท</th>
+                <th className="px-6 py-4 w-[150px]">ตำแหน่ง</th>
+                <th className="px-6 py-4 text-center w-[150px]">คงเหลือ</th>
+                <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {displayItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors h-[56px]">
-                  <td className="px-4 text-slate-400 text-xs">
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 w-[50px] text-slate-400 text-sm">
                     {(currentPage - 1) * itemsPerPage + idx + 1}
                   </td>
-                  <td className="px-4 font-mono text-xs font-bold text-slate-700">
+                  <td className="px-6 py-4 w-[100px]">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
+                      ) : (
+                        <PackagePlus className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 w-[120px] font-medium text-slate-800">
                     {item.code}
                   </td>
-                  <td className="px-4 text-sm font-medium">{item.name}</td>
-                  <td className="px-4 text-sm text-slate-600">{item.category}</td>
-                  <td className="px-4 text-sm text-slate-600">{item.location}</td>
-                  <td className="px-4 text-center text-sm font-bold">
+                  <td className="px-6 py-4 w-[300px] text-sm font-medium text-slate-800 truncate">
+                    {item.name}
+                  </td>
+                  <td className="px-6 py-4 w-[140px] text-sm text-slate-600">{item.category}</td>
+                  <td className="px-6 py-4 w-[150px] text-sm text-slate-600">{item.location}</td>
+                  <td className="px-6 py-4 text-center w-[150px] text-sm font-bold text-slate-800">
                     {item.stock} {item.unit}
                   </td>
-                  <td className="px-4 text-center">
-                    <input
-                      type="number"
-                      className="w-16 p-1 border border-slate-200 rounded text-center font-bold text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      value={quantities[item.id] || 1}
-                      min="1"
-                      max={item.stock}
-                      onChange={(e) =>
-                        setQuantities({
-                          ...quantities,
-                          [item.id]: Math.max(1, parseInt(e.target.value) || 1),
-                        })
-                      }
-                    />
-                  </td>
-                  <td className="px-4 text-right">
+                  <td className="px-6 py-4 text-right w-[100px]">
                     <button
-                      onClick={() => addToCart(item)}
+                      onClick={() => openItemDetail(item)}
                       disabled={item.stock <= 0}
                       className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="เพิ่มเข้าตะกร้า"
                     >
                       <Plus size={16} />
                     </button>
@@ -420,7 +467,7 @@ export default function WithdrawClient({ initialItems }: Props) {
               ))}
               {displayItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-500">
+                  <td colSpan={8} className="text-center py-10 text-slate-500 text-sm">
                     ไม่พบข้อมูล
                   </td>
                 </tr>
@@ -431,7 +478,7 @@ export default function WithdrawClient({ initialItems }: Props) {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mt-6">
         <p className="text-sm text-slate-600">
           แสดง {displayItems.length} จาก {filteredItems.length} รายการ
         </p>
@@ -456,111 +503,26 @@ export default function WithdrawClient({ initialItems }: Props) {
         </div>
       </div>
 
+      {/* Item Detail Modal */}
+      <ItemDetailModal
+        isOpen={showItemDetailModal}
+        item={selectedItemForDetail}
+        onClose={() => setShowItemDetailModal(false)}
+        onConfirm={handleItemDetailConfirm}
+      />
+
       {/* Cart Modal */}
-      {showCartModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl shadow-xl flex flex-col max-h-[85vh]">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center rounded-t-xl">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                <ShoppingCart size={18} className="text-indigo-600" /> ตะกร้าของฉัน
-              </h2>
-              <button
-                onClick={() => setShowCartModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              {/* Department Selection */}
-              <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                <label className="text-[10px] font-bold text-indigo-600 uppercase mb-2 block">
-                  ระบุแผนกที่เบิก
-                </label>
-                <select
-                  value={selectedDeptId}
-                  onChange={(e) => setSelectedDeptId(e.target.value)}
-                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-semibold text-sm focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- กรุณาเลือกแผนก --</option>
-                  {departments.map((d) => (
-                    <option key={d.code} value={d.code}>
-                      แผนก{d.name} ({d.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Cart Items */}
-              <div className="space-y-2">
-                {selectedItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-slate-800">{item.name}</div>
-                      <div className="text-xs text-slate-500">{item.code}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1">
-                        <button
-                          onClick={() => updateQty(item.id, -1)}
-                          className="p-1 hover:bg-slate-100 rounded transition-colors"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span className="w-6 text-center font-bold text-sm">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => updateQty(item.id, 1)}
-                          className="p-1 hover:bg-slate-100 rounded transition-colors"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {selectedItems.length === 0 && (
-                  <div className="text-center py-8 text-slate-500">
-                    ตะกร้าว่างเปล่า
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={() => setShowCartModal(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={
-                  !selectedDeptId || selectedItems.length === 0 || isSubmitting
-                }
-                className="px-6 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {isSubmitting ? "กำลังส่ง..." : "ยืนยันใบเบิก"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CartModal
+        isOpen={showCartModal}
+        onClose={() => setShowCartModal(false)}
+        selectedItems={selectedItems}
+        selectedDeptId={selectedDeptId}
+        departments={departments}
+        onDeptChange={setSelectedDeptId}
+        onRemoveItem={removeItem}
+        onUpdateQty={updateQty}
+        onSuccess={handleCartSuccess}
+      />
     </div>
   );
 }

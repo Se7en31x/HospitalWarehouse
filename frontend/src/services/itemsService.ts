@@ -3,15 +3,21 @@ import * as Item from "@/types/items_type";
 
 export type UiItem = Item.UiItem;
 export type ApiItem = Item.ApiItem;
-export type ItemOptions = Item.ItemOptions;
 export type Option = Item.Option;
-export type AllOptions = Item.AllOptions;
+export type categoryOptions = Item.categoryOptions;
+export type warehouseOptions = Item.warehouseOptions;
+export type unitOptions = Item.unitOptions;
 export type CreatePayload = Item.CreatePayload;
 export type UpdatePayload = Item.UpdatePayload;
 export type DeleteResponse = Item.DeleteResponse;
 
+export interface ItemOptions {
+	category: Item.categoryOptions;
+	warehouse: Item.warehouseOptions;
+	unit: Item.unitOptions;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-const ITEMS_BASE = "/v1/items";
 
 const getHeaders = () => ({
 	"Content-Type": "application/json",
@@ -51,9 +57,12 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
 	id: String(item.id),
 	code: item.code || "-",
 	name: item.name || "ไม่ระบุชื่อ",
-	category: item.categories?.name || item.category?.name || "-",
-	unit: item.unit?.name || "ชิ้น",
-	location: item.warehouse?.name || "-",
+	categoryId: item.category_id || "",
+	category: item.category_name || item.categories?.name || item.category?.name || "-",
+	unitId: item.unit_id || "",
+	unit: item.unit_name || item.unit?.name || "ชิ้น",
+	warehouseId: item.warehouse_id || "",
+	location: item.warehouse_name || item.warehouse?.name || "-",
 	stock: item.current_stock || 0,
 	minStock: item.min_stock || 0,
 	price: 0,
@@ -62,40 +71,59 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
 });
 
 export async function getInventoryItems(): Promise<Item.UiItem[]> {
-	const data = await request<Item.ApiItem[]>(`${ITEMS_BASE}`);
+	const data = await request<Item.ApiItem[]>(`/v1/items`);
 	return (data || []).map(mapApiToUi);
 }
 
-export async function getItemOptions(): Promise<Item.AllOptions> {
-	const data = await request<Item.AllOptions>(`${ITEMS_BASE}/option`);
+export async function getcategoriesOptions(): Promise<Item.categoryOptions> {
+	const data = await request<Item.Option[]>(`/v1/categories/option`);
+	return data || [];
+}
 
+export async function getWarehousesOptions(): Promise<Item.warehouseOptions> {
+	const data = await request<Item.Option[]>(`/v1/warehouses/option`);
+	return data || [];
+}
+
+export async function getUnitsOptions(): Promise<Item.unitOptions> {
+	const data = await request<Item.Option[]>(`/v1/units/option`);
+	return data || [];
+}
+
+export async function getItemOptions(): Promise<ItemOptions> {
+	const [categories, warehouses, units] = await Promise.all([
+		getcategoriesOptions(),
+		getWarehousesOptions(),
+		getUnitsOptions(),
+	]);
 	return {
-		category: (data?.category || []).map((cat) => ({
-			...cat,
-			name: Item.categoryTranslations[cat.name] || cat.name,
-		})),
-		unit: data?.unit || [],
-		warehouse: data?.warehouse || [],
+		category: categories,
+		warehouse: warehouses,
+		unit: units,
 	};
 }
 
 export async function createInventoryItem(payload: Item.CreatePayload) {
     
-	return request<Item.ApiItem>(`${ITEMS_BASE}`, {
+	return request<Item.ApiItem>(`/v1/items`, {
 		method: "POST",
 		body: JSON.stringify(payload),
 	});
 }
 
 export async function updateInventoryItem(id: string, payload: Item.UpdatePayload) {
-	return request<Item.ApiItem>(`${ITEMS_BASE}/${id}`, {
-		method: "PUT",
+	if (!id) {
+		throw new Error("Item ID is required for update");
+	}
+	console.log(`Updating item - ID: ${id}, URL: /v1/items/${id}`, payload);
+	return request<Item.ApiItem>(`/v1/items/${id}`, {
+		method: "PATCH",
 		body: JSON.stringify(payload),
 	});
 }
 
 export async function deleteInventoryItem(id: string): Promise<Item.DeleteResponse> {
-	return request<Item.DeleteResponse>(`${ITEMS_BASE}/${id}`, {
+	return request<Item.DeleteResponse>(`/v1/items/${id}`, {
 		method: "DELETE",
 	});
 }

@@ -128,31 +128,6 @@ export default function ReturnsClient() {
 		setSelectedReturn(null);
 	};
 
-	// --- [Statistics Cards] ---
-	const StatCard = ({
-		label,
-		value,
-		icon: Icon,
-		color,
-	}: {
-		label: string;
-		value: number;
-		icon: React.ReactNode;
-		color: string;
-	}) => (
-		<div className={`rounded-lg bg-white p-4 border-l-4 ${color} shadow-sm`}>
-			<div className="flex items-center justify-between">
-				<div>
-					<p className="text-xs text-gray-600 font-medium">{label}</p>
-					<p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-				</div>
-				<div className={`w-10 h-10 rounded-full flex items-center justify-center ${color.replace("border", "bg").replace("l-", "-")}`}>
-					{Icon}
-				</div>
-			</div>
-		</div>
-	);
-
 	return (
 		<div className="flex flex-col min-h-screen bg-gray-50 p-8">
 			<Toaster position="top-right" />
@@ -166,36 +141,6 @@ export default function ReturnsClient() {
 					<h2 className="text-3xl font-bold text-gray-900">จัดการการคืน</h2>
 				</div>
 			</div>
-
-			{/* Statistics Cards */}
-			{stats && (
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-					<StatCard
-						label="รวมการยืม"
-						value={stats.totalBorrowed}
-						icon={<Package className="w-5 h-5 text-blue-600" />}
-						color="border-blue-500"
-					/>
-					<StatCard
-						label="รอการคืน"
-						value={stats.pending}
-						icon={<Clock className="w-5 h-5 text-yellow-600" />}
-						color="border-yellow-500"
-					/>
-					<StatCard
-						label="คืนแล้ว"
-						value={stats.returned}
-						icon={<Check className="w-5 h-5 text-green-600" />}
-						color="border-green-500"
-					/>
-					<StatCard
-						label="ค้างคืน"
-						value={stats.overdue}
-						icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
-						color="border-red-500"
-					/>
-				</div>
-			)}
 
 			{/* Filters */}
 			<div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
@@ -235,13 +180,13 @@ export default function ReturnsClient() {
 				<table className="w-full text-sm text-left table-fixed">
 					<thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
 						<tr>
-							<th className="px-6 py-4 w-[50px]">#</th>
-							<th className="px-6 py-4 w-[120px]">เลขที่เอกสาร</th>
-							<th className="px-6 py-4">ชื่อสินค้า</th>
-							<th className="px-6 py-4 w-[80px] text-center">จำนวน</th>
-							<th className="px-6 py-4 w-[120px]">ผู้ยืม</th>
-							<th className="px-6 py-4 w-[150px]">วันครบกำหนด</th>
-							<th className="px-6 py-4 w-[100px] text-right">จัดการ</th>
+					<th className="px-6 py-4 w-[40px]">#</th>
+					<th className="px-6 py-4 w-[100px]">เลขที่เอกสาร</th>
+					<th className="px-6 py-4 w-[120px]">ผู้ยืม</th>
+					<th className="px-6 py-4">ชื่อสินค้า</th>
+					<th className="px-6 py-4 w-[70px] text-center">จำนวน</th>
+					<th className="px-6 py-4 w-[130px]">วันครบกำหนด</th>
+					<th className="px-6 py-4 w-[90px] text-right">จัดการ</th>
 						</tr>
 					</thead>
 					<tbody className="divide-y divide-slate-100">
@@ -249,14 +194,14 @@ export default function ReturnsClient() {
 							const isOverdue = ret.daysOverdue && ret.daysOverdue > 0;
 							return (
 								<tr key={ret.id} className="hover:bg-slate-50 transition-colors">
-									<td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-									<td className="px-6 py-4 w-[120px] font-medium">{ret.id}</td>
-									<td className="px-6 py-4">{ret.itemName}</td>
-									<td className="px-6 py-4 w-[80px] text-center">
-										{ret.quantity} {ret.unit}
-									</td>
-									<td className="px-6 py-4 w-[120px]">{ret.borrowedBy}</td>
-									<td className="px-6 py-4 w-[150px]">
+								<td className="px-6 py-4 w-[40px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+								<td className="px-6 py-4 w-[100px] font-medium">{ret.id}</td>
+								<td className="px-6 py-4 w-[120px]">{ret.borrowedBy}</td>
+								<td className="px-6 py-4">{ret.itemName}</td>
+								<td className="px-6 py-4 w-[70px] text-center">
+									{ret.quantity} {ret.unit}
+								</td>
+								<td className="px-6 py-4 w-[130px]">
 										<div className="flex flex-col gap-1">
 											<span className={`font-semibold ${isOverdue ? "text-red-600" : "text-slate-900"}`}>
 												{new Date(ret.dueDate).toLocaleDateString("th-TH")}
@@ -267,8 +212,6 @@ export default function ReturnsClient() {
 												</span>
 											)}
 										</div>
-									</td>
-									<td className="px-6 py-4 w-[100px] text-right">
 										<div className="flex justify-end gap-1">
 											<button
 												onClick={() => openDetailModal(ret)}

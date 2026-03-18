@@ -8,6 +8,7 @@ import {
   Loader2,
   X,
   Upload,
+  Search,
 } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
@@ -37,6 +38,9 @@ interface ItemFormModalProps {
   initialData?: Item.UiItem | null;
   onCloseAction: () => void;
   onSuccessAction: () => void;
+  categories?: Item.categoryOptions;
+  warehouses?: Item.warehouseOptions;
+  units?: Item.unitOptions;
 }
 
 const INITIAL_FORM_DATA: FormData = {
@@ -55,23 +59,35 @@ export default function ItemFormModal({
   onCloseAction,
   onSuccessAction,
 }: ItemFormModalProps) {
-  const [options, setOptions] = useState<Item.AllOptions>({
-    category: [],
-    unit: [],
-    warehouse: [],
-  });
+  const [categories, setCategories] = useState<Item.categoryOptions>([]);
+  const [warehouses, setWarehouses] = useState<Item.warehouseOptions>([]);
+  const [units, setUnits] = useState<Item.unitOptions>([]);
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingOptions, setIsFetchingOptions] = useState(true);
 
+  // Search states for dropdowns
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [unitSearchQuery, setUnitSearchQuery] = useState("");
+  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+  const [warehouseSearchQuery, setWarehouseSearchQuery] = useState("");
+  const [isWarehouseDropdownOpen, setIsWarehouseDropdownOpen] = useState(false);
+
   // Fetch options on mount
   useEffect(() => {
     if (isOpen) {
-      const fetchOptions = async () => {
+      const fetchAllOptions = async () => {
         try {
-          const opts = await ItemSvc.getItemOptions();
-          setOptions(opts || { category: [], unit: [], warehouse: [] });
+          const [catData, whData, unitData] = await Promise.all([
+            ItemSvc.getcategoriesOptions(),
+            ItemSvc.getWarehousesOptions(),
+            ItemSvc.getUnitsOptions(),
+          ]);
+          setCategories(catData || []);
+          setWarehouses(whData || []);
+          setUnits(unitData || []);
         } catch (error) {
           console.error("Error fetching options:", error);
           toast.error("ไม่สามารถดึงข้อมูลได้");
@@ -80,30 +96,42 @@ export default function ItemFormModal({
         }
       };
 
-      fetchOptions();
+      setIsFetchingOptions(true);
+      fetchAllOptions();
     }
   }, [isOpen]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        !target.closest("[data-category-dropdown]") &&
+        !target.closest("[data-unit-dropdown]") &&
+        !target.closest("[data-warehouse-dropdown]")
+      ) {
+        setIsCategoryDropdownOpen(false);
+        setIsUnitDropdownOpen(false);
+        setIsWarehouseDropdownOpen(false);
+      }
+    };
+
+    if (isCategoryDropdownOpen || isUnitDropdownOpen || isWarehouseDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isCategoryDropdownOpen, isUnitDropdownOpen, isWarehouseDropdownOpen]);
 
   // Initialize form data when modal opens or initialData changes
   useEffect(() => {
     if (isOpen) {
       if (isEdit && initialData) {
-        // For edit mode
-        const foundCat = options.category?.find(
-          (c) => c.name === initialData.category
-        );
-        const foundUnit = options.unit?.find(
-          (u) => u.name === initialData.unit
-        );
-        const foundWarehouse = options.warehouse?.find(
-          (w) => w.name === initialData.location
-        );
-
+        // For edit mode - use IDs directly from initialData
         setFormData({
           name: initialData.name,
-          category_id: foundCat ? foundCat.id.toString() : "",
-          unit_id: foundUnit ? foundUnit.id.toString() : "",
-          warehouse_id: foundWarehouse ? foundWarehouse.id.toString() : "",
+          category_id: initialData.categoryId || "",
+          unit_id: initialData.unitId || "",
+          warehouse_id: initialData.warehouseId || "",
           min_stock: initialData.minStock,
           imageUrl: initialData.imageUrl || "",
         });
@@ -113,7 +141,7 @@ export default function ItemFormModal({
       }
       setFormErrors({});
     }
-  }, [isOpen, isEdit, initialData, options]);
+  }, [isOpen, isEdit, initialData, categories, warehouses, units]);
 
   const validateForm = (): FormErrors => {
     const errors: FormErrors = {};
@@ -129,6 +157,19 @@ export default function ItemFormModal({
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
+      return;
+    }
+
+    // Log debug info
+    console.log("=== DEBUG INFO ===");
+    console.log("isEdit:", isEdit);
+    console.log("initialData:", initialData);
+    console.log("initialData?.id:", initialData?.id);
+
+    // Validate edit mode has ID
+    if (isEdit && !initialData?.id) {
+      console.error("Error: initialData is missing or has no ID");
+      toast.error("ข้อผิดพลาด: ไม่พบ ID ของรายการ");
       return;
     }
 
@@ -154,9 +195,11 @@ export default function ItemFormModal({
           } as Item.CreatePayload);
 
       if (isEdit && initialData) {
-        await ItemSvc.updateInventoryItem(initialData.id, payload as Item.UpdatePayload);
+        console.log("Updating item - ID:", initialData.id, "Payload:", payload);
+        await ItemSvc.updateInventoryItem(String(initialData.id), payload as Item.UpdatePayload);
         toast.success("แก้ไขข้อมูลสำเร็จ");
       } else {
+        console.log("Creating item with payload:", payload);
         await ItemSvc.createInventoryItem(payload as Item.CreatePayload);
         toast.success("บันทึกสำเร็จ");
       }
@@ -164,6 +207,7 @@ export default function ItemFormModal({
       onSuccessAction?.();
       onCloseAction?.();
     } catch (error) {
+      console.error("Submit error:", error);
       toast.error(
         "เกิดข้อผิดพลาด: " +
           (error instanceof Error ? error.message : "Unknown error")
@@ -240,15 +284,26 @@ export default function ItemFormModal({
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
                     ชื่อพัสดุ <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="ระบุชื่อพัสดุ"
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      placeholder="ระบุชื่อพัสดุ"
+                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                    />
+                    {formData.name && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, name: "" })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                   {formErrors.name && (
                     <p className="text-red-500 text-xs mt-1">
                       {formErrors.name}
@@ -257,7 +312,7 @@ export default function ItemFormModal({
                 </div>
 
                 {/* Category */}
-                <div>
+                <div data-category-dropdown>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
                     ประเภท <span className="text-red-500">*</span>
                   </label>
@@ -266,23 +321,97 @@ export default function ItemFormModal({
                       <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                     </div>
                   ) : (
-                    <select
-                      value={formData.category_id}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          category_id: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                    >
-                      <option value="">-- เลือกประเภท --</option>
-                      {options.category?.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <input
+                          type="text"
+                          value={
+                            formData.category_id
+                              ? categories.find((c) => c.id === formData.category_id)?.name || ""
+                              : categorySearchQuery
+                          }
+                          onChange={(e) => {
+                            setCategorySearchQuery(e.target.value);
+                            setIsCategoryDropdownOpen(true);
+                            if (formData.category_id) {
+                              setFormData({ ...formData, category_id: "" });
+                            }
+                          }}
+                          onFocus={() => setIsCategoryDropdownOpen(true)}
+                          placeholder="ค้นหาประเภท..."
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                        />
+                        {categorySearchQuery && !formData.category_id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCategorySearchQuery("");
+                              setIsCategoryDropdownOpen(false);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Category Dropdown Menu */}
+                      {isCategoryDropdownOpen && !formData.category_id && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
+                          {categories
+                            .filter((c) =>
+                              c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+                            )
+                            .length > 0 ? (
+                            <ul className="py-1">
+                              {categories
+                                .filter((c) =>
+                                  c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+                                )
+                                .map((c) => (
+                                  <li key={c.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({ ...formData, category_id: c.id });
+                                        setCategorySearchQuery("");
+                                        setIsCategoryDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-sm text-slate-900 focus:outline-none focus:bg-indigo-50 transition-colors"
+                                    >
+                                      {c.name}
+                                    </button>
+                                  </li>
+                                ))}
+                            </ul>
+                          ) : categorySearchQuery ? (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                              ไม่พบประเภท
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                              พิมพ์เพื่อค้นหา
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Clear category selection button */}
+                      {formData.category_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, category_id: "" });
+                            setCategorySearchQuery("");
+                            setIsCategoryDropdownOpen(false);
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   )}
                   {formErrors.category_id && (
                     <p className="text-red-500 text-xs mt-1">
@@ -292,7 +421,7 @@ export default function ItemFormModal({
                 </div>
 
                 {/* Unit */}
-                <div>
+                <div data-unit-dropdown>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
                     หน่วยนับ <span className="text-red-500">*</span>
                   </label>
@@ -301,20 +430,97 @@ export default function ItemFormModal({
                       <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                     </div>
                   ) : (
-                    <select
-                      value={formData.unit_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, unit_id: e.target.value })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                    >
-                      <option value="">-- เลือกหน่วย --</option>
-                      {options.unit?.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <input
+                          type="text"
+                          value={
+                            formData.unit_id
+                              ? units.find((u) => u.id === formData.unit_id)?.name || ""
+                              : unitSearchQuery
+                          }
+                          onChange={(e) => {
+                            setUnitSearchQuery(e.target.value);
+                            setIsUnitDropdownOpen(true);
+                            if (formData.unit_id) {
+                              setFormData({ ...formData, unit_id: "" });
+                            }
+                          }}
+                          onFocus={() => setIsUnitDropdownOpen(true)}
+                          placeholder="ค้นหาหน่วย..."
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                        />
+                        {unitSearchQuery && !formData.unit_id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUnitSearchQuery("");
+                              setIsUnitDropdownOpen(false);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Unit Dropdown Menu */}
+                      {isUnitDropdownOpen && !formData.unit_id && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
+                          {units
+                            .filter((u) =>
+                              u.name.toLowerCase().includes(unitSearchQuery.toLowerCase())
+                            )
+                            .length > 0 ? (
+                            <ul className="py-1">
+                              {units
+                                .filter((u) =>
+                                  u.name.toLowerCase().includes(unitSearchQuery.toLowerCase())
+                                )
+                                .map((u) => (
+                                  <li key={u.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({ ...formData, unit_id: u.id });
+                                        setUnitSearchQuery("");
+                                        setIsUnitDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-sm text-slate-900 focus:outline-none focus:bg-indigo-50 transition-colors"
+                                    >
+                                      {u.name}
+                                    </button>
+                                  </li>
+                                ))}
+                            </ul>
+                          ) : unitSearchQuery ? (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                              ไม่พบหน่วย
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                              พิมพ์เพื่อค้นหา
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Clear unit selection button */}
+                      {formData.unit_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, unit_id: "" });
+                            setUnitSearchQuery("");
+                            setIsUnitDropdownOpen(false);
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   )}
                   {formErrors.unit_id && (
                     <p className="text-red-500 text-xs mt-1">
@@ -324,7 +530,7 @@ export default function ItemFormModal({
                 </div>
 
                 {/* Warehouse */}
-                <div>
+                <div data-warehouse-dropdown>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
                     ตำแหน่งเก็บ (คลัง) <span className="text-red-500">*</span>
                   </label>
@@ -333,23 +539,97 @@ export default function ItemFormModal({
                       <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                     </div>
                   ) : (
-                    <select
-                      value={formData.warehouse_id}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          warehouse_id: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                    >
-                      <option value="">-- เลือกคลัง --</option>
-                      {options.warehouse?.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <input
+                          type="text"
+                          value={
+                            formData.warehouse_id
+                              ? warehouses.find((w) => w.id === formData.warehouse_id)?.name || ""
+                              : warehouseSearchQuery
+                          }
+                          onChange={(e) => {
+                            setWarehouseSearchQuery(e.target.value);
+                            setIsWarehouseDropdownOpen(true);
+                            if (formData.warehouse_id) {
+                              setFormData({ ...formData, warehouse_id: "" });
+                            }
+                          }}
+                          onFocus={() => setIsWarehouseDropdownOpen(true)}
+                          placeholder="ค้นหาคลัง..."
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                        />
+                        {warehouseSearchQuery && !formData.warehouse_id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWarehouseSearchQuery("");
+                              setIsWarehouseDropdownOpen(false);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Warehouse Dropdown Menu */}
+                      {isWarehouseDropdownOpen && !formData.warehouse_id && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
+                          {warehouses
+                            .filter((w) =>
+                              w.name.toLowerCase().includes(warehouseSearchQuery.toLowerCase())
+                            )
+                            .length > 0 ? (
+                            <ul className="py-1">
+                              {warehouses
+                                .filter((w) =>
+                                  w.name.toLowerCase().includes(warehouseSearchQuery.toLowerCase())
+                                )
+                                .map((w) => (
+                                  <li key={w.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({ ...formData, warehouse_id: w.id });
+                                        setWarehouseSearchQuery("");
+                                        setIsWarehouseDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-sm text-slate-900 focus:outline-none focus:bg-indigo-50 transition-colors"
+                                    >
+                                      {w.name}
+                                    </button>
+                                  </li>
+                                ))}
+                            </ul>
+                          ) : warehouseSearchQuery ? (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                              ไม่พบคลัง
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                              พิมพ์เพื่อค้นหา
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Clear warehouse selection button */}
+                      {formData.warehouse_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, warehouse_id: "" });
+                            setWarehouseSearchQuery("");
+                            setIsWarehouseDropdownOpen(false);
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   )}
                   {formErrors.warehouse_id && (
                     <p className="text-red-500 text-xs mt-1">

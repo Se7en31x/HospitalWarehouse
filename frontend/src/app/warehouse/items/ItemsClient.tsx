@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   PackagePlus, Search, Edit, Package,
   ChevronLeft, ChevronRight,
-  Trash2
+  Trash2, ChevronDown
 } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
@@ -28,11 +28,9 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [isFetching, setIsFetching] = useState(false);
 
   // ✅ State สำหรับ Options (Dropdowns)
-  const [options, setOptions] = useState<Item.AllOptions>({
-    category: [],
-    unit: [],
-    warehouse: []
-  });
+  const [categories, setCategories] = useState<Item.categoryOptions>([]);
+  // const [warehouses, setWarehouses] = useState<Item.warehouseOptions>([]);
+  // const [units, setUnits] = useState<Item.unitOptions>([]);
 
   // --- [Data Fetching Logic] ---
   // ฟังก์ชันดึงข้อมูลใหม่ (ใช้ useCallback เพื่อให้เรียกซ้ำใน useEffect ได้โดยไม่ loop)
@@ -76,13 +74,34 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const data = await ItemSvc.getItemOptions();
-        setOptions(data || { category: [], unit: [], warehouse: [] });
+        const categoryData = await ItemSvc.getcategoriesOptions();
+        setCategories(categoryData || []);
       } catch (err) {
-        console.error("Load options failed", err);
+        console.error("Load categories options failed", err);
       }
     };
+
+    // const fetchWarehouses = async () => {
+    //   try {
+    //     const warehouseData = await ItemSvc.getWarehousesOptions();
+    //     setWarehouses(warehouseData || []);
+    //   } catch (err) {
+    //     console.error("Load warehouses options failed", err);
+    //   }
+    // };
+
+    // const fetchUnits = async () => {
+    //   try {
+    //     const unitData = await ItemSvc.getUnitsOptions();
+    //     setUnits(unitData || []);
+    //   } catch (err) {
+    //     console.error("Load units options failed", err);
+    //   }
+    // };
+
     fetchOptions();
+    // fetchWarehouses();
+    // fetchUnits();
 
     // โหลดข้อมูลใหม่หากไม่มีข้อมูลเริ่มต้น
     if (!initialItems || initialItems.length === 0) {
@@ -93,6 +112,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   // --- [Search & Filter States] ---
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ประเภททั้งหมด");
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -101,8 +121,23 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item.UiItem | null>(null);
 
+  // Close category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-category-dropdown]")) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+
+    if (isCategoryDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isCategoryDropdownOpen]);
+
   // Logic การ Filter
-  const filterCategories = ["ประเภททั้งหมด", ...(options.category || []).map(c => c.name)];
+  const filterCategories = ["ประเภททั้งหมด", ...categories.map(c => c.name)];
 
   const filteredItems = items.filter((item) => {
     const term = searchTerm.toLowerCase();
@@ -133,6 +168,10 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   };
 
   const openEditModal = (item: Item.UiItem) => {
+    console.log("=== openEditModal ===");
+    console.log("item:", item);
+    console.log("item.id:", item.id);
+    console.log("All item fields:", Object.keys(item).map(k => `${k}: ${(item as any)[k]}`));
     setSelectedItem(item);
     setIsEditModalOpen(true);
   };
@@ -187,9 +226,41 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
           <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none" />
         </div>
-        <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="ml-auto border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-          {filterCategories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <div className="relative ml-auto" data-category-dropdown>
+          <button
+            onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+          >
+            {selectedCategory}
+            <ChevronDown className={`w-4 h-4 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Dropdown Menu */}
+          {isCategoryDropdownOpen && (
+            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterCategories.map((c) => (
+                  <li key={c}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(c);
+                        setIsCategoryDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        selectedCategory === c
+                          ? "bg-indigo-100 text-indigo-900 font-medium"
+                          : "text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table Content */}

@@ -14,10 +14,12 @@ import toast, { Toaster } from "react-hot-toast";
 import Swal from "sweetalert2";
 
 import { socket } from "../../../lib/socket";
-import { deleteLot, getLots, adjustLot } from "@/services/lot.service";
-import { getInventoryItems, getItemOptions } from "@/services/itemsService"; 
+import { deleteLot, getLots, adjustLot } from "@/services/lotservice";
+import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
+import { saveLots } from "@/services/stockInService"; 
 import type * as LotInterface from "@/types/lot_type";
 import type * as ItemInterface from "@/types/items_type";
+import type * as StockIn from "@/types/stockin_type";
 
 // --- [Types & Interfaces] ---
 interface AdjustModalProps {
@@ -72,6 +74,31 @@ const calculateStatus = (expiryDateStr: string | null): string => {
   return "ปกติ";
 };
 
+// Helper: Get enriched lot data by joining with master lists
+const getEnrichedLotData = (
+  lot: LotInterface.UiLot,
+  itemsMaster: ItemInterface.UiItem[],
+  warehousesMaster: ItemInterface.Option[]
+) => {
+  // Find matching item from master list
+  const matchedItem = itemsMaster.find(item => 
+    item.id === lot.item_id || item.name === lot.itemName
+  );
+
+  // Find matching warehouse from master list
+  const matchedWarehouse = warehousesMaster.find(wh => 
+    wh.id === lot.warehouse_id || wh.name === lot.warehouse
+  );
+
+  return {
+    itemName: lot.itemName || matchedItem?.name || '-',
+    itemCode: lot.itemCode || matchedItem?.code || '-',
+    category: lot.category || matchedItem?.category || '-',
+    warehouse: lot.warehouse || matchedWarehouse?.name || '-',
+    unit: lot.unit || matchedItem?.unit || '-',
+  };
+};
+
 const INITIAL_STOCKIN_FORM: StockinFormData = {
   productId: "",
   lotId: "",
@@ -88,6 +115,9 @@ const INITIAL_STOCKIN_FORM: StockinFormData = {
 const AdjustLotModal = ({ isOpen, onClose, onConfirm, lot, isAdjusting }: AdjustModalProps) => {
   const [newQty, setNewQty] = useState<number>(0);
   const [reason, setReason] = useState<string>("");
+  // Get initial data first - we'll pass enriched data via component props later
+  const itemsMaster: ItemInterface.UiItem[] = [];
+  const warehousesMaster: ItemInterface.Option[] = [];
 
   useEffect(() => {
     if (isOpen && lot) {
@@ -203,20 +233,21 @@ export default function LotClient({
     poNumber: "",
     remarks: ""
   });
+  const [isSavingStockIn, setIsSavingStockIn] = useState(false);
   const itemsPerPage = 10;
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
-        const [lotsData, itemsData, optionsData] = await Promise.all([
-            getLots(),
+        const [lotsData, itemsData, warehousesData] = await Promise.all([
+            getLots(1, 100),
             getInventoryItems(),
-            getItemOptions(),
+            getWarehousesOptions(),
         ]);
 
         setLots(lotsData);
         if(itemsData && itemsData.length > 0) setItemsMaster(itemsData);
-        if(optionsData?.warehouse) setWarehousesMaster(optionsData.warehouse);
+        if(warehousesData && warehousesData.length > 0) setWarehousesMaster(warehousesData);
     } catch (error) {
         console.error("Failed to fetch data", error);
     } finally {
@@ -306,13 +337,14 @@ export default function LotClient({
 
   const filteredData = lots.filter(lot => {
     const currentStatus = calculateStatus(lot.expiryDate);
+    const enrichedData = getEnrichedLotData(lot, itemsMaster, warehousesMaster);
     const searchLower = searchTerm.toLowerCase();
-    const name = lot.itemName || "";
+    const name = enrichedData.itemName || "";
     const id = lot.id || "";
-    const code = lot.itemCode || "";
+    const code = enrichedData.itemCode || "";
     const matchesSearch = name.toLowerCase().includes(searchLower) || id.toLowerCase().includes(searchLower) || code.toLowerCase().includes(searchLower);
-    const matchesWarehouse = selectedWarehouse === "ทั้งหมด" || lot.warehouse === selectedWarehouse;
-    const matchesCategory = selectedCategory === "ทั้งหมด" || lot.category === selectedCategory;
+    const matchesWarehouse = selectedWarehouse === "ทั้งหมด" || enrichedData.warehouse === selectedWarehouse;
+    const matchesCategory = selectedCategory === "ทั้งหมด" || enrichedData.category === selectedCategory;
     let matchesStatus = true;
     if (statusFilter === 'NEAR') matchesStatus = currentStatus === 'ใกล้หมด';
     if (statusFilter === 'EXPIRED') matchesStatus = currentStatus === 'หมดอายุ';
@@ -357,30 +389,55 @@ export default function LotClient({
     });
 
     if (confirmResult.isConfirmed) {
-      // TODO: เรียก API บันทึกข้อมูล
-      Swal.fire({
-        icon: 'success',
-        title: 'บันทึกสำเร็จ',
-        text: 'บันทึกข้อมูลสินค้าเข้าเรียบร้อยแล้ว',
-        timer: 1500,
-        showConfirmButton: false
-      });
-      
-      // รีเซตฟอร์ม
-      setStockinForm({
-        productId: "",
-        lotId: "",
-        quantity: 0,
-        unit: "",
-        costPerUnit: 0,
-        expiryDate: "",
-        warehouseId: "",
-        poNumber: "",
-        remarks: ""
-      });
-      
-      // รีโหลดข้อมูล
-      await fetchAllData();
+      setIsSavingStockIn(true);
+      try {
+        // เตรียมข้อมูลสำหรับส่ง API
+        const lotData: StockIn.StockInItem = {
+          itemId: stockinForm.productId,
+          itemName: itemsMaster.find(i => i.id === stockinForm.productId)?.name || '',
+          categoryId: itemsMaster.find(i => i.id === stockinForm.productId)?.categoryId || '',
+          category: itemsMaster.find(i => i.id === stockinForm.productId)?.category || '',
+          poNumber: stockinForm.poNumber,
+          quantityOrdered: stockinForm.quantity,
+          quantityReceived: stockinForm.quantity,
+          unitId: itemsMaster.find(i => i.id === stockinForm.productId)?.unitId || '',
+          unit: stockinForm.unit,
+          supplierId: "",
+          costPrice: stockinForm.costPerUnit,
+          mfgDate: "",
+          expiryDate: stockinForm.expiryDate,
+          barcode: "",
+          warehouseId: stockinForm.warehouseId,
+          warehouseName: warehousesMaster.find(w => w.id === stockinForm.warehouseId)?.name || ''
+        };
+        
+        // เรียก API บันทึก
+        await saveLots([lotData]);
+        
+        // แสดงข้อความสำเร็จ
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกสำเร็จ',
+          text: 'บันทึกข้อมูลสินค้าเข้าเรียบร้อยแล้ว',
+          timer: 1500,
+          showConfirmButton: false
+        });
+        
+        // รีเซตฟอร์ม
+        setStockinForm(INITIAL_STOCKIN_FORM);
+        
+        // รีโหลดข้อมูล
+        await fetchAllData();
+      } catch (error: any) {
+        const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึก';
+        Swal.fire({
+          icon: 'error',
+          title: 'บันทึกไม่สำเร็จ',
+          text: errorMsg
+        });
+      } finally {
+        setIsSavingStockIn(false);
+      }
     }
   };
 
@@ -464,8 +521,9 @@ export default function LotClient({
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
-                <th className="px-6 py-4">ชื่อสินค้า / รหัส</th>
-                <th className="px-6 py-4">หมวดหมู่</th>
+                <th className="px-6 py-4">ชื่อสินค้า</th>
+                <th className="px-6 py-4">รหัส</th>
+                <th className="px-6 py-4">ประเภท</th>
                 <th className="px-6 py-4">เลข Lot</th>
                 <th className="px-6 py-4">คลังสินค้า</th>
                 <th className="px-6 py-4 text-center">วันหมดอายุ</th>
@@ -478,6 +536,7 @@ export default function LotClient({
             <tbody className="divide-y divide-slate-100">
               {currentItems.map((lot, idx) => {
                 const currentStatus = calculateStatus(lot.expiryDate);
+                const enrichedData = getEnrichedLotData(lot, itemsMaster, warehousesMaster);
                 return (
                   <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
@@ -487,17 +546,17 @@ export default function LotClient({
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-gray-900">{lot.itemName}</span>
-                        <span className="text-xs text-gray-500">{lot.itemCode}</span>
-                      </div>
+                      <span className="font-medium text-gray-900">{enrichedData.itemName}</span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500"><span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs">{lot.category}</span></td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600 font-mono">{enrichedData.itemCode}</span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-500"><span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs">{enrichedData.category}</span></td>
                     <td className="px-6 py-4 font-mono text-sm font-medium">{lot.id}</td>
-                    <td className="px-6 py-4">{lot.warehouse}</td>
+                    <td className="px-6 py-4">{enrichedData.warehouse}</td>
                     <td className={`px-6 py-4 text-center ${currentStatus === 'หมดอายุ' ? 'text-red-600 font-medium' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : 'text-gray-600'}`}>{formatDate(lot.expiryDate)}</td>
                     <td className="px-6 py-4 text-center font-mono">{formatMoney(lot.cost)}</td>
-                    <td className="px-6 py-4 text-center text-gray-900 font-bold">{lot.quantity.toLocaleString()} {lot.unit}</td>
+                    <td className="px-6 py-4 text-center text-gray-900 font-bold">{lot.quantity.toLocaleString()} {enrichedData.unit}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${currentStatus === 'ปกติ' ? 'bg-green-100 text-green-800' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {currentStatus}
@@ -514,7 +573,7 @@ export default function LotClient({
               })}
               {currentItems.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={11} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+                  <td colSpan={12} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
                 </tr>
               )}
             </tbody>

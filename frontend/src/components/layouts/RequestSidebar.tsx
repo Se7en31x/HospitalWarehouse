@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, LayoutDashboard, History, FileBarChart, HandHelping, Archive, ChevronLeft } from 'lucide-react';
+import { Menu, LayoutDashboard, History, FileBarChart, HandHelping, Archive, ChevronLeft, RefreshCw } from 'lucide-react';
 
 export default function RequestSidebar() {
   const pathname = usePathname();
@@ -15,13 +15,14 @@ export default function RequestSidebar() {
       items: [
         { name: 'เบิกใช้พัสดุ', path: '/request/withdraw', icon: Archive },
         { name: 'ยืมพัสดุ', path: '/request/borrow', icon: HandHelping },
+        { name: 'คืนพัสดุ', path: '/request/returnitem', icon: RefreshCw },
       ]
     },
     {
       group: 'ติดตามผล',
       items: [
-        { name: 'ประวัติการทำรายการ', path: '/history', icon: History },
-        { name: 'รายงาน', path: '/reports', icon: FileBarChart },
+        { name: 'ประวัติการทำรายการ', path: '/request/history', icon: History },
+        { name: 'รายงาน', path: '/request/reports', icon: FileBarChart },
       ]
     }
   ];

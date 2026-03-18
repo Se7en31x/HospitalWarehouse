@@ -1,12 +1,14 @@
 'use client';
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { FileBarChart, Archive, HandHelping, Undo2, User } from 'lucide-react';
 
 const ReportsOverviewPage = () => {
+  const router = useRouter();
   const reports = [
     {
       name: 'รายงานการเบิก',
-      path: '/requests/reports/withdraw',
+      path: '/request/reports/withdraw',
       icon: <Archive className="w-8 h-8 text-blue-600" />,
       desc: 'ติดตามว่าใครเบิกอะไร จำนวนเท่าไร และสถานะการเบิก',
       value: '28',
@@ -21,7 +23,7 @@ const ReportsOverviewPage = () => {
     },
     {
       name: 'รายงานการยืม',
-      path: '/requests/reports/borrow',
+      path: '/request/reports/borrow',
       icon: <HandHelping className="w-8 h-8 text-green-600" />,
       desc: 'ตรวจสอบการยืม ว่าคืนครบหรือยัง และสถานะล่าสุด',
       value: '15',
@@ -36,7 +38,7 @@ const ReportsOverviewPage = () => {
     },
     {
       name: 'รายงานการคืน',
-      path: '/requests/reports/return',
+      path: '/request/reports/return',
       icon: <Undo2 className="w-8 h-8 text-indigo-600" />,
       desc: 'แสดงข้อมูลการคืนของ พร้อมจำนวนที่คืนครบ/ไม่ครบ',
       value: '12',
@@ -51,7 +53,7 @@ const ReportsOverviewPage = () => {
     },
     {
       name: 'รายงานสรุปส่วนตัว',
-      path: '/requests/reports/personal',
+      path: '/request/reports/personal',
       icon: <User className="w-8 h-8 text-purple-600" />,
       desc: 'สรุปพฤติกรรมการเบิก/ยืมย้อนหลังของผู้ใช้งาน',
       value: '43',
@@ -133,7 +135,9 @@ const ReportsOverviewPage = () => {
             {/* Action Button */}
             <div className="p-8 pt-6 flex-shrink-0">
               <div className="flex justify-end">
-                <button className="bg-indigo-600 text-white text-sm py-3 px-6 rounded-xl font-medium hover:bg-indigo-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200">
+                <button 
+                  onClick={() => router.push(r.path)}
+                  className="bg-indigo-600 text-white text-sm py-3 px-6 rounded-xl font-medium hover:bg-indigo-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200">
                   ดูรายงานแบบละเอียด
                 </button>
               </div>
