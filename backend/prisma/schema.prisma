@@ -54,6 +54,7 @@ model items {
   deleted_at         DateTime?            @db.Timestamptz(6)
   warehouse_id       String?              @db.Uuid
   description        String?
+  image_public_id    String?              @db.VarChar(100)
   inventory_snapshot inventory_snapshot[]
   item_lots          item_lots[]
   categories         categories?          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_category_fk")

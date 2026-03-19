@@ -36,12 +36,7 @@ const SelectUnitById = (id, data = {}) => prisma.units.findFirst({
 const createUnit = (data) => prisma.units.create({ data });
 
 const updateUnit = (id, data) => prisma.units.update({
-	where: { id },
-	data
-});
-
-const softDeletedUnit = (id, data) => prisma.units.update({
-	where: { id },
+	where: { id, deleted_at: null },
 	data
 });
 
@@ -56,6 +51,5 @@ module.exports = {
 	SelectUnitById,
 	createUnit,
 	updateUnit,
-	softDeletedUnit,
 	selectOptions,
 }

@@ -41,7 +41,7 @@ const softDeletedUnit = async (id) => {
 	if (!existingUnit) throw new Error('Unit id not found');
 
 	const payload = DTO.softDeleteDTO();
-	const deletedUnit = await unitRepo.softDeletedUnit(id, payload);
+	const deletedUnit = await unitRepo.updateUnit(id, payload);
 	return deletedUnit;
 }
 

@@ -37,12 +37,7 @@ const SelectWarehouseById = (id, data = {}) => prisma.warehouses.findFirst({
 const createWarehouse = (data) => prisma.warehouses.create({ data });
 
 const updateWarehouse = (id, data) => prisma.warehouses.update({
-	where: { id },
-	data
-}); 
-
-const softDeletedWarehouse = (id, data) => prisma.warehouses.update({
-	where: { id },
+	where: { id, deleted_at: null },
 	data
 });
 
@@ -57,7 +52,6 @@ module.exports = {
 	SelectWarehouseById,
 	createWarehouse,
 	updateWarehouse,
-	softDeletedWarehouse,
 	selectOptions,
 };
 

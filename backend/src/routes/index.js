@@ -10,6 +10,7 @@ const warehouseRoutes = require('./warehouse.route')
 const unitRoutes = require('./unit.route')
 const supplierRoutes = require('./supplier.route')
 const receiveRoutes = require('./receive.routes')
+const fileRoutes = require('./file.routes')
 
 
 const v1 = express.Router()
@@ -25,5 +26,6 @@ v1.use('/warehouses', warehouseRoutes)
 v1.use('/units', unitRoutes)
 v1.use('/suppliers', supplierRoutes)
 v1.use('/receives', receiveRoutes)
+v1.use('/files', fileRoutes)
 
 module.exports = router

@@ -134,6 +134,11 @@ const softDeletedItem = (id, data) => prisma.items.update({
     data
 });
 
+const SelectItemPublicId = (id) => prisma.items.findFirst({
+    where: { id, deleted_at: null },
+    select: { id: true, image_public_id: true },
+});
+
 const selectOptions = () => Promise.all([
     prisma.categories.findMany({ where: { deleted_at: null }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.units.findMany({ where: { deleted_at: null }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
@@ -144,6 +149,7 @@ module.exports = {
     generateItemCode,
     SelectAllItems,
     SelectItemById,
+    SelectItemPublicId,
     createItem,
     updateItem,
     softDeletedItem,

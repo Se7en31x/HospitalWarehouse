@@ -41,7 +41,7 @@ const softDeletedWarehouse = async (id) => {
 	if (!existingWarehouse) throw new Error('Warehouse id not found');
 
 	const payload = DTO.softDeleteDTO();
-	const deletedWarehouse = await warehouseRepo.softDeletedWarehouse(id, payload);
+	const deletedWarehouse = await warehouseRepo.updateWarehouse(id, payload);
 	return deletedWarehouse;
 }
 
@@ -58,3 +58,4 @@ module.exports = {
 	softDeletedWarehouse,
 	getWarehouseOption,
 }
+

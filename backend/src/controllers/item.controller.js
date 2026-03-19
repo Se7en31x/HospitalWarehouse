@@ -52,7 +52,7 @@ const createItem = async (req, res) => {
             return util.sendResponse(res, 400, "Invalid body data")
         }
 
-        const newItem = await itemService.createItem(data)
+        const newItem = await itemService.createItem(data, req.file || null)
         req.io.emit('REFRESH_DATA', 'ITEMS');
 
         return util.sendMutationResponse(res, 201, "create item success", newItem?.id || null)

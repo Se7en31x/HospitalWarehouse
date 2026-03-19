@@ -37,12 +37,7 @@ const SelectCategoryById = (id, data = {}) => prisma.categories.findFirst({
 const createCategory = (data) => prisma.categories.create({ data });
 
 const updateCategory = (id, data) => prisma.categories.update({
-	where: { id },
-	data
-});
-
-const softDeletedCategory = (id, data) => prisma.categories.update({
-	where: { id },
+	where: { id, deleted_at: null },
 	data
 });
 
@@ -57,6 +52,5 @@ module.exports = {
 	SelectCategoryById,
 	createCategory,
 	updateCategory,
-	softDeletedCategory,
 	selectOptions,
 }

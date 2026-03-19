@@ -1,5 +1,6 @@
 const itemRepo = require('../repositories/item.repo')
 const DTO = require('../dtos/item.dto')
+const { uploadToCloudinary } = require('../middleware/upload')
 
 const getAllItems = async ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '' } = {}) => {
     const [items, total] = await itemRepo.SelectAllItems({
@@ -28,10 +29,17 @@ const getItemById = async (id) => {
     return item
 }
 
-const createItem = async (data) => {
-    
+const createItem = async (data, file = null) => {
+    let image_url = null;
+    let image_public_id = null;
+    if (file) {
+        const result = await uploadToCloudinary(file.buffer, 'items');
+        image_url = result.secure_url;
+        image_public_id = result.public_id;
+    }
+
     const itemCode = await itemRepo.generateItemCode(data.category_id);
-    const payload = DTO.createItemDTO(data, itemCode);
+    const payload = DTO.createItemDTO({ ...data, image_url, image_public_id }, itemCode);
     const newItem = await itemRepo.createItem(payload);
 
     return newItem;

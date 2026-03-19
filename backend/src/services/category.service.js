@@ -41,7 +41,7 @@ const softDeletedCategory = async (id) => {
 	if (!existingCategory) throw new Error('Category id not found');
 
 	const payload = DTO.softDeleteDTO();
-	const deletedCategory = await categoryRepo.softDeletedCategory(id, payload);
+	const deletedCategory = await categoryRepo.updateCategory(id, payload);
 	return deletedCategory;
 }
 

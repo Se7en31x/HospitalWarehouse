@@ -6,7 +6,8 @@ const createItemDTO = (data, itemCode) => ({
     warehouse_id: data.warehouse_id,
     unit_id: data.unit_id,
     status: data.status,
-    image_url: data.image_url,
+    image_url: data.image_url || null,
+    image_public_id: data.image_public_id || null,
 });
 
 const updateItemDTO = (data = {}) => {
