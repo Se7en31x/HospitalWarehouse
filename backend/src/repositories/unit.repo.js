@@ -2,14 +2,15 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const buildUnitWhere = (keyword = '') => {
-	if (!keyword) return {};
+	const where = { deleted_at: null };
+	if (!keyword) return where;
 
-	return {
-		OR: [
-			{ name: { contains: keyword, mode: 'insensitive' } },
-			{ description: { contains: keyword, mode: 'insensitive' } },
-		],
-	};
+	where.OR = [
+		{ name: { contains: keyword, mode: 'insensitive' } },
+		{ description: { contains: keyword, mode: 'insensitive' } },
+	];
+
+	return where;
 };
 
 const SelectAllUnits = ({ page = 1, limit = 10, keyword = '' } = {}) => {
@@ -27,8 +28,8 @@ const SelectAllUnits = ({ page = 1, limit = 10, keyword = '' } = {}) => {
 	]);
 };
 
-const SelectUnitById = (id, data = {}) => prisma.units.findUnique({
-	where: { id },
+const SelectUnitById = (id, data = {}) => prisma.units.findFirst({
+	where: { id, deleted_at: null },
 	...data
 });
 
@@ -39,11 +40,13 @@ const updateUnit = (id, data) => prisma.units.update({
 	data
 });
 
-const softDeletedUnit = (id) => prisma.units.delete({
-	where: { id }
+const softDeletedUnit = (id, data) => prisma.units.update({
+	where: { id },
+	data
 });
 
 const selectOptions = () => prisma.units.findMany({
+	where: { deleted_at: null },
 	orderBy: { name: 'asc' },
 	select: { id: true, name: true }
 });

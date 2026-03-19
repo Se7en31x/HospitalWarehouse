@@ -14,6 +14,11 @@ const updateCategoryDTO = (data = {}) => {
 	return payload;
 };
 
+const softDeleteDTO = () => ({
+	deleted_at: new Date(),
+});
+
 module.exports = {
 	updateCategoryDTO,
+	softDeleteDTO,
 };

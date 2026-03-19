@@ -129,6 +129,7 @@ model categories {
   description String?
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   updated_at  DateTime? @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at  DateTime? @db.Timestamptz(6)
   items       items[]
 
   @@schema("inventory")
@@ -175,6 +176,7 @@ model units {
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   updated_at  DateTime? @default(now()) @updatedAt @db.Timestamptz(6)
   description String?
+  deleted_at  DateTime? @db.Timestamptz(6)
   items       items[]
 
   @@schema("inventory")
@@ -187,6 +189,7 @@ model warehouses {
   created_at         DateTime?            @default(now()) @db.Timestamptz(6)
   updated_at         DateTime?            @default(now()) @updatedAt @db.Timestamptz(6)
   description        String?
+  deleted_at         DateTime?            @db.Timestamptz(6)
   inventory_snapshot inventory_snapshot[]
   item_lots          item_lots[]
   items              items[]
@@ -224,6 +227,7 @@ model supplier {
   active         Boolean?         @default(true)
   created_at     DateTime?        @default(now()) @db.Timestamptz(6)
   updated_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime?        @db.Timestamptz(6)
   receive_header receive_header[]
 
   @@schema("public")

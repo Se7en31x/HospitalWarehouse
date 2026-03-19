@@ -2,15 +2,16 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const buildCategoryWhere = (keyword = '') => {
-	if (!keyword) return {};
+	const where = { deleted_at: null };
+	if (!keyword) return where;
 
-	return {
-		OR: [
-			{ name: { contains: keyword, mode: 'insensitive' } },
-			{ code_prefix: { contains: keyword, mode: 'insensitive' } },
-			{ description: { contains: keyword, mode: 'insensitive' } },
-		],
-	};
+	where.OR = [
+		{ name: { contains: keyword, mode: 'insensitive' } },
+		{ code_prefix: { contains: keyword, mode: 'insensitive' } },
+		{ description: { contains: keyword, mode: 'insensitive' } },
+	];
+
+	return where;
 };
 
 const SelectAllCategories = ({ page = 1, limit = 10, keyword = '' } = {}) => {
@@ -28,8 +29,8 @@ const SelectAllCategories = ({ page = 1, limit = 10, keyword = '' } = {}) => {
 	]);
 };
 
-const SelectCategoryById = (id, data = {}) => prisma.categories.findUnique({
-	where: { id },
+const SelectCategoryById = (id, data = {}) => prisma.categories.findFirst({
+	where: { id, deleted_at: null },
 	...data
 });
 
@@ -40,11 +41,13 @@ const updateCategory = (id, data) => prisma.categories.update({
 	data
 });
 
-const softDeletedCategory = (id) => prisma.categories.delete({
-	where: { id }
+const softDeletedCategory = (id, data) => prisma.categories.update({
+	where: { id },
+	data
 });
 
 const selectOptions = () => prisma.categories.findMany({
+	where: { deleted_at: null },
 	orderBy: { name: 'asc' },
 	select: { id: true, name: true }
 });

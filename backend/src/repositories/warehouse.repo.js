@@ -2,15 +2,16 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const buildWarehouseWhere = (keyword = '') => {
-	if (!keyword) return {};
+	const where = { deleted_at: null };
+	if (!keyword) return where;
 
-	return {
-		OR: [
-			{ name: { contains: keyword, mode: 'insensitive' } },
-			{ location: { contains: keyword, mode: 'insensitive' } },
-			{ description: { contains: keyword, mode: 'insensitive' } },
-		],
-	};
+	where.OR = [
+		{ name: { contains: keyword, mode: 'insensitive' } },
+		{ location: { contains: keyword, mode: 'insensitive' } },
+		{ description: { contains: keyword, mode: 'insensitive' } },
+	];
+
+	return where;
 };
 
 const SelectAllWarehouses = ({ page = 1, limit = 10, keyword = '' } = {}) => {
@@ -28,8 +29,8 @@ const SelectAllWarehouses = ({ page = 1, limit = 10, keyword = '' } = {}) => {
 	]);
 };
 
-const SelectWarehouseById = (id, data = {}) => prisma.warehouses.findUnique({
-	where: { id },
+const SelectWarehouseById = (id, data = {}) => prisma.warehouses.findFirst({
+	where: { id, deleted_at: null },
 	...data
 });
 
@@ -40,11 +41,13 @@ const updateWarehouse = (id, data) => prisma.warehouses.update({
 	data
 }); 
 
-const softDeletedWarehouse = (id) => prisma.warehouses.delete({
-	where: { id }
+const softDeletedWarehouse = (id, data) => prisma.warehouses.update({
+	where: { id },
+	data
 });
 
 const selectOptions = () => prisma.warehouses.findMany({
+	where: { deleted_at: null },
 	orderBy: { name: 'asc' },
 	select: { id: true, name: true }
 });

@@ -40,7 +40,7 @@ const buildItemWhere = ({ keyword = '', start_date = '', end_date = '' } = {}) =
 };
 
 const generateItemCode = async (category_id) => {
-    const category = await prisma.categories.findUnique({ where: { id: category_id } });
+    const category = await prisma.categories.findFirst({ where: { id: category_id, deleted_at: null } });
     const prefix = category?.code_prefix || "ITEM";
     const lastItem = await prisma.items.findFirst({
         where: { category_id, code: { startsWith: prefix } },
@@ -135,9 +135,9 @@ const softDeletedItem = (id, data) => prisma.items.update({
 });
 
 const selectOptions = () => Promise.all([
-    prisma.categories.findMany({ select: { id: true, name: true } }),
-    prisma.units.findMany({ select: { id: true, name: true } }),
-    prisma.warehouses.findMany({ select: { id: true, name: true } })
+    prisma.categories.findMany({ where: { deleted_at: null }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    prisma.units.findMany({ where: { deleted_at: null }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    prisma.warehouses.findMany({ where: { deleted_at: null }, orderBy: { name: 'asc' }, select: { id: true, name: true } })
 ]);
 
 module.exports = {

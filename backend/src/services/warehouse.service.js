@@ -40,7 +40,8 @@ const softDeletedWarehouse = async (id) => {
 	const existingWarehouse = await warehouseRepo.SelectWarehouseById(id);
 	if (!existingWarehouse) throw new Error('Warehouse id not found');
 
-	const deletedWarehouse = await warehouseRepo.softDeletedWarehouse(id);
+	const payload = DTO.softDeleteDTO();
+	const deletedWarehouse = await warehouseRepo.softDeletedWarehouse(id, payload);
 	return deletedWarehouse;
 }
 
