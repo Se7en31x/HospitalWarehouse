@@ -26,7 +26,7 @@ const getHeaders = () => {
 		if (typeof window !== "undefined") {
 			token = Cookies.get("user_token") || "";
 		}
-	} catch (error) {
+	} catch {
 		// Silently fail if cookies are not available (server-side rendering)
 	}
 	
@@ -76,6 +76,7 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
 	warehouseId: item.warehouse_id || "",
 	location: item.warehouse_name || item.warehouse?.name || "-",
 	stock: item.current_stock || 0,
+	description: item.description || "",
 	minStock: item.min_stock || 0,
 	price: 0,
 	status: item.status || "ACTIVE",
@@ -115,12 +116,21 @@ export async function getItemOptions(): Promise<ItemOptions> {
 	};
 }
 
-export async function createInventoryItem(payload: Item.CreatePayload) {
-    
-	return request<Item.ApiItem>(`/v1/items`, {
+export async function createInventoryItem(payload: FormData) {
+	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
+	let token = "";
+	if (typeof window !== "undefined") {
+		token = Cookies.get("user_token") || "";
+	}
+	const res = await fetch(`${API_URL}/v1/items`, {
 		method: "POST",
-		body: JSON.stringify(payload),
+		headers: token ? { Authorization: `Bearer ${token}` } : {},
+		body: payload,
+		cache: "no-store",
 	});
+	const body = await parseJson<{ data: Item.ApiItem; message?: string; error?: string }>(res);
+	if (!res.ok) throw new Error(body.error || body.message || "Request failed");
+	return body.data;
 }
 
 export async function updateInventoryItem(id: string, payload: Item.UpdatePayload) {
@@ -133,6 +143,29 @@ export async function updateInventoryItem(id: string, payload: Item.UpdatePayloa
 		body: JSON.stringify(payload),
 	});
 }
+
+export async function updateItemImage(id: string, file: File) {
+	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
+	let token = "";
+	if (typeof window !== "undefined") {
+		token = Cookies.get("user_token") || "";
+	}
+	const fd = new FormData();
+	fd.append("image", file);
+	const res = await fetch(`${API_URL}/v1/files/items/${id}/image`, {
+		method: "PATCH",
+		headers: token ? { Authorization: `Bearer ${token}` } : {},
+		body: fd,
+		cache: "no-store",
+	});
+	const body = await parseJson<{ message?: string; error?: string }>(res);
+	if (!res.ok) throw new Error(body.error || body.message || "Request failed");
+}
+
+export async function removeItemImage(id: string) {
+	return request(`/v1/files/items/${id}/image`, { method: "DELETE" });
+}
+
 
 export async function deleteInventoryItem(id: string): Promise<Item.DeleteResponse> {
 	return request<Item.DeleteResponse>(`/v1/items/${id}`, {

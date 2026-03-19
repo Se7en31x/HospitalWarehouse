@@ -35,7 +35,8 @@ module.exports = {
       },
       fontFamily: {
         // แนะนำให้ใช้ 'Inter' หรือ 'Sarabun' สำหรับภาษาไทยเพื่อให้ดูเป็นทางการ
-        sans: ["Inter", "Sarabun", "sans-serif"],
+        sans: ["Prompt", "sans-serif"],
+        prompt: ["var(--font-prompt)", "sans-serif"],
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out',

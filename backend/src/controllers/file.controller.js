@@ -17,6 +17,18 @@ const updateItemImage = async (req, res) => {
 	}
 };
 
+const removeItemImage = async (req, res) => {
+	try {
+		const { id } = req.params;
+		await fileService.removeItemImage(id);
+		req.io.emit('REFRESH_DATA', 'ITEMS');
+		return util.sendMutationResponse(res, 200, 'Remove item image success', id);
+	} catch (error) {
+		return util.sendResponse(res, 500, error.message);
+	}
+};
+
 module.exports = {
 	updateItemImage,
+	removeItemImage,
 };

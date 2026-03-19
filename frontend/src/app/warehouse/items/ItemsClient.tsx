@@ -210,11 +210,10 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Package className="w-8 h-8 text-indigo-600" />
-          <h2 className="text-3xl font-bold text-indigo-600">สต็อกพัสดุ Real-time</h2>
+          <h2 className="text-3xl font-bold text-gray-800">สต็อกพัสดุ Real-time</h2>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => { setSelectedItem(null); setIsAddModalOpen(true); }} className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md">
+          <button onClick={() => { setSelectedItem(null); setIsAddModalOpen(true); }} className="px-4 py-2 rounded-xl bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md">
             <PackagePlus className="w-4 h-4" /> เพิ่มพัสดุใหม่
           </button>
         </div>
@@ -282,13 +281,13 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4">ชื่อพัสดุ</th>
                 <th className="px-6 py-4 w-[150px]">ประเภท</th>
                 <th className="px-6 py-4 text-center w-[150px]">คงเหลือ</th>
-                <th className="px-6 py-4 text-center text-orange-600 w-[150px]">ขั้นต่ำ</th>
+                <th className="px-6 py-4 text-center w-[150px]">ขั้นต่ำ</th>
                 <th className="px-6 py-4 w-[150px]">ตำแหน่ง</th>
                 <th className="px-6 py-4 w-[150px]">สถานะ</th>
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {paginatedItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
@@ -297,16 +296,16 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                       {item.imageUrl ? <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} /> : <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />}
                     </div>
                   </td>
-                  <td className="px-6 py-4 w-[150px] font-medium">{item.code}</td>
+                  <td className="px-6 py-4 w-[150px]">{item.code}</td>
                   <td className="px-6 py-4">{item.name}</td>
-                  <td className="px-6 py-4 w-[150px] text-slate-500">{item.category}</td>
-                  <td className="px-6 py-4 w-[150px] text-center font-bold">{item.stock} {item.unit}</td>
-                  <td className="px-6 py-4 w-[150px] text-center text-orange-600 bg-orange-50/30 font-bold">{item.minStock} {item.unit}</td>
+                  <td className="px-6 py-4 w-[150px]">{item.category}</td>
+                  <td className="px-6 py-4 w-[150px] text-center">{item.stock} {item.unit}</td>
+                  <td className="px-6 py-4 w-[150px] text-center">{item.minStock} {item.unit}</td>
                   <td className="px-6 py-4 w-[150px]">{item.location}</td>
                   <td className="px-6 py-4 w-[150px]"><Badge status={item.status} /></td>
                   <td className="px-6 py-4 w-[100px] text-right">
                     <div className="flex justify-end gap-1">
-                      <button onClick={() => openEditModal(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit className="w-4 h-4" /></button>
+                      <button onClick={() => openEditModal(item)} className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4" /></button>
                       <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>

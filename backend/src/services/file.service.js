@@ -18,6 +18,21 @@ const updateItemImage = async (id, buffer) => {
 	return updatedItem;
 };
 
+const removeItemImage = async (id) => {
+	const existingItem = await itemRepo.SelectItemPublicId(id);
+	if (!existingItem) throw new Error('Item id not found');
+
+	if (existingItem.image_public_id) {
+		await cloudinary.uploader.destroy(existingItem.image_public_id).catch(() => {});
+	}
+
+	return await itemRepo.updateItem(id, {
+		image_url: null,
+		image_public_id: null,
+	});
+};
+
 module.exports = {
 	updateItemImage,
+	removeItemImage,
 };

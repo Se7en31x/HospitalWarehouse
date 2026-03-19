@@ -82,11 +82,8 @@ const ReportTypeSelector: React.FC<ReportTypeSelectorProps> = ({
 			{/* Header */}
 			<div className="mb-8">
 				<div className="flex items-center gap-3 mb-2">
-					<div className="p-2 bg-indigo-100 rounded-lg">
-						<FileText className="w-6 h-6 text-indigo-600" />
-					</div>
 					<div>
-						<h1 className="text-3xl font-bold text-gray-900">เลือกประเภทรายงาน</h1>
+						<h1 className="text-3xl font-bold text-gray-800">เลือกประเภทรายงาน</h1>
 						<p className="text-gray-600 mt-1">
 							เลือกรายงานที่คุณต้องการดู
 						</p>

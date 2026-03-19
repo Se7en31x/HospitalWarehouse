@@ -17,6 +17,7 @@ import { useDropzone } from "react-dropzone";
 
 interface FormData {
   name: string;
+  description: string;
   category_id: string;
   unit_id: string;
   warehouse_id: string;
@@ -45,6 +46,7 @@ interface ItemFormModalProps {
 
 const INITIAL_FORM_DATA: FormData = {
   name: "",
+  description: "",
   category_id: "",
   unit_id: "",
   warehouse_id: "",
@@ -66,6 +68,8 @@ export default function ItemFormModal({
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingOptions, setIsFetchingOptions] = useState(true);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
 
   // Search states for dropdowns
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
@@ -129,15 +133,19 @@ export default function ItemFormModal({
         // For edit mode - use IDs directly from initialData
         setFormData({
           name: initialData.name,
+          description: initialData.description || "",
           category_id: initialData.categoryId || "",
           unit_id: initialData.unitId || "",
           warehouse_id: initialData.warehouseId || "",
           min_stock: initialData.minStock,
           imageUrl: initialData.imageUrl || "",
         });
+        setImageFile(null);
+        setImageRemoved(false);
       } else {
-        // For add mode
         setFormData(INITIAL_FORM_DATA);
+        setImageFile(null);
+        setImageRemoved(false);
       }
       setFormErrors({});
     }
@@ -175,32 +183,37 @@ export default function ItemFormModal({
 
     setIsLoading(true);
     try {
-      const payload = isEdit
-        ? ({
-            name: formData.name,
-            min_stock: Number(formData.min_stock),
-            unit_id: formData.unit_id,
-            warehouse_id: formData.warehouse_id,
-            status: "ACTIVE",
-            image_url: formData.imageUrl,
-          } as Item.UpdatePayload)
-        : ({
-            name: formData.name,
-            min_stock: Number(formData.min_stock),
-            category_id: formData.category_id,
-            unit_id: formData.unit_id,
-            warehouse_id: formData.warehouse_id,
-            status: "ACTIVE",
-            image_url: formData.imageUrl,
-          } as Item.CreatePayload);
-
       if (isEdit && initialData) {
-        console.log("Updating item - ID:", initialData.id, "Payload:", payload);
-        await ItemSvc.updateInventoryItem(String(initialData.id), payload as Item.UpdatePayload);
+        const updatePayload: Item.UpdatePayload = {
+          name: formData.name,
+          description: formData.description || undefined,
+          min_stock: Number(formData.min_stock),
+          unit_id: formData.unit_id,
+          warehouse_id: formData.warehouse_id,
+          status: "ACTIVE",
+        };
+        console.log("Updating item - ID:", initialData.id, "Payload:", updatePayload);
+        await ItemSvc.updateInventoryItem(String(initialData.id), updatePayload);
+
+        if (imageFile) {
+          await ItemSvc.updateItemImage(String(initialData.id), imageFile);
+        } else if (imageRemoved && initialData.imageUrl) {
+          await ItemSvc.removeItemImage(String(initialData.id));
+        }
+
         toast.success("แก้ไขข้อมูลสำเร็จ");
       } else {
-        console.log("Creating item with payload:", payload);
-        await ItemSvc.createInventoryItem(payload as Item.CreatePayload);
+        const fd = new FormData();
+        fd.append("name", formData.name);
+        if (formData.description) fd.append("description", formData.description);
+        fd.append("min_stock", String(formData.min_stock));
+        fd.append("category_id", formData.category_id);
+        fd.append("unit_id", formData.unit_id);
+        fd.append("warehouse_id", formData.warehouse_id);
+        fd.append("status", "ACTIVE");
+        if (imageFile) fd.append("image", imageFile);
+        console.log("Creating item with FormData");
+        await ItemSvc.createInventoryItem(fd);
         toast.success("บันทึกสำเร็จ");
       }
 
@@ -222,6 +235,7 @@ export default function ItemFormModal({
     onDrop: (files) => {
       const file = files[0];
       if (file) {
+        setImageFile(file);
         setFormData((prev) => ({
           ...prev,
           imageUrl: URL.createObjectURL(file),
@@ -638,6 +652,22 @@ export default function ItemFormModal({
                   )}
                 </div>
 
+                {/* Description */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold mb-2 text-slate-700">
+                    รายละเอียด
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white resize-none"
+                  />
+                </div>
+
                 {/* Min Stock */}
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
@@ -669,15 +699,30 @@ export default function ItemFormModal({
                   </label>
                   <div
                     {...getRootProps()}
-                    className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50"
+                    className="relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50"
                   >
                     <input {...getInputProps()} />
                     {formData.imageUrl ? (
-                      <img
-                        src={formData.imageUrl}
-                        className="h-32 mx-auto rounded-lg shadow-md"
-                        alt="Preview"
-                      />
+                      <>
+                        <img
+                          src={formData.imageUrl}
+                          className="h-32 mx-auto rounded-lg shadow-md"
+                          alt="Preview"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImageFile(null);
+                            setImageRemoved(true);
+                            setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                          }}
+                          className="absolute top-2 right-2 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
+                          title="ลบรูปภาพ"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </>
                     ) : (
                       <>
                         <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />

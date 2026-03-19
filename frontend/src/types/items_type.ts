@@ -13,6 +13,7 @@ export interface ApiItem {
 	id: number | string;
 	code?: string | null;
 	name?: string | null;
+	description?: string | null;
 	current_stock?: number | null;
 	min_stock?: number | null;
 	status?: ItemStatus | null;
@@ -33,6 +34,7 @@ export interface UiItem {
 	id: string;
 	code: string;
 	name: string;
+	description: string;
 	categoryId: string;
 	category: string;
 	unitId: string;
@@ -57,6 +59,7 @@ export type unitOptions = Option[];
 
 export interface CreatePayload {
 	name: string;
+	description?: string;
 	min_stock: number;
 	category_id: string;
 	unit_id: string;
@@ -67,6 +70,7 @@ export interface CreatePayload {
 
 export interface UpdatePayload {
 	name?: string;
+	description?: string;
 	min_stock?: number;
 	unit_id?: string;
 	warehouse_id?: string;

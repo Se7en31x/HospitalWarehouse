@@ -1,7 +1,8 @@
 const createItemDTO = (data, itemCode) => ({
     name: data.name,
+    description: data.description || null,
     code: itemCode,
-    min_stock: data.min_stock,
+    min_stock: data.min_stock === null || data.min_stock === undefined ? null : Number(data.min_stock),
     category_id: data.category_id,
     warehouse_id: data.warehouse_id,
     unit_id: data.unit_id,

@@ -15,26 +15,26 @@ export default function WarehouseSidebar() {
       items: [{ name: 'แดชบอร์ด', path: '/warehouse', icon: LayoutDashboard }]
     },
     {
-      group: 'จัดการ',
+      group: 'คลังพัสดุ',
       items: [
-        { name: 'สต็อกพัสดุ', path: '/warehouse/items', icon: PackageSearch },
-        { name: 'จัดการล็อตพัสดุ', path: '/warehouse/lots', icon: Layers },
-        { name: 'บันทึกนำเข้า', path: '/warehouse/stockin', icon: ArrowDownToLine },
+        { name: 'รายการพัสดุ', path: '/warehouse/items', icon: PackageSearch },
+        { name: 'ล็อตพัสดุ', path: '/warehouse/lots', icon: Layers },
+        { name: 'รับพัสดุเข้าคลัง', path: '/warehouse/stockin', icon: ArrowDownToLine },
       ]
     },
     {
-      group: 'ธุรกรรม',
+      group: 'การเบิก-ยืม-คืน',
       items: [
-        { name: 'ตรวจสอบคำขอ', path: '/warehouse/requests', icon: ClipboardCheck },
-        { name: 'จัดการการคืน', path: '/warehouse/managereturns', icon: Undo2 },
+        { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
+        { name: 'รับคืนพัสดุ', path: '/warehouse/managereturns', icon: Undo2 },
       ]
     },
     {
       group: 'อื่นๆ',
       items: [
-        { name: 'ประวัติรายการ', path: '/warehouse/history', icon: History },
-        { name: 'รายงานคลัง', path: '/warehouse/reports', icon: FileBarChart },
-        { name: 'ตั้งค่า', path: '/warehouse/settings', icon: Settings },
+        { name: 'ประวัติการเคลื่อนไหว', path: '/warehouse/history', icon: History },
+        { name: 'รายงาน', path: '/warehouse/reports', icon: FileBarChart },
+        { name: 'ตั้งค่าระบบ', path: '/warehouse/settings', icon: Settings },
       ]
     }
   ];
@@ -55,16 +55,16 @@ export default function WarehouseSidebar() {
       <nav className="flex-1 px-3 py-4 overflow-y-auto scrollbar-hide space-y-5">
         {menus.map((group, idx) => (
           <div key={idx} className="space-y-1">
-            {!collapsed && <h3 className="px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{group.group}</h3>}
+            {!collapsed && <h3 className="px-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">{group.group}</h3>}
             <ul className="space-y-0.5">
               {group.items.map((menu) => {
                 const active = isActive(menu.path);
                 const Icon = menu.icon;
                 return (
                   <li key={menu.path} className="relative group">
-                    <Link href={menu.path} className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start gap-3'} px-3 py-2 rounded-lg transition-all duration-150 ${active ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
-                      <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                      {!collapsed && <span className="text-sm">{menu.name}</span>}
+                    <Link href={menu.path} className={`flex items-center ${collapsed ? 'justify-center' : 'justify-start gap-3'} px-3 py-2 rounded-lg transition-all duration-150 ${active ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-800 font-normal hover:bg-slate-50 hover:text-slate-900'}`}>
+                      <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
+                      {!collapsed && <span className="text-[15px]">{menu.name}</span>}
                     </Link>
                     {collapsed && (
                       <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2 py-1 bg-slate-800 text-white text-[11px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">

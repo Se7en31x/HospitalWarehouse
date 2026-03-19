@@ -275,13 +275,12 @@ export default function StockInClient({ initialHistory = [] }: Props) {
       {/* 1. Header Section */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <ArrowDownToLine className="w-8 h-8 text-indigo-600" />
-          <h2 className="text-3xl font-bold text-indigo-600">บันทึกการนำเข้า</h2>
+          <h2 className="text-3xl font-bold text-gray-800">บันทึกการนำเข้า</h2>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={() => router.push("/warehouse/stockin/createform")}
-            className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md"
+            className="px-4 py-2 rounded-xl bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md"
           >
             <Plus className="w-4 h-4" /> สร้างใบรับสินค้า
           </button>
@@ -359,16 +358,16 @@ export default function StockInClient({ initialHistory = [] }: Props) {
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {paginatedHistory.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 font-medium text-indigo-600">{generateDocNumber((currentPage - 1) * itemsPerPage + idx)}</td>
-                  <td className="px-6 py-4 text-slate-600">{item.date}</td>
-                  <td className="px-6 py-4 font-mono text-sm">{item.docNo || '-'}</td>
-                  <td className="px-6 py-4 font-medium text-indigo-600">{item.poNumber}</td>
-                  <td className="px-6 py-4 text-slate-900">{item.supplier}</td>
-                  <td className="px-6 py-4 text-right font-bold">฿{item.totalAmount.toLocaleString()}</td>
+                  <td className="px-6 py-4">{generateDocNumber((currentPage - 1) * itemsPerPage + idx)}</td>
+                  <td className="px-6 py-4">{item.date}</td>
+                  <td className="px-6 py-4 font-mono">{item.docNo || '-'}</td>
+                  <td className="px-6 py-4">{item.poNumber}</td>
+                  <td className="px-6 py-4">{item.supplier}</td>
+                  <td className="px-6 py-4 text-right">฿{item.totalAmount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
                     <StatusBadge status={item.status} />
                   </td>

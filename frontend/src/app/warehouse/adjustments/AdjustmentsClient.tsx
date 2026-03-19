@@ -333,7 +333,7 @@ export default function AdjustmentsClient({ initialItems }: { initialItems: Item
       className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 px-4 py-2 ${
         variant === "outline"
           ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-          : "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          : "bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
       } ${className}`}
     >
       {children}
@@ -356,8 +356,7 @@ export default function AdjustmentsClient({ initialItems }: { initialItems: Item
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Package className="w-8 h-8 text-indigo-600" />
-          <h2 className="text-3xl font-bold text-indigo-600">บันทึกการนำเข้า</h2>
+          <h2 className="text-3xl font-bold text-gray-800">บันทึกการนำเข้า</h2>
         </div>
       </div>
 
@@ -416,46 +415,46 @@ export default function AdjustmentsClient({ initialItems }: { initialItems: Item
       <div className="rounded-lg border bg-white shadow-sm flex-1 flex flex-col overflow-hidden mb-6">
         <div className="relative w-full overflow-auto flex-1">
           <table className="w-full caption-bottom text-sm">
-            <thead className="[&_tr]:border-b sticky top-0 bg-white z-10">
-              <tr className="border-b transition-colors hover:bg-muted/50">
-                <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 min-w-[120px]">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+              <tr>
+                <th className="px-6 py-4 min-w-[120px]">
                   รหัสพัสดุ
                 </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 min-w-[200px]">
+                <th className="px-6 py-4 min-w-[200px]">
                   ชื่อพัสดุ
                 </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 min-w-[150px]">
+                <th className="px-6 py-4 min-w-[150px]">
                   หมวดหมู่
                 </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 min-w-[150px]">
+                <th className="px-6 py-4 min-w-[150px]">
                   จำนวนคงเหลือ
                 </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 min-w-[150px]">
+                <th className="px-6 py-4 min-w-[150px]">
                   สถานะ
                 </th>
-                <th className="h-12 px-4 text-right align-middle font-medium text-gray-500 w-[80px]">
+                <th className="px-6 py-4 text-right w-[80px]">
                   จัดการ
                 </th>
               </tr>
             </thead>
-            <tbody className="[&_tr:last-child]:border-0">
+            <tbody className="[&_tr:last-child]:border-0 text-slate-700">
               {paginatedItems.length > 0 ? (
                 paginatedItems.map((item) => (
                   <tr key={item.id} className="border-b transition-colors hover:bg-gray-50">
-                    <td className="p-4 align-middle font-medium text-gray-900 min-w-[120px]">
+                    <td className="px-6 py-4 min-w-[120px]">
                       {item.code}
                     </td>
-                    <td className="p-4 align-middle min-w-[200px]">{item.name}</td>
-                    <td className="p-4 align-middle text-gray-500 min-w-[150px]">
+                    <td className="px-6 py-4 min-w-[200px]">{item.name}</td>
+                    <td className="px-6 py-4 min-w-[150px]">
                       {item.category}
                     </td>
-                    <td className="p-4 align-middle font-semibold min-w-[150px]">
+                    <td className="px-6 py-4 min-w-[150px]">
                       {item.stock} {item.unit}
                     </td>
-                    <td className="p-4 align-middle min-w-[150px]">
+                    <td className="px-6 py-4 min-w-[150px]">
                       <Badge status={item.status} />
                     </td>
-                    <td className="p-4 align-middle text-right relative w-[80px]">
+                    <td className="px-6 py-4 text-right relative w-[80px]">
                       <IconButton onClick={() => handleToggleMenu(item)}>
                         <MoreVertical className="h-4 w-4" />
                       </IconButton>
@@ -623,7 +622,7 @@ export default function AdjustmentsClient({ initialItems }: { initialItems: Item
                   type="submit"
                   onClick={handleAdjustStock}
                   disabled={isLoading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-md hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                   บันทึก

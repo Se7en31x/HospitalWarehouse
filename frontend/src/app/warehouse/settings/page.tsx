@@ -13,6 +13,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import SettingsModals from "./SettingsModals";
+import { formatThaiDateTime } from "@/utils/formatters";
 import type {
   Category,
   CategoryPayload,
@@ -280,8 +281,7 @@ export default function SettingsPage() {
     <div className="flex flex-col min-h-screen bg-white p-8">
       {/* Header Section */}
       <div className="flex items-center gap-4 mb-8">
-        <Settings className="w-8 h-8 text-indigo-600" />
-        <h1 className="text-3xl font-bold text-indigo-600">การตั้งค่าระบบ</h1>
+        <h1 className="text-3xl font-bold text-gray-800">การตั้งค่าระบบ</h1>
       </div>
 
       {/* Tabs */}
@@ -296,7 +296,7 @@ export default function SettingsPage() {
             onClick={() => setActiveTab(tab.id as TabType)}
             className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
               activeTab === tab.id
-                ? "border-indigo-600 text-indigo-600"
+                ? "border-blue-700 text-blue-700"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -321,7 +321,7 @@ export default function SettingsPage() {
         />
         <button
           onClick={handleOpenCreateForm}
-          className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-colors"
+          className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-700 rounded-lg hover:bg-blue-800 shadow-md transition-colors"
         >
           <Plus className="w-4 h-4" />
           เพิ่มรายการใหม่
@@ -352,20 +352,20 @@ export default function SettingsPage() {
                 {pagedCategories.length > 0 ? (
                   pagedCategories.map((cat) => (
                     <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold">{cat.name}</td>
+                      <td className="px-6 py-4">{cat.name}</td>
                       <td className="px-6 py-4">
                         <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">
                           {cat.code_prefix}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4">
                         {cat.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">
-                        {cat.created_at ? new Date(cat.created_at).toLocaleDateString('th-TH') : '-'}
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(cat.created_at)}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">
-                        {cat.updated_at ? new Date(cat.updated_at).toLocaleDateString('th-TH') : '-'}
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(cat.updated_at)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
@@ -420,15 +420,15 @@ export default function SettingsPage() {
                 {pagedUnits.length > 0 ? (
                   pagedUnits.map((unit) => (
                     <tr key={unit.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold">{unit.name}</td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4">{unit.name}</td>
+                      <td className="px-6 py-4">
                         {unit.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">
-                        {unit.created_at ? new Date(unit.created_at).toLocaleDateString('th-TH') : '-'}
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(unit.created_at)}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">
-                        {unit.updated_at ? new Date(unit.updated_at).toLocaleDateString('th-TH') : '-'}
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(unit.updated_at)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
@@ -483,16 +483,16 @@ export default function SettingsPage() {
                 {pagedWarehouses.length > 0 ? (
                   pagedWarehouses.map((wh) => (
                     <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold">{wh.name}</td>
-                      <td className="px-6 py-4 text-slate-600">{wh.location || "-"}</td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4">{wh.name}</td>
+                      <td className="px-6 py-4">{wh.location || "-"}</td>
+                      <td className="px-6 py-4">
                         {wh.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">
-                        {wh.created_at ? new Date(wh.created_at).toLocaleDateString('th-TH') : '-'}
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(wh.created_at)}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">
-                        {wh.updated_at ? new Date(wh.updated_at).toLocaleDateString('th-TH') : '-'}
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(wh.updated_at)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">

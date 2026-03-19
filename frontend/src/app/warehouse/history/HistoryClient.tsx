@@ -120,8 +120,7 @@ export default function HistoryClient({ initialHistory }: HistoryClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Clock className="w-8 h-8 text-indigo-600" />
-          <h2 className="text-3xl font-bold text-indigo-600">ประวัติการทำรายการ</h2>
+          <h2 className="text-3xl font-bold text-gray-800">ประวัติการทำรายการ</h2>
         </div>
       </div>
 
@@ -238,17 +237,17 @@ export default function HistoryClient({ initialHistory }: HistoryClientProps) {
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {paginatedHistory.map((entry, idx) => (
                 <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 w-[100px] font-medium">{entry.id}</td>
+                  <td className="px-6 py-4 w-[100px]">{entry.id}</td>
                   <td className="px-6 py-4 w-[150px]">
                     <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${transactionTypeConfig[entry.type].bgColor}`}>
                       {transactionTypeConfig[entry.type].label}
                     </span>
                   </td>
-                  <td className="px-6 py-4 w-[200px] text-slate-600">
+                  <td className="px-6 py-4 w-[200px]">
                     {entry.type === 'REQUEST' ? (
                       <span>{entry.items.length} รายการ</span>
                     ) : (
@@ -266,7 +265,7 @@ export default function HistoryClient({ initialHistory }: HistoryClientProps) {
                     <div className="flex justify-end gap-1">
                       <button
                         onClick={() => handleViewDetails(entry)}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                        className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"
                         title="ดูรายละเอียด"
                       >
                         <Eye className="w-4 h-4" />

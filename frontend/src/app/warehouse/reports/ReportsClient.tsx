@@ -198,11 +198,8 @@ const ReportsClient: React.FC<ReportsClientProps> = ({
 			<div className="mb-6">
 				<div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
 					<div className="flex items-center gap-3">
-						<div className="p-2 bg-indigo-100 rounded-lg">
-							<FileText className="w-6 h-6 text-indigo-600" />
-						</div>
 						<div>
-							<h1 className="text-2xl font-bold text-gray-900">
+							<h1 className="text-2xl font-bold text-gray-800">
 								{selectedType === "all"
 									? "ระบบรายงานรวมทั้งหมด"
 									: `รายงาน${getTypeLabel(selectedType)}`}
@@ -226,7 +223,7 @@ const ReportsClient: React.FC<ReportsClientProps> = ({
 						<button
 							onClick={() => handleExport("pdf")}
 							disabled={isLoading || filteredReports.length === 0}
-							className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50"
+							className="flex items-center gap-1.5 px-3 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50"
 						>
 							<Download className="w-4 h-4" />
 							PDF

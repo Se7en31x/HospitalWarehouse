@@ -188,7 +188,7 @@ const AdjustLotModal = ({ isOpen, onClose, onConfirm, lot, isAdjusting }: Adjust
             <button type="button" onClick={onClose} disabled={isAdjusting} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">ยกเลิก</button>
             
             {/* ✅ ปุ่ม Submit กันเบิ้ล */}
-            <button type="submit" disabled={isAdjusting} className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-900 hover:bg-blue-800 rounded-lg shadow-md transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+            <button type="submit" disabled={isAdjusting} className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg shadow-md transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
                 {isAdjusting ? (
                     <> <Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึก... </>
                 ) : (
@@ -476,8 +476,7 @@ export default function LotClient({
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Layers className="w-8 h-8 text-blue-900" />
-          <h2 className="text-3xl font-bold text-blue-900">จัดการ Lot สินค้า</h2>
+          <h2 className="text-3xl font-bold text-gray-800">จัดการ Lot สินค้า</h2>
         </div>
         <div className="flex items-center gap-3">
           <button className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold flex items-center gap-2 shadow-md">
@@ -533,7 +532,7 @@ export default function LotClient({
                 <th className="px-6 py-4 text-right">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {currentItems.map((lot, idx) => {
                 const currentStatus = calculateStatus(lot.expiryDate);
                 const enrichedData = getEnrichedLotData(lot, itemsMaster, warehousesMaster);
@@ -546,17 +545,17 @@ export default function LotClient({
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="font-medium text-gray-900">{enrichedData.itemName}</span>
+                      <span>{enrichedData.itemName}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600 font-mono">{enrichedData.itemCode}</span>
+                      <span className="font-mono">{enrichedData.itemCode}</span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500"><span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs">{enrichedData.category}</span></td>
-                    <td className="px-6 py-4 font-mono text-sm font-medium">{lot.id}</td>
+                    <td className="px-6 py-4"><span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs">{enrichedData.category}</span></td>
+                    <td className="px-6 py-4 font-mono">{lot.id}</td>
                     <td className="px-6 py-4">{enrichedData.warehouse}</td>
-                    <td className={`px-6 py-4 text-center ${currentStatus === 'หมดอายุ' ? 'text-red-600 font-medium' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : 'text-gray-600'}`}>{formatDate(lot.expiryDate)}</td>
+                    <td className={`px-6 py-4 text-center ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
                     <td className="px-6 py-4 text-center font-mono">{formatMoney(lot.cost)}</td>
-                    <td className="px-6 py-4 text-center text-gray-900 font-bold">{lot.quantity.toLocaleString()} {enrichedData.unit}</td>
+                    <td className="px-6 py-4 text-center">{lot.quantity.toLocaleString()} {enrichedData.unit}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${currentStatus === 'ปกติ' ? 'bg-green-100 text-green-800' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {currentStatus}

@@ -8,7 +8,7 @@ export default function WarehouseNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
 
-  const moduleTitle = "ระบบคลังหลักโรงพยาบาล";
+  const moduleTitle = "ระบบจัดการแผนกคลังหลักโรงพยาบาล";
   const moduleColor = "bg-emerald-500/20 text-emerald-100 border-emerald-400/30";
   const userName = "สมชาย ใจดี";
   const userRole = "เจ้าหน้าที่คลังพัสดุ";
@@ -27,29 +27,35 @@ export default function WarehouseNavbar() {
       </div>
       
       <div className="relative z-10 border-b border-white/5">
-        <div className="flex items-center justify-between px-6 py-2.5">
-          <div className="flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-inner text-xl">
-              🏥
+        <div className="flex items-center justify-between px-8 py-4">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-md overflow-hidden">
+              <Image
+                src="https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png"
+                alt="Logo"
+                width={56}
+                height={56}
+                className="object-contain"
+              />
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-lg font-bold tracking-tight text-white/95">
-                HOSPITAL <span className="text-blue-400 font-medium text-sm ml-1 uppercase tracking-widest">InveSys</span>
+            <div className="flex flex-col gap-2">
+              <h1 className="text-base font-semibold tracking-wide text-white/95 leading-none">
+                โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
               </h1>
-              <div className={`mt-0.5 px-2 py-0.5 rounded border text-[10px] font-semibold w-fit uppercase ${moduleColor}`}>
+              <span className="text-sm font-medium text-white tracking-wide">
                 {moduleTitle}
-              </div>
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative">
+            <div className="relative self-stretch flex items-center">
               <button onClick={() => setShowNotificationMenu(!showNotificationMenu)} className="p-2 hover:bg-white/10 rounded-full transition-colors relative group">
                 <Bell className="w-5 h-5 text-blue-100 group-hover:text-white" />
                 <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-blue-900"></span>
               </button>
               {showNotificationMenu && (
-                <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
+                <div className="absolute right-0 top-full w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-100">
                     <p className="text-sm font-bold text-gray-900">การแจ้งเตือนคลัง</p>
                   </div>
@@ -72,7 +78,7 @@ export default function WarehouseNavbar() {
 
             <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-            <div className="relative">
+            <div className="relative self-stretch flex items-center">
               <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group">
                 <div className="flex flex-col items-end leading-none">
                   <span className="text-sm font-semibold text-white">{userName}</span>
@@ -85,7 +91,7 @@ export default function WarehouseNavbar() {
                 <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
               </button>
               {showProfileMenu && (
-                <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
+                <div className="absolute right-0 top-full w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
                   <div className="p-1">
                     <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><User className="w-4 h-4 text-blue-600" /> โปรไฟล์</button>
                     <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ</button>

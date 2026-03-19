@@ -7,7 +7,7 @@ html,
 body {
   height: 100%;
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Prompt', sans-serif;
   @apply bg-gray-50 text-gray-900;
 }
 

@@ -135,10 +135,7 @@ export default function ReturnsClient() {
 			{/* Header */}
 			<div className="flex items-center justify-between mb-8">
 				<div className="flex items-center gap-4">
-					<div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-						<Package className="w-6 h-6 text-blue-600" />
-					</div>
-					<h2 className="text-3xl font-bold text-gray-900">จัดการการคืน</h2>
+					<h2 className="text-3xl font-bold text-gray-800">จัดการการคืน</h2>
 				</div>
 			</div>
 
@@ -189,13 +186,13 @@ export default function ReturnsClient() {
 					<th className="px-6 py-4 w-[90px] text-right">จัดการ</th>
 						</tr>
 					</thead>
-					<tbody className="divide-y divide-slate-100">
+					<tbody className="divide-y divide-slate-100 text-slate-700">
 						{paginatedReturns.map((ret, idx) => {
 							const isOverdue = ret.daysOverdue && ret.daysOverdue > 0;
 							return (
 								<tr key={ret.id} className="hover:bg-slate-50 transition-colors">
 								<td className="px-6 py-4 w-[40px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-								<td className="px-6 py-4 w-[100px] font-medium">{ret.id}</td>
+								<td className="px-6 py-4 w-[100px]">{ret.id}</td>
 								<td className="px-6 py-4 w-[120px]">{ret.borrowedBy}</td>
 								<td className="px-6 py-4">{ret.itemName}</td>
 								<td className="px-6 py-4 w-[70px] text-center">
@@ -203,7 +200,7 @@ export default function ReturnsClient() {
 								</td>
 								<td className="px-6 py-4 w-[130px]">
 										<div className="flex flex-col gap-1">
-											<span className={`font-semibold ${isOverdue ? "text-red-600" : "text-slate-900"}`}>
+											<span className={isOverdue ? "text-red-600" : ""}>
 												{new Date(ret.dueDate).toLocaleDateString("th-TH")}
 											</span>
 											{isOverdue && (

@@ -330,8 +330,7 @@ const RequestClient = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <PackageCheck className="w-8 h-8 text-indigo-600" />
-          <h2 className="text-3xl font-bold text-indigo-600">ตรวจสอบรายการเบิกพัสดุ</h2>
+          <h2 className="text-3xl font-bold text-gray-800">ตรวจสอบรายการเบิกพัสดุ</h2>
         </div>
       </div>
 
@@ -391,11 +390,11 @@ const RequestClient = () => {
         </div>
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm text-left table-fixed">
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {paginatedItems.map((req) => (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[130px] text-slate-800">{req.doc_no}</td>
-                  <td className="px-6 py-4 w-[130px] text-slate-600">
+                  <td className="px-6 py-4 w-[130px]">{req.doc_no}</td>
+                  <td className="px-6 py-4 w-[130px]">
                     {new Date(req.request_date).toLocaleString('th-TH', {
                       year: 'numeric',
                       month: 'short',
@@ -404,10 +403,10 @@ const RequestClient = () => {
                       minute: '2-digit'
                     })}
                   </td>
-                  <td className="px-6 py-4 w-[160px] font-medium text-slate-700">
+                  <td className="px-6 py-4 w-[160px]">
                     {(req as any).requester_name || REQUESTER_NAMES[(req as any).requester_id] || req.requester_id}
                   </td>
-                  <td className="px-6 py-4 w-[140px] font-medium text-indigo-900">
+                  <td className="px-6 py-4 w-[140px]">
                     {displayDeptName(req)}
                   </td>
                   <td className="px-6 py-4 w-[90px] text-center">
@@ -419,7 +418,7 @@ const RequestClient = () => {
                   <td className="px-6 py-4 text-right w-[90px]">
                     <button
                       onClick={() => handleOpenDetails(req)}
-                      className="p-2.5 bg-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-lg" title="ตรวจสอบรายละเอียด"
+                      className="p-2.5 bg-blue-100 text-blue-700 hover:bg-blue-700 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-lg" title="ตรวจสอบรายละเอียด"
                     >
                       <Eye size={20} strokeWidth={2} />
                     </button>
