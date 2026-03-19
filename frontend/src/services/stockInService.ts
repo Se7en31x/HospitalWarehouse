@@ -456,3 +456,45 @@ export async function quickReceive(payload: any): Promise<any> {
 	}
 }
 
+/**
+ * Confirm Receive from Draft - Update PENDING bill with actual received items
+ * Vehicle arrived, open PENDING bill from draft to count items
+ * @param receiveHeaderId - ID of receive_header row to confirm
+ * @param receiveDate - Actual receive date (when truck arrived at warehouse)
+ * @param items - Array of received items with item_id, qty, lot_code, expired_at
+ * @returns Response from API with confirmed receive details
+ */
+export async function confirmReceive(
+	receiveHeaderId: string,
+	receiveDate: string,
+	items: Array<{
+		item_id: string;
+		qty: number;
+		lot_code: string;
+		expired_at: string;
+	}>
+): Promise<any> {
+	try {
+		const payload = {
+			receive_date: receiveDate,
+			items: items,
+		};
+
+		console.log(`Confirming receive ${receiveHeaderId} with payload:`, payload);
+
+		const response = await request<any>(`/v1/receives/${receiveHeaderId}/confirm`, {
+			method: "PATCH",
+			body: JSON.stringify(payload),
+		});
+
+		console.log("Receive confirmed successfully:", response);
+		return response;
+	} catch (error) {
+		console.error("Error confirming receive:", error);
+		if (error instanceof Error) {
+			throw new Error(`Failed to confirm receive: ${error.message}`);
+		}
+		throw error;
+	}
+}
+

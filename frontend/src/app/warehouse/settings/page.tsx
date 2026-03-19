@@ -9,12 +9,10 @@ import {
   Warehouse as WarehouseIcon,
   Edit2,
   Trash2,
-  Save,
-  AlertTriangle,
-  X,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
+import SettingsModals from "./SettingsModals";
 import type {
   Category,
   CategoryPayload,
@@ -278,12 +276,6 @@ export default function SettingsPage() {
     }
   };
 
-  // CSS Classes ที่ใช้งานบ่อย
-  const tableThClass = "px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider bg-slate-200/60 border-y border-slate-200";
-  const tableTdClass = "px-6 py-4 text-sm text-slate-700 border-b border-slate-100 truncate";
-  const inputClass = "w-full border border-slate-300 bg-white rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm";
-  const labelClass = "block text-sm font-semibold text-slate-700 mb-1.5";
-
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
       {/* Header Section */}
@@ -348,10 +340,12 @@ export default function SettingsPage() {
             <table className="w-full text-sm text-left divide-y divide-slate-100">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
                 <tr>
-                  <th className="px-6 py-4 w-[30%]">ชื่อประเภทพัสดุ</th>
-                  <th className="px-6 py-4 w-[15%]">Prefix Code</th>
-                  <th className="px-6 py-4 w-[40%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[15%] text-right">จัดการ</th>
+                  <th className="px-6 py-4 w-[22%]">ชื่อประเภทพัสดุ</th>
+                  <th className="px-6 py-4 w-[10%]">Prefix Code</th>
+                  <th className="px-6 py-4 w-[22%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[13%]">วันที่สร้าง</th>
+                  <th className="px-6 py-4 w-[13%]">วันที่แก้ไข</th>
+                  <th className="px-6 py-4 w-[20%] text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 flex-1">
@@ -366,6 +360,12 @@ export default function SettingsPage() {
                       </td>
                       <td className="px-6 py-4 text-slate-600">
                         {cat.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">
+                        {cat.created_at ? new Date(cat.created_at).toLocaleDateString('th-TH') : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">
+                        {cat.updated_at ? new Date(cat.updated_at).toLocaleDateString('th-TH') : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
@@ -396,7 +396,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="text-center py-10 text-slate-500">
+                    <td colSpan={6} className="text-center py-10 text-slate-500">
                       ไม่พบข้อมูล
                     </td>
                   </tr>
@@ -409,9 +409,11 @@ export default function SettingsPage() {
             <table className="w-full text-sm text-left divide-y divide-slate-100">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
                 <tr>
-                  <th className="px-6 py-4 w-[35%]">ชื่อหน่วยนับ</th>
-                  <th className="px-6 py-4 w-[50%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[15%] text-right">จัดการ</th>
+                  <th className="px-6 py-4 w-[30%]">ชื่อหน่วยนับ</th>
+                  <th className="px-6 py-4 w-[32%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[13%]">วันที่สร้าง</th>
+                  <th className="px-6 py-4 w-[13%]">วันที่แก้ไข</th>
+                  <th className="px-6 py-4 w-[12%] text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -421,6 +423,12 @@ export default function SettingsPage() {
                       <td className="px-6 py-4 font-semibold">{unit.name}</td>
                       <td className="px-6 py-4 text-slate-600">
                         {unit.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">
+                        {unit.created_at ? new Date(unit.created_at).toLocaleDateString('th-TH') : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">
+                        {unit.updated_at ? new Date(unit.updated_at).toLocaleDateString('th-TH') : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
@@ -450,7 +458,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={3} className="text-center py-10 text-slate-500">
+                    <td colSpan={5} className="text-center py-10 text-slate-500">
                       ไม่พบข้อมูล
                     </td>
                   </tr>
@@ -463,10 +471,12 @@ export default function SettingsPage() {
             <table className="w-full text-sm text-left divide-y divide-slate-100">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
                 <tr>
-                  <th className="px-6 py-4 w-[25%]">ชื่อคลังสินค้า</th>
-                  <th className="px-6 py-4 w-[25%]">สถานที่ตั้ง</th>
-                  <th className="px-6 py-4 w-[35%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[15%] text-right">จัดการ</th>
+                  <th className="px-6 py-4 w-[18%]">ชื่อคลังสินค้า</th>
+                  <th className="px-6 py-4 w-[18%]">สถานที่ตั้ง</th>
+                  <th className="px-6 py-4 w-[23%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[12%]">วันที่สร้าง</th>
+                  <th className="px-6 py-4 w-[12%]">วันที่แก้ไข</th>
+                  <th className="px-6 py-4 w-[17%] text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -477,6 +487,12 @@ export default function SettingsPage() {
                       <td className="px-6 py-4 text-slate-600">{wh.location || "-"}</td>
                       <td className="px-6 py-4 text-slate-600">
                         {wh.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">
+                        {wh.created_at ? new Date(wh.created_at).toLocaleDateString('th-TH') : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">
+                        {wh.updated_at ? new Date(wh.updated_at).toLocaleDateString('th-TH') : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
@@ -507,7 +523,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="text-center py-10 text-slate-500">
+                    <td colSpan={6} className="text-center py-10 text-slate-500">
                       ไม่พบข้อมูล
                     </td>
                   </tr>
@@ -559,116 +575,31 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ================= ADD / EDIT FORM MODAL (POP-UP) ================= */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-            
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-lg font-bold text-slate-900">{formTitle}</h2>
-              <button onClick={() => setIsFormModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {activeTab === "categories" && (
-                  <>
-                    <div className="md:col-span-1">
-                      <label className={labelClass}>ชื่อประเภทพัสดุ <span className="text-red-500">*</span></label>
-                      <input value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="ระบุชื่อประเภท" className={inputClass} />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className={labelClass}>Prefix Code <span className="text-red-500">*</span></label>
-                      <input value={categoryForm.code_prefix} onChange={(e) => setCategoryForm({ ...categoryForm, code_prefix: e.target.value })} placeholder="ตัวอักษรย่อ (เช่น OFC)" className={`${inputClass} uppercase font-mono`} maxLength={5} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className={labelClass}>รายละเอียด (ไม่บังคับ)</label>
-                      <textarea value={categoryForm.description || ""} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} placeholder="ระบุรายละเอียดเพิ่มเติม" className={`${inputClass} resize-none h-24`} />
-                    </div>
-                  </>
-                )}
-
-                {activeTab === "units" && (
-                  <>
-                    <div className="md:col-span-2">
-                      <label className={labelClass}>ชื่อหน่วยนับ <span className="text-red-500">*</span></label>
-                      <input value={unitForm.name} onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} placeholder="เช่น กล่อง, ชิ้น" className={inputClass} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className={labelClass}>รายละเอียด (ไม่บังคับ)</label>
-                      <textarea value={unitForm.description || ""} onChange={(e) => setUnitForm({ ...unitForm, description: e.target.value })} placeholder="ระบุรายละเอียดเพิ่มเติม" className={`${inputClass} resize-none h-24`} />
-                    </div>
-                  </>
-                )}
-
-                {activeTab === "warehouses" && (
-                  <>
-                    <div className="md:col-span-1">
-                      <label className={labelClass}>ชื่อคลังสินค้า <span className="text-red-500">*</span></label>
-                      <input value={warehouseForm.name} onChange={(e) => setWarehouseForm({ ...warehouseForm, name: e.target.value })} placeholder="ระบุชื่อคลัง" className={inputClass} />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className={labelClass}>สถานที่ตั้ง</label>
-                      <input value={warehouseForm.location || ""} onChange={(e) => setWarehouseForm({ ...warehouseForm, location: e.target.value })} placeholder="ระบุสถานที่" className={inputClass} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className={labelClass}>รายละเอียด (ไม่บังคับ)</label>
-                      <textarea value={warehouseForm.description || ""} onChange={(e) => setWarehouseForm({ ...warehouseForm, description: e.target.value })} placeholder="ระบุรายละเอียดเพิ่มเติม" className={`${inputClass} resize-none h-24`} />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
-              <button onClick={() => setIsFormModalOpen(false)} disabled={isSaving} className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors">
-                ยกเลิก
-              </button>
-              <button onClick={handleFormSubmit} disabled={isSaving} className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors disabled:opacity-70 min-w-[120px]">
-                {isSaving ? <div className="w-4 h-4 border-2 border-indigo-200 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-                {isSaving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= DELETE CONFIRMATION MODAL ================= */}
-      {deleteModalOpen && itemToDelete && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden transform transition-all animate-in zoom-in-95 duration-200">
-            <div className="p-6 flex flex-col items-center text-center">
-              <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle className="w-7 h-7" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">ยืนยันการลบข้อมูล</h3>
-              <p className="text-sm text-slate-500 mb-6">
-                คุณต้องการลบ <span className="font-bold text-slate-800">{itemToDelete?.name}</span> ใช่หรือไม่?<br/>
-                การกระทำนี้ไม่สามารถกู้คืนได้
-              </p>
-              <div className="flex w-full gap-3">
-                <button
-                  onClick={() => { setDeleteModalOpen(false); setItemToDelete(null); }}
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={executeDelete}
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-sm transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
-                >
-                  {isSaving ? <div className="w-4 h-4 border-2 border-red-200 border-t-white rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  {isSaving ? "กำลังลบ..." : "ลบข้อมูล"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ================= MODALS ================= */}
+      <SettingsModals
+        // Form Modal Props
+        isFormModalOpen={isFormModalOpen}
+        onFormModalClose={() => setIsFormModalOpen(false)}
+        formTitle={formTitle}
+        formMode={formMode}
+        activeTab={activeTab}
+        categoryForm={categoryForm}
+        onCategoryFormChange={setCategoryForm}
+        unitForm={unitForm}
+        onUnitFormChange={setUnitForm}
+        warehouseForm={warehouseForm}
+        onWarehouseFormChange={setWarehouseForm}
+        isSaving={isSaving}
+        onFormSubmit={handleFormSubmit}
+        // Delete Modal Props
+        deleteModalOpen={deleteModalOpen}
+        itemToDelete={itemToDelete}
+        onDeleteModalClose={() => {
+          setDeleteModalOpen(false);
+          setItemToDelete(null);
+        }}
+        onConfirmDelete={executeDelete}
+      />
     </div>
   );
 }

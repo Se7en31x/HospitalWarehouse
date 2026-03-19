@@ -19,10 +19,22 @@ export interface ItemOptions {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const getHeaders = () => ({
-	"Content-Type": "application/json",
-	Authorization: `Bearer ${Cookies.get("user_token") || ""}`,
-});
+const getHeaders = () => {
+	let token = "";
+	try {
+		// Only works in browser context
+		if (typeof window !== "undefined") {
+			token = Cookies.get("user_token") || "";
+		}
+	} catch (error) {
+		// Silently fail if cookies are not available (server-side rendering)
+	}
+	
+	return {
+		"Content-Type": "application/json",
+		...(token && { Authorization: `Bearer ${token}` }),
+	};
+};
 
 async function parseJson<T>(res: Response): Promise<T> {
 	const contentType = res.headers.get("content-type") || "";

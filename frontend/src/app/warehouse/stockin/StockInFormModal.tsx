@@ -12,6 +12,8 @@ import {
   Loader2,
   X,
   Trash2,
+  Eye,
+  Edit,
 } from "lucide-react";
 
 import * as StockInSvc from "@/services/stockInService";
@@ -21,37 +23,44 @@ import {
   FormData,
   FormErrors,
   StockInFormModalProps,
+  ReceiveItem,
+  ConfirmReceiveFormData,
 } from "@/types/stockin_form_type";
 
-const INITIAL_FORM_DATA: FormData = {
-  itemId: "",
-  itemName: "",
-  categoryId: "",
-  category: "",
-  poNumber: "",
-  quantityOrdered: 0,
-  quantityReceived: 0,
-  unitId: "",
-  unit: "",
-  supplierId: "",
-  costPrice: 0,
-  mfgDate: "",
-  expiryDate: "",
-  barcode: "",
-  warehouseId: "",
-  warehouseName: "",
+const INITIAL_CONFIRM_FORM: ConfirmReceiveFormData = {
+  receive_date: new Date().toISOString().split("T")[0],
+  items: [],
 };
 
 export default function StockInFormModal({
   isOpen,
   onCloseAction,
   onSuccessAction,
+  mode = "create",
+  receiveData,
+  receiveHeaderId,
 }: StockInFormModalProps) {
+  // CREATE MODE states
   const [items, setItems] = useState<StockIn.StockInItem[]>([]);
   const [itemsList, setItemsList] = useState<StockIn.ItemOption[]>([]);
   const [suppliers, setSuppliers] = useState<StockIn.Option[]>([]);
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [isDraftMode, setIsDraftMode] = useState(false);
+
+  // CONFIRM MODE states
+  const [confirmFormData, setConfirmFormData] = useState<ConfirmReceiveFormData>(INITIAL_CONFIRM_FORM);
+  const [confirmFormErrors, setConfirmFormErrors] = useState<Record<string, string>>({});
+  const [confirmItems, setConfirmItems] = useState<ReceiveItem[]>([]);
+  const [editingConfirmItemIndex, setEditingConfirmItemIndex] = useState<number | null>(null);
+  const [confirmItemFormData, setConfirmItemFormData] = useState<ReceiveItem>({
+    item_id: "",
+    qty: 0,
+    lot_code: "",
+    expired_at: "",
+  });
+
+  // COMMON states
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingOptions, setIsFetchingOptions] = useState(true);
@@ -59,10 +68,63 @@ export default function StockInFormModal({
   const [isItemDropdownOpen, setIsItemDropdownOpen] = useState(false);
   const [supplierSearchQuery, setSupplierSearchQuery] = useState("");
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
-  const [isDraftMode, setIsDraftMode] = useState(false);
 
-  // Fetch options on mount
+  // ============ INITIALIZE CONFIRM MODE ============
   useEffect(() => {
+    if (isOpen && mode === "confirm" && receiveData) {
+      setConfirmItems(receiveData.items || []);
+      setConfirmFormData({
+        receive_date: receiveData.receive_date 
+          ? new Date(receiveData.receive_date).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0],
+        items: receiveData.items || [],
+      });
+    }
+  }, [isOpen, mode, receiveData]);
+
+  // ============ FETCH OPTIONS (CREATE MODE) ============
+  useEffect(() => {
+    if (isOpen && mode === "create") {
+      const fetchAllOptions = async () => {
+        try {
+          const [itemsData, suppliersData] = await Promise.all([
+            ItemSvc.getInventoryItems(),
+            StockInSvc.getSuppliers(),
+          ]);
+          
+          // Convert items to ItemOption format
+          const itemOptions: StockIn.ItemOption[] = itemsData.map((item) => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            categoryId: item.categoryId,
+            unit: item.unit,
+            unitId: item.unitId,
+            warehouseId: item.warehouseId,
+            warehouseName: item.location,
+          }));
+          
+          setItemsList(itemOptions);
+          setSuppliers(suppliersData || []);
+          
+          if (!suppliersData || suppliersData.length === 0) {
+            console.debug("No suppliers data available, supplier field will be optional");
+          }
+        } catch (error) {
+          console.warn("Error fetching options:", error);
+          toast.error("ไม่สามารถดึงข้อมูลได้");
+          setItemsList([]);
+          setSuppliers([]);
+        } finally {
+          setIsFetchingOptions(false);
+        }
+      };
+
+      setIsFetchingOptions(true);
+      fetchAllOptions();
+    }
+  }, [isOpen, mode]);
+  useEffect(() {
     if (isOpen) {
       const fetchAllOptions = async () => {
         try {
@@ -103,9 +165,9 @@ export default function StockInFormModal({
       setIsFetchingOptions(true);
       fetchAllOptions();
     }
-  }, [isOpen]);
+  }, [isOpen, mode]);
 
-  // Reset form when modal closes
+  // ============ RESET FORM ON CLOSE ============
   useEffect(() => {
     if (!isOpen) {
       setItems([]);

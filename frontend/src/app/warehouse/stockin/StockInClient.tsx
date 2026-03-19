@@ -8,6 +8,7 @@ import {
   MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownToLine, AlertCircle, X, Save
 } from "lucide-react";
 import * as stockInService from "@/services/stockInService";
+import ReceiveFormModal from "./ReceiveFormModal";
 
 interface StockInRecord {
   id: string;
@@ -71,6 +72,8 @@ export default function StockInClient({ initialHistory = [] }: Props) {
   const [orderedQuantity, setOrderedQuantity] = useState(0);
   const [isSavingDetail, setIsSavingDetail] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [isReceiveFormModalOpen, setIsReceiveFormModalOpen] = useState(false);
+  const [selectedFormRecord, setSelectedFormRecord] = useState<StockInRecord | null>(null);
   const itemsPerPage = 10;
 
   // Fetch data function
@@ -371,7 +374,10 @@ export default function StockInClient({ initialHistory = [] }: Props) {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button 
-                      onClick={() => handleOpenDetail(item)}
+                      onClick={() => {
+                        setSelectedFormRecord(item);
+                        setIsReceiveFormModalOpen(true);
+                      }}
                       className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                     >
                       <Eye className="w-4 h-4" />
@@ -556,6 +562,28 @@ export default function StockInClient({ initialHistory = [] }: Props) {
             </div>
           </div>
         </>
+      )}
+
+      {/* Receive Form Modal */}
+      {selectedFormRecord && (
+        <ReceiveFormModal
+          isOpen={isReceiveFormModalOpen}
+          onCloseAction={() => {
+            setIsReceiveFormModalOpen(false);
+            setSelectedFormRecord(null);
+          }}
+          onSuccessAction={() => {
+            setIsReceiveFormModalOpen(false);
+            setSelectedFormRecord(null);
+            refreshData();
+          }}
+          mode="view"
+          receiveData={{
+            items: [],
+            receive_date: selectedFormRecord.date,
+          }}
+          receiveHeaderId={selectedFormRecord.id}
+        />
       )}
     </div>
   );
