@@ -3,6 +3,7 @@ const createItemDTO = (data, itemCode) => ({
     code: itemCode,
     min_stock: data.min_stock,
     category_id: data.category_id,
+    warehouse_id: data.warehouse_id,
     unit_id: data.unit_id,
     status: data.status,
     image_url: data.image_url,

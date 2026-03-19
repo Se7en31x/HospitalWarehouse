@@ -347,7 +347,7 @@ model lookup_rh {
 
 /// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 view view_items {
-  id             String    @id @db.Uuid
+  id             String    @unique @db.Uuid
   code           String?
   name           String?
   description    String?
