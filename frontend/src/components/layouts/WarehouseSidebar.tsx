@@ -19,7 +19,7 @@ export default function WarehouseSidebar() {
       items: [
         { name: 'รายการพัสดุ', path: '/warehouse/items', icon: PackageSearch },
         { name: 'ล็อตพัสดุ', path: '/warehouse/lots', icon: Layers },
-        { name: 'รับพัสดุเข้าคลัง', path: '/warehouse/stockin', icon: ArrowDownToLine },
+        { name: 'รับพัสดุเข้าคลัง', path: '/warehouse/receives', icon: ArrowDownToLine },
       ]
     },
     {

@@ -281,7 +281,7 @@ export default function SettingsPage() {
     <div className="flex flex-col min-h-screen bg-white p-8">
       {/* Header Section */}
       <div className="flex items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">การตั้งค่าระบบ</h1>
+        <h1 className="text-3xl font-bold text-gray-800">ตั้งค่าระบบ</h1>
       </div>
 
       {/* Tabs */}
@@ -396,8 +396,13 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-slate-500">
-                      ไม่พบข้อมูล
+                    <td colSpan={6}>
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                        </svg>
+                        <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -458,8 +463,13 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="text-center py-10 text-slate-500">
-                      ไม่พบข้อมูล
+                    <td colSpan={5}>
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                        </svg>
+                        <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -523,8 +533,13 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-slate-500">
-                      ไม่พบข้อมูล
+                    <td colSpan={6}>
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                        </svg>
+                        <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      </div>
                     </td>
                   </tr>
                 )}

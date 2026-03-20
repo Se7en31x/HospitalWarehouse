@@ -6,10 +6,8 @@ import {
   Search,
   Eye,
   X,
-  Filter,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
 } from 'lucide-react';
 import { HistoryEntry, TransactionType, TransactionStatus } from '@/types/history_type';
 
@@ -39,7 +37,6 @@ export default function HistoryClient({ initialHistory }: HistoryClientProps) {
   const [filteredHistory, setFilteredHistory] = useState<HistoryEntry[]>(initialHistory);
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -120,105 +117,61 @@ export default function HistoryClient({ initialHistory }: HistoryClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">ประวัติการทำรายการ</h2>
+          <h2 className="text-3xl font-bold text-gray-800">ประวัติการเคลื่อนไหว</h2>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหา..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
-
-        <div className="relative ml-auto" data-filter-dropdown>
-          <button
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`border rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2 ${
-              isFiltered ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            ตัวกรอง
-            {isFiltered && <span className="text-xs font-semibold text-indigo-600">✓</span>}
-            <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+        <select
+          value={selectedType}
+          onChange={(e) => setSelectedType(e.target.value as TransactionType | 'all')}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="all">ทุกประเภท</option>
+          {Object.entries(transactionTypeConfig).map(([key, config]) => (
+            <option key={key} value={key}>{config.label}</option>
+          ))}
+        </select>
+        <select
+          value={selectedStatus}
+          onChange={(e) => setSelectedStatus(e.target.value as TransactionStatus | 'all')}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="all">ทุกสถานะ</option>
+          {Object.entries(statusConfig).map(([key, config]) => (
+            <option key={key} value={key}>{config.label}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+        <span className="text-slate-400 text-sm">ถึง</span>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+        {isFiltered && (
+          <button onClick={clearFilters} className="flex items-center gap-1 text-sm text-slate-500 hover:text-red-500 transition-colors">
+            <X className="w-3.5 h-3.5" />ล้าง
           </button>
-
-          {/* Filter Dropdown */}
-          {isFilterOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[350px] p-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ประเภท</label>
-                  <select
-                    value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value as TransactionType | 'all')}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                  >
-                    <option value="all">ทั้งหมด</option>
-                    {Object.entries(transactionTypeConfig).map(([key, config]) => (
-                      <option key={key} value={key}>
-                        {config.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">สถานะ</label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value as TransactionStatus | 'all')}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                  >
-                    <option value="all">ทั้งหมด</option>
-                    {Object.entries(statusConfig).map(([key, config]) => (
-                      <option key={key} value={key}>
-                        {config.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">จากวันที่</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ถึงวันที่</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                  />
-                </div>
-              </div>
-
-              {isFiltered && (
-                <button
-                  onClick={clearFilters}
-                  className="mt-4 w-full px-4 py-2 bg-red-100 text-red-700 border border-red-300 rounded-lg hover:bg-red-200 transition-all text-sm font-medium"
-                >
-                  <X className="w-4 h-4 inline mr-2" />
-                  ล้างตัวกรอง
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        )}
+        <span className="ml-auto text-sm text-slate-500">{filteredHistory.length} รายการ</span>
       </div>
 
       {/* Table Content */}
@@ -276,7 +229,14 @@ export default function HistoryClient({ initialHistory }: HistoryClientProps) {
               ))}
               {paginatedHistory.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+                  <td colSpan={8}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                      </svg>
+                      <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                    </div>
+                  </td>
                 </tr>
               )}
             </tbody>

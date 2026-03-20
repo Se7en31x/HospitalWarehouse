@@ -197,6 +197,7 @@ const RequestClient = () => {
   // ✅ State สำหรับ Filtering & Pagination
   const [activeTab, setActiveTab] = useState("PENDING");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -273,8 +274,9 @@ const RequestClient = () => {
   // --- [Search & Filter Logic] ---
   const filteredRequests = requests.filter(req => {
     const matchesTab = activeTab === "all" || req.status === activeTab;
+    const matchesType = selectedType === "all" || req.type === selectedType;
     const searchLower = searchTerm.toLowerCase();
-    return matchesTab && (
+    return matchesTab && matchesType && (
       req.doc_no?.toLowerCase().includes(searchLower) ||
       req.department_name?.toLowerCase().includes(searchLower)
     );
@@ -330,14 +332,14 @@ const RequestClient = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">ตรวจสอบรายการเบิกพัสดุ</h2>
+          <h2 className="text-3xl font-bold text-gray-800">คำขอเบิก-ยืม</h2>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหาเลขที่หรือแผนก..."
@@ -346,22 +348,35 @@ const RequestClient = () => {
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
-        <div className="flex gap-3 md:ml-auto">
-          <select
-            value={activeTab}
-            onChange={(e) => {
-              setActiveTab(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="PENDING">รออนุมัติ</option>
-            <option value="all">ทั้งหมด</option>
-          </select>
-        </div>
+        <select
+          value={selectedType}
+          onChange={(e) => {
+            setSelectedType(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="all">ทุกประเภท</option>
+          <option value="WITHDRAW">เบิก</option>
+          <option value="BORROW">ยืม</option>
+        </select>
+        <select
+          value={activeTab}
+          onChange={(e) => {
+            setActiveTab(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="PENDING">รออนุมัติ</option>
+          <option value="APPROVED">อนุมัติแล้ว</option>
+          <option value="REJECTED">ปฏิเสธแล้ว</option>
+          <option value="all">ทุกสถานะ</option>
+        </select>
+        <span className="ml-auto text-sm text-slate-500">{filteredRequests.length} รายการ</span>
       </div>
 
       {/* Table */}
@@ -390,11 +405,11 @@ const RequestClient = () => {
         </div>
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm text-left table-fixed">
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="divide-y divide-slate-100">
               {paginatedItems.map((req) => (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[130px]">{req.doc_no}</td>
-                  <td className="px-6 py-4 w-[130px]">
+                  <td className="px-6 py-4 w-[130px] text-slate-800">{req.doc_no}</td>
+                  <td className="px-6 py-4 w-[130px] text-slate-600">
                     {new Date(req.request_date).toLocaleString('th-TH', {
                       year: 'numeric',
                       month: 'short',
@@ -403,10 +418,10 @@ const RequestClient = () => {
                       minute: '2-digit'
                     })}
                   </td>
-                  <td className="px-6 py-4 w-[160px]">
+                  <td className="px-6 py-4 w-[160px] font-medium text-slate-700">
                     {(req as any).requester_name || REQUESTER_NAMES[(req as any).requester_id] || req.requester_id}
                   </td>
-                  <td className="px-6 py-4 w-[140px]">
+                  <td className="px-6 py-4 w-[140px] font-medium text-indigo-900">
                     {displayDeptName(req)}
                   </td>
                   <td className="px-6 py-4 w-[90px] text-center">
@@ -418,7 +433,7 @@ const RequestClient = () => {
                   <td className="px-6 py-4 text-right w-[90px]">
                     <button
                       onClick={() => handleOpenDetails(req)}
-                      className="p-2.5 bg-blue-100 text-blue-700 hover:bg-blue-700 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-lg" title="ตรวจสอบรายละเอียด"
+                      className="p-2.5 bg-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-lg" title="ตรวจสอบรายละเอียด"
                     >
                       <Eye size={20} strokeWidth={2} />
                     </button>
@@ -427,7 +442,14 @@ const RequestClient = () => {
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+                  <td colSpan={7}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                      </svg>
+                      <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                    </div>
+                  </td>
                 </tr>
               )}
             </tbody>

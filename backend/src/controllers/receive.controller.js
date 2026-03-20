@@ -166,9 +166,38 @@ const cancelReceive = async (req, res) => {
     }
 };
 
+const confirmReceive = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            return util.sendResponse(res, 400, 'invalid receive id');
+        }
+
+        const items = req.body?.items;
+        if (!Array.isArray(items) || items.length === 0) {
+            return util.sendResponse(res, 400, 'items must be a non-empty array');
+        }
+
+        const confirmed = await receiveService.confirmReceive(id, items, req.user || null);
+
+        req.io.emit('REFRESH_DATA', 'RECEIVES');
+        req.io.emit('REFRESH_DATA', 'LOTS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
+
+        return util.sendResponse(res, 200, 'confirm receive success', confirmed);
+    } catch (error) {
+        if (error?.statusCode) {
+            return util.sendResponse(res, error.statusCode, error.message);
+        }
+
+        return util.sendResponse(res, 500, error.message || 'confirm receive failed');
+    }
+};
+
 module.exports = {
     createReceive,
     getReceives,
     getReceiveById,
     cancelReceive,
+    confirmReceive,
 };

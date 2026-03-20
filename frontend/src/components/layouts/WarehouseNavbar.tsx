@@ -1,12 +1,28 @@
 "use client";
 
 import Image from "next/image";
-import { Bell, ChevronDown, Settings, LogOut, User, Package, AlertCircle, CheckCircle } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { Bell, ChevronDown, Settings, LogOut, User, AlertCircle, CheckCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 
 export default function WarehouseNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setShowNotificationMenu(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const moduleTitle = "ระบบจัดการแผนกคลังหลักโรงพยาบาล";
   const moduleColor = "bg-emerald-500/20 text-emerald-100 border-emerald-400/30";
@@ -49,17 +65,17 @@ export default function WarehouseNavbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative self-stretch flex items-center">
-              <button onClick={() => setShowNotificationMenu(!showNotificationMenu)} className="p-2 hover:bg-white/10 rounded-full transition-colors relative group">
-                <Bell className="w-5 h-5 text-blue-100 group-hover:text-white" />
-                <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-blue-900"></span>
+            <div className="relative self-stretch flex items-center" ref={notificationRef}>
+              <button onClick={() => setShowNotificationMenu(!showNotificationMenu)} className="p-2.5 hover:bg-white/10 rounded-full transition-colors relative group">
+                <Bell className="w-6 h-6 text-blue-100 group-hover:text-white" />
+                <span className="absolute top-1.5 right-1.5 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-blue-900"></span>
               </button>
               {showNotificationMenu && (
                 <div className="absolute right-0 top-full w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-100">
                     <p className="text-sm font-bold text-gray-900">การแจ้งเตือนคลัง</p>
                   </div>
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-72 overflow-y-auto">
                     {notifications.map((n) => (
                       <div key={n.id} className="flex gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
                         <div className={`mt-0.5 p-1.5 rounded-full ${n.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
@@ -72,13 +88,22 @@ export default function WarehouseNavbar() {
                       </div>
                     ))}
                   </div>
+                  <div className="border-t border-gray-100">
+                    <Link
+                      href="/warehouse/notifications"
+                      onClick={() => setShowNotificationMenu(false)}
+                      className="block w-full text-center px-4 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors"
+                    >
+                      ดูการแจ้งเตือนทั้งหมด
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
 
             <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-            <div className="relative self-stretch flex items-center">
+            <div className="relative self-stretch flex items-center" ref={profileRef}>
               <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group">
                 <div className="flex flex-col items-end leading-none">
                   <span className="text-sm font-semibold text-white">{userName}</span>
@@ -93,8 +118,8 @@ export default function WarehouseNavbar() {
               {showProfileMenu && (
                 <div className="absolute right-0 top-full w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
                   <div className="p-1">
-                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><User className="w-4 h-4 text-blue-600" /> โปรไฟล์</button>
-                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ</button>
+                    <Link href="/warehouse/profile" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><User className="w-4 h-4 text-blue-600" /> โปรไฟล์</Link>
+                    <Link href="/warehouse/settings" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ</Link>
                     <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
                     <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut className="w-4 h-4" /> ออกจากระบบ</button>
                   </div>

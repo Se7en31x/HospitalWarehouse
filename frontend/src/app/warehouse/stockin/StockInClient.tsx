@@ -275,7 +275,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
       {/* 1. Header Section */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">บันทึกการนำเข้า</h2>
+          <h2 className="text-3xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -290,50 +290,40 @@ export default function StockInClient({ initialHistory = [] }: Props) {
 
 
       {/* 3. Filter Toolbar */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input 
             type="text" 
             placeholder="ค้นหา..." 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
-            className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none" 
+            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" 
           />
         </div>
-        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto md:ml-auto">
-          <select 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)} 
-            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto"
-          >
-            <option value="ALL">ทุกสถานะ</option>
-            <option value="COMPLETED">เสร็จสมบูรณ์</option>
-            <option value="PENDING">รอดำเนินการ</option>
-            <option value="CANCELLED">ยกเลิก</option>
-          </select>
-          <div className="flex gap-2 md:gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-none">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input 
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            <span className="flex items-center text-slate-400">ถึง</span>
-            <div className="relative flex-1 md:flex-none">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input 
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-          </div>
-        </div>
+        <select 
+          value={statusFilter} 
+          onChange={(e) => setStatusFilter(e.target.value)} 
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="ALL">ทุกสถานะ</option>
+          <option value="COMPLETED">เสร็จสมบูรณ์</option>
+          <option value="PENDING">รอดำเนินการ</option>
+          <option value="CANCELLED">ยกเลิก</option>
+        </select>
+        <input 
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+        <span className="text-slate-400 text-sm">ถึง</span>
+        <input 
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+        />
       </div>
 
       {/* 4. Data Table */}
@@ -386,7 +376,14 @@ export default function StockInClient({ initialHistory = [] }: Props) {
               ))}
               {paginatedHistory.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+                  <td colSpan={8}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                      </svg>
+                      <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                    </div>
+                  </td>
                 </tr>
               )}
             </tbody>

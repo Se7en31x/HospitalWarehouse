@@ -13,7 +13,6 @@ const createReceiveItemsDTO = (items = [], headerId) => {
     return items.map((item) => ({
         header_id: headerId,
         item_id: item.item_id,
-        warehouse_id: item.warehouse_id || null,
         lot_code: item.lot_code ? item.lot_code.toString().trim() : null,
         qty: Number(item.qty),
         expected_qty: Number(item.expected_qty),
@@ -76,6 +75,7 @@ const listReceivesQueryDTO = (query = {}) => ({
     limit: Math.min(100, Math.max(1, Number(query.limit) || 10)),
     keyword: (query.keyword || '').toString().trim(),
     type: (query.type || '').toString().trim(),
+    status: (query.status || '').toString().trim().toUpperCase(),
     start_date: (query.start_date || '').toString().trim(),
     end_date: (query.end_date || '').toString().trim(),
 });

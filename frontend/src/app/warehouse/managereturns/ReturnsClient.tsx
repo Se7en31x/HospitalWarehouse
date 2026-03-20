@@ -135,26 +135,26 @@ export default function ReturnsClient() {
 			{/* Header */}
 			<div className="flex items-center justify-between mb-8">
 				<div className="flex items-center gap-4">
-					<h2 className="text-3xl font-bold text-gray-800">จัดการการคืน</h2>
+					<h2 className="text-3xl font-bold text-gray-800">รับคืนพัสดุ</h2>
 				</div>
 			</div>
 
 			{/* Filters */}
-			<div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
-				<div className="relative w-full md:w-1/3">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+			<div className="flex flex-wrap gap-3 mb-6 items-center">
+				<div className="relative w-64">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 					<input
 						type="text"
 						placeholder="ค้นหารหัสสินค้า ชื่อ หรือผู้ยืม..."
 						value={searchTerm}
 						onChange={(e) => setSearchTerm(e.target.value)}
-						className="w-full rounded-xl border border-gray-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+						className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
 					/>
 				</div>
 				<select
 					value={selectedStatus}
 					onChange={(e) => setSelectedStatus(e.target.value)}
-					className="border border-gray-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+					className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
 				>
 					{statusOptions.map((s) => (
 						<option key={s} value={s}>
@@ -162,6 +162,7 @@ export default function ReturnsClient() {
 						</option>
 					))}
 				</select>
+				<span className="ml-auto text-sm text-slate-500">{filteredReturns.length} รายการ</span>
 			</div>
 
 			{/* Table Content */}
@@ -233,7 +234,14 @@ export default function ReturnsClient() {
 						})}
 						{paginatedReturns.length === 0 && !isFetching && (
 							<tr>
-								<td colSpan={7} className="text-center py-10 text-slate-500">ไม่พบข้อมูล</td>
+								<td colSpan={7}>
+							  <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+							    <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+							      <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+							    </svg>
+							    <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+							  </div>
+							</td>
 							</tr>
 						)}
 					</tbody>

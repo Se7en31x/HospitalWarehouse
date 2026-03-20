@@ -2,12 +2,15 @@ const DTO = require('../dtos/receive.dto');
 const receiveRepo = require('../repositories/receive.repo');
 const lotRepo = require('../repositories/lot.repo');
 const stockMovementRepo = require('../repositories/stockmovement.repo');
+const assetRepo = require('../repositories/asset.repo');
 
 const RECEIVE_STATUS = {
     PENDING: 'PENDING',
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED',
 };
+
+const ASSET_TYPE = 'PURCHASE_ASSET';
 
 const createHttpError = (statusCode, message) => {
     const error = new Error(message);
@@ -55,12 +58,13 @@ const createReceive = async (data, userSession) => {
     });
 };
 
-const getReceives = async ({ page = 1, limit = 10, keyword = '', type = '', start_date = '', end_date = '' } = {}) => {
+const getReceives = async ({ page = 1, limit = 10, keyword = '', type = '', status = '', start_date = '', end_date = '' } = {}) => {
     const [items, total] = await receiveRepo.SelectAllReceives({
         page,
         limit,
         keyword,
         type,
+        status,
         start_date,
         end_date,
     });
@@ -245,58 +249,91 @@ const confirmReceive = async (headerId, itemsPayload = [], userSession = null) =
                 );
             }
 
-            const lotCode = payloadItem?.lot_code ? payloadItem.lot_code.toString().trim() : null;
-            if (actualQty > 0 && !lotCode) {
-                throw createHttpError(
-                    400,
-                    `lot_code is required when actual qty is greater than 0 for item_id: ${existingItem.item_id}`
-                );
-            }
+            if (currentHeader.type === ASSET_TYPE) {
+                // --- ASSET branch: สร้าง medical_assets รายชิ้น ไม่มี lot/stock movement ---
+                const assetsInput = Array.isArray(payloadItem?.assets) ? payloadItem.assets : [];
+                if (actualQty > 0 && assetsInput.length !== actualQty) {
+                    throw createHttpError(
+                        400,
+                        `assets array length must equal qty (${actualQty}) for item_id: ${existingItem.item_id}`
+                    );
+                }
 
-            const expiredAt = payloadItem?.expired_at ? new Date(payloadItem.expired_at) : null;
-            if (payloadItem?.expired_at && Number.isNaN(expiredAt.getTime())) {
-                throw createHttpError(400, `invalid expired_at for item_id: ${existingItem.item_id}`);
-            }
-
-            await tx.receive_item.update({
-                where: { id: existingItem.id },
-                data: {
-                    qty: actualQty,
-                    lot_code: lotCode,
-                    expired_at: expiredAt,
-                },
-            });
-
-            if (actualQty > 0) {
-                const lotUpsertPayload = DTO.createLotUpsertDTO({
-                    item_id: existingItem.item_id,
-                    lot_code: lotCode,
-                    qty: actualQty,
-                    expired_at: payloadItem?.expired_at || null,
-                    warehouse_id: payloadItem?.warehouse_id || null,
+                await tx.receive_item.update({
+                    where: { id: existingItem.id },
+                    data: { qty: actualQty },
                 });
 
-                const lot = await lotRepo.upsertItemLot(
-                    {
-                        where: lotUpsertPayload.where,
-                        update: lotUpsertPayload.update,
-                        create: lotUpsertPayload.create,
-                    },
-                    tx
-                );
+                for (const assetInput of assetsInput) {
+                    const assetCode = await assetRepo.generateAssetCode(tx);
+                    await assetRepo.createAsset(
+                        {
+                            asset_code: assetCode,
+                            item_id: existingItem.item_id,
+                            receive_item_id: existingItem.id,
+                            serial_no: assetInput?.serial_no || null,
+                            department_id: assetInput?.department_id || null,
+                            status: 'READY',
+                            note: assetInput?.note || null,
+                        },
+                        tx
+                    );
+                }
+            } else {
+                // --- STOCK branch: lot + stock movement (เดิม) ---
+                const lotCode = payloadItem?.lot_code ? payloadItem.lot_code.toString().trim() : null;
+                if (actualQty > 0 && !lotCode) {
+                    throw createHttpError(
+                        400,
+                        `lot_code is required when actual qty is greater than 0 for item_id: ${existingItem.item_id}`
+                    );
+                }
 
-                const stockMovementPayload = DTO.createStockMovementDTO(
-                    {
-                        item_id: existingItem.item_id,
+                const expiredAt = payloadItem?.expired_at ? new Date(payloadItem.expired_at) : null;
+                if (payloadItem?.expired_at && Number.isNaN(expiredAt.getTime())) {
+                    throw createHttpError(400, `invalid expired_at for item_id: ${existingItem.item_id}`);
+                }
+
+                await tx.receive_item.update({
+                    where: { id: existingItem.id },
+                    data: {
                         qty: actualQty,
+                        lot_code: lotCode,
+                        expired_at: expiredAt,
                     },
-                    currentHeader.doc_no,
-                    updatedByName,
-                    updatedById,
-                    lot.id
-                );
+                });
 
-                await stockMovementRepo.createStockMovement(stockMovementPayload, tx);
+                if (actualQty > 0) {
+                    const lotUpsertPayload = DTO.createLotUpsertDTO({
+                        item_id: existingItem.item_id,
+                        lot_code: lotCode,
+                        qty: actualQty,
+                        expired_at: payloadItem?.expired_at || null,
+                        warehouse_id: payloadItem?.warehouse_id || null,
+                    });
+
+                    const lot = await lotRepo.upsertItemLot(
+                        {
+                            where: lotUpsertPayload.where,
+                            update: lotUpsertPayload.update,
+                            create: lotUpsertPayload.create,
+                        },
+                        tx
+                    );
+
+                    const stockMovementPayload = DTO.createStockMovementDTO(
+                        {
+                            item_id: existingItem.item_id,
+                            qty: actualQty,
+                        },
+                        currentHeader.doc_no,
+                        updatedByName,
+                        updatedById,
+                        lot.id
+                    );
+
+                    await stockMovementRepo.createStockMovement(stockMovementPayload, tx);
+                }
             }
 
             const missingQty = expectedQty - actualQty;
@@ -319,7 +356,8 @@ const confirmReceive = async (headerId, itemsPayload = [], userSession = null) =
             throw createHttpError(400, 'itemsPayload must include all receive items in this document');
         }
 
-        if (backorderItems.length > 0) {
+        // Asset type ไม่สร้าง backorder
+        if (backorderItems.length > 0 && currentHeader.type !== ASSET_TYPE) {
             const baseBackorderDocNo = `${currentHeader.doc_no}-B`;
             const existingBackorderCount = await tx.receive_header.count({
                 where: {
@@ -352,7 +390,7 @@ const confirmReceive = async (headerId, itemsPayload = [], userSession = null) =
 
             const backorderItemsPayload = DTO.createReceiveItemsDTO(backorderItems, backorderHeader.id);
             await receiveRepo.createReceiveItems(backorderItemsPayload, tx);
-        }
+        } // end backorder block
 
         await receiveRepo.updateReceiveHeader(
             currentHeader.id,

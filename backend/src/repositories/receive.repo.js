@@ -2,13 +2,18 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-const buildReceiveWhere = ({ keyword = '', type = '', start_date = '', end_date = '' } = {}) => {
+const buildReceiveWhere = ({ keyword = '', type = '', status = '', start_date = '', end_date = '' } = {}) => {
     const where = {};
     const normalizedKeyword = (keyword || '').trim();
     const normalizedType = (type || '').trim();
+    const normalizedStatus = (status || '').trim().toUpperCase();
 
     if (normalizedType) {
         where.type = normalizedType;
+    }
+
+    if (normalizedStatus) {
+        where.status = normalizedStatus;
     }
 
     if (normalizedKeyword) {
@@ -66,8 +71,8 @@ const SelectReceiveById = async (id, tx = prisma) => {
     });
 };
 
-const SelectAllReceives = async ({ page = 1, limit = 10, keyword = '', type = '', start_date = '', end_date = '' } = {}) => {
-    const where = buildReceiveWhere({ keyword, type, start_date, end_date });
+const SelectAllReceives = async ({ page = 1, limit = 10, keyword = '', type = '', status = '', start_date = '', end_date = '' } = {}) => {
+    const where = buildReceiveWhere({ keyword, type, status, start_date, end_date });
     const skip = (page - 1) * limit;
 
     return prisma.$transaction([
