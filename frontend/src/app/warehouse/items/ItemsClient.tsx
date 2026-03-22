@@ -114,6 +114,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [selectedCategory, setSelectedCategory] = useState("ทุกหมวดหมู่");
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
   const [selectedLocation, setSelectedLocation] = useState("ที่ตั้งทั้งหมด");
+  const [selectedType, setSelectedType] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -136,8 +137,9 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     const matchesCat = selectedCategory === "ทุกหมวดหมู่" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "ทั้งหมด" || item.status === selectedStatus;
     const matchesLocation = selectedLocation === "ที่ตั้งทั้งหมด" || item.location === selectedLocation;
+    const matchesType = !selectedType || item.type === selectedType;
 
-    return matchesSearch && matchesCat && matchesStatus && matchesLocation;
+    return matchesSearch && matchesCat && matchesStatus && matchesLocation && matchesType;
   });
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -156,10 +158,6 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   };
 
   const openEditModal = (item: Item.UiItem) => {
-    console.log("=== openEditModal ===");
-    console.log("item:", item);
-    console.log("item.id:", item.id);
-    console.log("All item fields:", Object.keys(item).map(k => `${k}: ${(item as any)[k]}`));
     setSelectedItem(item);
     setIsEditModalOpen(true);
   };
@@ -196,7 +194,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       <Toaster position="top-right" />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
         </div>
@@ -205,6 +203,27 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
             <PackagePlus className="w-4 h-4" /> เพิ่มพัสดุใหม่
           </button>
         </div>
+      </div>
+
+      {/* Type Tabs */}
+      <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-xl w-fit">
+        {[
+          { value: "", label: "ทั้งหมด" },
+          { value: "CONSUMABLE", label: "วัสดุสิ้นเปลือง" },
+          { value: "ASSET", label: "ครุภัณฑ์" },
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => { setSelectedType(tab.value); setCurrentPage(1); }}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              selectedType === tab.value
+                ? "bg-white text-blue-700 shadow-sm font-semibold"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -247,9 +266,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4 w-[150px]">รหัส</th>
                 <th className="px-6 py-4">ชื่อพัสดุ</th>
                 <th className="px-6 py-4 w-[150px]">ประเภท</th>
+                <th className="px-6 py-4 text-center w-[100px]">เบิก/ยืม</th>
                 <th className="px-6 py-4 text-center w-[150px]">คงเหลือ</th>
-                <th className="px-6 py-4 text-center w-[150px]">ขั้นต่ำ</th>
-                <th className="px-6 py-4 w-[150px]">ตำแหน่ง</th>
                 <th className="px-6 py-4 w-[150px]">สถานะ</th>
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
@@ -272,12 +290,26 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 w-[150px]">{item.code}</td>
+                  <td className="px-6 py-4">{item.code}</td>
                   <td className="px-6 py-4">{item.name}</td>
-                  <td className="px-6 py-4 w-[150px]">{item.category}</td>
-                  <td className="px-6 py-4 w-[150px] text-center">{item.stock} {item.unit}</td>
-                  <td className="px-6 py-4 w-[150px] text-center">{item.minStock} {item.unit}</td>
-                  <td className="px-6 py-4 w-[150px]">{item.location}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                      item.category === "ครุภัณฑ์" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {item.category}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center gap-2 text-xs">
+                      <span className={`px-1.5 py-0.5 rounded font-medium ${
+                        item.allowed_req ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                      }`}>เบิก</span>
+                      <span className={`px-1.5 py-0.5 rounded font-medium ${
+                        item.allowed_borrow ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
+                      }`}>ยืม</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">{item.stock} {item.unit}</td>
                   <td className="px-6 py-4 w-[150px]"><Badge status={item.status} /></td>
                   <td className="px-6 py-4 w-[100px] text-right">
                     <div className="flex justify-end gap-1">

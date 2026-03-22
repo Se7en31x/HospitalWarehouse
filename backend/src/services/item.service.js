@@ -2,13 +2,9 @@ const itemRepo = require('../repositories/item.repo')
 const DTO = require('../dtos/item.dto')
 const { uploadToCloudinary } = require('../middleware/upload')
 
-const getAllItems = async ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '' } = {}) => {
+const getAllItems = async ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '', type = '' } = {}) => {
     const [items, total] = await itemRepo.SelectAllItems({
-        page,
-        limit,
-        keyword,
-        start_date,
-        end_date,
+        page, limit, keyword, start_date, end_date, type,
     });
     const totalPages = Math.max(1, Math.ceil(total / limit));
 

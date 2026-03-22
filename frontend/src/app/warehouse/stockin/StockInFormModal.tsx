@@ -124,48 +124,7 @@ export default function StockInFormModal({
       fetchAllOptions();
     }
   }, [isOpen, mode]);
-  useEffect(() {
-    if (isOpen) {
-      const fetchAllOptions = async () => {
-        try {
-          const [itemsData, suppliersData] = await Promise.all([
-            ItemSvc.getInventoryItems(),
-            StockInSvc.getSuppliers(),
-          ]);
-          
-          // Convert items to ItemOption format
-          const itemOptions: StockIn.ItemOption[] = itemsData.map((item) => ({
-            id: item.id,
-            name: item.name,
-            category: item.category,
-            categoryId: item.categoryId,
-            unit: item.unit,
-            unitId: item.unitId,
-            warehouseId: item.warehouseId,
-            warehouseName: item.location,
-          }));
-          
-          setItemsList(itemOptions);
-          setSuppliers(suppliersData || []);
-          
-          if (!suppliersData || suppliersData.length === 0) {
-            console.debug("No suppliers data available, supplier field will be optional");
-          }
-        } catch (error) {
-          console.warn("Error fetching options:", error);
-          toast.error("ไม่สามารถดึงข้อมูลได้");
-          // Set empty arrays to allow form to continue working
-          setItemsList([]);
-          setSuppliers([]);
-        } finally {
-          setIsFetchingOptions(false);
-        }
-      };
 
-      setIsFetchingOptions(true);
-      fetchAllOptions();
-    }
-  }, [isOpen, mode]);
 
   // ============ RESET FORM ON CLOSE ============
   useEffect(() => {

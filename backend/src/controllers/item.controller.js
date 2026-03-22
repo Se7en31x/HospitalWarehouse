@@ -7,7 +7,8 @@ const parseListQuery = (query) => {
     const keyword = (query.keyword || '').toString().trim();
     const start_date = (query.start_date || '').toString().trim();
     const end_date = (query.end_date || '').toString().trim();
-    return { page, limit, keyword, start_date, end_date };
+    const type = (query.type || '').toString().trim();
+    return { page, limit, keyword, start_date, end_date, type };
 };
 
 const getItems = async (req, res) => {

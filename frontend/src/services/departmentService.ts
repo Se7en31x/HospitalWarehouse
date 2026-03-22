@@ -14,7 +14,16 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
         headers: { ...getHeaders(), ...(options?.headers || {}) },
         cache: "no-store",
     });
-    const body = await res.json();
+    
+    let body;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+        body = await res.json();
+    } else {
+        const text = await res.text();
+        throw new Error(`Unexpected response type: ${contentType}. Status: ${res.status}`);
+    }
+
     if (!res.ok) throw new Error(body?.error || body?.message || `HTTP ${res.status}`);
     return body.data as T;
 }

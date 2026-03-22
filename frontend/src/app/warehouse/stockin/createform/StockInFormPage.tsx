@@ -349,7 +349,7 @@ export default function StockInFormPage() {
         if (lotMode === "prepare") {
           // Prepare Mode: Create PENDING document with qty: 0, no lot_code
           const payload = {
-            doc_no: `REC-${Date.now()}-PREPARE`,
+            doc_no: `REC-${Date.now()}`,
             type: "PURCHASE",
             supplier_id: formData.supplierId,
             status: "PENDING",

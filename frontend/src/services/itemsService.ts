@@ -1,3 +1,11 @@
+// ดึงข้อมูล item หลายตัวด้วย id
+export async function getItemsByIds(ids: (string | number)[]): Promise<ApiItem[]> {
+	if (!ids || ids.length === 0) return [];
+	const query = ids.map((id) => `ids=${id}`).join("&");
+	// สมมติ backend รองรับ /v1/items/batch?ids=1&ids=2
+	const data = await request<ApiItem[]>(`/v1/items/batch?${query}`);
+	return data || [];
+}
 import Cookies from "js-cookie";
 import * as Item from "@/types/items_type";
 
@@ -74,13 +82,16 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
 	unitId: item.unit_id || "",
 	unit: item.unit_name || item.unit?.name || "ชิ้น",
 	warehouseId: item.warehouse_id || "",
-	location: item.warehouse_name || item.warehouse?.name || "-",
+	location: item.warehouse_name || item.warehouses?.name || item.warehouse?.name || "-",
 	stock: item.current_stock || 0,
 	description: item.description || "",
 	minStock: item.min_stock || 0,
 	price: 0,
 	status: item.status || "ACTIVE",
 	imageUrl: item.image_url || "",
+	type: (item as any).type || "CONSUMABLE",
+	allowed_req: (item as any).allowed_req ?? true,
+	allowed_borrow: (item as any).allowed_borrow ?? false,
 });
 
 export async function getInventoryItems(): Promise<Item.UiItem[]> {

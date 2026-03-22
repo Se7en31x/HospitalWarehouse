@@ -1,10 +1,15 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const buildItemWhere = ({ keyword = '', start_date = '', end_date = '' } = {}) => {
+const buildItemWhere = ({ keyword = '', start_date = '', end_date = '', type = '' } = {}) => {
     const normalizedKeyword = (keyword || '').trim();
+    const normalizedType = (type || '').trim().toUpperCase();
 
     const where = { deleted_at: null };
+
+    if (normalizedType) {
+        where.type = normalizedType;
+    }
 
     if (normalizedKeyword) {
         where.OR = [
@@ -64,41 +69,62 @@ const generateItemCode = async (category_id) => {
     return newCode;
 };
 
-const SelectAllItems = ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '' } = {}) => {
-    const where = buildItemWhere({ keyword, start_date, end_date });
+const SelectAllItems = ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '', type = '' } = {}) => {
+    const normalizedKeyword = (keyword || '').trim();
+    const normalizedType = (type || '').trim().toUpperCase();
     const skip = (page - 1) * limit;
 
+    const where = { deleted_at: null };
+
+    if (normalizedType) {
+        where.type = normalizedType;
+    }
+
+    if (normalizedKeyword) {
+        where.OR = [
+            { code: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { name: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { categories: { is: { name: { contains: normalizedKeyword, mode: 'insensitive' } } } },
+        ];
+    }
+
+    const dateFilter = {};
+    if (start_date) {
+        const startDate = new Date(start_date);
+        if (!Number.isNaN(startDate.getTime())) dateFilter.gte = startDate;
+    }
+    if (end_date) {
+        const endDate = new Date(end_date);
+        if (!Number.isNaN(endDate.getTime())) {
+            endDate.setHours(23, 59, 59, 999);
+            dateFilter.lte = endDate;
+        }
+    }
+    if (Object.keys(dateFilter).length > 0) where.created_at = dateFilter;
+
     return prisma.$transaction([
-        prisma.view_items.findMany({
+        prisma.items.findMany({
             where,
             select: {
-                id: true,
-                code: true,
-                name: true,
-                description: true,
-                category_id: true,
-                category_name: true,
-                unit_id: true,
-                unit_name: true,
-                warehouse_id: true,
-                warehouse_name: true,
-                current_stock: true,
-                min_stock: true,
-                status: true,
-                image_url: true,
-                created_at: true,
-                updated_at: true,
+                id: true, code: true, name: true, description: true,
+                category_id: true, unit_id: true, warehouse_id: true,
+                current_stock: true, min_stock: true, status: true,
+                image_url: true, type: true, allowed_req: true, allowed_borrow: true,
+                created_at: true, updated_at: true,
+                categories: { select: { name: true } },
+                unit: { select: { name: true } },
+                warehouses: { select: { name: true } },
             },
             orderBy: { created_at: 'desc' },
             skip,
             take: limit,
         }),
-        prisma.view_items.count({ where }),
+        prisma.items.count({ where }),
     ]);
 };
 
-const SelectItemById = (id, data = {}) => {
-    return prisma.view_items.findUnique({
+const SelectItemById = (id) => {
+    return prisma.items.findFirst({
         where: { id, deleted_at: null },
         select: {
             id: true,
@@ -106,18 +132,21 @@ const SelectItemById = (id, data = {}) => {
             name: true,
             description: true,
             category_id: true,
-            category_name: true,
             unit_id: true,
-            unit_name: true,
             warehouse_id: true,
-            warehouse_name: true,
             current_stock: true,
             min_stock: true,
             sell_price: true,
             status: true,
             image_url: true,
+            type: true,
+            allowed_req: true,
+            allowed_borrow: true,
             created_at: true,
             updated_at: true,
+            categories: { select: { name: true } },
+            unit: { select: { name: true } },
+            warehouses: { select: { name: true } },
         }
     });
 };

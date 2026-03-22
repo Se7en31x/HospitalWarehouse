@@ -57,8 +57,42 @@ const adjustLotStock = async (req, res) => {
     }
 }
 
+const deleteLot = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ success: false, message: "Invalid lot id" });
+        }
+        const result = await lotService.deleteLot(id, req.user || {});
+        return sendResponse(res, 200, "canceling lot success", result);
+    } catch (error) {
+        if (error.message === 'Lot id not found') {
+            return sendResponse(res, 404, error.message);
+        }
+        return sendResponse(res, 400, error.message || "canceling lot failed");
+    }
+}
+
+const toggleStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ success: false, message: "Invalid lot id" });
+        }
+        const result = await lotService.toggleLotStatus(id, req.user || {});
+        return sendResponse(res, 200, "toggle lot status success", result);
+    } catch (error) {
+        if (error.message === 'Lot id not found') {
+            return sendResponse(res, 404, error.message);
+        }
+        return sendResponse(res, 400, error.message || "toggle lot status failed");
+    }
+}
+
 module.exports = {
     getAllLots,
     getLotById,
     adjustLotStock,
+    deleteLot,
+    toggleStatus,
 };

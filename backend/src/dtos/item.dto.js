@@ -9,6 +9,9 @@ const createItemDTO = (data, itemCode) => ({
     status: data.status,
     image_url: data.image_url || null,
     image_public_id: data.image_public_id || null,
+    type: data.type || 'CONSUMABLE',
+    allowed_req: data.allowed_req !== undefined ? Boolean(data.allowed_req) : true,
+    allowed_borrow: data.allowed_borrow !== undefined ? Boolean(data.allowed_borrow) : false,
 });
 
 const updateItemDTO = (data = {}) => {
@@ -44,6 +47,15 @@ const updateItemDTO = (data = {}) => {
     }
     if (Object.prototype.hasOwnProperty.call(data, 'image_url')) {
         payload.image_url = data.image_url;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'type')) {
+        payload.type = data.type;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'allowed_req')) {
+        payload.allowed_req = Boolean(data.allowed_req);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'allowed_borrow')) {
+        payload.allowed_borrow = Boolean(data.allowed_borrow);
     }
 
     return payload;

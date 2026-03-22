@@ -28,6 +28,7 @@ export interface ApiItem {
 	category?: Option | null;
 	unit?: Option | null;
 	warehouse?: Option | null;
+	warehouses?: Option | null;
 }
 
 export interface UiItem {
@@ -46,6 +47,9 @@ export interface UiItem {
 	price: number;
 	status: ItemStatus;
 	imageUrl: string;
+	type: string;
+	allowed_req: boolean;
+	allowed_borrow: boolean;
 }
 
 export interface Option {
@@ -66,6 +70,9 @@ export interface CreatePayload {
 	warehouse_id?: string;
 	status?: ItemStatus;
 	image_url?: string;
+	type?: string;
+	allowed_req?: boolean;
+	allowed_borrow?: boolean;
 }
 
 export interface UpdatePayload {
@@ -76,6 +83,9 @@ export interface UpdatePayload {
 	warehouse_id?: string;
 	status?: ItemStatus;
 	image_url?: string;
+	type?: string;
+	allowed_req?: boolean;
+	allowed_borrow?: boolean;
 }
 
 export interface DeleteResponse {

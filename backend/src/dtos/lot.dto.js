@@ -1,3 +1,5 @@
+const { LOT_EXPIRY_STATUS } = require('../utils/constants');
+
 const calcExpiryStatus = (expiredAt) => {
     if (!expiredAt) return 'NO_EXPIRY';
 
@@ -6,9 +8,9 @@ const calcExpiryStatus = (expiredAt) => {
     const diffMs = expireDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return 'EXPIRED';
-    if (diffDays <= 30) return 'NEAR_EXPIRY';
-    return 'NORMAL';
+    if (diffDays < 0) return LOT_EXPIRY_STATUS.EXPIRED;
+    if (diffDays <= 30) return LOT_EXPIRY_STATUS.NEAR_EXPIRY;
+    return LOT_EXPIRY_STATUS.NORMAL;
 };
 
 const adjustLotDTO = (payload) => {

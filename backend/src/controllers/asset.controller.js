@@ -11,7 +11,7 @@ const getAssets = async (req, res, next) => {
         const item_id = req.query.item_id || '';
 
         const result = await assetService.getAssets({ page, limit, keyword, department_id, status, item_id });
-        return util.sendResponse(res, 200, result);
+        return util.sendListResponse(res, 200, 'ok', result);
     } catch (err) {
         next(err);
     }

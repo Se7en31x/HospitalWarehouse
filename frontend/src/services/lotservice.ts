@@ -10,11 +10,17 @@ const getHeaders = () => ({
 	Authorization: `Bearer ${Cookies.get("user_token") || ""}`,
 });
 
-async function parseJson<T>(res: Response): Promise<T> {
+async function parseJson<T>(res: Response, path?: string): Promise<T> {
 	const contentType = res.headers.get("content-type") || "";
+	
+	// Handle 204 No Content or empty responses
+	if (res.status === 204 || res.headers.get("content-length") === "0") {
+		return {} as T;
+	}
+
 	if (!contentType.includes("application/json")) {
 		const raw = await res.text();
-		throw new Error(raw.slice(0, 120) || "Invalid response");
+		throw new Error(`API Error ${res.status} at ${path || 'unknown'}: Expected JSON, got ${contentType}. Body: ${raw.slice(0, 120)}`);
 	}
 	return (await res.json()) as T;
 }
@@ -22,35 +28,51 @@ async function parseJson<T>(res: Response): Promise<T> {
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
 
-	const res = await fetch(`${API_URL}${path}`, {
-		...options,
-		headers: {
-			...getHeaders(),
-			...(options?.headers || {}),
-		},
-		cache: "no-store",
-	});
+	       const res = await fetch(`${API_URL}${path}`, {
+		       ...options,
+		       headers: {
+			       ...getHeaders(),
+			       ...(options?.headers || {}),
+		       },
+		       cache: "no-store",
+	       });
 
-	const body = await parseJson<{ data: T; message?: string; error?: string }>(res);
-	if (!res.ok) {
-		throw new Error(body.error || body.message || "Request failed");
-	}
+	       const body = await parseJson<any>(res, path);
+	       if (!res.ok) {
+		       throw new Error(body?.error || body?.message || `Request failed [${res.status}] at ${path}`);
+	       }
 
-	return body.data;
+	       // รองรับทั้งกรณีที่ response เป็น { data: ... } หรือ array/object ตรง ๆ
+	       if (body && typeof body === 'object' && 'data' in body) {
+		       return body.data as T;
+	       }
+	       return body as T;
 }
 
-// ============ Mapping Functions ============
+/**
+ * Toggle lot status (ACTIVE / SUSPENDED)
+ */
+export async function toggleLotStatus(lotId: string): Promise<Lot.UiLot> {
+	const data = await request<Lot.ApiLot>(`${LOTS_BASE}/${lotId}/toggle-status`, {
+		method: "PATCH",
+	});
+	return mapApiLotToUi(data);
+}
+
+// ============ Master Data ============
 export const mapApiLotToUi = (lot: Lot.ApiLot): Lot.UiLot => ({
-	id: lot.lot_code,
-	itemName: lot.items?.name || "-",
-	itemCode: lot.items?.code || "-",
-	category: lot.items?.categories?.name || "-",
-	warehouse: lot.warehouses?.name || "-",
+	id: lot.id,
+	lotCode: lot.lot_code,
+	itemName: lot.item_name || "-",
+	itemCode: lot.item_code || "-",
+	category: lot.category_name || "-",
+	warehouse: lot.warehouse_name || "-",
 	quantity: lot.quantity || 0,
-	unit: lot.items?.unit?.name || "ชิ้น",
-	cost: lot.cost_price || 0,
-	expiryDate: lot.expried_at,
+	unit: lot.unit_name || "ชิ้น",
+	cost: 0,
+	expiryDate: lot.expired_at,
 	status: lot.status,
+    expiryStatus: lot.expiry_status as Lot.ExpiryStatus,
 });
 
 // ============ API Functions ============
@@ -147,15 +169,10 @@ export async function adjustLot(
  * Delete a lot
  */
 export async function deleteLot(lotId: string): Promise<boolean> {
-	try {
-		await request<{ message: string }>(`${LOTS_BASE}/${lotId}`, {
-			method: "DELETE",
-		});
-		return true;
-	} catch (error: any) {
-		console.error("Failed to delete lot:", error);
-		return false;
-	}
+	await request<{ message: string }>(`${LOTS_BASE}/${lotId}`, {
+		method: "DELETE",
+	});
+	return true;
 }
 
 /**
@@ -163,10 +180,10 @@ export async function deleteLot(lotId: string): Promise<boolean> {
  */
 export async function getMasterSuppliers(): Promise<Lot.MasterSupplier[]> {
 	try {
-		// This endpoint might need adjustment based on backend implementation
-		const data = await request<Lot.MasterSupplier[]>(`/v1/suppliers`);
+		// ใช้ endpoint /option ตาม backend
+		const data = await request<Lot.MasterSupplier[]>(`/v1/suppliers/option`);
 		return data || [];
-	} catch (error) {
+	} catch (error: any) {
 		console.error("Failed to fetch suppliers:", error);
 		return [];
 	}
