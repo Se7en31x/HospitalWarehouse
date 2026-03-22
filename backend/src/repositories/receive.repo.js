@@ -39,7 +39,9 @@ const buildReceiveWhere = ({ keyword = '', type = '', status = '', start_date = 
 };
 
 const withTransaction = async (callback) => {
-    return prisma.$transaction((tx) => callback(tx));
+    return prisma.$transaction((tx) => callback(tx), {
+        timeout: 30000 // 30 seconds to allow for bulk asset creation
+    });
 };
 
 const createReceiveHeader = async (data, tx = prisma) => {

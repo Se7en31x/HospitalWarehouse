@@ -2,7 +2,7 @@ import type { Option, UiItem } from "./items_type";
 
 // ============ Enums & Constants ============
 export type ExpiryStatus = 'ปกติ' | 'ใกล้หมด' | 'หมดอายุ';
-export type LotStatusEnum = 'ACTIVE' | 'INACTIVE' | 'SOLD' | 'DAMAGED';
+export type LotStatusEnum = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
 export type LotDetailStatus = 'QUARANTINE' | 'APPROVED' | 'RECALLED' | 'EXPIRED' | 'DAMAGED';
 
 // ============ API Response Types ============
@@ -16,39 +16,23 @@ export type MasterSupplier = {
 export type ApiLot = {
 	id: string;
 	lot_code: string;
-	item_id: number;
-	warehouse_id: number;
-	supplier_id: number | null;
+	item_id: string;
+	item_code: string;
+	item_name: string;
+	category_id: string;
+	category_name: string;
+	unit_id: string;
+	unit_name: string;
+	warehouse_id: string | null;
+	warehouse_name: string | null;
+	warehouse_location: string | null;
 	quantity: number;
-	quantity_received: number;
-	cost_price: number;
-	expried_at: string | null;
 	status: string;
-	lot_status: string;
-	mfg_date: string | null;
-	received_date: string | null;
-	qc_approved_date: string | null;
-	po_number: string | null;
-	barcode: string | null;
-	coa_file: string | null;
-	manufacturing_cert_file: string | null;
-	qc_inspector: string | null;
-	qc_inspection_date: string | null;
-	serial_number: string | null;
+	expiry_status: string;
+	expired_at: string | null;
+	note: string | null;
 	created_at: string;
 	updated_at: string;
-	items: {
-		id: number;
-		code: string;
-		name: string;
-		categories: { id: number; name: string } | null;
-		unit: { id: number; name: string } | null;
-	};
-	warehouses: {
-		id: number;
-		name: string;
-	};
-	supplier: MasterSupplier | null;
 };
 
 // ============ Traceability Types ============
@@ -67,6 +51,7 @@ export type LotMovement = {
 // ============ UI Display Types ============
 export type UiLot = {
 	id: string;
+	lotCode: string;
 	itemName: string;
 	itemCode: string;
 	category: string;

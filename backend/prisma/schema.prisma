@@ -55,6 +55,9 @@ model items {
   warehouse_id       String?              @db.Uuid
   description        String?
   image_public_id    String?              @db.VarChar(100)
+  type               String?              @default("CONSUMABLE") @db.VarChar(20)
+  allowed_req        Boolean?             @default(true)
+  allowed_borrow     Boolean?             @default(false)
   inventory_snapshot inventory_snapshot[]
   item_lots          item_lots[]
   categories         categories?          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_category_fk")
@@ -200,13 +203,14 @@ model warehouses {
 }
 
 model departments {
-  id             Int              @id @default(autoincrement())
+  id             Int              @id
   name           String?          @db.VarChar(255)
   description    String?          @db.VarChar(255)
   created_at     DateTime?        @db.Timestamptz(6)
   updated_at     DateTime?        @db.Timestamptz(6)
   deleted_at     DateTime?        @db.Timestamptz(6)
   is_disable     Boolean?
+  code           String?          @db.VarChar
   medical_assets medical_assets[]
 
   @@schema("public")

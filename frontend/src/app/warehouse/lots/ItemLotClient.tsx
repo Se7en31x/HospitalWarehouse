@@ -8,13 +8,14 @@ import {
   MapPin, Tag, X, Save,
   Calendar, ArrowRight,
   TrendingUp, TrendingDown,
-  Loader2, Plus, AlertCircle, XCircle, BarChart3
+  Loader2, Plus, AlertCircle, XCircle, BarChart3,
+  ToggleRight, ToggleLeft
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Swal from "sweetalert2";
 
 import { socket } from "../../../lib/socket";
-import { deleteLot, getLots, adjustLot } from "@/services/lotservice";
+import { getLots, getMasterSuppliers, deleteLot, toggleLotStatus, adjustLot } from "@/services/lotservice";
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
 import { saveLots } from "@/services/stockInService"; 
 import type * as LotInterface from "@/types/lot_type";
@@ -74,28 +75,15 @@ const calculateStatus = (expiryDateStr: string | null): string => {
   return "ปกติ";
 };
 
-// Helper: Get enriched lot data by joining with master lists
-const getEnrichedLotData = (
-  lot: LotInterface.UiLot,
-  itemsMaster: ItemInterface.UiItem[],
-  warehousesMaster: ItemInterface.Option[]
-) => {
-  // Find matching item from master list
-  const matchedItem = itemsMaster.find(item => 
-    item.id === lot.item_id || item.name === lot.itemName
-  );
-
-  // Find matching warehouse from master list
-  const matchedWarehouse = warehousesMaster.find(wh => 
-    wh.id === lot.warehouse_id || wh.name === lot.warehouse
-  );
-
+// Helper: Get enriched lot data by joining with master lists is no longer necessary as data comes enriched from API
+// We'll just define a pass-through function to prevent any refactor breakage
+const getEnrichedLotData = (lot: LotInterface.UiLot) => {
   return {
-    itemName: lot.itemName || matchedItem?.name || '-',
-    itemCode: lot.itemCode || matchedItem?.code || '-',
-    category: lot.category || matchedItem?.category || '-',
-    warehouse: lot.warehouse || matchedWarehouse?.name || '-',
-    unit: lot.unit || matchedItem?.unit || '-',
+    itemName: lot.itemName || '-',
+    itemCode: lot.itemCode || '-',
+    category: lot.category || '-',
+    warehouse: lot.warehouse || '-',
+    unit: lot.unit || '-',
   };
 };
 
@@ -156,7 +144,7 @@ const AdjustLotModal = ({ isOpen, onClose, onConfirm, lot, isAdjusting }: Adjust
             <div>
               <h3 className="font-bold text-gray-800 text-base line-clamp-1">{lot.itemName}</h3>
               <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500">
-                <span className="bg-white px-2 py-0.5 rounded border border-gray-200 font-mono">Lot: {lot.id}</span>
+                <span className="bg-white px-2 py-0.5 rounded border border-gray-200 font-mono">Lot: {lot.lotCode || lot.id}</span>
                 <span className="bg-white px-2 py-0.5 rounded border border-gray-200">{lot.warehouse}</span>
               </div>
             </div>
@@ -297,30 +285,54 @@ export default function LotClient({
     }
   };
 
-  const handleDelete = async (lotCode: string) => {
+  const handleToggleStatus = async (lot: LotInterface.UiLot) => {
+    const isCurrentlyActive = lot.status === "ACTIVE";
+    const nextActionText = isCurrentlyActive ? 'ระงับการใช้งาน' : 'เปิดใช้งาน';
+    
     const confirmResult = await Swal.fire({
-        title: 'ยืนยันการลบ?',
-        text: `คุณต้องการลบ Lot: ${lotCode} ใช่หรือไม่? สต็อกจะถูกตัดออกตามจำนวนคงเหลือ`,
-        icon: 'warning',
+        title: `ยืนยันการ${nextActionText}?`,
+        text: `คุณต้องการ${nextActionText} Lot: ${lot.lotCode || lot.id} ใช่หรือไม่?`,
+        icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'ลบข้อมูล',
-        cancelButtonText: 'ยกเลิก'
+        confirmButtonColor: isCurrentlyActive ? '#f59e0b' : '#10b981', // Amber/Green
+        cancelButtonColor: '#64748b',
+        confirmButtonText: `ยืนยันการ${nextActionText}`,
+        cancelButtonText: 'ย้อนกลับ'
     });
 
     if (confirmResult.isConfirmed) {
         Swal.showLoading();
         try {
-            const success = await deleteLot(lotCode);
-            if (success) {
-                setLots(prev => prev.filter(l => l.id !== lotCode));
-                Swal.fire('ลบสำเร็จ!', 'ข้อมูล Lot ถูกลบเรียบร้อยแล้ว', 'success');
-            } else {
-                throw new Error("ลบไม่สำเร็จ");
-            }
-        } catch (error) {
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
+            const updatedLot = await toggleLotStatus(lot.id);
+            // Replace the updated lot inside the state array
+            setLots(prev => prev.map(l => l.id === updatedLot.id ? updatedLot : l));
+            Swal.fire('สำเร็จ!', `Lot ถูกเปลี่ยนสถานะเป็น ${nextActionText} เรียบร้อยแล้ว`, 'success');
+        } catch (error: any) {
+            Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถทำการเปลี่ยนสถานะได้', 'error');
+        }
+    }
+  };
+
+  const handleDelete = async (lot: LotInterface.UiLot) => {
+    const confirmResult = await Swal.fire({
+        title: 'ยืนยันการยกเลิก?',
+        text: `คุณต้องการยกเลิก Lot: ${lot.lotCode || lot.id} ใช่หรือไม่? สต็อกจะถูกตัดออกตามจำนวนคงเหลือ`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ยกเลิกข้อมูล (Soft Delete)',
+        cancelButtonText: 'ย้อนกลับ'
+    });
+
+    if (confirmResult.isConfirmed) {
+        Swal.showLoading();
+        try {
+            await deleteLot(lot.id);
+            setLots(prev => prev.filter(l => l.id !== lot.id));
+            Swal.fire('ยกเลิกสำเร็จ!', 'ข้อมูล Lot ถูกยกเลิกเรียบร้อยแล้ว', 'success');
+        } catch (error: any) {
+            Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถยกเลิกข้อมูลได้', 'error');
         }
     }
   };
@@ -337,12 +349,12 @@ export default function LotClient({
 
   const filteredData = lots.filter(lot => {
     const currentStatus = calculateStatus(lot.expiryDate);
-    const enrichedData = getEnrichedLotData(lot, itemsMaster, warehousesMaster);
+    const enrichedData = getEnrichedLotData(lot);
     const searchLower = searchTerm.toLowerCase();
     const name = enrichedData.itemName || "";
-    const id = lot.id || "";
+    const lotCode = lot.lotCode || "";
     const code = enrichedData.itemCode || "";
-    const matchesSearch = name.toLowerCase().includes(searchLower) || id.toLowerCase().includes(searchLower) || code.toLowerCase().includes(searchLower);
+    const matchesSearch = name.toLowerCase().includes(searchLower) || lotCode.toLowerCase().includes(searchLower) || code.toLowerCase().includes(searchLower);
     const matchesWarehouse = selectedWarehouse === "ทั้งหมด" || enrichedData.warehouse === selectedWarehouse;
     const matchesCategory = selectedCategory === "ทั้งหมด" || enrichedData.category === selectedCategory;
     let matchesStatus = true;
@@ -528,14 +540,15 @@ export default function LotClient({
                 <th className="px-6 py-4 text-center">วันหมดอายุ</th>
                 <th className="px-6 py-4 text-center">ราคา</th>
                 <th className="px-6 py-4 text-center">คงเหลือ</th>
-                <th className="px-6 py-4 text-center">สถานะ</th>
+                <th className="px-6 py-4 text-center">สถานะอายุ</th>
+                <th className="px-6 py-4 text-center">สถานะคลัง</th>
                 <th className="px-6 py-4 text-right">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {currentItems.map((lot, idx) => {
                 const currentStatus = calculateStatus(lot.expiryDate);
-                const enrichedData = getEnrichedLotData(lot, itemsMaster, warehousesMaster);
+                const enrichedData = getEnrichedLotData(lot);
                 return (
                   <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
@@ -551,7 +564,7 @@ export default function LotClient({
                       <span className="font-mono">{enrichedData.itemCode}</span>
                     </td>
                     <td className="px-6 py-4"><span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-xs">{enrichedData.category}</span></td>
-                    <td className="px-6 py-4 font-mono">{lot.id}</td>
+                    <td className="px-6 py-4 font-mono">{lot.lotCode || lot.id}</td>
                     <td className="px-6 py-4">{enrichedData.warehouse}</td>
                     <td className={`px-6 py-4 text-center ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
                     <td className="px-6 py-4 text-center font-mono">{formatMoney(lot.cost)}</td>
@@ -561,10 +574,19 @@ export default function LotClient({
                         {currentStatus}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${lot.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {lot.status === 'ACTIVE' ? 'ใช้งานได้' : 'ระงับการใช้งาน'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1 items-center">
+                        <button onClick={() => handleToggleStatus(lot)} className={`p-2 rounded-lg transition-colors ${lot.status === 'ACTIVE' ? 'text-green-500 hover:bg-green-50' : 'text-red-400 hover:bg-red-50'}`} title={lot.status === 'ACTIVE' ? 'กดเพื่อระงับการใช้งาน' : 'กดเพื่อเปิดใช้งาน'}>
+                           {lot.status === 'ACTIVE' ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                        </button>
+                        <div className="w-px h-6 bg-slate-200 mx-1"></div>
                         <button onClick={() => openAdjustModal(lot)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Wrench className="w-4 h-4" /></button>
-                        <button onClick={() => handleDelete(lot.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleDelete(lot)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -572,7 +594,7 @@ export default function LotClient({
               })}
               {currentItems.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={12}>
+                  <td colSpan={13}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

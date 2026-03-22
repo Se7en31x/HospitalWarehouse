@@ -248,8 +248,10 @@ export default function ReceiveFormPage() {
 
     setIsSaving(true);
     try {
+      let createdReceive: ReceiveSvc.ReceiveHeader | null = null;
+
       if (receiveType === "purchase-asset") {
-        await ReceiveSvc.createReceive({
+        createdReceive = await ReceiveSvc.createReceive({
           doc_no: `REC-${Date.now()}`,
           type: "PURCHASE_ASSET",
           supplier_id: formData.supplierId || null,
@@ -268,7 +270,7 @@ export default function ReceiveFormPage() {
         });
         toast.success("บันทึกรับครุภัณฑ์เข้าระบบสำเร็จ");
       } else if (receiveType === "donation") {
-        await ReceiveSvc.createReceive({
+        createdReceive = await ReceiveSvc.createReceive({
           doc_no: `REC-${Date.now()}`,
           type: "DONATION",
           donor_name: donorName,
@@ -287,8 +289,8 @@ export default function ReceiveFormPage() {
         toast.success("บันทึกรับบริจาคสำเร็จ");
       } else {
         if (lotMode === "prepare") {
-          await ReceiveSvc.createReceive({
-            doc_no: `REC-${Date.now()}-PREPARE`,
+          createdReceive = await ReceiveSvc.createReceive({
+            doc_no: `REC-${Date.now()}`,
             type: "PURCHASE",
             supplier_id: formData.supplierId || null,
             status: "PENDING",
@@ -303,7 +305,7 @@ export default function ReceiveFormPage() {
           });
           toast.success("บันทึกเตรียมรับพัสดุสำเร็จ");
         } else {
-          await ReceiveSvc.createReceive({
+          createdReceive = await ReceiveSvc.createReceive({
             doc_no: `REC-${Date.now()}`,
             type: "PURCHASE",
             supplier_id: formData.supplierId || null,
@@ -325,7 +327,12 @@ export default function ReceiveFormPage() {
 
       setItems([]);
       setTimeout(() => {
-        router.push("/warehouse/receives");
+        const idNum = Number(createdReceive?.id);
+        if (idNum && Number.isFinite(idNum) && idNum > 0) {
+          router.push(`/warehouse/receives/${idNum}`);
+        } else {
+          router.push("/warehouse/receives");
+        }
       }, 1500);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";

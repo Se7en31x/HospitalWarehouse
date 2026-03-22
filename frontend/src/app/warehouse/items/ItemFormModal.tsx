@@ -23,6 +23,9 @@ interface FormData {
   warehouse_id: string;
   min_stock: number;
   imageUrl: string;
+  type: string;
+  allowed_req: boolean;
+  allowed_borrow: boolean;
 }
 
 interface FormErrors {
@@ -52,6 +55,9 @@ const INITIAL_FORM_DATA: FormData = {
   warehouse_id: "",
   min_stock: 0,
   imageUrl: "",
+  type: "CONSUMABLE",
+  allowed_req: true,
+  allowed_borrow: false,
 };
 
 export default function ItemFormModal({
@@ -139,6 +145,9 @@ export default function ItemFormModal({
           warehouse_id: initialData.warehouseId || "",
           min_stock: initialData.minStock,
           imageUrl: initialData.imageUrl || "",
+          type: initialData.type || "CONSUMABLE",
+          allowed_req: initialData.allowed_req ?? true,
+          allowed_borrow: initialData.allowed_borrow ?? false,
         });
         setImageFile(null);
         setImageRemoved(false);
@@ -191,6 +200,9 @@ export default function ItemFormModal({
           unit_id: formData.unit_id,
           warehouse_id: formData.warehouse_id,
           status: "ACTIVE",
+          type: formData.type,
+          allowed_req: formData.allowed_req,
+          allowed_borrow: formData.allowed_borrow,
         };
         console.log("Updating item - ID:", initialData.id, "Payload:", updatePayload);
         await ItemSvc.updateInventoryItem(String(initialData.id), updatePayload);
@@ -211,6 +223,9 @@ export default function ItemFormModal({
         fd.append("unit_id", formData.unit_id);
         fd.append("warehouse_id", formData.warehouse_id);
         fd.append("status", "ACTIVE");
+        fd.append("type", formData.type);
+        fd.append("allowed_req", String(formData.allowed_req));
+        fd.append("allowed_borrow", String(formData.allowed_borrow));
         if (imageFile) fd.append("image", imageFile);
         console.log("Creating item with FormData");
         await ItemSvc.createInventoryItem(fd);
@@ -666,6 +681,60 @@ export default function ItemFormModal({
                     placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
                     className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white resize-none"
                   />
+                </div>
+
+                {/* Item Type */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold mb-2 text-slate-700">ประเภทสินค้า</label>
+                  <div className="flex gap-3">
+                    {[
+                      { value: "CONSUMABLE", label: "วัสดุสิ้นเปลือง", desc: "จัดการแบบ Lot / มีจำนวนคงคลัง" },
+                      { value: "ASSET", label: "ครุภัณฑ์", desc: "ติดตามรายชิ้น / มี Serial Number" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, type: opt.value })}
+                        className={`flex-1 text-left px-4 py-3 rounded-xl border-2 transition-all ${formData.type === opt.value ? "border-indigo-500 bg-indigo-50" : "border-slate-200 bg-white hover:border-slate-300"}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${formData.type === opt.value ? "border-indigo-500" : "border-slate-300"}`}>
+                            {formData.type === opt.value && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
+                          </span>
+                          <div>
+                            <p className={`text-sm font-semibold ${formData.type === opt.value ? "text-indigo-700" : "text-slate-700"}`}>{opt.label}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Permissions */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold mb-3 text-slate-700">สิทธิ์การใช้งาน</label>
+                  <div className="flex gap-6">
+                    {[
+                      { key: "allowed_req" as const, label: "อนุญาตให้เบิก", desc: "ผู้ใช้สามารถสร้างคำขอเบิกได้" },
+                      { key: "allowed_borrow" as const, label: "อนุญาตให้ยืม", desc: "ผู้ใช้สามารถสร้างคำขอยืมได้" },
+                    ].map(({ key, label, desc }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, [key]: !formData[key] })}
+                        className="flex items-center gap-3 group"
+                      >
+                        <div className={`w-12 h-6 rounded-full transition-colors flex-shrink-0 relative ${formData[key] ? "bg-indigo-500" : "bg-slate-300"}`}>
+                          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${formData[key] ? "translate-x-6" : "translate-x-0.5"}`} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-medium text-slate-700">{label}</p>
+                          <p className="text-xs text-slate-400">{desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Min Stock */}
