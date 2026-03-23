@@ -9,7 +9,7 @@ export const metadata = {
 
 export default async function WithdrawPage() {
   // 1. ดึงข้อมูลสินค้าทั้งหมดจาก Server Side
-  const items = await getInventoryItems();
+  const items = await getInventoryItems({ allowed_req: true }); 
 
   return (
     <main>

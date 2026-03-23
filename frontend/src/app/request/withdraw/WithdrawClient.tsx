@@ -65,7 +65,7 @@ export default function WithdrawClient({ initialItems }: Props) {
   const refreshData = useCallback(async () => {
     setIsFetching(true);
     try {
-      const data = await ItemSvc.getInventoryItems();
+      const data = await ItemSvc.getInventoryItems({ allowed_req: true });
       setItems(data || []);
     } catch (error) {
       console.error("Fetch error:", error);

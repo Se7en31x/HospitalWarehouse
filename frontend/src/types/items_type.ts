@@ -29,6 +29,9 @@ export interface ApiItem {
 	unit?: Option | null;
 	warehouse?: Option | null;
 	warehouses?: Option | null;
+	type?: string | null;
+	allowed_req?: boolean | null;
+	allowed_borrow?: boolean | null;
 }
 
 export interface UiItem {

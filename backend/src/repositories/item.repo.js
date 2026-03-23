@@ -69,7 +69,7 @@ const generateItemCode = async (category_id) => {
     return newCode;
 };
 
-const SelectAllItems = ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '', type = '' } = {}) => {
+const SelectAllItems = ({ page = 1, limit = 10, keyword = '', start_date = '', end_date = '', type = '', allowed_req, allowed_borrow  } = {}) => {
     const normalizedKeyword = (keyword || '').trim();
     const normalizedType = (type || '').trim().toUpperCase();
     const skip = (page - 1) * limit;
@@ -88,6 +88,14 @@ const SelectAllItems = ({ page = 1, limit = 10, keyword = '', start_date = '', e
         ];
     }
 
+if (allowed_req !== undefined) {
+        where.allowed_req = allowed_req;
+    }
+    
+    if (allowed_borrow !== undefined) {
+        where.allowed_borrow = allowed_borrow;
+    }
+    
     const dateFilter = {};
     if (start_date) {
         const startDate = new Date(start_date);
