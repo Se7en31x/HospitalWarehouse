@@ -11,26 +11,22 @@ export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch departments and user info from auth provider
-    const fetchAuthData = async () => {
-      try {
-        // This is a placeholder implementation
-        // You should connect to your actual auth provider (Auth0, etc.)
-        setDepartments([]);
-        setUser(null);
-      } catch (error) {
-        console.error("Error fetching auth data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    // 🚧 จำลองข้อมูลแผนก (Mock Data) เพื่อให้เทส UI ได้ทันที
+    const mockDepartments: Department[] = [
+      { code: "ER", name: "แผนกฉุกเฉิน" },
+      { code: "DENT", name: "แผนกทันตกรรม" },
+      { code: "PAL", name: "ศูนย์ชีวาภิบาล" },
+      { code: "OPD", name: "แผนกผู้ป่วยนอก" },
+      { code: "IPD", name: "แผนกผู้ป่วยใน" },
+      { code: "MED", name: "แผนกเวชระเบียน" },
+      { code: "PHAR", name: "ห้องจ่ายยา" },
+      { code: "MAIN-WH", name: "คลังหลัก" }
+    ];
 
-    fetchAuthData();
+    setDepartments(mockDepartments);
+    setUser({ name: "Tester Mode", email: "test@example.com" }); // จำลอง user
+    setIsLoading(false);
   }, []);
 
-  return {
-    departments,
-    user,
-    isLoading,
-  };
+  return { departments, user, isLoading };
 };

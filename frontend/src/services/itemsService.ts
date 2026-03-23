@@ -25,6 +25,15 @@ export interface ItemOptions {
 	unit: Item.unitOptions;
 }
 
+export interface GetItemsFilters {
+    allowed_req?: boolean;
+    allowed_borrow?: boolean;
+    keyword?: string;
+    type?: string;
+    page?: number;
+    limit?: number;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const getHeaders = () => {
@@ -89,13 +98,21 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
 	price: 0,
 	status: item.status || "ACTIVE",
 	imageUrl: item.image_url || "",
-	type: (item as any).type || "CONSUMABLE",
-	allowed_req: (item as any).allowed_req ?? true,
-	allowed_borrow: (item as any).allowed_borrow ?? false,
+	type: item.type || "CONSUMABLE",
+	allowed_req: item.allowed_req ?? true,
+	allowed_borrow: item.allowed_borrow ?? false,
 });
 
-export async function getInventoryItems(): Promise<Item.UiItem[]> {
-	const data = await request<Item.ApiItem[]>(`/v1/items`);
+export async function getInventoryItems(filters: GetItemsFilters = {}): Promise<Item.UiItem[]> {
+	const query = new URLSearchParams();
+	if (filters.allowed_req !== undefined) query.append("allowed_req", String(filters.allowed_req));
+	if (filters.allowed_borrow !== undefined) query.append("allowed_borrow", String(filters.allowed_borrow));
+	if (filters.keyword) query.append("keyword", filters.keyword);
+	if (filters.type) query.append("type", filters.type);
+	if (filters.page) query.append("page", String(filters.page));
+	if (filters.limit) query.append("limit", String(filters.limit));
+
+	const data = await request<Item.ApiItem[]>(`/v1/items?${query.toString()}`);
 	return (data || []).map(mapApiToUi);
 }
 

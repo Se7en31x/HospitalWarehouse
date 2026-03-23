@@ -7,6 +7,7 @@ import * as ItemSvc from "@/services/itemsService";
 import { socket } from "@/lib/socket";
 import BorrowCartModal from "./BorrowCartModal";
 import ItemDetailModal from "./ItemDetailModal";
+import { useAuth } from "@/lib/useAuth";
 
 interface Props {
   initialItems: ItemSvc.UiItem[];
@@ -28,9 +29,13 @@ interface BorrowHistory {
 }
 
 export default function BorrowClient({ initialItems }: Props) {
+
+  const { departments, isLoading: isAuthLoaded } = useAuth();
+  const [selectedDeptId, setSelectedDeptId] = useState<string>("");
+  
   // ✅ State สำหรับรายการ Items
   const [items, setItems] = useState<ItemSvc.UiItem[]>(initialItems || []);
-  
+
   // ✅ State สำหรับ Options (Dropdowns)
   const [categories, setCategories] = useState<ItemSvc.categoryOptions>([]);
   const [units, setUnits] = useState<ItemSvc.unitOptions>([]);
@@ -58,8 +63,8 @@ export default function BorrowClient({ initialItems }: Props) {
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<ItemSvc.UiItem | null>(null);
 
   // State ยืม/คืน
-  const [globalReturnDate, setGlobalReturnDate] = useState(''); 
-  
+  const [globalReturnDate, setGlobalReturnDate] = useState('');
+
   // Mock Data ประวัติการยืม (สำหรับการคืน)
   const [history, setHistory] = useState<BorrowHistory[]>([
     { id: 'REQ-001', itemId: '1', itemName: 'เครื่องวัดความดัน', quantity: 1, borrowDate: '2025-12-20', returnDate: '2025-12-25', status: 'BORROWED' }
@@ -70,7 +75,7 @@ export default function BorrowClient({ initialItems }: Props) {
   const refreshData = useCallback(async () => {
     setIsFetching(true);
     try {
-      const data = await ItemSvc.getInventoryItems();
+      const data = await ItemSvc.getInventoryItems({ allowed_borrow: true });
       setItems(data || []);
     } catch (error) {
       console.error("Fetch error:", error);
@@ -206,10 +211,10 @@ export default function BorrowClient({ initialItems }: Props) {
 
   const handleItemDetailConfirm = useCallback((quantity: number) => {
     if (!selectedItemForDetail) return;
-    
+
     setIsCartBouncing(true);
     setTimeout(() => setIsCartBouncing(false), 300);
-    
+
     setSelectedItems((prev) => {
       const exist = prev.find((i) => i.id === selectedItemForDetail.id);
       if (exist) {
@@ -217,8 +222,8 @@ export default function BorrowClient({ initialItems }: Props) {
         return newQty > selectedItemForDetail.stock
           ? prev
           : prev.map((i) =>
-              i.id === selectedItemForDetail.id ? { ...i, quantity: newQty } : i
-            );
+            i.id === selectedItemForDetail.id ? { ...i, quantity: newQty } : i
+          );
       }
       return [...prev, { ...selectedItemForDetail, quantity, returnDate: globalReturnDate }];
     });
@@ -251,9 +256,8 @@ export default function BorrowClient({ initialItems }: Props) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCartModal(true)}
-            className={`px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
-              isCartBouncing ? "animate-bounce-custom" : ""
-            }`}
+            className={`px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${isCartBouncing ? "animate-bounce-custom" : ""
+              }`}
           >
             <ShoppingCart className="w-4 h-4" />
             ตะกร้า ({selectedItems.length})
@@ -296,9 +300,8 @@ export default function BorrowClient({ initialItems }: Props) {
                         setIsCategoryDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors ${
-                        selectedCategory === c ? "bg-indigo-100 text-indigo-700 font-semibold" : ""
-                      }`}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors ${selectedCategory === c ? "bg-indigo-100 text-indigo-700 font-semibold" : ""
+                        }`}
                     >
                       {c}
                     </button>
@@ -331,11 +334,10 @@ export default function BorrowClient({ initialItems }: Props) {
                         setSelectedUnit(u);
                         setIsUnitDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                        selectedUnit === u
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === u
                           ? "bg-indigo-100 text-indigo-900 font-medium"
                           : "text-slate-900 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       {u}
                     </button>
@@ -368,11 +370,10 @@ export default function BorrowClient({ initialItems }: Props) {
                         setSelectedLocation(loc);
                         setIsLocationDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                        selectedLocation === loc
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedLocation === loc
                           ? "bg-indigo-100 text-indigo-900 font-medium"
                           : "text-slate-900 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       {loc}
                     </button>
@@ -494,6 +495,9 @@ export default function BorrowClient({ initialItems }: Props) {
         setGlobalReturnDate={setGlobalReturnDate}
         history={history}
         setHistory={setHistory}
+        selectedDeptId={selectedDeptId}
+        departments={departments}
+        onDeptChange={setSelectedDeptId}
       />
 
     </div>

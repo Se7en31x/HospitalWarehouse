@@ -8,14 +8,28 @@ const parseListQuery = (query) => {
     const start_date = (query.start_date || '').toString().trim();
     const end_date = (query.end_date || '').toString().trim();
     const type = (query.type || '').toString().trim();
-    return { page, limit, keyword, start_date, end_date, type };
+
+    let allowed_req = undefined;
+    if (query.allowed_req !== undefined && query.allowed_req !== '') {
+        allowed_req = query.allowed_req === 'true'; 
+    }
+
+    let allowed_borrow = undefined;
+    if (query.allowed_borrow !== undefined && query.allowed_borrow !== '') {
+        allowed_borrow = query.allowed_borrow === 'true';
+    }
+
+    return { 
+        page, limit, keyword, start_date, end_date, type, 
+        allowed_req, allowed_borrow 
+    };
 };
 
 const getItems = async (req, res) => {
     try {
         const query = parseListQuery(req.query);
-        const items = await itemService.getAllItems(query)
-        return util.sendListResponse(res, 200, "List all items success", items)
+        const items = await itemService.getAllItems(query);
+        return util.sendListResponse(res, 200, "List all items success", items);
     } catch (error) {
         return util.sendResponse(res, 500, error.message);
     }
