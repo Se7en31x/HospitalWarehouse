@@ -245,11 +245,10 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
         <select value={selectedLocation} onChange={(e) => { setSelectedLocation(e.target.value); setCurrentPage(1); }} className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
           {filterLocations.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
-        <span className="ml-auto text-sm text-slate-500">{filteredItems.length} รายการ</span>
       </div>
 
       {/* Table Content */}
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '60vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -264,8 +263,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
                 <th className="px-6 py-4 w-[150px]">รหัส</th>
-                <th className="px-6 py-4">ชื่อพัสดุ</th>
-                <th className="px-6 py-4 w-[150px]">ประเภท</th>
+                <th className="px-6 py-4 w-[300px]">ชื่อพัสดุ</th>
+                <th className="px-6 py-4 w-[200px]">ประเภท</th>
                 <th className="px-6 py-4 text-center w-[100px]">เบิก/ยืม</th>
                 <th className="px-6 py-4 text-center w-[150px]">คงเหลือ</th>
                 <th className="px-6 py-4 w-[150px]">สถานะ</th>

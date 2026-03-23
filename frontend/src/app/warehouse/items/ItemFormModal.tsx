@@ -327,9 +327,9 @@ export default function ItemFormModal({
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, name: "" })}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        ✕
+                        <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -352,7 +352,7 @@ export default function ItemFormModal({
                   ) : (
                     <div className="relative">
                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
                           value={
@@ -378,9 +378,9 @@ export default function ItemFormModal({
                               setCategorySearchQuery("");
                               setIsCategoryDropdownOpen(false);
                             }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                           >
-                            ✕
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -435,9 +435,9 @@ export default function ItemFormModal({
                             setCategorySearchQuery("");
                             setIsCategoryDropdownOpen(false);
                           }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         >
-                          ✕
+                          <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -461,7 +461,7 @@ export default function ItemFormModal({
                   ) : (
                     <div className="relative">
                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
                           value={
@@ -487,9 +487,9 @@ export default function ItemFormModal({
                               setUnitSearchQuery("");
                               setIsUnitDropdownOpen(false);
                             }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                           >
-                            ✕
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -544,9 +544,9 @@ export default function ItemFormModal({
                             setUnitSearchQuery("");
                             setIsUnitDropdownOpen(false);
                           }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         >
-                          ✕
+                          <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -570,7 +570,7 @@ export default function ItemFormModal({
                   ) : (
                     <div className="relative">
                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
                           value={
@@ -596,9 +596,9 @@ export default function ItemFormModal({
                               setWarehouseSearchQuery("");
                               setIsWarehouseDropdownOpen(false);
                             }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                           >
-                            ✕
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -653,9 +653,9 @@ export default function ItemFormModal({
                             setWarehouseSearchQuery("");
                             setIsWarehouseDropdownOpen(false);
                           }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         >
-                          ✕
+                          <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -725,8 +725,8 @@ export default function ItemFormModal({
                         onClick={() => setFormData({ ...formData, [key]: !formData[key] })}
                         className="flex items-center gap-3 group"
                       >
-                        <div className={`w-12 h-6 rounded-full transition-colors flex-shrink-0 relative ${formData[key] ? "bg-indigo-500" : "bg-slate-300"}`}>
-                          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${formData[key] ? "translate-x-6" : "translate-x-0.5"}`} />
+                        <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 relative border ${formData[key] ? "bg-indigo-500 border-indigo-500" : "bg-slate-200 border-slate-300"}`}>
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${formData[key] ? "translate-x-5" : "translate-x-0"}`} />
                         </div>
                         <div className="text-left">
                           <p className="text-sm font-medium text-slate-700">{label}</p>
