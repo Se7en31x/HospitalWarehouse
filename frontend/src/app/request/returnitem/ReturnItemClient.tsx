@@ -338,7 +338,7 @@ export default function ReturnItemClient() {
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <RefreshCw className="w-8 h-8 text-green-600" />
           <h2 className="text-3xl font-bold text-green-600">คืนครุภัณฑ์ที่ยืมมา</h2>
@@ -346,15 +346,15 @@ export default function ReturnItemClient() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหา รหัส ชื่อ หรือผู้ยืม..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-green-500 shadow-sm outline-none"
+            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-green-500 shadow-sm outline-none"
           />
         </div>
 
@@ -362,15 +362,15 @@ export default function ReturnItemClient() {
         <div className="relative" data-status-dropdown>
           <button
             onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2 w-full md:w-auto"
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
           >
-            สถานะ: {selectedStatus}
-            <ChevronDown className={`w-4 h-4 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
+            <span className="text-slate-800 font-medium">สถานะ: {selectedStatus}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Status Dropdown Menu */}
           {isStatusDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[180px]">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {statusOptions.map((status) => (
                   <li key={status}>
@@ -380,9 +380,8 @@ export default function ReturnItemClient() {
                         setIsStatusDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-green-50 transition-colors ${
-                        selectedStatus === status ? "bg-green-100 text-green-700 font-semibold" : ""
-                      }`}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === status ? "bg-green-50 text-green-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                        }`}
                     >
                       {status}
                     </button>
@@ -395,7 +394,7 @@ export default function ReturnItemClient() {
       </div>
 
       {/* Table Content */}
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col mb-6" style={{ height: '65vh' }}>
+      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
@@ -510,7 +509,7 @@ export default function ReturnItemClient() {
                 ล้างการเลือก
               </button>
             </div>
-            
+
             <div className="overflow-x-auto mb-4 max-h-40">
               <div className="flex gap-2">
                 {Array.from(selectedReturns.entries()).map(([itemId, data]) => {
@@ -530,9 +529,8 @@ export default function ReturnItemClient() {
               <button
                 onClick={submitReturns}
                 disabled={selectedReturns.size === 0}
-                className={`flex-1 py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95 ${
-                  isReturningBouncing ? "animate-bounce-custom" : ""
-                } ${selectedReturns.size === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                className={`flex-1 py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95 ${isReturningBouncing ? "animate-bounce-custom" : ""
+                  } ${selectedReturns.size === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
               >
                 <RefreshCw className="w-5 h-5" /> ยืนยันการคืน ({selectedReturns.size} รายการ)
               </button>

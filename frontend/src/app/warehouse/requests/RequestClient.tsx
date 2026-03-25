@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, ReactNode } from "react";
 import {
   Search, X, PackageCheck,
-  Building2, ChevronLeft, ChevronRight, Eye
+  Building2, ChevronLeft, ChevronRight, Eye, ChevronDown
 } from "lucide-react";
 import {
   getRequisitionHistory,
@@ -13,171 +13,6 @@ import { useAuth } from "@/lib/useAuth";
 import toast, { Toaster } from "react-hot-toast";
 import RequisitionDetailsModal from "./RequisitionDetailsModal";
 
-// ✅ Mock Data สำหรับการทดสอบและตัวอย่าง
-// ✅ Requester name mapping
-const REQUESTER_NAMES: Record<string, string> = {
-  "EMP001": "นางสาว กิตติยา สัตย์สิงห์",
-  "EMP002": "นายธีรภูมิ ศรีสวัสดิ์",
-  "EMP003": "นางสมศรี บุญรอด",
-  "EMP004": "นายเดชรัฐ ปรีชาศักดิ์",
-  "EMP005": "นางสาวจริยา กิจจารม",
-  "EMP006": "นายประสิทธิ์ วิลัยสิน",
-  "EMP007": "นางมณฑา สิทธิการ"
-};
-
-const MOCK_REQUESTS: RequisitionHeader[] = [
-  {
-    id: 1,
-    doc_no: "REQ-2026-01-001",
-    request_date: new Date("2026-03-08T14:30:00").toISOString(),
-    department_code: "ICU",
-    department_name: "หน่วยดูแลผู้ป่วยระดับวิกฤต",
-    requester_id: "EMP001",
-    status: "PENDING",
-    type: "WITHDRAW",
-    requester_name: "นางสาว กิตติยา สัตย์สิงห์",
-    requisition_item: [
-      {
-        id: 101,
-        req_qty: 50,
-        item: { name: "ถุงมือการแพทย์ Nitrile", code: "ITEM-001", current_stock: 200 }
-      },
-      {
-        id: 102,
-        req_qty: 30,
-        item: { name: "หน้ากากอนามัย N95", code: "ITEM-002", current_stock: 150 }
-      },
-      {
-        id: 103,
-        req_qty: 10,
-        item: { name: "ถุงยาง latex สำหรับตรวจ", code: "ITEM-003", current_stock: 80 }
-      }
-    ]
-  },
-  {
-    id: 2,
-    doc_no: "REQ-2026-01-002",
-    request_date: new Date("2026-03-07T10:15:00").toISOString(),
-    department_code: "ER",
-    department_name: "ห้องฉุกเฉินและอุบัติเหตุ",
-    requester_id: "EMP002",
-    status: "PENDING",
-    type: "BORROW",
-    requester_name: "นายธีรภูมิ ศรีสวัสดิ์",
-    requisition_item: [
-      {
-        id: 104,
-        req_qty: 5,
-        item: { name: "เครื่องมือตรวจสายตา Auto Refractor", code: "ITEM-004", current_stock: 8 }
-      },
-      {
-        id: 105,
-        req_qty: 20,
-        item: { name: "แอลกอฮอล์ 70% ขนาด 500 มล.", code: "ITEM-005", current_stock: 120 }
-      }
-    ]
-  },
-  {
-    id: 3,
-    doc_no: "REQ-2026-01-003",
-    request_date: new Date("2026-03-06T09:45:00").toISOString(),
-    department_code: "OPD",
-    department_name: "ห้องผู้ป่วยนอก",
-    requester_id: "EMP003",
-    status: "APPROVED",
-    type: "WITHDRAW",
-    requester_name: "นางสมศรี บุญรอด",
-    requisition_item: [
-      {
-        id: 106,
-        req_qty: 100,
-        item: { name: "กระบอกฉีดยา 3 มล.", code: "ITEM-006", current_stock: 500 }
-      },
-      {
-        id: 107,
-        req_qty: 50,
-        item: { name: "เข็มฉีดยา 25G", code: "ITEM-007", current_stock: 300 }
-      }
-    ]
-  },
-  {
-    id: 4,
-    doc_no: "REQ-2026-01-004",
-    request_date: new Date("2026-03-05T15:20:00").toISOString(),
-    department_code: "WARD-A",
-    department_name: "病棟 A (หอผู้ป่วยทั่วไป)",
-    requester_id: "EMP004",
-    status: "PENDING",
-    type: "BORROW",
-    requester_name: "นายเดชรัฐ ปรีชาศักดิ์",
-    requisition_item: [
-      {
-        id: 108,
-        req_qty: 3,
-        item: { name: "เครื่องวัดความดันโลหิตอัตโนมัติ", code: "ITEM-008", current_stock: 10 }
-      }
-    ]
-  },
-  {
-    id: 5,
-    doc_no: "REQ-2026-01-005",
-    request_date: new Date("2026-03-04T11:00:00").toISOString(),
-    department_code: "LAB",
-    department_name: "ห้องปฏิบัติการ",
-    requester_id: "EMP005",
-    status: "REJECTED",
-    type: "WITHDRAW",
-    requester_name: "นางสาวจริยา กิจจารม",
-    requisition_item: [
-      {
-        id: 109,
-        req_qty: 200,
-        item: { name: "แพตต์ +/-", code: "ITEM-009", current_stock: 50 }
-      }
-    ]
-  },
-  {
-    id: 6,
-    doc_no: "REQ-2026-01-006",
-    request_date: new Date("2026-03-08T13:30:00").toISOString(),
-    department_code: "ICU",
-    department_name: "หน่วยดูแลผู้ป่วยระดับวิกฤต",
-    requester_id: "EMP006",
-    status: "PENDING",
-    type: "WITHDRAW",
-    requester_name: "นายประสิทธิ์ วิลัยสิน",
-    requisition_item: [
-      {
-        id: 110,
-        req_qty: 40,
-        item: { name: "กระสุนอาหาร IV", code: "ITEM-010", current_stock: 180 }
-      },
-      {
-        id: 111,
-        req_qty: 25,
-        item: { name: "ผ้าปิดแผลปะดาษ", code: "ITEM-011", current_stock: 200 }
-      }
-    ]
-  },
-  {
-    id: 7,
-    doc_no: "REQ-2026-01-007",
-    request_date: new Date("2026-03-08T16:45:00").toISOString(),
-    department_code: "PHAR",
-    department_name: "ห้องเภสัชกรรม",
-    requester_id: "EMP007",
-    status: "PENDING",
-    type: "BORROW",
-    requester_name: "นางมณฑา สิทธิการ",
-    requisition_item: [
-      {
-        id: 112,
-        req_qty: 2,
-        item: { name: "ตูดาปฏิบัติการ", code: "ITEM-012", current_stock: 5 }
-      }
-    ]
-  }
-];
 
 // ✅ Helper function เพื่อดึงข้อความ Error
 const getErrorMessage = (error: unknown): string => {
@@ -190,16 +25,28 @@ const RequestClient = () => {
   const { departments } = useAuth();
   const [requests, setRequests] = useState<RequisitionHeader[]>([]);
   const [isFetching, setIsFetching] = useState(true);
-  const [useMockData, setUseMockData] = useState(
-    typeof window !== 'undefined' && localStorage.getItem('SHOW_MOCK_DATA') === 'true'
-  );
 
   // ✅ State สำหรับ Filtering & Pagination
-  const [activeTab, setActiveTab] = useState("PENDING");
+  const [activeTab, setActiveTab] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 8;
+  
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-type-dropdown]")) setIsTypeDropdownOpen(false);
+      if (!target.closest("[data-status-dropdown]")) setIsStatusDropdownOpen(false);
+    };
+    if (isTypeDropdownOpen || isStatusDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isTypeDropdownOpen, isStatusDropdownOpen]);
 
   // ✅ State สำหรับ Modal & Form
   const [showDetailsModal, setShowDetailsModal] = useState<RequisitionHeader | null>(null);
@@ -209,38 +56,21 @@ const RequestClient = () => {
   const refreshData = useCallback(async () => {
     setIsFetching(true);
     try {
-      let dataToSet: RequisitionHeader[] = [];
-
-      // ถ้าเปิดใช้ Mock Data โหลดจาก Mock แทน
-      if (useMockData) {
-        dataToSet = MOCK_REQUESTS;
-        setTimeout(() => {
-          setRequests(dataToSet);
-          toast.success("โหลดข้อมูลตัวอย่างแล้ว (Dev Mode)", { id: 'refresh-toast', duration: 2000 });
-          setIsFetching(false);
-        }, 800);
-        return;
-      }
-
       // โหลดจาก API จริง
       const result = await getRequisitionHistory();
       if (result.success) {
-        dataToSet = result.data;
-        setRequests(dataToSet);
-        toast.success("อัปเดตข้อมูลล่าสุดแล้ว", { id: 'refresh-toast', duration: 2000 });
+        setRequests(result.data);
       } else {
         throw new Error(result.message || "ไม่สามารถดึงข้อมูลได้");
       }
     } catch (err) {
       console.error("Fetch error:", err);
       toast.error(getErrorMessage(err));
-      // ใช้ Mock Data เป็นค่า Default เมื่อ API ล้มเหลว
-      setRequests(MOCK_REQUESTS);
-      toast.success("แสดงข้อมูลตัวอย่างแทน", { id: 'fallback-toast' });
+      setRequests([]);
     } finally {
       setIsFetching(false);
     }
-  }, [useMockData]);
+  }, []);
 
   // โหลดข้อมูลเมื่อ Component mount
   useEffect(() => {
@@ -259,7 +89,7 @@ const RequestClient = () => {
   // ฟังก์ชันแสดงชื่อผู้ทำรายการ
   const displayRequesterName = (req: any): string => {
     if (req.requester_name) return req.requester_name;
-    return REQUESTER_NAMES[(req as any).requester_id] || req.requester_id || "ไม่ระบุผู้ทำรายการ";
+    return req.requester_id || "ไม่ระบุผู้ทำรายการ";
   };
 
   // --- [Modal Handlers] ---
@@ -290,37 +120,31 @@ const RequestClient = () => {
 
   // --- [UI Components] ---
   const StatusBadge = ({ status }: { status: string }) => {
-    const styles: Record<string, string> = {
-      "PENDING": "text-amber-600",
-      "APPROVED": "text-emerald-600",
-      "REJECTED": "text-rose-600"
-    };
-    const labels: Record<string, string> = {
-      "PENDING": "รออนุมัติ",
-      "APPROVED": "อนุมัติแล้ว",
-      "REJECTED": "ปฏิเสธแล้ว"
-    };
+    if (status === "APPROVED") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+          อนุมัติแล้ว
+        </span>
+      );
+    }
+    if (status === "REJECTED") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700">
+          ปฏิเสธแล้ว
+        </span>
+      );
+    }
     return (
-      <span className={`text-sm font-bold ${styles[status] || "text-slate-600"}`}>
-        {labels[status] || status}
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+        รออนุมัติ
       </span>
     );
   };
 
   const TypeBadge = ({ type }: { type: string }): React.ReactNode => {
-    const styles: Record<string, string> = {
-      "WITHDRAW": "text-blue-600",
-      "BORROW": "text-orange-600"
-    };
-    const labels: Record<string, string> = {
-      "WITHDRAW": "เบิก",
-      "BORROW": "ยืม"
-    };
-    const styleClass = styles[type] || "text-slate-600";
-    const labelText = labels[type] || type;
     return (
-      <span className={`text-sm font-bold uppercase ${styleClass}`}>
-        {labelText}
+      <span className="text-slate-600 text-sm">
+        {type === "WITHDRAW" ? "เบิก" : "ยืม"}
       </span>
     );
   };
@@ -351,32 +175,80 @@ const RequestClient = () => {
             className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
-        <select
-          value={selectedType}
-          onChange={(e) => {
-            setSelectedType(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          <option value="all">ทุกประเภท</option>
-          <option value="WITHDRAW">เบิก</option>
-          <option value="BORROW">ยืม</option>
-        </select>
-        <select
-          value={activeTab}
-          onChange={(e) => {
-            setActiveTab(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          <option value="PENDING">รออนุมัติ</option>
-          <option value="APPROVED">อนุมัติแล้ว</option>
-          <option value="REJECTED">ปฏิเสธแล้ว</option>
-          <option value="all">ทุกสถานะ</option>
-        </select>
-        <span className="ml-auto text-sm text-slate-500">{filteredRequests.length} รายการ</span>
+        <div className="relative" data-type-dropdown>
+          <button
+            onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsStatusDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[160px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{selectedType === "all" ? "ทุกประเภท" : selectedType === "WITHDRAW" ? "เบิก" : "ยืม"}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {isTypeDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {[
+                  { value: 'all', label: 'ทุกประเภท' },
+                  { value: 'WITHDRAW', label: 'เบิก' },
+                  { value: 'BORROW', label: 'ยืม' }
+                ].map((t) => (
+                  <li key={t.value}>
+                    <button
+                      onClick={() => {
+                        setSelectedType(t.value);
+                        setIsTypeDropdownOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        selectedType === t.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="relative" data-status-dropdown>
+          <button
+            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsTypeDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[160px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{activeTab === "all" ? "ทุกสถานะ" : activeTab === "PENDING" ? "รออนุมัติ" : activeTab === "APPROVED" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว"}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {isStatusDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {[
+                  { value: 'all', label: 'ทุกสถานะ' },
+                  { value: 'PENDING', label: 'รออนุมัติ' },
+                  { value: 'APPROVED', label: 'อนุมัติแล้ว' },
+                  { value: 'REJECTED', label: 'ปฏิเสธแล้ว' }
+                ].map((s) => (
+                  <li key={s.value}>
+                    <button
+                      onClick={() => {
+                        setActiveTab(s.value);
+                        setIsStatusDropdownOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        activeTab === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -398,7 +270,7 @@ const RequestClient = () => {
                 <th className="px-6 py-4 w-[140px]">แผนก</th>
                 <th className="px-6 py-4 w-[90px] text-center">ประเภท</th>
                 <th className="px-6 py-4 w-[110px] text-center">สถานะ</th>
-                <th className="px-6 py-4 text-right w-[90px]">จัดการ</th>
+                <th className="px-6 py-4 text-center w-[90px]">จัดการ</th>
               </tr>
             </thead>
           </table>
@@ -419,9 +291,9 @@ const RequestClient = () => {
                     })}
                   </td>
                   <td className="px-6 py-4 w-[160px] font-medium text-slate-700">
-                    {(req as any).requester_name || REQUESTER_NAMES[(req as any).requester_id] || req.requester_id}
+                    {(req as any).requester_name || req.requester_id}
                   </td>
-                  <td className="px-6 py-4 w-[140px] font-medium text-indigo-900">
+                  <td className="px-6 py-4 w-[140px] text-slate-600">
                     {displayDeptName(req)}
                   </td>
                   <td className="px-6 py-4 w-[90px] text-center">
@@ -430,12 +302,13 @@ const RequestClient = () => {
                   <td className="px-6 py-4 w-[110px] text-center">
                     <StatusBadge status={req.status} />
                   </td>
-                  <td className="px-6 py-4 text-right w-[90px]">
+                  <td className="px-6 py-4 text-center w-[90px]">
                     <button
                       onClick={() => handleOpenDetails(req)}
-                      className="p-2.5 bg-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-lg" title="ตรวจสอบรายละเอียด"
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all inline-flex items-center justify-center"
+                      title="ตรวจสอบรายละเอียด"
                     >
-                      <Eye size={20} strokeWidth={2} />
+                      <Eye className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>

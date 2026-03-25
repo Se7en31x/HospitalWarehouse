@@ -105,8 +105,8 @@ export const approveRequisition = async (
   itemsToIssue: Record<number, number>
 ): Promise<ApiResponse<RequisitionHeader | null>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/v1/requisitions/${requisitionId}/approve`, {
-      method: "POST",
+    const response = await fetch(`${API_BASE_URL}/v1/requisitions/approve/${requisitionId}`, {
+      method: "PUT",
       headers: getHeaders(),
       body: JSON.stringify({ itemsToIssue }),
     });
@@ -125,8 +125,8 @@ export const rejectRequisition = async (
   note: string
 ): Promise<ApiResponse<RequisitionHeader | null>> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/v1/requisitions/${requisitionId}/reject`, {
-      method: "POST",
+    const response = await fetch(`${API_BASE_URL}/v1/requisitions/reject/${requisitionId}`, {
+      method: "PUT",
       headers: getHeaders(),
       body: JSON.stringify({ note }),
     });

@@ -55,3 +55,23 @@ export interface WarehousePayload {
   location?: string;
   description?: string;
 }
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contact?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  tax_id?: string | null;
+  active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SupplierPayload {
+  name: string;
+  contact?: string;
+  address?: string;
+  phone?: string;
+  tax_id?: string;
+}

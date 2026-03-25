@@ -7,6 +7,8 @@ import type {
     UnitPayload,
     Warehouse,
     WarehousePayload,
+    Supplier,
+    SupplierPayload,
 } from "@/types/settings_type";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -152,5 +154,27 @@ export const updateWarehouse = (id: string, payload: Partial<WarehousePayload>) 
 
 export const deleteWarehouse = (id: string) =>
     request<Warehouse>(`${SETTINGS_BASE}/warehouses/${id}`, {
+        method: "DELETE",
+    });
+
+// Suppliers
+export const getSuppliers = async () => {
+    return fetchAllPages<Supplier>(`${SETTINGS_BASE}/suppliers`);
+};
+
+export const createSupplier = (payload: SupplierPayload) =>
+    request<Supplier>(`${SETTINGS_BASE}/suppliers`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+
+export const updateSupplier = (id: string, payload: Partial<SupplierPayload>) =>
+    request<Supplier>(`${SETTINGS_BASE}/suppliers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+    });
+
+export const deleteSupplier = (id: string) =>
+    request<Supplier>(`${SETTINGS_BASE}/suppliers/${id}`, {
         method: "DELETE",
     });

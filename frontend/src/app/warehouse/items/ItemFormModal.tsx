@@ -272,7 +272,7 @@ export default function ItemFormModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-6 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
@@ -307,40 +307,86 @@ export default function ItemFormModal({
                 ข้อมูลพัสดุ
               </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Item Name */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold mb-2 text-slate-700">
-                    ชื่อพัสดุ <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      placeholder="ระบุชื่อพัสดุ"
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                    />
-                    {formData.name && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, name: "" })}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
+              <div className="space-y-6">
+                {/* Top section: Image + Fields */}
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* Image Upload - Left side */}
+                  <div className="w-full md:w-52 flex-shrink-0">
+                    <label className="block text-sm font-semibold mb-2 text-slate-700">
+                      รูปภาพพัสดุ
+                    </label>
+                    <div
+                      {...getRootProps()}
+                      className="relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50"
+                    >
+                      <input {...getInputProps()} />
+                      {formData.imageUrl ? (
+                        <>
+                          <img
+                            src={formData.imageUrl}
+                            className="h-32 mx-auto rounded-lg shadow-md"
+                            alt="Preview"
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setImageFile(null);
+                              setImageRemoved(true);
+                              setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                            }}
+                            className="absolute top-2 right-2 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
+                            title="ลบรูปภาพ"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+                          <p className="text-sm text-slate-500">
+                            คลิกหรือลากรูปภาพมาวางที่นี่
+                          </p>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  {formErrors.name && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {formErrors.name}
-                    </p>
-                  )}
-                </div>
 
-                {/* Category */}
+                  {/* Fields - Right side */}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Item Name */}
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold mb-2 text-slate-700">
+                        ชื่อพัสดุ <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) =>
+                            setFormData({ ...formData, name: e.target.value })
+                          }
+                          placeholder="ระบุชื่อพัสดุ"
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                        />
+                        {formData.name && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, name: "" })}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      {formErrors.name && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.name}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Category */}
                 <div data-category-dropdown>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
                     ประเภท <span className="text-red-500">*</span>
@@ -667,8 +713,34 @@ export default function ItemFormModal({
                   )}
                 </div>
 
+                {/* Min Stock */}
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-slate-700">
+                    จำนวนขั้นต่ำ (Min Stock)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.min_stock}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        min_stock: Number(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  />
+                  {formErrors.min_stock && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {formErrors.min_stock}
+                    </p>
+                  )}
+                </div>
+                </div>
+                </div>
+
                 {/* Description */}
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
                     รายละเอียด
                   </label>
@@ -684,7 +756,7 @@ export default function ItemFormModal({
                 </div>
 
                 {/* Item Type */}
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">ประเภทสินค้า</label>
                   <div className="flex gap-3">
                     {[
@@ -712,7 +784,7 @@ export default function ItemFormModal({
                 </div>
 
                 {/* Permissions */}
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-semibold mb-3 text-slate-700">สิทธิ์การใช้งาน</label>
                   <div className="flex gap-6">
                     {[
@@ -737,71 +809,6 @@ export default function ItemFormModal({
                   </div>
                 </div>
 
-                {/* Min Stock */}
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-slate-700">
-                    จำนวนขั้นต่ำ (Min Stock)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.min_stock}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        min_stock: Number(e.target.value),
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                  />
-                  {formErrors.min_stock && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {formErrors.min_stock}
-                    </p>
-                  )}
-                </div>
-
-                {/* Image Upload */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold mb-2 text-slate-700">
-                    รูปภาพพัสดุ
-                  </label>
-                  <div
-                    {...getRootProps()}
-                    className="relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50"
-                  >
-                    <input {...getInputProps()} />
-                    {formData.imageUrl ? (
-                      <>
-                        <img
-                          src={formData.imageUrl}
-                          className="h-32 mx-auto rounded-lg shadow-md"
-                          alt="Preview"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setImageFile(null);
-                            setImageRemoved(true);
-                            setFormData((prev) => ({ ...prev, imageUrl: "" }));
-                          }}
-                          className="absolute top-2 right-2 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
-                          title="ลบรูปภาพ"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-                        <p className="text-sm text-slate-500">
-                          คลิกหรือลากรูปภาพมาวางที่นี่
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
           </div>

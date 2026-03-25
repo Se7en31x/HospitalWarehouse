@@ -4,10 +4,11 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { 
-  Plus, Eye, Search, Calendar,
-  MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownToLine, AlertCircle, X, Save
+  Plus, Eye, ChevronLeft, ChevronRight, ChevronDown,
+  AlertCircle, X, Save, Loader2
 } from "lucide-react";
 import * as stockInService from "@/services/stockInService";
+import { getcategoriesOptions } from "@/services/itemsService";
 import ReceiveFormModal from "./ReceiveFormModal";
 
 interface StockInRecord {
@@ -17,6 +18,7 @@ interface StockInRecord {
   supplier: string;
   poNumber?: string;
   totalAmount: number;
+  type: string;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
 }
 
@@ -56,10 +58,19 @@ const generateDocNumber = (index: number): string => {
   return `DOC-${String(index + 1).padStart(6, '0')}`;
 };
 
+const statusOptions = [
+  { value: "ALL", label: "ทุกสถานะ" },
+  { value: "COMPLETED", label: "เสร็จสมบูรณ์" },
+  { value: "PENDING", label: "รอดำเนินการ" },
+  { value: "CANCELLED", label: "ยกเลิก" },
+];
+
 export default function StockInClient({ initialHistory = [] }: Props) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ทุกหมวดหมู่");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [history, setHistory] = useState<StockInRecord[]>(initialHistory);
@@ -76,6 +87,36 @@ export default function StockInClient({ initialHistory = [] }: Props) {
   const [selectedFormRecord, setSelectedFormRecord] = useState<StockInRecord | null>(null);
   const itemsPerPage = 10;
 
+  // Dropdown open states
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
+      if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
+    };
+    if (isCategoryOpen || isStatusOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isCategoryOpen, isStatusOpen]);
+
+  // Fetch category options
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getcategoriesOptions();
+        setCategories(data || []);
+      } catch (err) {
+        console.error("Load categories options failed", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
   // Fetch data function
   const refreshData = useCallback(async () => {
     setIsFetching(true);
@@ -91,6 +132,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         supplier: item.supplier || 'ไม่ระบุ',
         poNumber: item.poNumber || item.po_number || '-',
         totalAmount: item.totalAmount || 0,
+        type: item.type || 'PURCHASE',
         status: mapStatus(item.status)
       }));
       
@@ -103,13 +145,11 @@ export default function StockInClient({ initialHistory = [] }: Props) {
       console.error("Error fetching stock in data:", error);
       setApiError(errorMsg);
       toast.error("ไม่สามารถดึงข้อมูลได้: " + errorMsg);
-      // Keep previous data on error instead of clearing
     } finally {
       setIsFetching(false);
     }
   }, []);
 
-  // Mock data for demonstration
   useEffect(() => {
     if (history.length === 0) {
       refreshData();
@@ -122,13 +162,9 @@ export default function StockInClient({ initialHistory = [] }: Props) {
     setSelectedRecord(record);
     
     try {
-      // Fetch actual lot details from API
       const lotDetail = await stockInService.getLotDetail(record.id);
       
       if (lotDetail) {
-        // Use actual data from API
-        // total_value = จำนวนที่สั่งซื้อ (quantity ordered)
-        // quantity = จำนวนที่รับจริง (quantity received)
         const quantityOrdered = lotDetail.total_value || lotDetail.quantityOrdered || 0;
         const quantityReceived = lotDetail.quantity || 0;
         
@@ -137,7 +173,6 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         
         console.log("Lot detail loaded:", { quantityOrdered, quantityReceived });
       } else {
-        // Fallback if API returns no data
         setOrderedQuantity(0);
         setEditedQuantity(0);
         toast.error("ไม่สามารถดึงข้อมูลรายละเอียดได้");
@@ -169,17 +204,14 @@ export default function StockInClient({ initialHistory = [] }: Props) {
     try {
       console.log("Starting save with:", { lotId: selectedRecord.id, editedQuantity, orderedQuantity });
       
-      // Call API to update quantity
       const updateResponse = await stockInService.updateLotQuantity(selectedRecord.id, editedQuantity);
       console.log("Update response:", updateResponse);
 
-      // Determine status based on quantity completion
       const isComplete = editedQuantity >= orderedQuantity;
       const newStatus: 'PENDING' | 'COMPLETED' | 'CANCELLED' = isComplete ? 'COMPLETED' : 'PENDING';
 
       console.log("New status:", newStatus, "isComplete:", isComplete);
 
-      // Update the record in history with new status
       setHistory((prevHistory) => {
         const updatedHistory = prevHistory.map((item) =>
           item.id === selectedRecord.id
@@ -190,7 +222,6 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         return updatedHistory;
       });
 
-      // Show appropriate message
       if (isComplete) {
         toast.success("ได้รับสินค้าครบแล้ว - สถานะเปลี่ยนเป็น เสร็จสมบูรณ์");
       } else {
@@ -199,7 +230,6 @@ export default function StockInClient({ initialHistory = [] }: Props) {
 
       handleCloseDetail();
       
-      // Refresh data after short delay to ensure backend is updated
       setTimeout(() => {
         console.log("Refreshing data from backend...");
         refreshData();
@@ -221,9 +251,9 @@ export default function StockInClient({ initialHistory = [] }: Props) {
             item.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.docNo.toLowerCase().includes(searchTerm.toLowerCase());
         
+        const matchesCat = selectedCategory === "ทุกหมวดหมู่" || item.type === selectedCategory;
         const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
         
-        // Date range filter
         let matchesDate = true;
         if (startDate && endDate) {
           const itemDate = new Date(item.date);
@@ -240,9 +270,9 @@ export default function StockInClient({ initialHistory = [] }: Props) {
           matchesDate = itemDate <= end;
         }
         
-        return matchesSearch && matchesStatus && matchesDate;
+        return matchesSearch && matchesCat && matchesStatus && matchesDate;
     });
-  }, [history, searchTerm, statusFilter, startDate, endDate]);
+  }, [history, searchTerm, selectedCategory, statusFilter, startDate, endDate]);
 
   // --- Logic: Pagination ---
   const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
@@ -250,6 +280,9 @@ export default function StockInClient({ initialHistory = [] }: Props) {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const filterCategories = ["ทุกหมวดหมู่", ...categories.map(c => c.name)];
+  const statusLabel = statusOptions.find(s => s.value === statusFilter)?.label || "ทุกสถานะ";
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
@@ -272,8 +305,8 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         </div>
       )}
       
-      {/* 1. Header Section */}
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
         </div>
@@ -287,62 +320,105 @@ export default function StockInClient({ initialHistory = [] }: Props) {
         </div>
       </div>
 
-
-
-      {/* 3. Filter Toolbar */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input 
-            type="text" 
-            placeholder="ค้นหา..." 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" 
-          />
+        {/* Category Dropdown */}
+        <div className="relative" data-filter-category>
+          <button
+            type="button"
+            onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{selectedCategory}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isCategoryOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterCategories.map(c => (
+                  <li key={c}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-        <select 
-          value={statusFilter} 
-          onChange={(e) => setStatusFilter(e.target.value)} 
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          <option value="ALL">ทุกสถานะ</option>
-          <option value="COMPLETED">เสร็จสมบูรณ์</option>
-          <option value="PENDING">รอดำเนินการ</option>
-          <option value="CANCELLED">ยกเลิก</option>
-        </select>
+
+        {/* Status Dropdown */}
+        <div className="relative" data-filter-status>
+          <button
+            type="button"
+            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{statusLabel}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isStatusOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {statusOptions.map(s => (
+                  <li key={s.value}>
+                    <button
+                      type="button"
+                      onClick={() => { setStatusFilter(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        statusFilter === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Date Range */}
         <input 
           type="date"
           value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
         />
         <span className="text-slate-400 text-sm">ถึง</span>
         <input 
           type="date"
           value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
         />
       </div>
 
-      {/* 4. Data Table */}
-      <div className="h-[65vh] rounded-xl bg-white shadow-lg overflow-hidden relative border border-slate-100">
+      {/* Table Content */}
+      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+            <div className="animate-spin">
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+            </div>
           </div>
         )}
-        <div className="overflow-x-auto h-full flex flex-col">
-          <table className="w-full text-sm text-left flex-1">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
+          <table className="w-full text-sm text-left table-fixed">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
                 <th className="px-6 py-4 w-[150px]">วันที่รับ</th>
                 <th className="px-6 py-4 w-[200px]">Lot Code</th>
                 <th className="px-6 py-4 w-[200px]">PO/Invoice</th>
-                <th className="px-6 py-4">ผู้จำหน่าย</th>
+                <th className="px-6 py-4 w-[200px]">ผู้จำหน่าย</th>
                 <th className="px-6 py-4 text-right w-[120px]">ยอดรวม</th>
                 <th className="px-6 py-4 text-center w-[150px]">สถานะ</th>
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
@@ -351,7 +427,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {paginatedHistory.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                   <td className="px-6 py-4">{generateDocNumber((currentPage - 1) * itemsPerPage + idx)}</td>
                   <td className="px-6 py-4">{item.date}</td>
                   <td className="px-6 py-4 font-mono">{item.docNo || '-'}</td>
@@ -367,7 +443,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
                         setSelectedFormRecord(item);
                         setIsReceiveFormModalOpen(true);
                       }}
-                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                      className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
@@ -376,7 +452,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
               ))}
               {paginatedHistory.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
@@ -395,11 +471,11 @@ export default function StockInClient({ initialHistory = [] }: Props) {
       <div className="flex items-center justify-between mt-6">
         <p className="text-sm text-slate-500">แสดง {paginatedHistory.length} จาก {filteredHistory.length} รายการ</p>
         <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border rounded-lg disabled:opacity-30 hover:bg-slate-50">
+          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border rounded-lg disabled:opacity-30">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-          <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border rounded-lg disabled:opacity-30 hover:bg-slate-50">
+          <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border rounded-lg disabled:opacity-30">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

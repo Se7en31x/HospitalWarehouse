@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
   PackagePlus, Search, Edit, Package,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ChevronDown,
   Trash2, X
 } from "lucide-react";
 
@@ -114,9 +114,27 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [selectedCategory, setSelectedCategory] = useState("ทุกหมวดหมู่");
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
   const [selectedLocation, setSelectedLocation] = useState("ที่ตั้งทั้งหมด");
-  const [selectedType, setSelectedType] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Dropdown open states
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
+      if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
+      if (!target.closest("[data-filter-location]")) setIsLocationOpen(false);
+    };
+    if (isCategoryOpen || isStatusOpen || isLocationOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isCategoryOpen, isStatusOpen, isLocationOpen]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -137,9 +155,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     const matchesCat = selectedCategory === "ทุกหมวดหมู่" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "ทั้งหมด" || item.status === selectedStatus;
     const matchesLocation = selectedLocation === "ที่ตั้งทั้งหมด" || item.location === selectedLocation;
-    const matchesType = !selectedType || item.type === selectedType;
 
-    return matchesSearch && matchesCat && matchesStatus && matchesLocation && matchesType;
+    return matchesSearch && matchesCat && matchesStatus && matchesLocation;
   });
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -205,50 +222,106 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
         </div>
       </div>
 
-      {/* Type Tabs */}
-      <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-xl w-fit">
-        {[
-          { value: "", label: "ทั้งหมด" },
-          { value: "CONSUMABLE", label: "วัสดุสิ้นเปลือง" },
-          { value: "ASSET", label: "ครุภัณฑ์" },
-        ].map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => { setSelectedType(tab.value); setCurrentPage(1); }}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              selectedType === tab.value
-                ? "bg-white text-blue-700 shadow-sm font-semibold"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input type="text" placeholder="ค้นหาชื่อ / รหัส..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
         </div>
-        <select value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }} className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          {filterCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={selectedStatus} onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }} className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="ทั้งหมด">ทุกสถานะ</option>
-          <option value="ปกติ">ปกติ</option>
-          <option value="ต่ำ">ต่ำ</option>
-          <option value="หมด">หมด</option>
-          <option value="ระงับ">ระงับ</option>
-        </select>
-        <select value={selectedLocation} onChange={(e) => { setSelectedLocation(e.target.value); setCurrentPage(1); }} className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          {filterLocations.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
+
+        {/* Category Dropdown */}
+        <div className="relative" data-filter-category>
+          <button
+            type="button"
+            onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); setIsLocationOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{selectedCategory}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isCategoryOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterCategories.map(c => (
+                  <li key={c}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                      {c}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Status Dropdown */}
+        <div className="relative" data-filter-status>
+          <button
+            type="button"
+            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); setIsLocationOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{selectedStatus === "ทั้งหมด" ? "ทุกสถานะ" : selectedStatus}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isStatusOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {[{ value: "ทั้งหมด", label: "ทุกสถานะ" }, { value: "ปกติ", label: "ปกติ" }, { value: "ต่ำ", label: "ต่ำ" }, { value: "หมด", label: "หมด" }, { value: "ระงับ", label: "ระงับ" }].map(s => (
+                  <li key={s.value}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Location Dropdown */}
+        <div className="relative" data-filter-location>
+          <button
+            type="button"
+            onClick={() => { setIsLocationOpen(!isLocationOpen); setIsCategoryOpen(false); setIsStatusOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">{selectedLocation}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isLocationOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterLocations.map(l => (
+                  <li key={l}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedLocation(l); setIsLocationOpen(false); setCurrentPage(1); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedLocation === l ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                      {l}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table Content */}
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '60vh' }}>
+      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -291,21 +364,15 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                   </td>
                   <td className="px-6 py-4">{item.code}</td>
                   <td className="px-6 py-4">{item.name}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                      item.category === "ครุภัณฑ์" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"
-                    }`}>
-                      {item.category}
-                    </span>
+                  <td className="px-6 py-4 text-slate-600">
+                    {item.category}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex items-center justify-center gap-2 text-xs">
-                      <span className={`px-1.5 py-0.5 rounded font-medium ${
-                        item.allowed_req ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
-                      }`}>เบิก</span>
-                      <span className={`px-1.5 py-0.5 rounded font-medium ${
-                        item.allowed_borrow ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
-                      }`}>ยืม</span>
+                      <span className={`px-1.5 py-0.5 rounded font-medium ${item.allowed_req ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                        }`}>เบิก</span>
+                      <span className={`px-1.5 py-0.5 rounded font-medium ${item.allowed_borrow ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
+                        }`}>ยืม</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">{item.stock} {item.unit}</td>

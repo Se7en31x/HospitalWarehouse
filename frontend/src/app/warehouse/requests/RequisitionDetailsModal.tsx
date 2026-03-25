@@ -6,10 +6,10 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  RequisitionHeader,
   approveRequisition,
   rejectRequisition
 } from "../../../services/requisitionService";
+import { RequisitionHeader } from "../../../types/requisition_type";
 
 interface RequisitionDetailsModalProps {
   isOpen: boolean;
@@ -30,13 +30,14 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
 }) => {
   const [issuedQtys, setIssuedQtys] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
 
   // Initialize quantities when modal opens
   useEffect(() => {
     if (isOpen && requisition) {
       const initialQtys: Record<number, number> = {};
       requisition.requisition_item.forEach((item: any) => {
-        initialQtys[item.id] = Math.min(item.req_qty, item.item?.current_stock || 0);
+        initialQtys[item.id] = Math.min(item.req_qty, item.items?.current_stock || 0);
       });
       setIssuedQtys(initialQtys);
     }
@@ -103,7 +104,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-        
+
         {/* Header */}
         <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50/50">
           <div className="flex items-center gap-4">
@@ -124,23 +125,23 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-8 overflow-y-auto space-y-6 flex-1">
+        <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Department Info */}
-          <div className="grid grid-cols-2 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+          <div className="grid grid-cols-2 gap-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
             <div className="flex items-center gap-3">
-              <User size={18} className="text-indigo-600" />
+              <User size={24} className="text-indigo-600" />
               <div>
                 <p className="text-xs text-indigo-400 uppercase font-bold">ชื่อผู้ทำรายการ</p>
-                <p className="text-sm font-bold text-indigo-900">
+                <p className="text-2lg font-bold text-indigo-900">
                   {displayRequesterName ? displayRequesterName(requisition) : requisition.requester_id}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Building2 size={18} className="text-indigo-600" />
+              <Building2 size={24} className="text-indigo-600" />
               <div>
                 <p className="text-xs text-indigo-400 uppercase font-bold">แผนกที่ร้องขอ</p>
-                <p className="text-sm font-bold text-indigo-900">{displayDeptName(requisition)}</p>
+                <p className="text-2lg font-bold text-indigo-900">{displayDeptName(requisition)}</p>
               </div>
             </div>
           </div>
@@ -150,23 +151,39 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-sm font-black text-slate-500 uppercase tracking-widest">
                 <tr>
+                  <th className="px-6 py-4 text-center w-[80px]">รูป</th>
                   <th className="px-6 py-4 text-left">รายการพัสดุ</th>
                   <th className="px-4 py-4 text-center w-[120px]">ยอดที่ขอ</th>
-                  <th className="px-4 py-4 text-center w-[120px]">คงเหลือในคลัง</th>
+                  <th className="px-4 py-4 text-center w-[150px]">คงเหลือในคลัง</th>
                   <th className="px-6 py-4 text-right w-[240px]">อนุมัติจ่ายจริง</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {requisition.requisition_item.map((row: any) => {
                   const currentIssued = issuedQtys[row.id] || 0;
-                  const dbStock = row.item?.current_stock || 0;
+                  const dbStock = row.items?.current_stock || 0;
                   const dbReq = row.req_qty || 0;
 
                   return (
                     <tr key={row.id} className="h-[80px]">
+                      <td className="px-6 py-2">
+                        <div className="w-10 h-10 mx-auto rounded-lg bg-slate-100 overflow-hidden shrink-0">
+                          {row.items?.image_url ? (
+                            <button
+                              onClick={() => setPreviewImage({ url: row.items.image_url, name: row.items?.name || "รายการพัสดุ" })}
+                              className="w-full h-full focus:outline-none"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={row.items.image_url} className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in" alt={row.items?.name || "Item"} />
+                            </button>
+                          ) : (
+                            <PackageCheck className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6">
-                        <p className="font-bold text-slate-800">{row.item?.name}</p>
-                        <p className="text-xs text-slate-400 font-mono italic">Code: {row.item?.code}</p>
+                        <p className="font-bold text-slate-800">{row.items?.name}</p>
+                        <p className="text-xs text-slate-400 font-mono italic">Code: {row.items?.code}</p>
                       </td>
                       <td className="px-4 text-center font-bold text-slate-400 text-lg">{dbReq}</td>
                       <td className="px-4 text-center font-bold text-slate-800 text-lg bg-slate-50/50">{dbStock}</td>
@@ -234,6 +251,33 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-3xl max-h-[90vh] p-2 bg-white rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImage.url}
+              alt={previewImage.name}
+              className="max-w-full max-h-[80vh] object-contain rounded-xl"
+            />
+            <p className="text-center text-sm text-slate-600 mt-2 pb-1">{previewImage.name}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
