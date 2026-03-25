@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import {
     Plus, Eye, Search, ChevronLeft, ChevronRight,
-    Loader2, AlertCircle,
+    ChevronDown, AlertCircle,
 } from "lucide-react";
 import * as receiveService from "@/services/receiveService";
 import type { ReceiveHeader, ReceiveStatus, ReceiveType } from "@/services/receiveService";
@@ -20,8 +20,8 @@ const TYPE_LABEL: Record<ReceiveType, string> = {
 
 const TYPE_COLOR: Record<ReceiveType, string> = {
     PURCHASE: "bg-blue-100 text-blue-700",
-    DONATION: "bg-purple-100 text-purple-700",
-    PURCHASE_ASSET: "bg-orange-100 text-orange-700",
+    DONATION: "bg-blue-100 text-blue-700",
+    PURCHASE_ASSET: "bg-blue-100 text-blue-700",
 };
 
 const STATUS_CONFIG: Record<ReceiveStatus, { color: string; label: string; dot: string }> = {
@@ -57,6 +57,20 @@ const formatDate = (iso: string) => {
 
 // ============ Main Component ============
 
+const typeOptions = [
+    { value: "", label: "ทุกประเภท" },
+    { value: "PURCHASE", label: "จัดซื้อ" },
+    { value: "DONATION", label: "บริจาค" },
+    { value: "PURCHASE_ASSET", label: "ครุภัณฑ์" },
+];
+
+const statusOptions = [
+    { value: "", label: "ทุกสถานะ" },
+    { value: "PENDING", label: "รอดำเนินการ" },
+    { value: "COMPLETED", label: "เสร็จสมบูรณ์" },
+    { value: "CANCELLED", label: "ยกเลิก" },
+];
+
 export default function ReceiveClient() {
     const router = useRouter();
 
@@ -74,6 +88,23 @@ export default function ReceiveClient() {
     const [endDate, setEndDate] = useState("");
     const [page, setPage] = useState(1);
     const limit = 10;
+
+    // Dropdown open states
+    const [isTypeOpen, setIsTypeOpen] = useState(false);
+    const [isStatusOpen, setIsStatusOpen] = useState(false);
+
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest("[data-filter-type]")) setIsTypeOpen(false);
+            if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
+        };
+        if (isTypeOpen || isStatusOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }
+    }, [isTypeOpen, isStatusOpen]);
 
     const fetchData = useCallback(async () => {
         setIsFetching(true);
@@ -129,7 +160,7 @@ export default function ReceiveClient() {
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6">
                 <h2 className="text-3xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
                 <button
                     onClick={() => router.push("/warehouse/receives/createform")}
@@ -152,59 +183,99 @@ export default function ReceiveClient() {
                     />
                 </div>
 
-                <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                    <option value="">ทุกประเภท</option>
-                    <option value="PURCHASE">จัดซื้อ</option>
-                    <option value="DONATION">บริจาค</option>
-                    <option value="PURCHASE_ASSET">ครุภัณฑ์</option>
-                </select>
+                {/* Type Dropdown */}
+                <div className="relative" data-filter-type>
+                    <button
+                        type="button"
+                        onClick={() => { setIsTypeOpen(!isTypeOpen); setIsStatusOpen(false); }}
+                        className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+                    >
+                        <span className="text-slate-800 font-medium">{typeOptions.find(t => t.value === typeFilter)?.label || "ทุกประเภท"}</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isTypeOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {isTypeOpen && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+                            <ul className="py-1">
+                                {typeOptions.map(t => (
+                                    <li key={t.value}>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setTypeFilter(t.value); setIsTypeOpen(false); }}
+                                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${typeFilter === t.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                                                }`}
+                                        >
+                                            {t.label}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
 
-                <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                    <option value="">ทุกสถานะ</option>
-                    <option value="PENDING">รอดำเนินการ</option>
-                    <option value="COMPLETED">เสร็จสมบูรณ์</option>
-                    <option value="CANCELLED">ยกเลิก</option>
-                </select>
+                {/* Status Dropdown */}
+                <div className="relative" data-filter-status>
+                    <button
+                        type="button"
+                        onClick={() => { setIsStatusOpen(!isStatusOpen); setIsTypeOpen(false); }}
+                        className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+                    >
+                        <span className="text-slate-800 font-medium">{statusOptions.find(s => s.value === statusFilter)?.label || "ทุกสถานะ"}</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {isStatusOpen && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+                            <ul className="py-1">
+                                {statusOptions.map(s => (
+                                    <li key={s.value}>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setStatusFilter(s.value); setIsStatusOpen(false); }}
+                                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${statusFilter === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
+                                                }`}
+                                        >
+                                            {s.label}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
 
                 <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                 />
                 <span className="text-slate-400 text-sm">ถึง</span>
                 <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                 />
             </div>
 
             {/* Table */}
-            <div className="h-[65vh] rounded-xl bg-white shadow-lg overflow-hidden relative border border-slate-100">
+            <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
                 {isFetching && (
                     <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-                        <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                        <div className="animate-spin">
+                            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+                        </div>
                     </div>
                 )}
-                <div className="overflow-x-auto h-full flex flex-col">
-                    <table className="w-full text-sm text-left border-collapse">
+                <div className="overflow-x-auto overflow-y-auto flex-1">
+                    <table className="w-full text-sm text-left table-fixed">
                         <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                             <tr>
                                 <th className="px-4 py-4 w-[50px] text-center">#</th>
-                                <th className="px-4 py-4 w-[220px]">เลขที่เอกสาร</th>
+                                <th className="px-4 py-4 w-[200px]">เลขที่เอกสาร</th>
                                 <th className="px-4 py-4 w-[110px]">วันที่รับ</th>
                                 <th className="px-4 py-4 w-[100px]">ประเภท</th>
-                                <th className="px-4 py-4 min-w-[250px]">ผู้จำหน่าย / ผู้บริจาค</th>
+                                <th className="px-4 py-4 w-[250px]">ผู้จำหน่าย / ผู้บริจาค</th>
                                 <th className="px-4 py-4 w-[100px] text-center">จำนวนรายการ</th>
                                 <th className="px-4 py-4 w-[130px] text-center">สถานะ</th>
                                 <th className="px-4 py-4 w-[80px] text-center">จัดการ</th>
@@ -220,8 +291,8 @@ export default function ReceiveClient() {
                                     <td className="px-4 py-4 whitespace-nowrap">
                                         {formatDate(rec.receive_date)}
                                     </td>
-                                    <td className="px-4 py-4">
-                                        <TypeBadge type={rec.type} />
+                                    <td className="px-4 py-4 text-slate-600">
+                                        {TYPE_LABEL[rec.type as ReceiveType] ?? rec.type}
                                     </td>
                                     <td className="px-4 py-4">
                                         <div className="line-clamp-1" title={rec.supplier_name || rec.donor_name || undefined}>

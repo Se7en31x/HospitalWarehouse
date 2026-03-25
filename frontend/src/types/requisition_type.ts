@@ -25,6 +25,7 @@ export interface RequisitionItem {
     name: string;
     code: string;
     current_stock: number;
+    image_url?: string;
   };
   note?: string;
 }

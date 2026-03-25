@@ -84,7 +84,7 @@ class RequisitionRepository {
       },
       include: {
         requisition_item: {
-          include: { items: { select: { name: true, code: true, current_stock: true } } }
+          include: { items: { select: { name: true, code: true, current_stock: true, image_url: true } } }
         }
       },
       orderBy: { request_date: 'desc' }

@@ -7,6 +7,7 @@ import {
   Ruler,
   Settings,
   Warehouse as WarehouseIcon,
+  Truck,
   Edit2,
   Trash2,
   ChevronLeft,
@@ -21,23 +22,29 @@ import type {
   UnitPayload,
   Warehouse,
   WarehousePayload,
+  Supplier,
+  SupplierPayload,
 } from "@/types/settings_type";
 import {
   createCategory,
   createUnit,
   createWarehouse,
+  createSupplier,
   deleteCategory,
   deleteUnit,
   deleteWarehouse,
+  deleteSupplier,
   getCategories,
   getUnits,
   getWarehouses,
+  getSuppliers,
   updateCategory,
   updateUnit,
   updateWarehouse,
+  updateSupplier,
 } from "@/services/settingsService";
 
-type TabType = "categories" | "units" | "warehouses";
+type TabType = "categories" | "units" | "warehouses" | "suppliers";
 type FormMode = "create" | "edit";
 
 const ITEMS_PER_PAGE = 10;
@@ -50,11 +57,13 @@ export default function SettingsPage() {
     categories: "",
     units: "",
     warehouses: "",
+    suppliers: "",
   });
   const [pageByTab, setPageByTab] = useState<Record<TabType, number>>({
     categories: 1,
     units: 1,
     warehouses: 1,
+    suppliers: 1,
   });
   
   // Form Modal State
@@ -68,26 +77,31 @@ export default function SettingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   const [categoryForm, setCategoryForm] = useState<CategoryPayload>({ name: "", code_prefix: "", description: "" });
   const [unitForm, setUnitForm] = useState<UnitPayload>({ name: "", description: "" });
   const [warehouseForm, setWarehouseForm] = useState<WarehousePayload>({ name: "", location: "", description: "" });
+  const [supplierForm, setSupplierForm] = useState<SupplierPayload>({ name: "", contact: "", address: "", phone: "", tax_id: "" });
 
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [editingWarehouseId, setEditingWarehouseId] = useState<string | null>(null);
+  const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
 
   const loadAllData = async () => {
     setIsLoading(true);
     try {
-      const [cats, uns, whs] = await Promise.all([
+      const [cats, uns, whs, sups] = await Promise.all([
         getCategories(),
         getUnits(),
         getWarehouses(),
+        getSuppliers(),
       ]);
       setCategories(cats || []);
       setUnits(uns || []);
       setWarehouses(whs || []);
+      setSuppliers(sups || []);
     } catch (error) {
       alert(error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
@@ -102,13 +116,15 @@ export default function SettingsPage() {
   const sectionTitle = useMemo(() => {
     if (activeTab === "categories") return "รายการประเภทพัสดุ";
     if (activeTab === "units") return "รายการหน่วยนับ";
-    return "รายการคลังสินค้า";
+    if (activeTab === "warehouses") return "รายการคลังสินค้า";
+    return "รายการผู้จำหน่าย";
   }, [activeTab]);
 
   const formTitle = useMemo(() => {
     if (activeTab === "categories") return formMode === "create" ? "เพิ่มประเภทพัสดุ" : "แก้ไขประเภทพัสดุ";
     if (activeTab === "units") return formMode === "create" ? "เพิ่มหน่วยนับ" : "แก้ไขหน่วยนับ";
-    return formMode === "create" ? "เพิ่มคลังสินค้า" : "แก้ไขคลังสินค้า";
+    if (activeTab === "warehouses") return formMode === "create" ? "เพิ่มคลังสินค้า" : "แก้ไขคลังสินค้า";
+    return formMode === "create" ? "เพิ่มผู้จำหน่าย" : "แก้ไขผู้จำหน่าย";
   }, [formMode, activeTab]);
 
   const filteredCategories = useMemo(() => {
@@ -144,13 +160,25 @@ export default function SettingsPage() {
     );
   }, [warehouses, keywordByTab.warehouses]);
 
+  const filteredSuppliers = useMemo(() => {
+    const keyword = keywordByTab.suppliers.trim().toLowerCase();
+    if (!keyword) return suppliers;
+    return suppliers.filter((sup) =>
+      [sup.name, sup.contact || "", sup.address || "", sup.phone || "", sup.tax_id || ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [suppliers, keywordByTab.suppliers]);
+
   const totalByTab = useMemo(
     () => ({
       categories: filteredCategories.length,
       units: filteredUnits.length,
       warehouses: filteredWarehouses.length,
+      suppliers: filteredSuppliers.length,
     }),
-    [filteredCategories.length, filteredUnits.length, filteredWarehouses.length]
+    [filteredCategories.length, filteredUnits.length, filteredWarehouses.length, filteredSuppliers.length]
   );
 
   const totalPagesByTab = useMemo(
@@ -158,6 +186,7 @@ export default function SettingsPage() {
       categories: Math.max(1, Math.ceil(totalByTab.categories / ITEMS_PER_PAGE)),
       units: Math.max(1, Math.ceil(totalByTab.units / ITEMS_PER_PAGE)),
       warehouses: Math.max(1, Math.ceil(totalByTab.warehouses / ITEMS_PER_PAGE)),
+      suppliers: Math.max(1, Math.ceil(totalByTab.suppliers / ITEMS_PER_PAGE)),
     }),
     [totalByTab]
   );
@@ -167,6 +196,7 @@ export default function SettingsPage() {
       categories: Math.min(pageByTab.categories, totalPagesByTab.categories),
       units: Math.min(pageByTab.units, totalPagesByTab.units),
       warehouses: Math.min(pageByTab.warehouses, totalPagesByTab.warehouses),
+      suppliers: Math.min(pageByTab.suppliers, totalPagesByTab.suppliers),
     }),
     [pageByTab, totalPagesByTab]
   );
@@ -186,6 +216,11 @@ export default function SettingsPage() {
     return filteredWarehouses.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredWarehouses, pageByTabSafe.warehouses]);
 
+  const pagedSuppliers = useMemo(() => {
+    const start = (pageByTabSafe.suppliers - 1) * ITEMS_PER_PAGE;
+    return filteredSuppliers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredSuppliers, pageByTabSafe.suppliers]);
+
   const activeTotal = totalByTab[activeTab];
   const activePage = pageByTabSafe[activeTab];
   const activeTotalPages = totalPagesByTab[activeTab];
@@ -193,7 +228,8 @@ export default function SettingsPage() {
   const searchPlaceholder = useMemo(() => {
     if (activeTab === "categories") return "ค้นหาประเภท (ชื่อ, prefix, รายละเอียด)";
     if (activeTab === "units") return "ค้นหาหน่วย (ชื่อ, รายละเอียด)";
-    return "ค้นหาคลัง (ชื่อ, สถานที่, รายละเอียด)";
+    if (activeTab === "warehouses") return "ค้นหาคลัง (ชื่อ, สถานที่, รายละเอียด)";
+    return "ค้นหาผู้จำหน่าย (ชื่อ, ผู้ติดต่อ, โทรศัพท์)";
   }, [activeTab]);
 
   useEffect(() => {
@@ -201,6 +237,7 @@ export default function SettingsPage() {
       categories: Math.min(prev.categories, totalPagesByTab.categories),
       units: Math.min(prev.units, totalPagesByTab.units),
       warehouses: Math.min(prev.warehouses, totalPagesByTab.warehouses),
+      suppliers: Math.min(prev.suppliers, totalPagesByTab.suppliers),
     }));
   }, [totalPagesByTab]);
 
@@ -217,6 +254,10 @@ export default function SettingsPage() {
     if (activeTab === "warehouses") {
       setEditingWarehouseId(null);
       setWarehouseForm({ name: "", location: "", description: "" });
+    }
+    if (activeTab === "suppliers") {
+      setEditingSupplierId(null);
+      setSupplierForm({ name: "", contact: "", address: "", phone: "", tax_id: "" });
     }
     setIsFormModalOpen(true);
   };
@@ -243,6 +284,12 @@ export default function SettingsPage() {
         else await createWarehouse(warehouseForm);
         success = true;
       }
+      if (activeTab === "suppliers") {
+        if (!supplierForm.name.trim()) throw new Error("กรุณากรอกชื่อผู้จำหน่าย");
+        if (editingSupplierId) await updateSupplier(editingSupplierId, supplierForm);
+        else await createSupplier(supplierForm);
+        success = true;
+      }
       if (success) {
         await loadAllData();
         setIsFormModalOpen(false);
@@ -267,6 +314,7 @@ export default function SettingsPage() {
       if (itemToDelete.type === "categories") await deleteCategory(itemToDelete.id);
       if (itemToDelete.type === "units") await deleteUnit(itemToDelete.id);
       if (itemToDelete.type === "warehouses") await deleteWarehouse(itemToDelete.id);
+      if (itemToDelete.type === "suppliers") await deleteSupplier(itemToDelete.id);
       await loadAllData();
     } catch (error) {
       alert(error instanceof Error ? error.message : "ลบข้อมูลไม่สำเร็จ");
@@ -290,6 +338,7 @@ export default function SettingsPage() {
           { id: "categories", label: "ประเภทพัสดุ", icon: <Package className="w-4 h-4" /> },
           { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4" /> },
           { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4" /> },
+          { id: "suppliers", label: "ผู้จำหน่าย", icon: <Truck className="w-4 h-4" /> },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -546,6 +595,78 @@ export default function SettingsPage() {
               </tbody>
             </table>
           )}
+
+          {activeTab === "suppliers" && (
+            <table className="w-full text-sm text-left divide-y divide-slate-100">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-6 py-4 w-[18%]">ชื่อผู้จำหน่าย</th>
+                  <th className="px-6 py-4 w-[14%]">ผู้ติดต่อ</th>
+                  <th className="px-6 py-4 w-[12%]">โทรศัพท์</th>
+                  <th className="px-6 py-4 w-[12%]">เลขผู้เสียภาษี</th>
+                  <th className="px-6 py-4 w-[12%]">วันที่สร้าง</th>
+                  <th className="px-6 py-4 w-[12%]">วันที่แก้ไข</th>
+                  <th className="px-6 py-4 w-[20%] text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagedSuppliers.length > 0 ? (
+                  pagedSuppliers.map((sup) => (
+                    <tr key={sup.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">{sup.name}</td>
+                      <td className="px-6 py-4">{sup.contact || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-6 py-4">{sup.phone || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-6 py-4">{sup.tax_id || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(sup.created_at)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {formatThaiDateTime(sup.updated_at)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setFormMode("edit");
+                              setEditingSupplierId(sup.id);
+                              setSupplierForm({
+                                name: sup.name,
+                                contact: sup.contact || "",
+                                address: sup.address || "",
+                                phone: sup.phone || "",
+                                tax_id: sup.tax_id || "",
+                              });
+                              setIsFormModalOpen(true);
+                            }}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(sup.id, "suppliers", sup.name)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7}>
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                        </svg>
+                        <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -555,7 +676,8 @@ export default function SettingsPage() {
           แสดง{" "}
           {((activeTab === "categories" && pagedCategories.length) ||
             (activeTab === "units" && pagedUnits.length) ||
-            (activeTab === "warehouses" && pagedWarehouses.length)) ||
+            (activeTab === "warehouses" && pagedWarehouses.length) ||
+            (activeTab === "suppliers" && pagedSuppliers.length)) ||
             0}{" "}
           จาก {activeTotal} รายการ
         </p>
@@ -604,6 +726,8 @@ export default function SettingsPage() {
         onUnitFormChange={setUnitForm}
         warehouseForm={warehouseForm}
         onWarehouseFormChange={setWarehouseForm}
+        supplierForm={supplierForm}
+        onSupplierFormChange={setSupplierForm}
         isSaving={isSaving}
         onFormSubmit={handleFormSubmit}
         // Delete Modal Props

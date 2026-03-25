@@ -248,15 +248,14 @@ export default function BorrowClient({ initialItems }: Props) {
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <HandHelping className="w-8 h-8 text-indigo-600" />
-          <h2 className="text-3xl font-bold text-indigo-600">ยืม-คืน ครุภัณฑ์</h2>
+          <h2 className="text-3xl font-bold text-gray-800">ยืม-คืน ครุภัณฑ์</h2>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCartModal(true)}
-            className={`px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${isCartBouncing ? "animate-bounce-custom" : ""
+            className={`px-4 py-2 rounded-xl bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${isCartBouncing ? "animate-bounce-custom" : ""
               }`}
           >
             <ShoppingCart className="w-4 h-4" />
@@ -266,31 +265,31 @@ export default function BorrowClient({ initialItems }: Props) {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 md:items-center">
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหา..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
         {/* Category Dropdown */}
-        <div className="relative ml-auto" data-category-dropdown>
+        <div className="relative" data-category-dropdown>
           <button
-            onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+            onClick={() => { setIsCategoryDropdownOpen(!isCategoryDropdownOpen); setIsUnitDropdownOpen(false); setIsLocationDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
           >
-            {selectedCategory}
-            <ChevronDown className={`w-4 h-4 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+            <span className="text-slate-800 font-medium">{selectedCategory}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
           {/* Category Dropdown Menu */}
           {isCategoryDropdownOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterCategories.map((c) => (
                   <li key={c}>
@@ -300,7 +299,7 @@ export default function BorrowClient({ initialItems }: Props) {
                         setIsCategoryDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors ${selectedCategory === c ? "bg-indigo-100 text-indigo-700 font-semibold" : ""
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       {c}
@@ -315,16 +314,16 @@ export default function BorrowClient({ initialItems }: Props) {
         {/* Unit Dropdown */}
         <div className="relative" data-unit-dropdown>
           <button
-            onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
-            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+            onClick={() => { setIsUnitDropdownOpen(!isUnitDropdownOpen); setIsCategoryDropdownOpen(false); setIsLocationDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
           >
-            {selectedUnit}
-            <ChevronDown className={`w-4 h-4 transition-transform ${isUnitDropdownOpen ? 'rotate-180' : ''}`} />
+            <span className="text-slate-800 font-medium">{selectedUnit}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUnitDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
           {/* Unit Dropdown Menu */}
           {isUnitDropdownOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterUnits.map((u) => (
                   <li key={u}>
@@ -333,10 +332,11 @@ export default function BorrowClient({ initialItems }: Props) {
                       onClick={() => {
                         setSelectedUnit(u);
                         setIsUnitDropdownOpen(false);
+                        setCurrentPage(1);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === u
-                          ? "bg-indigo-100 text-indigo-900 font-medium"
-                          : "text-slate-900 hover:bg-slate-50"
+                          ? "bg-blue-50 text-blue-700 font-medium"
+                          : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       {u}
@@ -351,16 +351,16 @@ export default function BorrowClient({ initialItems }: Props) {
         {/* Location Dropdown */}
         <div className="relative" data-location-dropdown>
           <button
-            onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
-            className="border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white hover:bg-slate-50 transition-colors flex items-center gap-2"
+            onClick={() => { setIsLocationDropdownOpen(!isLocationDropdownOpen); setIsCategoryDropdownOpen(false); setIsUnitDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
           >
-            {selectedLocation}
-            <ChevronDown className={`w-4 h-4 transition-transform ${isLocationDropdownOpen ? 'rotate-180' : ''}`} />
+            <span className="text-slate-800 font-medium">{selectedLocation}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
           {/* Location Dropdown Menu */}
           {isLocationDropdownOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-20 min-w-[200px] max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterLocations.map((loc) => (
                   <li key={loc}>
@@ -369,10 +369,11 @@ export default function BorrowClient({ initialItems }: Props) {
                       onClick={() => {
                         setSelectedLocation(loc);
                         setIsLocationDropdownOpen(false);
+                        setCurrentPage(1);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedLocation === loc
-                          ? "bg-indigo-100 text-indigo-900 font-medium"
-                          : "text-slate-900 hover:bg-slate-50"
+                          ? "bg-blue-50 text-blue-700 font-medium"
+                          : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       {loc}
@@ -386,7 +387,14 @@ export default function BorrowClient({ initialItems }: Props) {
       </div>
 
       {/* Table Content */}
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col mb-6" style={{ height: '65vh' }}>
+      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+        {isFetching && (
+          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
+            <div className="animate-spin">
+              <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full"></div>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
@@ -401,10 +409,10 @@ export default function BorrowClient({ initialItems }: Props) {
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {displayItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[50px] text-slate-400 text-sm">
+                  <td className="px-6 py-4 w-[50px]">
                     {(currentPage - 1) * itemsPerPage + idx + 1}
                   </td>
                   <td className="px-6 py-4 w-[100px]">
@@ -416,22 +424,22 @@ export default function BorrowClient({ initialItems }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 w-[120px] font-medium text-slate-800">
+                  <td className="px-6 py-4 w-[120px]">
                     {item.code || '-'}
                   </td>
-                  <td className="px-6 py-4 w-[300px] text-sm font-medium text-slate-800 truncate">
+                  <td className="px-6 py-4 w-[300px]">
                     {item.name}
                   </td>
-                  <td className="px-6 py-4 w-[140px] text-sm text-slate-600">{item.category}</td>
-                  <td className="px-6 py-4 w-[150px] text-sm text-slate-600">{item.location || '-'}</td>
-                  <td className="px-6 py-4 text-center w-[150px] text-sm font-bold text-slate-800">
+                  <td className="px-6 py-4 w-[140px] text-slate-600">{item.category}</td>
+                  <td className="px-6 py-4 w-[150px]">{item.location || '-'}</td>
+                  <td className="px-6 py-4 text-center w-[150px]">
                     {item.stock} {item.unit}
                   </td>
                   <td className="px-6 py-4 text-right w-[100px]">
                     <button
                       onClick={() => addToCart(item)}
                       disabled={item.stock <= 0}
-                      className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="p-1.5 bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       title="เพิ่มเข้าตะกร้า"
                     >
                       <Plus size={16} />
@@ -439,10 +447,15 @@ export default function BorrowClient({ initialItems }: Props) {
                   </td>
                 </tr>
               ))}
-              {displayItems.length === 0 && (
+              {displayItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-500 text-sm">
-                    ไม่พบข้อมูล
+                  <td colSpan={8}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                      </svg>
+                      <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -452,7 +465,7 @@ export default function BorrowClient({ initialItems }: Props) {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mt-6">
         <p className="text-sm text-slate-600">
           แสดง {displayItems.length} จาก {filteredItems.length} รายการ
         </p>

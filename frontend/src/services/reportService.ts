@@ -6,6 +6,8 @@
 import Cookies from "js-cookie";
 import * as ReportTypes from "@/types/reports_type";
 
+export type { Report, ReportFilterParams, ReportSummary } from "@/types/reports_type";
+
 // --- Types & Constants ---
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -157,6 +159,40 @@ function calculateReqTotal(items: any[]): number {
         const price = Number(item.items?.price || 0);
         return sum + (item.req_qty || 0) * price;
     }, 0);
+}
+
+/**
+ * ส่งออกรายงานเป็น PDF หรือ Excel
+ */
+export async function exportReports(
+    reports: ReportTypes.Report[],
+    format: "pdf" | "excel"
+): Promise<void> {
+    try {
+        const res = await fetch(`${API_URL}/v1/reports/export`, {
+            method: "POST",
+            headers: getHeaders(),
+            body: JSON.stringify({ reports: reports.map((r) => r.id), format }),
+        });
+
+        if (!res.ok) {
+            throw new Error(`Export failed with status ${res.status}`);
+        }
+
+        const blob = await res.blob();
+        const ext = format === "pdf" ? "pdf" : "xlsx";
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `report_${new Date().toISOString().split("T")[0]}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("🚫 Export error:", error);
+        throw error;
+    }
 }
 
 /**

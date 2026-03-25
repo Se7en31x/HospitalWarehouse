@@ -87,7 +87,7 @@ export default function CartModal({
         department_id: selectedDeptId,
         department_name: deptName,
         items: selectedItems.map((i) => ({
-          item_id: Number(i.id),
+          item_id: i.id,
           qty: i.quantity,
         })),
         note: "เบิกออนไลน์ผ่านระบบ",

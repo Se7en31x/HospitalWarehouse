@@ -13,9 +13,11 @@ import type {
   UnitPayload,
   Warehouse,
   WarehousePayload,
+  Supplier,
+  SupplierPayload,
 } from "@/types/settings_type";
 
-type TabType = "categories" | "units" | "warehouses";
+type TabType = "categories" | "units" | "warehouses" | "suppliers";
 type FormMode = "create" | "edit";
 
 interface SettingsModalsProps {
@@ -31,6 +33,8 @@ interface SettingsModalsProps {
   onUnitFormChange: (form: UnitPayload) => void;
   warehouseForm: WarehousePayload;
   onWarehouseFormChange: (form: WarehousePayload) => void;
+  supplierForm: SupplierPayload;
+  onSupplierFormChange: (form: SupplierPayload) => void;
   isSaving: boolean;
   onFormSubmit: () => void;
 
@@ -52,6 +56,8 @@ export default function SettingsModals({
   onUnitFormChange,
   warehouseForm,
   onWarehouseFormChange,
+  supplierForm,
+  onSupplierFormChange,
   isSaving,
   onFormSubmit,
   deleteModalOpen,
@@ -121,6 +127,31 @@ export default function SettingsModals({
                     <div className="md:col-span-2">
                       <label className={labelClass}>รายละเอียด (ไม่บังคับ)</label>
                       <textarea value={warehouseForm.description || ""} onChange={(e) => onWarehouseFormChange({ ...warehouseForm, description: e.target.value })} placeholder="ระบุรายละเอียดเพิ่มเติม" className={`${inputClass} resize-none h-24`} />
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "suppliers" && (
+                  <>
+                    <div className="md:col-span-1">
+                      <label className={labelClass}>ชื่อผู้จำหน่าย <span className="text-red-500">*</span></label>
+                      <input value={supplierForm.name} onChange={(e) => onSupplierFormChange({ ...supplierForm, name: e.target.value })} placeholder="ระบุชื่อผู้จำหน่าย" className={inputClass} />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className={labelClass}>ผู้ติดต่อ</label>
+                      <input value={supplierForm.contact || ""} onChange={(e) => onSupplierFormChange({ ...supplierForm, contact: e.target.value })} placeholder="ชื่อผู้ติดต่อ" className={inputClass} />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className={labelClass}>เบอร์โทรศัพท์</label>
+                      <input value={supplierForm.phone || ""} onChange={(e) => onSupplierFormChange({ ...supplierForm, phone: e.target.value })} placeholder="เบอร์โทรศัพท์" className={inputClass} />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className={labelClass}>เลขประจำตัวผู้เสียภาษี</label>
+                      <input value={supplierForm.tax_id || ""} onChange={(e) => onSupplierFormChange({ ...supplierForm, tax_id: e.target.value })} placeholder="เลขประจำตัวผู้เสียภาษี" className={inputClass} />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>ที่อยู่ (ไม่บังคับ)</label>
+                      <textarea value={supplierForm.address || ""} onChange={(e) => onSupplierFormChange({ ...supplierForm, address: e.target.value })} placeholder="ระบุที่อยู่" className={`${inputClass} resize-none h-24`} />
                     </div>
                   </>
                 )}

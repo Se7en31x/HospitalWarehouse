@@ -309,32 +309,28 @@ model receive_item {
 }
 
 model lookup_mstatus {
-  id           Int    @id(map: "PK_dfbf6d4b32123b3bbbdff1e0d54") @default(autoincrement())
-  mstatus_code String @db.VarChar(1)
+  mstatus_code String @id(map: "PK_a8d2ed3ebeea14eeb4377c29ef3") @db.VarChar(1)
   mstatus      String @db.VarChar(100)
 
   @@schema("public")
 }
 
 model lookup_nations {
-  id          Int    @id(map: "PK_1bd270efacb26e68fbb8d12ef7c") @default(autoincrement())
-  nation_code String @db.VarChar(3)
+  nation_code String @id(map: "PK_aa8e225d54e36f787ea37fb1284") @db.VarChar(3)
   nation      String @db.VarChar(100)
 
   @@schema("public")
 }
 
 model lookup_occupations {
-  id         Int    @id(map: "PK_49837c24f923ddf84b08b0fb7d8") @default(autoincrement())
-  occup_code String @db.VarChar(5)
+  occup_code String @id(map: "PK_ca5c5d4461da50573a0bbbcb199") @db.VarChar(5)
   name       String
 
   @@schema("public")
 }
 
 model lookup_titles {
-  id         Int     @id(map: "PK_91f4e50664963211a976045aee4") @default(autoincrement())
-  title_code String  @db.VarChar(3)
+  title_code String  @id(map: "PK_7d56771b6d78cbe8690a44481cc") @db.VarChar(3)
   short_name String? @db.VarChar(50)
   name       String  @db.VarChar(100)
 
@@ -342,16 +338,14 @@ model lookup_titles {
 }
 
 model lookup_abogroups {
-  id            Int    @id(map: "PK_223edcc0b6512332c59096d3ad0") @default(autoincrement())
-  abogroup_code String @db.VarChar(1)
+  abogroup_code String @id(map: "PK_f5f242cd07364f860b626748768") @db.VarChar(1)
   abogroup      String @db.VarChar(10)
 
   @@schema("public")
 }
 
 model lookup_rh {
-  id      Int    @id(map: "PK_30ce7a1a93a51c6e4cf24514f95") @default(autoincrement())
-  rh_code String @db.VarChar(1)
+  rh_code String @id(map: "PK_517960fca1e64b73fec80761b30") @db.VarChar(1)
   rhgroup String @db.VarChar(10)
 
   @@schema("public")
@@ -379,6 +373,13 @@ model medical_assets {
   @@index([item_id], map: "idx_medical_assets_item_id")
   @@index([status], map: "idx_medical_assets_status")
   @@schema("inventory")
+}
+
+model lookup_sex {
+  sex_code String @id(map: "PK_3d28c4cb17f318526ef564c9f84") @db.VarChar(1)
+  sex      String @db.VarChar(100)
+
+  @@schema("public")
 }
 
 /// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.

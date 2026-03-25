@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, RefreshCw, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, FileText } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Swal from "sweetalert2";
 import * as receiveService from "@/services/receiveService";
@@ -158,34 +158,32 @@ export default function ReceiveDetailClient({ receiveId }: ReceiveDetailClientPr
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+    <div className="flex flex-col min-h-screen bg-white p-8">
       <Toaster position="top-right" />
 
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/warehouse/receives")}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              กลับหน้ารายการ
-            </button>
-            <h1 className="text-2xl font-bold text-slate-800">รายละเอียดการรับเข้า</h1>
-          </div>
-
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-3xl font-semibold text-gray-800">รายละเอียดการรับเข้า</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            เอกสาร: {record?.doc_no || "กำลังโหลด..."}
+          </p>
+        </div>
+        <div className="flex gap-3">
           <button
-            onClick={fetchData}
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            onClick={() => router.push("/warehouse/receives")}
+            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors shadow-sm"
           >
-            <RefreshCw className="h-4 w-4" />
-            รีเฟรช
+            ย้อนกลับ
           </button>
         </div>
+      </div>
+
+      <div className="space-y-6 flex-1">
 
         {isLoading && (
-          <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-white">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <div className="flex h-64 items-center justify-center rounded-xl bg-white shadow-lg border border-slate-100">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
           </div>
         )}
 
@@ -198,10 +196,10 @@ export default function ReceiveDetailClient({ receiveId }: ReceiveDetailClientPr
 
         {!isLoading && !error && record && (
           <>
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="mb-4 flex items-center gap-2 text-slate-700">
-                <FileText className="h-5 w-5" />
-                <h2 className="text-lg font-semibold">ข้อมูลเอกสาร</h2>
+            <section className="rounded-xl bg-white shadow-lg border border-slate-100 p-6">
+              <div className="mb-6 flex items-center gap-2 text-indigo-900 border-b border-slate-100 pb-4">
+                <FileText className="h-5 w-5 text-indigo-600" />
+                <h2 className="text-lg font-bold">ข้อมูลเอกสาร</h2>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -238,38 +236,38 @@ export default function ReceiveDetailClient({ receiveId }: ReceiveDetailClientPr
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-5 py-4">
-                <h2 className="text-lg font-semibold text-slate-800">รายการสินค้า ({record.receive_item?.length || 0} รายการ)</h2>
+            <section className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden flex flex-col">
+              <div className="border-b border-slate-100 px-6 py-5 bg-white">
+                <h2 className="text-lg font-bold text-slate-800">รายการสินค้า ({record.receive_item?.length || 0} รายการ)</h2>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-slate-600">
+              <div className="overflow-x-auto overflow-y-auto h-[30vh]">
+                <table className="w-full text-sm text-left relative">
+                  <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10 tracking-wide text-xs">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">#</th>
-                      <th className="px-4 py-3 font-semibold">รหัสสินค้า</th>
-                      <th className="px-4 py-3 font-semibold">ชื่อสินค้า</th>
-                      <th className="px-4 py-3 font-semibold text-right">จำนวนสั่ง</th>
-                      <th className="px-4 py-3 font-semibold text-right">จำนวนรับ</th>
+                      <th className="px-6 py-4">#</th>
+                      <th className="px-6 py-4">รหัสสินค้า</th>
+                      <th className="px-6 py-4">ชื่อสินค้า</th>
+                      <th className="px-6 py-4 text-right">จำนวนสั่ง</th>
+                      <th className="px-6 py-4 text-right">จำนวนรับ</th>
                       {record.type !== "PURCHASE_ASSET" && (
                         <>
-                          <th className="px-4 py-3 font-semibold">Lot Code</th>
-                          <th className="px-4 py-3 font-semibold">วันหมดอายุ</th>
+                          <th className="px-6 py-4">Lot Code</th>
+                          <th className="px-6 py-4">วันหมดอายุ</th>
                         </>
                       )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {record.receive_item?.map((item, index) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">{index + 1}</td>
-                        <td className="px-4 py-3 font-mono">{item.item_code || item.item_id}</td>
-                        <td className="px-4 py-3">{item.item_name || "-"}</td>
-                        <td className="px-4 py-3 text-right">{item.expected_qty ?? 0}</td>
+                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">{index + 1}</td>
+                        <td className="px-6 py-4 font-mono font-medium text-slate-600">{item.item_code || item.item_id}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">{item.item_name || "-"}</td>
+                        <td className="px-6 py-4 text-right font-medium">{item.expected_qty ?? 0}</td>
                         {record.status === "PENDING" ? (
                           <>
-                            <td className="px-4 py-3">
+                            <td className="px-6 py-4">
                               <div className="flex justify-end">
                                 <input
                                   type="number"
@@ -295,21 +293,21 @@ export default function ReceiveDetailClient({ receiveId }: ReceiveDetailClientPr
                             </td>
                             {record.type !== "PURCHASE_ASSET" && (
                               <>
-                                <td className="px-4 py-3 font-mono">
+                                <td className="px-6 py-4 font-mono">
                                   <input
                                     title="Lot number"
                                     type="text"
-                                    className="w-full min-w-[100px] rounded-md border border-slate-300 px-2 py-1 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full min-w-[100px] rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                     value={inputData[item.id]?.lot_code || ""}
                                     onChange={(e) => setInputData({ ...inputData, [item.id]: { ...inputData[item.id], lot_code: e.target.value } })}
                                     placeholder="Lot Code"
                                   />
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-6 py-4">
                                   <input
                                     title="Expiration date"
                                     type="date"
-                                    className="w-full min-w-[130px] rounded-md border border-slate-300 px-2 py-1 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full min-w-[130px] rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                     value={inputData[item.id]?.expired_at || ""}
                                     onChange={(e) => setInputData({ ...inputData, [item.id]: { ...inputData[item.id], expired_at: e.target.value } })}
                                   />
@@ -319,11 +317,11 @@ export default function ReceiveDetailClient({ receiveId }: ReceiveDetailClientPr
                           </>
                         ) : (
                           <>
-                            <td className="px-4 py-3 text-right">{item.qty ?? 0}</td>
+                            <td className="px-6 py-4 text-right font-medium">{item.qty ?? 0}</td>
                             {record.type !== "PURCHASE_ASSET" && (
                               <>
-                                <td className="px-4 py-3 font-mono">{item.lot_code || "-"}</td>
-                                <td className="px-4 py-3">{formatDate(item.expired_at)}</td>
+                                <td className="px-6 py-4 font-mono text-slate-500">{item.lot_code || "-"}</td>
+                                <td className="px-6 py-4 text-slate-600">{formatDate(item.expired_at)}</td>
                               </>
                             )}
                           </>
@@ -338,18 +336,18 @@ export default function ReceiveDetailClient({ receiveId }: ReceiveDetailClientPr
                 )}
                 
                 {record.status === "PENDING" && record.receive_item && record.receive_item.length > 0 && (
-                  <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 p-6">
                     <button
                       onClick={handleCancel}
                       disabled={isSubmitting}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-6 py-2.5 font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-50 text-rose-700 px-6 py-2.5 text-sm font-bold transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 border border-rose-200"
                     >
                       ยกเลิกเอกสาร
                     </button>
                     <button
                       onClick={handleConfirm}
                       disabled={isSubmitting}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-8 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition-all hover:bg-slate-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSubmitting ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
