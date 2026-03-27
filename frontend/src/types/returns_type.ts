@@ -9,6 +9,7 @@ export type ApiBorrow = {
 	id: string;
 	item_id: number;
 	quantity: number;
+	returned_qty?: number;
 	borrowed_by: string;
 	borrow_date: string;
 	due_date: string;
@@ -33,6 +34,7 @@ export type UiReturn = {
 	category: string;
 	unit: string;
 	quantity: number;
+	returnedQuantity?: number;
 	borrowedBy: string;
 	borrowDate: string;
 	dueDate: string;
@@ -55,6 +57,7 @@ export type ReturnStats = {
 export type UpdateReturnStatusDto = {
 	status: ReturnStatus;
 	return_date?: string;
+	returned_qty?: number;
 	notes?: string;
 };
 
