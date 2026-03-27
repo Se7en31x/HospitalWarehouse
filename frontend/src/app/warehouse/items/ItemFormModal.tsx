@@ -9,6 +9,7 @@ import {
   X,
   Upload,
   Search,
+  PackagePlus,
 } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
@@ -246,9 +247,22 @@ export default function ItemFormModal({
   };
 
   const { getRootProps, getInputProps } = useDropzone({
-    accept: { "image/*": [] },
-    onDrop: (files) => {
-      const file = files[0];
+    accept: { "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"] },
+    maxSize: 5 * 1024 * 1024, // 5MB
+    onDrop: (acceptedFiles, fileRejections) => {
+      if (fileRejections.length > 0) {
+        const rejection = fileRejections[0];
+        if (rejection.errors[0]?.code === "file-too-large") {
+          toast.error("ไฟล์มีขนาดใหญ่เกินไป (ไม่เกิน 5 MB)");
+        } else if (rejection.errors[0]?.code === "file-invalid-type") {
+          toast.error("รองรับเฉพาะไฟล์ PNG และ JPG เท่านั้น");
+        } else {
+          toast.error("ไฟล์ไม่ถูกต้อง");
+        }
+        return;
+      }
+
+      const file = acceptedFiles[0];
       if (file) {
         setImageFile(file);
         setFormData((prev) => ({
@@ -272,12 +286,12 @@ export default function ItemFormModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-6 flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-2 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-100 rounded-lg">
-                <Package className="w-6 h-6 text-indigo-600" />
+                <PackagePlus className="w-6 h-6 text-indigo-600" />
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">
@@ -317,14 +331,14 @@ export default function ItemFormModal({
                     </label>
                     <div
                       {...getRootProps()}
-                      className="relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50"
+                      className="relative border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50 h-[180px] w-full flex flex-col items-center justify-center overflow-hidden"
                     >
                       <input {...getInputProps()} />
                       {formData.imageUrl ? (
-                        <>
+                        <div className="relative h-full w-full flex items-center justify-center">
                           <img
                             src={formData.imageUrl}
-                            className="h-32 mx-auto rounded-lg shadow-md"
+                            className="max-h-full max-w-full rounded-lg shadow-md object-contain"
                             alt="Preview"
                           />
                           <button
@@ -335,21 +349,24 @@ export default function ItemFormModal({
                               setImageRemoved(true);
                               setFormData((prev) => ({ ...prev, imageUrl: "" }));
                             }}
-                            className="absolute top-2 right-2 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
+                            className="absolute -top-1 -right-1 p-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors z-10 shadow-sm"
                             title="ลบรูปภาพ"
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
-                        </>
+                        </div>
                       ) : (
-                        <>
+                        <div className="flex flex-col items-center justify-center">
                           <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-                          <p className="text-sm text-slate-500">
+                          <p className="text-sm text-slate-500 font-medium">
                             คลิกหรือลากรูปภาพมาวางที่นี่
                           </p>
-                        </>
+                        </div>
                       )}
                     </div>
+                    <p className="text-xs text-red-500 font-medium mt-3 text-center">
+                      *รองรับไฟล์รูป PNG JPG ขนาดไม่เกิน 5 MB
+                    </p>
                   </div>
 
                   {/* Fields - Right side */}
@@ -814,10 +831,10 @@ export default function ItemFormModal({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 p-6 border-t border-slate-200 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
+          <div className="sticky bottom-0 py-3 px-8 border-t border-slate-200 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
             <button
               onClick={onCloseAction}
-              className="px-6 py-2.5 font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              className="px-6 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
               ยกเลิก
             </button>

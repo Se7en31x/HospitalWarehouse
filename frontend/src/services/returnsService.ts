@@ -19,6 +19,7 @@ const mapApiBorrowToUiReturn = (borrow: Returns.ApiBorrow): Returns.UiReturn => 
 		category: borrow.item?.categories?.name || "-",
 		unit: borrow.item?.unit?.name || "ชิ้น",
 		quantity: borrow.quantity || 0,
+		returnedQuantity: borrow.returned_qty || 0,
 		borrowedBy: borrow.borrowed_by,
 		borrowDate: borrow.borrow_date,
 		dueDate: borrow.due_date,
@@ -132,12 +133,13 @@ export async function getBorrowedItemById(id: string): Promise<Returns.UiReturn 
 export async function recordReturn(
 	id: string,
 	returnDate: string,
+	quantity: number,
 	notes?: string
 ): Promise<void> {
 	try {
 		// This would typically call your backend API to record the return
 		// For now, it's a placeholder
-		console.log("Recording return:", { id, returnDate, notes });
+		console.log("Recording return:", { id, returnDate, quantity, notes });
 	} catch (error) {
 		console.error("Failed to record return:", error);
 		throw error;
