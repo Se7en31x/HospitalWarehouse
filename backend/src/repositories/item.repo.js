@@ -161,7 +161,7 @@ const SelectItemById = (id) => {
 
 const createItem = (data) => prisma.items.create({ data });
 
-const updateItem = (id, data) => prisma.items.update({
+const updateItem = (id, data, tx = prisma) => tx.items.update({
     where: { id },
     data
 });

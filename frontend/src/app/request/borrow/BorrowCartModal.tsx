@@ -12,7 +12,6 @@ import {
   User,
   MapPin,
   Phone,
-  MessageCircle,
   Upload,
   FileText,
   CheckCircle,
@@ -51,6 +50,7 @@ interface BorrowHistory {
 }
 
 interface Department {
+  id: number;
   code: string;
   name: string;
 }
@@ -118,6 +118,9 @@ export default function BorrowCartModal({
 
   // ✅ Global Notes สำหรับ BORROW tab
   const [globalNotes, setGlobalNotes] = useState("");
+
+  // ✅ แผนกของผู้ดำเนินการ (EXTERNAL tab)
+  const [externalOperatorDeptId, setExternalOperatorDeptId] = useState("");
 
   // ✅ External Person Form State
   const [externalForm, setExternalForm] =
@@ -223,13 +226,9 @@ export default function BorrowCartModal({
       return;
     }
 
-    // หาชื่อแผนกจาก code
-    const currentDept = departments.find((d) => d.code === selectedDeptId);
-    const deptName = currentDept ? currentDept.name : "แผนกทั่วไป";
-
     const confirm = await MySwal.fire({
       title: "ยืนยันการยืม",
-      html: `ยืมในนามแผนก: <b class="text-indigo-600">${deptName}</b><br/><br/>จำนวน: ${selectedItems.length} รายการ<br/>วันที่ต้องคืน: <strong class="text-indigo-600">${globalReturnDate}</strong>`,
+      html: `จำนวน: ${selectedItems.length} รายการ<br/>วันที่ต้องคืน: <strong class="text-indigo-600">${globalReturnDate}</strong>`,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "ยืนยันการยืม",
@@ -247,14 +246,13 @@ export default function BorrowCartModal({
       const payload: RequisitionPayload = {
         type: "BORROW",
         department_id: selectedDeptId,
-        department_name: deptName,
-        due_date: globalReturnDate, // ส่งวันที่ต้องคืนไปด้วย
+        due_date: globalReturnDate,
         items: selectedItems.map((i) => ({
-          item_id: i.id, // ใช้ ID (String UUID)
+          item_id: i.id,
           qty: i.quantity,
           note: "",
         })),
-        note: "ยืมออนไลน์ผ่านระบบ",
+        note: globalNotes || "ยืมออนไลน์ผ่านระบบ",
       };
 
       // ✅ ยิง API
@@ -293,6 +291,15 @@ export default function BorrowCartModal({
   const submitExternalBorrow = async () => {
     const { fullName, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
 
+    if (!externalOperatorDeptId) {
+      MySwal.fire({
+        title: "แจ้งเตือน",
+        text: "กรุณาระบุแผนกของผู้ดำเนินการ",
+        icon: "warning",
+      });
+      return;
+    }
+
     if (!fullName || !address || !subdistrict || !district || !province || !postalCode || !phone || !returnDate) {
       MySwal.fire({
         title: "แจ้งเตือน",
@@ -326,8 +333,31 @@ export default function BorrowCartModal({
 
     setIsSubmitting(true);
     try {
-      // TODO: เชื่อม API สำหรับบุคคลภายนอก
-      await new Promise((r) => setTimeout(r, 1200));
+      const payload: RequisitionPayload = {
+        type: "BORROW",
+        department_id: externalOperatorDeptId,
+        due_date: returnDate,
+        items: selectedItems.map((i) => ({
+          item_id: i.id,
+          qty: i.quantity,
+          note: "",
+        })),
+        note: externalForm.notes || "ยืมโดยบุคคลภายนอก",
+        borrower: {
+          fullname: fullName,
+          phone,
+          address,
+          subdistrict,
+          district,
+          province,
+          zipcode: postalCode,
+          notes: externalForm.notes || undefined,
+        },
+      };
+
+      const res = await RequisitionSvc.createRequisition(payload);
+      if (!res.success) throw new Error(res.message || "เกิดข้อผิดพลาดในการสร้างใบยืม");
+
       await MySwal.fire({
         title: "สำเร็จ",
         text: "ส่งคำขอยืมสำหรับบุคคลภายนอกเรียบร้อยแล้ว",
@@ -336,8 +366,12 @@ export default function BorrowCartModal({
         showConfirmButton: false,
       });
       setExternalForm(initialExternalForm);
+      setExternalOperatorDeptId("");
       setSelectedItems([]);
+      localStorage.removeItem("borrow_cart");
+      localStorage.removeItem("borrow_return_date");
       setShowCartModal(false);
+      setExternalStep(1);
     } catch (error) {
       MySwal.fire({
         title: "ข้อผิดพลาด",
@@ -403,7 +437,7 @@ export default function BorrowCartModal({
                 >
                   <option value="">-- กรุณาเลือกแผนก --</option>
                   {(departments || []).map((d) => (
-                    <option key={d.code} value={d.code}>
+                    <option key={d.id} value={String(d.id)}>
                       แผนก{d.name} ({d.code})
                     </option>
                   ))}
@@ -685,6 +719,29 @@ export default function BorrowCartModal({
                     <div>
                       <p className="font-bold text-emerald-800 text-sm">ยืมสำหรับบุคคลภายนอก</p>
                       <p className="text-xs text-emerald-600">กรุณากรอกข้อมูลผู้ขอยืมให้ครบถ้วน</p>
+                    </div>
+                  </div>
+
+                  {/* Operator Department Section */}
+                  <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-emerald-50/50">
+                      <User className="w-4 h-4 text-emerald-600" />
+                      <span className="text-sm font-bold text-gray-700">แผนกของผู้ดำเนินการ <span className="text-red-500">*</span></span>
+                    </div>
+                    <div className="p-4">
+                      <select
+                        value={externalOperatorDeptId}
+                        onChange={(e) => setExternalOperatorDeptId(e.target.value)}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg font-semibold text-sm focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 outline-none"
+                      >
+                        <option value="">-- เลือกแผนกที่ดำเนินการ --</option>
+                        {(departments || []).map((d) => (
+                          <option key={d.id} value={String(d.id)}>
+                            {d.name} ({d.code})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 

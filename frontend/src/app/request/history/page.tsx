@@ -1,10 +1,9 @@
 'use client';
 import React from 'react';
-import HistoryContent from './HistoryClient';
-import { HISTORY_DATA } from './history.data';
+import HistoryClient from './HistoryClient';
 
 const HistoryPage: React.FC = () => {
-  return <HistoryContent data={HISTORY_DATA} />;
+  return <HistoryClient />;
 };
 
 export default HistoryPage;

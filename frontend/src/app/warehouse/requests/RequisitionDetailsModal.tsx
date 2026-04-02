@@ -9,15 +9,15 @@ import {
   approveRequisition,
   rejectRequisition
 } from "../../../services/requisitionService";
-import { RequisitionHeader } from "../../../types/requisition_type";
+import { RequisitionHeader, RequisitionItem } from "../../../types/requisition_type";
 
 interface RequisitionDetailsModalProps {
   isOpen: boolean;
   requisition: RequisitionHeader | null;
   onClose: () => void;
   onSuccess: () => void;
-  displayDeptName: (req: any) => string;
-  displayRequesterName?: (req: any) => string;
+  displayDeptName: (req: RequisitionHeader) => string;
+  displayRequesterName: (req: RequisitionHeader) => string;
 }
 
 const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
@@ -32,12 +32,17 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
 
-  // Initialize quantities when modal opens
+  // ✅ Initialize quantities: ใช้ค่าจาก DTO ที่ Flatten มาแล้ว
   useEffect(() => {
-    if (isOpen && requisition) {
+    if (isOpen && requisition && requisition.items) {
       const initialQtys: Record<number, number> = {};
-      requisition.requisition_item.forEach((item: any) => {
-        initialQtys[item.id] = Math.min(item.req_qty, item.items?.current_stock || 0);
+      requisition.items.forEach((item: RequisitionItem) => {
+        // ใช้ item.qty และ item.current_stock (ชื่อตาม DTO)
+        const requested = item.qty || 0;
+        const stock = item.current_stock || 0;
+        
+        // ค่าเริ่มต้นจ่ายจริง = เท่าที่ขอมา แต่ต้องไม่เกินสต็อกที่มี
+        initialQtys[item.id] = Math.min(requested, stock);
       });
       setIssuedQtys(initialQtys);
     }
@@ -47,6 +52,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
     setIssuedQtys(prev => {
       const current = prev[id] || 0;
       const next = current + delta;
+      // กรองค่า: ต้องไม่ติดลบ, ไม่เกินสต็อก, และไม่เกินยอดที่ขอมา
       if (next < 0 || next > maxStock || next > reqQty) return prev;
       return { ...prev, [id]: next };
     });
@@ -62,12 +68,12 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       if (res.success) {
         toast.success("อนุมัติรายการสำเร็จ", { id: loadId });
         onClose();
-        onSuccess();
+        onSuccess(); 
       } else {
-        throw new Error(res.message);
+        throw new Error(res.message || "เกิดข้อผิดพลาดจากระบบ");
       }
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
+      const errMsg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการอนุมัติ";
       toast.error(errMsg, { id: loadId });
     } finally {
       setIsLoading(false);
@@ -89,10 +95,10 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
         onClose();
         onSuccess();
       } else {
-        throw new Error(res.message);
+        throw new Error(res.message || "ไม่สามารถดำเนินการได้");
       }
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
+      const errMsg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
       toast.error(errMsg, { id: loadId });
     } finally {
       setIsLoading(false);
@@ -101,9 +107,11 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
 
   if (!isOpen || !requisition) return null;
 
+  const isPending = requisition.status === 'PENDING';
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
 
         {/* Header */}
         <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50/50">
@@ -113,109 +121,132 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">{requisition.doc_no}</h2>
-              <p className="text-xs text-slate-500">ตรวจสอบและยืนยันจำนวนการจ่ายพัสดุ</p>
+              <p className="text-xs text-slate-500">
+                {isPending ? 'ตรวจสอบและยืนยันจำนวนการจ่ายพัสดุ' : requisition.status === 'COMPLETED' ? 'อนุมัติจ่ายพัสดุแล้ว' : 'ปฏิเสธคำขอเบิกแล้ว'}
+              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors">
             <X size={20} />
           </button>
         </div>
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* Department Info */}
-          <div className="grid grid-cols-2 gap-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-            <div className="flex items-center gap-3">
-              <User size={24} className="text-indigo-600" />
+          {/* ข้อมูลพื้นฐาน */}
+          <div className="grid grid-cols-2 gap-6 bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white rounded-xl shadow-sm"><User size={20} className="text-indigo-600" /></div>
               <div>
-                <p className="text-xs text-indigo-400 uppercase font-bold">ชื่อผู้ทำรายการ</p>
-                <p className="text-2lg font-bold text-indigo-900">
-                  {displayRequesterName ? displayRequesterName(requisition) : requisition.requester_id}
-                </p>
+                <p className="text-[10px] text-indigo-400 uppercase font-bold tracking-wider">ผู้ทำรายการ</p>
+                <p className="text-lg font-bold text-indigo-900 leading-tight">{displayRequesterName(requisition)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Building2 size={24} className="text-indigo-600" />
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white rounded-xl shadow-sm"><Building2 size={20} className="text-indigo-600" /></div>
               <div>
-                <p className="text-xs text-indigo-400 uppercase font-bold">แผนกที่ร้องขอ</p>
-                <p className="text-2lg font-bold text-indigo-900">{displayDeptName(requisition)}</p>
+                <p className="text-[10px] text-indigo-400 uppercase font-bold tracking-wider">แผนกที่ร้องขอ</p>
+                <p className="text-lg font-bold text-indigo-900 leading-tight">{displayDeptName(requisition)}</p>
               </div>
             </div>
           </div>
 
-          {/* Items Table */}
-          <div className="border rounded-xl overflow-hidden shadow-sm">
+          {/* ตารางรายการ */}
+          <div className="border rounded-2xl overflow-hidden shadow-sm bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-sm font-black text-slate-500 uppercase tracking-widest">
+              <thead className="bg-slate-50 border-b text-slate-500 font-bold uppercase tracking-tighter">
                 <tr>
                   <th className="px-6 py-4 text-center w-[80px]">รูป</th>
                   <th className="px-6 py-4 text-left">รายการพัสดุ</th>
-                  <th className="px-4 py-4 text-center w-[120px]">ยอดที่ขอ</th>
-                  <th className="px-4 py-4 text-center w-[150px]">คงเหลือในคลัง</th>
-                  <th className="px-6 py-4 text-right w-[240px]">อนุมัติจ่ายจริง</th>
+                  <th className="px-4 py-4 text-center w-[110px]">ยอดที่ขอ</th>
+                  {isPending ? (
+                    <>
+                      <th className="px-4 py-4 text-center w-[130px]">ในคลัง</th>
+                      <th className="px-6 py-4 text-right w-[240px]">อนุมัติจ่ายจริง</th>
+                    </>
+                  ) : (
+                    <th className="px-4 py-4 text-center w-[130px]">จ่ายจริง</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {requisition.requisition_item.map((row: any) => {
+                {requisition.items?.map((row: RequisitionItem) => {
                   const currentIssued = issuedQtys[row.id] || 0;
-                  const dbStock = row.items?.current_stock || 0;
-                  const dbReq = row.req_qty || 0;
+                  
+                  // ✅ ดึงจาก DTO ที่ Flatten มาแล้ว (qty และ current_stock)
+                  const dbStock = row.current_stock || 0;
+                  const dbReq = row.qty || 0;
 
                   return (
-                    <tr key={row.id} className="h-[80px]">
-                      <td className="px-6 py-2">
-                        <div className="w-10 h-10 mx-auto rounded-lg bg-slate-100 overflow-hidden shrink-0">
-                          {row.items?.image_url ? (
+                    <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-3">
+                        <div className="w-12 h-12 mx-auto rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
+                          {row.image_url ? (
                             <button
-                              onClick={() => setPreviewImage({ url: row.items.image_url, name: row.items?.name || "รายการพัสดุ" })}
-                              className="w-full h-full focus:outline-none"
+                              onClick={() => setPreviewImage({ url: row.image_url!, name: row.name })}
+                              className="w-full h-full"
                             >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={row.items.image_url} className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in" alt={row.items?.name || "Item"} />
+                              <img src={row.image_url} className="w-full h-full object-cover" alt={row.name} />
                             </button>
                           ) : (
-                            <PackageCheck className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
+                            <PackageCheck className="w-6 h-6 text-slate-300" />
                           )}
                         </div>
                       </td>
                       <td className="px-6">
-                        <p className="font-bold text-slate-800">{row.items?.name}</p>
-                        <p className="text-xs text-slate-400 font-mono italic">Code: {row.items?.code}</p>
+                        <p className="font-bold text-slate-800 text-base">{row.name}</p>
+                        <p className="text-xs text-slate-400 font-mono">CODE: {row.code}</p>
                       </td>
-                      <td className="px-4 text-center font-bold text-slate-400 text-lg">{dbReq}</td>
-                      <td className="px-4 text-center font-bold text-slate-800 text-lg bg-slate-50/50">{dbStock}</td>
-                      <td className="px-6">
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="flex items-center bg-white p-1 rounded-xl border-2 border-slate-200 shadow-sm focus-within:border-indigo-500 transition-all">
-                            <button
-                              type="button"
-                              onClick={() => updateQty(row.id, -1, dbStock, dbReq)}
-                              className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500"
-                            >
-                              <Minus size={14} strokeWidth={3} />
-                            </button>
-                            <input
-                              type="number"
-                              value={currentIssued}
-                              readOnly
-                              className="w-14 bg-transparent text-center font-black text-lg outline-none text-indigo-600"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateQty(row.id, 1, dbStock, dbReq)}
-                              className="p-1.5 hover:bg-slate-50 rounded-lg text-indigo-600"
-                            >
-                              <Plus size={14} strokeWidth={3} />
-                            </button>
-                          </div>
-                          <span className={`text-xs font-bold pr-1 ${dbStock - currentIssued < 5 ? 'text-rose-500' : 'text-slate-400'}`}>
-                            คงเหลือหลังจ่าย: {dbStock - currentIssued}
+                      <td className="px-4 text-center">
+                        <span className="text-lg font-black text-slate-400">{dbReq}</span>
+                      </td>
+                      {isPending ? (
+                        <>
+                          <td className="px-4 text-center bg-slate-50/30">
+                            <span className={`text-lg font-black ${dbStock === 0 ? 'text-rose-500' : 'text-slate-800'}`}>
+                              {dbStock}
+                            </span>
+                          </td>
+                          <td className="px-6">
+                            <div className="flex flex-col items-end gap-1.5">
+                              <div className="flex items-center bg-white p-1 rounded-xl border-2 border-slate-200 shadow-sm focus-within:border-indigo-500 transition-all">
+                                <button
+                                  type="button"
+                                  onClick={() => updateQty(row.id, -1, dbStock, dbReq)}
+                                  className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+                                >
+                                  <Minus size={16} strokeWidth={3} />
+                                </button>
+                                <input
+                                  type="number"
+                                  value={currentIssued}
+                                  readOnly
+                                  className="w-16 bg-transparent text-center font-black text-xl outline-none text-indigo-600"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateQty(row.id, 1, dbStock, dbReq)}
+                                  className="p-1.5 hover:bg-slate-100 rounded-lg text-indigo-600 transition-colors"
+                                >
+                                  <Plus size={16} strokeWidth={3} />
+                                </button>
+                              </div>
+                              <p className={`text-[10px] font-bold uppercase tracking-tight ${dbStock - currentIssued < 5 ? 'text-rose-500 animate-pulse' : 'text-slate-400'}`}>
+                                คลังหลังจ่าย: {dbStock - currentIssued}
+                              </p>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <td className="px-4 text-center">
+                          <span className={`text-lg font-black ${row.issued > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                            {row.issued}
                           </span>
-                        </div>
-                      </td>
+                          {row.issued < dbReq && row.issued > 0 && (
+                            <p className="text-[10px] text-amber-500 font-bold mt-0.5">จ่ายไม่ครบ</p>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -225,56 +256,51 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-6 border-t bg-slate-50/50 flex justify-end gap-3">
+        <div className="px-8 py-6 border-t bg-slate-50/50 flex justify-end items-center gap-3">
+          {isPending ? (
+            <p className="text-xs text-slate-400 mr-auto font-medium">* ตรวจสอบจำนวนก่อนยืนยัน ระบบจะตัดสต็อกทันทีหลังอนุมัติ</p>
+          ) : (
+            <p className="text-xs text-slate-400 mr-auto font-medium">
+              {requisition.status === 'COMPLETED' ? '✓ ดำเนินการอนุมัติและตัดสต็อกเรียบร้อยแล้ว' : '✗ คำขอนี้ถูกปฏิเสธแล้ว'}
+            </p>
+          )}
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-sm font-bold text-slate-500 bg-white border rounded-xl hover:bg-slate-50"
+            className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
           >
-            ปิดหน้าต่าง
+            ปิด
           </button>
-          <button
-            onClick={handleReject}
-            disabled={isLoading || requisition.status !== 'PENDING'}
-            className="px-6 py-2.5 bg-rose-600 text-white text-sm font-bold rounded-xl hover:bg-rose-700 transition-all disabled:opacity-50"
-          >
-            ปฏิเสธการเบิก
-          </button>
-          {requisition.status === 'PENDING' && (
-            <button
-              onClick={handleApprove}
-              disabled={isLoading}
-              className="px-10 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-slate-900 shadow-lg shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
-            >
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              ยืนยันการอนุมัติ
-            </button>
+          {isPending && (
+            <>
+              <button
+                onClick={handleReject}
+                disabled={isLoading}
+                className="px-6 py-2.5 bg-white border-2 border-rose-100 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-50 transition-all disabled:opacity-50"
+              >
+                ปฏิเสธ
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isLoading}
+                className="px-10 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck size={18} />}
+                ยืนยันอนุมัติจ่ายจริง
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      {/* Image Preview Modal */}
+      {/* Image Preview */}
       {previewImage && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="relative max-w-3xl max-h-[90vh] p-2 bg-white rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
-            >
-              <X className="w-4 h-4" />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 p-4" onClick={() => setPreviewImage(null)}>
+          <div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-12 right-0 text-white flex items-center gap-2 font-bold">
+              ปิด <X size={24} />
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewImage.url}
-              alt={previewImage.name}
-              className="max-w-full max-h-[80vh] object-contain rounded-xl"
-            />
-            <p className="text-center text-sm text-slate-600 mt-2 pb-1">{previewImage.name}</p>
+            <img src={previewImage.url} alt={previewImage.name} className="w-full h-auto max-h-[85vh] object-contain rounded-2xl shadow-2xl border-4 border-white/10" />
+            <p className="text-center text-white mt-4 font-bold text-lg">{previewImage.name}</p>
           </div>
         </div>
       )}

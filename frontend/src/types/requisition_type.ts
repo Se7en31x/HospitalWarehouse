@@ -1,53 +1,74 @@
-// file: src/types/requisition_type.ts
-
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data: T;
   message?: string;
+  total?: number;
+  page?: number;
+  limit?: number;
+}
+
+// --- เพิ่มข้อมูลคนยืม ---
+export interface BorrowerDetails {
+  id: string; // UUID
+  fullname: string;
+  phone: string;
+  address?: string;
+  subdistrict?: string;
+  district?: string;
+  province?: string;
+  zipcode?: string;
+  notes?: string;
 }
 
 export interface RequisitionFilters {
   department_codes?: string[];
-  status?: "PENDING" | "COMPLETED" | "REJECTED" | "DRAFT";
+  status?: "PENDING" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED";
   type?: "WITHDRAW" | "BORROW";
   page?: number;
   limit?: number;
-  [key: string]: unknown; // เผื่อมี filter อื่นๆ ส่งมาอีก
+  keyword?: string; // เพิ่มเพื่อรองรับการ Search
+  [key: string]: unknown;
 }
 
 export interface RequisitionItem {
   id: number;
-  req_qty: number;
-  approved_qty?: number;
-  issued_qty?: number;
-  item_id?: string;
-  items?: { 
-    name: string;
-    code: string;
-    current_stock: number;
-    image_url?: string;
-  };
+  item_id: string;
+  name: string;
+  code: string;
+  image_url?: string | null;
+  qty: number;
+  current_stock: number;
+  approved: number;
+  issued: number;
+  returned: number;
   note?: string;
 }
 
 export interface RequisitionPayload {
   type: "WITHDRAW" | "BORROW";
   department_id: string; 
-  department_name: string;
   items: Array<{ item_id: string; qty: number; note?: string }>; 
   due_date?: string;
   note?: string;
+  borrower?: Omit<BorrowerDetails, 'id'>; 
 }
+
+// src/types/requisition_type.ts
 
 export interface RequisitionHeader {
   id: number;
   doc_no: string;
   request_date: string;
-  department_code: string;
+  due_date?: string | null;
+  department_id: number;
   department_name?: string;
-  requester_id: number;
-  status: "PENDING" | "COMPLETED" | "REJECTED" | "DRAFT";
+  requester_id: string;
+  requester?: string;
+  item_count?: number;
+  status: "PENDING" | "COMPLETED" | "BORROWING" | "APPROVED" | "REJECTED" | "DRAFT" | "CANCELLED";
   type: "WITHDRAW" | "BORROW";
-  requisition_item: RequisitionItem[];
+  items: RequisitionItem[];
   note?: string;
+  borrower_id?: string | null;
+  borrower_details?: BorrowerDetails | null;
 }

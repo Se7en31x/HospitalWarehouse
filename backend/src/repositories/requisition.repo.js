@@ -1,186 +1,231 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-class RequisitionRepository {
-  /**
-   * Helper สำหรับเลือกใช้ Transaction Client หรือ Global Prisma Client
-   * @private
-   */
-  _client(tx) {
-    return tx || prisma;
-  }
+// --- Helper: Search Filter ---
+const buildRequisitionWhere = ({ keyword = '', type = '', status = '', start_date = '', end_date = '', department_code = '' } = {}) => {
+    const where = {};
+    const normalizedKeyword = (keyword || '').trim();
+    
+    if (type) where.type = type;
+    if (status) where.status = status;
+    if (department_code) where.department_code = department_code;
 
-  /**
-   * สร้างเลขที่เอกสารอัตโนมัติ (เช่น REQ-6901-0001)
-   */
-  async generateDocNo(type, tx) {
+    if (normalizedKeyword) {
+        where.OR = [
+            { doc_no: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { note: { contains: normalizedKeyword, mode: 'insensitive' } },
+            { department_name: { contains: normalizedKeyword, mode: 'insensitive' } },
+        ];
+    }
+
+    const startDate = start_date ? new Date(start_date) : null;
+    const endDate = end_date ? new Date(end_date) : null;
+
+    if (startDate || endDate) {
+        where.request_date = {
+            gte: startDate || undefined,
+            lte: endDate || undefined,
+        };
+    }
+    return where;
+};
+
+// --- Transaction Wrapper ---
+const withTransaction = async (callback) => {
+    return prisma.$transaction((tx) => callback(tx), {
+        timeout: 30000 
+    });
+};
+
+// --- Header & Items ---
+const generateDocNo = async (type, tx = prisma) => {
     const prefix = type === 'WITHDRAW' ? 'REQ' : 'BOR';
     const date = new Date();
     const year = (date.getFullYear() + 543).toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const docPrefix = `${prefix}-${year}${month}-`;
 
-    const lastDoc = await this._client(tx).requisition_header.findFirst({
-      where: { doc_no: { startsWith: docPrefix } },
-      orderBy: { doc_no: 'desc' },
-      select: { doc_no: true } // ดึงมาแค่ฟิลด์ที่ใช้เพื่อลดภาระ DB
+    const lastDoc = await tx.requisition_header.findFirst({
+        where: { doc_no: { startsWith: docPrefix } },
+        orderBy: { doc_no: 'desc' },
+        select: { doc_no: true }
     });
 
     let runNo = 1;
     if (lastDoc?.doc_no) {
-      const lastSequence = lastDoc.doc_no.split('-').pop();
-      const parsedNo = parseInt(lastSequence, 10);
-      runNo = isNaN(parsedNo) ? 1 : parsedNo + 1; // ป้องกันกรณี Parse ค่าไม่ได้
+        const lastSequence = lastDoc.doc_no.split('-').pop();
+        runNo = parseInt(lastSequence, 10) + 1;
     }
-
     return `${docPrefix}${runNo.toString().padStart(4, '0')}`;
-  }
+};
 
-  /**
-   * บันทึกหัวข้อใบเบิก
-   */
-  async createHeader(data, tx) {
-    return await this._client(tx).requisition_header.create({
-      data: {
-        doc_no: data.doc_no,
-        type: data.type,
-        status: 'PENDING',
-        department_code: data.department_code,
-        department_name: data.department_name,
-        requester_id: data.requester_id,
-        note: data.note,
-        due_date: data.due_date ? new Date(data.due_date) : null,
-      },
+const createHeader = (payload, tx = prisma) => {
+    return tx.requisition_header.create({ 
+        data: payload 
     });
-  }
+};
 
-  /**
-   * บันทึกรายการใบเบิก
-   */
-  async createItems(items, headerId, tx) {
-    return await this._client(tx).requisition_item.createMany({
-      data: items.map(item => {
-        const qty = Number(item.qty) || 0; // ป้องกันค่า NaN
-        return {
-          header_id: headerId,
-          item_id: item.item_id,
-          req_qty: qty,
-          approved_qty: qty,
-          note: item.note,
-        };
-      }),
+const createItems = (payloads, tx = prisma) => {
+    return tx.requisition_item.createMany({ 
+        data: payloads 
     });
-  }
+};
 
-  /**
-   * ดึงข้อมูลใบเบิกทั้งหมด
-   */
-  async getRequisitions(filters = {}) {
-    return await prisma.requisition_header.findMany({
-      where: {
-        ...(filters.department_codes && { department_code: { in: filters.department_codes } }),
-        ...(filters.status && { status: filters.status }),
-        ...(filters.type && { type: filters.type })
-      },
-      include: {
-        requisition_item: {
-          include: { items: { select: { name: true, code: true, current_stock: true, image_url: true } } }
+const createAllocation = async (data, tx = prisma) => {
+    return tx.item_allocation.create({ data });
+};
+
+// --- Borrower & Returns ---
+const createBorrowerDetails = async (data, tx = prisma) => {
+    return tx.borrower_details.create({ data });
+};
+
+const createReturnLog = async (data, tx = prisma) => {
+    return tx.return_log.create({ data });
+};
+
+// --- Queries ---
+const SelectRequisitionById = async (id, tx = prisma) => {
+    return tx.requisition_header.findUnique({
+        where: { id: Number(id) },
+        include: {
+            requisition_item: { 
+                include: { items: true } 
+            },
+            borrower_details: true,
+            profiles_requisition_header_requester_idToprofiles: true
         }
-      },
-      orderBy: { request_date: 'desc' }
     });
-  }
+};
 
-  /**
-   * ดึงข้อมูลใบเบิกตาม ID
-   */
-  async getRequisitionById(id) {
-    return await prisma.requisition_header.findUnique({
-      where: { id: Number(id) },
-      include: { requisition_item: { include: { items: true } } }
+const SelectAllRequisitions = async ({ page = 1, limit = 10, keyword = '', type = '', status = '', start_date = '', end_date = '' } = {}) => {
+    const where = buildRequisitionWhere({ keyword, type, status, start_date, end_date });
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await prisma.$transaction([
+        prisma.requisition_header.findMany({
+            where,
+            include: {
+                _count: {
+                    select: { requisition_item: true }
+                },
+                profiles_requisition_header_requester_idToprofiles: {
+                    select: { firstname_th: true, lastname_th: true }
+                },
+                borrower_details: true
+            },
+            orderBy: { request_date: 'desc' },
+            skip,
+            take: limit,
+        }),
+        prisma.requisition_header.count({ where }),
+    ]);
+
+    return { items, total, page, limit };
+};
+
+const createLogTransaction = async (logData, tx = prisma) => {
+    return tx.logs_transaction.create({ 
+        data: logData 
     });
-  }
+};
 
-  /**
-   * อัปเดตรายการใบเบิก (สำหรับอนุมัติ)
-   */
-  async updateRequisitionItem(reqItemId, data, tx) {
-    return await this._client(tx).requisition_item.update({
-      where: { id: reqItemId },
-      data
+// --- Stock Operations ---
+const getItemLots = async (itemId, tx = prisma) => {
+    return tx.item_lots.findMany({
+        where: {
+            item_id: itemId,
+            quantity: { gt: 0 },
+            status: 'ACTIVE',
+            deleted_at: null,
+        },
+        orderBy: [
+            { expired_at: 'asc' }, // FEFO: หมดอายุก่อน จ่ายก่อน
+            { created_at: 'asc' },
+        ],
     });
-  }
+};
 
-  /**
-   * อัปเดตสถานะใบเบิก
-   */
-  async updateHeaderStatus(headerId, status, approverId, note, tx) {
-    return await this._client(tx).requisition_header.update({
-      where: { id: Number(headerId) },
-      data: { 
-        status, 
-        approver_id: approverId,
-        ...(note !== undefined && { note }) // เช็ค undefined เผื่อกรณีต้องการบันทึก string ว่าง
-      }
+
+const updateRequisitionItem = async (id, data, tx = prisma) => {
+    return tx.requisition_item.update({
+        where: { id: Number(id) },
+        data,
     });
-  }
+};
 
-  /**
-   * ดึงข้อมูลล็อตสินค้า (FEFO)
-   */
-  async getItemLots(itemId, tx) {
-    return await this._client(tx).item_lots.findMany({
-      where: { 
-        item_id: itemId, 
-        quantity: { gt: 0 },
-        status: 'ACTIVE' // เพิ่มเช็คสถานะล็อตด้วยเพื่อความปลอดภัย
-      },
-      orderBy: [
-        { expired_at: 'asc' }, // แก้ Typo เป็น expired_at
-        { created_at: 'asc' }  // เพิ่ม Secondary Sort (FIFO) เผื่อกรณีไม่มีวันหมดอายุ
-      ]
+const updateHeaderStatus = async (id, status, approverId, tx = prisma, extraData = {}) => {
+    return tx.requisition_header.update({
+        where: { id: Number(id) },
+        data: {
+            status,
+            approver_id: approverId || undefined,
+            updated_at: new Date(),
+            ...extraData,
+        },
     });
-  }
+};
 
-  /**
-   * ตัดสต็อกล็อตสินค้า
-   * ข้อควรระวัง: ต้องใช้ id ของล็อตแทน lot_code เพราะ lot_code ไม่ใช่ Unique เดี่ยวๆ ใน Schema
-   */
-  async decrementLotStock(lotId, quantity, tx) {
-    return await this._client(tx).item_lots.update({
-      where: { id: lotId }, 
-      data: { quantity: { decrement: quantity } }
+// --- Return Management ---
+const SelectAllocationsForReqItem = async (reqItemId, tx = prisma) => {
+    return tx.item_allocation.findMany({
+        where: { req_item_id: Number(reqItemId) },
+        select: { lot_id: true, qty: true },
     });
-  }
+};
 
-  /**
-   * บันทึกการจัดสรรสต็อก
-   */
-  async createAllocation(data, tx) {
-    return await this._client(tx).item_allocation.create({ data });
-  }
-
-  /**
-   * บันทึกการเคลื่อนไหวสต็อก (เราไม่จำเป็นต้องสร้างฟังก์ชันซ้ำซ้อนถ้ามีใน stockmovement.repo แล้ว แต่ใส่ไว้ในนี้ก็ได้ถ้าระบบต้องการ)
-   */
-  async createStockMovement(data, tx) {
-    return await this._client(tx).stocks_movement.create({ data });
-  }
-
-  /**
-   * บันทึก Log Transaction
-   */
-  async createTransactionLog(data, tx) {
-    return await this._client(tx).logs_transaction.create({ data });
-  }
-
-  async withTransaction(callback) {
-    // ให้ Repo เป็นคนเรียก Prisma คุยกับ DB
-    return await prisma.$transaction(callback, {
-      maxWait: 5000,
-      timeout: 15000
+const incrementLotQuantity = async (lotId, qty, tx = prisma) => {
+    if (!lotId) return null;
+    return tx.item_lots.update({
+        where: { id: lotId },
+        data: { quantity: { increment: qty } },
     });
-  }
-}
+};
 
-module.exports = new RequisitionRepository();
+const softDeleteHeader = async (id, tx = prisma) => {
+    return tx.requisition_header.update({
+        where: { id: Number(id) },
+        data: {
+            status: 'CANCELLED',
+            updated_at: new Date(),
+        },
+    });
+};
+
+// รายการยืมที่อยู่ระหว่างดำเนินการ (BORROW + COMPLETED) — สำหรับหน้าคืนรายการ
+const SelectActiveBorrows = async () => {
+    return prisma.requisition_header.findMany({
+        where: {
+            type: 'BORROW',
+            status: 'COMPLETED',
+        },
+        include: {
+            _count: { select: { requisition_item: true } },
+            profiles_requisition_header_requester_idToprofiles: {
+                select: { firstname_th: true, lastname_th: true }
+            },
+            borrower_details: true,
+        },
+        orderBy: { due_date: 'asc' }, // ค้างคืนมากที่สุดขึ้นก่อน
+    });
+};
+
+module.exports = {
+    withTransaction,
+    generateDocNo,
+    createHeader,
+    createItems,
+    createAllocation,
+    createBorrowerDetails,
+    createReturnLog,
+    SelectRequisitionById,
+    SelectAllRequisitions,
+    createLogTransaction,
+    getItemLots,
+    updateRequisitionItem,
+    updateHeaderStatus,
+    softDeleteHeader,
+    SelectActiveBorrows,
+    SelectAllocationsForReqItem,
+    incrementLotQuantity,
+};

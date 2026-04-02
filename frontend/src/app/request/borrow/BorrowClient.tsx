@@ -84,6 +84,13 @@ export default function BorrowClient({ initialItems }: Props) {
     }
   }, []);
 
+  // --- [Auto-select first department from mock useAuth] ---
+  useEffect(() => {
+    if (departments.length > 0 && !selectedDeptId) {
+      setSelectedDeptId(String(departments[0].id));
+    }
+  }, [departments, selectedDeptId]);
+
   // --- [Real-time Socket.io Connection] ---
   useEffect(() => {
     // 1. เชื่อมต่อ Socket

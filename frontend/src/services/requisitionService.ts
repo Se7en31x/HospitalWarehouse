@@ -5,43 +5,45 @@ import {
   RequisitionFilters
 } from "../types/requisition_type";
 
-// ดึง Base URL จาก env เหมือนเดิม
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
-// Helper สำหรับจัดการ Headers พื้นฐาน (ไม่มี Token)
-const getHeaders = () => ({
-  "Content-Type": "application/json",
-});
 
 /**
  * ดึงประวัติใบเบิกทั้งหมด
  */
-export const getRequisitionHistory = async (
+export const getAllRequisitions = async (
   filters?: RequisitionFilters
 ): Promise<ApiResponse<RequisitionHeader[]>> => {
   try {
-    let queryString = "";
+    const params = new URLSearchParams();
     if (filters) {
-      const cleanParams: Record<string, string> = {};
       Object.entries(filters).forEach(([key, value]) => {
-        if (value != null) cleanParams[key] = String(value);
+        if (value !== undefined && value !== null && value !== "") {
+          params.append(key, String(value));
+        }
       });
-      queryString = "?" + new URLSearchParams(cleanParams).toString();
     }
 
-    const response = await fetch(`${API_BASE_URL}/v1/requisitions${queryString}`, {
+    const response = await fetch(`${API_BASE_URL}/v1/requisitions?${params.toString()}`, {
       method: "GET",
-      headers: getHeaders(),
+      headers: { "Content-Type": "application/json" },
     });
 
     const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: [],
+        message: result.message || "ไม่สามารถดึงข้อมูลประวัติได้",
+      };
+    }
+
     return result;
-  } catch (error) {
-    console.error("Fetch Error:", error);
+  } catch (_error) {
     return {
       success: false,
       data: [],
-      message: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+      message: "การเชื่อมต่อเครือข่ายขัดข้อง",
     };
   }
 };
@@ -49,20 +51,35 @@ export const getRequisitionHistory = async (
 /**
  * ดึงรายละเอียดใบเบิกตาม ID
  */
-export const getRequisitionById = async (id: number): Promise<ApiResponse<RequisitionHeader | null>> => {
+export const getRequisitionById = async (
+  id: number
+): Promise<ApiResponse<RequisitionHeader | null>> => {
   try {
     const response = await fetch(`${API_BASE_URL}/v1/requisitions/${id}`, {
       method: "GET",
-      headers: getHeaders(),
+      headers: { "Content-Type": "application/json" },
     });
 
     const result = await response.json();
-    return result;
-  } catch (error) {
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "ไม่พบข้อมูลใบเบิกที่ระบุ",
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? null,
+      message: result.message,
+    };
+  } catch (_error) {
     return {
       success: false,
       data: null,
-      message: "ไม่สามารถดึงข้อมูลได้",
+      message: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
     };
   }
 };
@@ -76,23 +93,30 @@ export const createRequisition = async (
   try {
     const response = await fetch(`${API_BASE_URL}/v1/requisitions`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     const result = await response.json();
-    
-    // ถ้า Backend ส่ง 401 มา (กรณีลืมปิด Middleware ที่ Backend)
-    if (response.status === 401) {
-      return { success: false, data: null, message: "Backend ปฏิเสธการเข้าถึง (Unauthorized)" };
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "สร้างใบเบิกไม่สำเร็จ",
+      };
     }
 
-    return result;
-  } catch (error) {
+    return {
+      success: true,
+      data: result.data ?? null,
+      message: result.message,
+    };
+  } catch (_error) {
     return {
       success: false,
       data: null,
-      message: "สร้างใบเบิกไม่สำเร็จ (Network Error)",
+      message: "เกิดข้อผิดพลาดในการส่งข้อมูล",
     };
   }
 };
@@ -107,13 +131,31 @@ export const approveRequisition = async (
   try {
     const response = await fetch(`${API_BASE_URL}/v1/requisitions/approve/${requisitionId}`, {
       method: "PUT",
-      headers: getHeaders(),
-      body: JSON.stringify({ itemsToIssue }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: itemsToIssue }),
     });
 
-    return await response.json();
-  } catch (error) {
-    return { success: false, data: null, message: "อนุมัติใบเบิกไม่สำเร็จ" };
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "อนุมัติใบเบิกไม่สำเร็จ",
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? null,
+      message: result.message,
+    };
+  } catch (_error) {
+    return {
+      success: false,
+      data: null,
+      message: "ระบบขัดข้อง ไม่สามารถอนุมัติได้",
+    };
   }
 };
 
@@ -127,12 +169,147 @@ export const rejectRequisition = async (
   try {
     const response = await fetch(`${API_BASE_URL}/v1/requisitions/reject/${requisitionId}`, {
       method: "PUT",
-      headers: getHeaders(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ note }),
     });
 
-    return await response.json();
-  } catch (error) {
-    return { success: false, data: null, message: "ปฏิเสธใบเบิกไม่สำเร็จ" };
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "ปฏิเสธใบเบิกไม่สำเร็จ",
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? null,
+      message: result.message,
+    };
+  } catch (_error) {
+    return {
+      success: false,
+      data: null,
+      message: "ไม่สามารถส่งคำขอปฏิเสธได้",
+    };
+  }
+};
+
+/**
+ * ยกเลิกใบเบิก (เฉพาะสถานะ PENDING)
+ */
+export const cancelRequisition = async (
+  requisitionId: number
+): Promise<ApiResponse<null>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/v1/requisitions/${requisitionId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "ยกเลิกใบเบิกไม่สำเร็จ",
+      };
+    }
+
+    return {
+      success: true,
+      data: null,
+      message: result.message || "ยกเลิกใบเบิกสำเร็จ",
+    };
+  } catch (_error) {
+    return {
+      success: false,
+      data: null,
+      message: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+    };
+  }
+};
+
+/**
+ * ดึงรายการยืมที่ยังไม่คืน — เรียกจาก endpoint แยกต่างหาก
+ */
+export const getBorrowActive = async (
+  page = 1,
+  limit = 10
+): Promise<ApiResponse<RequisitionHeader[]>> => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/v1/borrows/active`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: [],
+        message: result.message || "ไม่สามารถดึงข้อมูลการยืมได้",
+      };
+    }
+
+    return result;
+  } catch (_error) {
+    return {
+      success: false,
+      data: [],
+      message: "การเชื่อมต่อเครือข่ายขัดข้อง",
+    };
+  }
+};
+
+export interface ReturnItemPayload {
+  req_item_id: number;
+  qty_returned: number;
+  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+  note?: string;
+}
+
+/**
+ * บันทึกการรับคืนพัสดุ (warehouse side)
+ */
+export const processReturn = async (
+  headerId: number,
+  items: ReturnItemPayload[]
+): Promise<ApiResponse<RequisitionHeader | null>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/v1/borrows/return/${headerId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "บันทึกการรับคืนไม่สำเร็จ",
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? null,
+      message: result.message,
+    };
+  } catch (_error) {
+    return {
+      success: false,
+      data: null,
+      message: "เกิดข้อผิดพลาดในการส่งข้อมูล",
+    };
   }
 };

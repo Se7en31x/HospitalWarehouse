@@ -180,12 +180,13 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
       try {
         const itemDetail = await StockInSvc.getItemDetail(itemId);
         if (itemDetail) {
-          category = itemDetail.category || category;
-          categoryId = itemDetail.categoryId || categoryId;
-          unit = itemDetail.unit || unit;
-          unitId = itemDetail.unitId || unitId;
-          warehouseId = itemDetail.warehouseId || warehouseId;
-          warehouseName = itemDetail.warehouseName || warehouseName;
+          // API returns nested objects: categories, unit, warehouses
+          category = itemDetail.category_name || itemDetail.categories?.name || itemDetail.category?.name || category;
+          categoryId = itemDetail.category_id || itemDetail.categories?.id || categoryId;
+          unit = itemDetail.unit_name || itemDetail.unit?.name || unit;
+          unitId = itemDetail.unit_id || itemDetail.unit?.id || unitId;
+          warehouseId = itemDetail.warehouse_id || itemDetail.warehouses?.id || warehouseId;
+          warehouseName = itemDetail.warehouse_name || itemDetail.warehouses?.name || warehouseName;
         }
       } catch {}
 

@@ -27,13 +27,13 @@ export default function WarehouseSidebar() {
       group: 'การเบิก-ยืม-คืน',
       items: [
         { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
-        { name: 'รับคืนพัสดุ', path: '/warehouse/managereturns', icon: Undo2 },
+        { name: 'รับคืนพัสดุ', path: '/warehouse/returns', icon: Undo2 },
       ]
     },
     {
       group: 'อื่นๆ',
       items: [
-        { name: 'ประวัติการเคลื่อนไหว', path: '/warehouse/history', icon: History },
+        { name: 'ประวัติการเคลื่อนไหว', path: '/warehouse/stock-movement', icon: History },
         { name: 'รายงาน', path: '/warehouse/reports', icon: FileBarChart },
         { name: 'ตั้งค่าระบบ', path: '/warehouse/settings', icon: Settings },
       ]
