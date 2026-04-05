@@ -102,6 +102,7 @@ const createReceive = async (req, res) => {
         if (created?.status === RECEIVE_STATUSES.COMPLETED) {
             req.io.emit('REFRESH_DATA', 'LOTS');
             req.io.emit('REFRESH_DATA', 'ITEMS');
+            req.io.emit('REFRESH_DATA', 'STOCK_MOVEMENTS');
         }
 
         return util.sendResponse(res, 201, 'create receive success', created);
@@ -155,6 +156,7 @@ const cancelReceive = async (req, res) => {
         req.io.emit('REFRESH_DATA', 'LOTS');
         req.io.emit('REFRESH_DATA', 'ITEMS');
         req.io.emit('REFRESH_DATA', 'RECEIVES');
+        req.io.emit('REFRESH_DATA', 'STOCK_MOVEMENTS');
 
         return util.sendResponse(res, 200, 'cancel receive success', cancelled);
     } catch (error) {
@@ -183,6 +185,7 @@ const confirmReceive = async (req, res) => {
         req.io.emit('REFRESH_DATA', 'RECEIVES');
         req.io.emit('REFRESH_DATA', 'LOTS');
         req.io.emit('REFRESH_DATA', 'ITEMS');
+        req.io.emit('REFRESH_DATA', 'STOCK_MOVEMENTS');
 
         return util.sendResponse(res, 200, 'confirm receive success', confirmed);
     } catch (error) {

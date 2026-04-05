@@ -160,6 +160,42 @@ export const approveRequisition = async (
 };
 
 /**
+ * ยืนยันนำส่ง (ปิดงานใบเบิกหลังอนุมัติแล้ว)
+ */
+export const completeRequisitionDelivery = async (
+  requisitionId: number
+): Promise<ApiResponse<RequisitionHeader | null>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/v1/requisitions/deliver/${requisitionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        data: null,
+        message: result.message || "บันทึกการนำส่งไม่สำเร็จ",
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? null,
+      message: result.message,
+    };
+  } catch (_error) {
+    return {
+      success: false,
+      data: null,
+      message: "ระบบขัดข้อง ไม่สามารถบันทึกการนำส่งได้",
+    };
+  }
+};
+
+/**
  * ปฏิเสธใบเบิก
  */
 export const rejectRequisition = async (

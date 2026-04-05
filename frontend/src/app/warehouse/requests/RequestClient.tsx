@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
 import {
@@ -12,6 +12,7 @@ import { RequisitionHeader } from "../../../types/requisition_type"; // นำ�
 import { useAuth } from "@/lib/useAuth";
 import toast, { Toaster } from "react-hot-toast";
 import RequisitionDetailsModal from "./RequisitionDetailsModal";
+import { socket } from "@/lib/socket";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -35,6 +36,9 @@ const RequestClient = () => {
   const [showDetailsModal, setShowDetailsModal] = useState<RequisitionHeader | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState<number | null>(null);
   const [isCancelLoading, setIsCancelLoading] = useState<number | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
 
   // --- [Helper Functions] ---
   // ระบุ Type เป็น RequisitionHeader แทน any
@@ -80,6 +84,56 @@ const RequestClient = () => {
     refreshData();
   }, [refreshData]);
 
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+    };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current) return;
+      if (showDetailsModal || isDetailLoading !== null || isCancelLoading !== null) return;
+      if (isRefreshingRef.current) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await refreshData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 200);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "REQUISITIONS") {
+        scheduleRefresh();
+      }
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [refreshData, showDetailsModal, isDetailLoading, isCancelLoading]);
+
   // --- [Filter Logic] ---
   const filteredRequests = requests.filter(req => {
     const matchesTab = activeTab === "all" || req.status === activeTab;
@@ -105,15 +159,15 @@ const RequestClient = () => {
   const StatusBadge = ({ status }: { status: string }) => {
     const styles: Record<string, string> = {
       COMPLETED: "bg-emerald-50 text-emerald-700",
-      APPROVED:  "bg-emerald-50 text-emerald-700",
+      APPROVED:  "bg-blue-50 text-blue-700",
       REJECTED:  "bg-rose-50 text-rose-700",
       PENDING:   "bg-amber-50 text-amber-700",
       DRAFT:     "bg-slate-100 text-slate-500",
       CANCELLED: "bg-slate-100 text-slate-400",
     };
     const labels: Record<string, string> = {
-      COMPLETED: "อนุมัติแล้ว",
-      APPROVED:  "อนุมัติแล้ว",
+      COMPLETED: "เสร็จสิ้น",
+      APPROVED:  "รอนำส่ง",
       REJECTED:  "ปฏิเสธแล้ว",
       PENDING:   "รออนุมัติ",
       DRAFT:     "ร่าง",
@@ -188,13 +242,13 @@ const RequestClient = () => {
             onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsTypeDropdownOpen(false); }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{activeTab === "all" ? "สถานะทั้งหมด" : activeTab === "PENDING" ? "รออนุมัติ" : activeTab === "COMPLETED" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว"}</span>
+            <span className="text-slate-800 font-medium">{activeTab === "all" ? "สถานะทั้งหมด" : activeTab === "PENDING" ? "รออนุมัติ" : activeTab === "APPROVED" ? "รอนำส่ง" : activeTab === "COMPLETED" ? "เสร็จสิ้น" : "ปฏิเสธแล้ว"}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
           {isStatusDropdownOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full">
               <ul className="py-1">
-                {[{ v: 'all', l: 'สถานะทั้งหมด' }, { v: 'PENDING', l: 'รออนุมัติ' }, { v: 'COMPLETED', l: 'อนุมัติแล้ว' }, { v: 'REJECTED', l: 'ปฏิเสธแล้ว' }].map(s => (
+                {[{ v: 'all', l: 'สถานะทั้งหมด' }, { v: 'PENDING', l: 'รออนุมัติ' }, { v: 'APPROVED', l: 'รอนำส่ง' }, { v: 'COMPLETED', l: 'เสร็จสิ้น' }, { v: 'REJECTED', l: 'ปฏิเสธแล้ว' }].map(s => (
                   <li key={s.v}>
                     <button
                       type="button"

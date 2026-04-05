@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Search, RefreshCw, ChevronLeft, ChevronRight,
   Clock, X, Building2, User, Eye,
@@ -9,6 +9,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { getBorrowActive, getRequisitionById } from "@/services/requisitionService";
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
+import { socket } from "@/lib/socket";
 
 // === Helpers ===
 
@@ -187,6 +188,9 @@ export default function ReturnItemClient() {
   const itemsPerPage = 10;
   const [detailLoading, setDetailLoading] = useState<number | null>(null);
   const [viewingDetail, setViewingDetail] = useState<RequisitionHeader | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
 
   const fetchData = useCallback(async () => {
     setIsFetching(true);
@@ -213,6 +217,56 @@ export default function ReturnItemClient() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+    };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current) return;
+      if (viewingDetail || detailLoading !== null) return;
+      if (isRefreshingRef.current) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await fetchData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 220);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "REQUISITIONS") {
+        scheduleRefresh();
+      }
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [fetchData, viewingDetail, detailLoading]);
 
   const openDetail = useCallback(async (id: number) => {
     setDetailLoading(id);

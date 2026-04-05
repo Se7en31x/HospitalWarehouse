@@ -5,6 +5,7 @@ const lotRepo = require('../repositories/lot.repo');
 
 const REQ_STATUS = {
     PENDING: 'PENDING',
+    APPROVED: 'APPROVED',
     COMPLETED: 'COMPLETED',
     BORROWING: 'BORROWING',
     REJECTED: 'REJECTED',
@@ -290,8 +291,8 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
             }, tx);
         }
 
-        // อัปเดตสถานะ: ยืม = BORROWING, เบิก = COMPLETED
-        const nextStatus = header.type === 'BORROW' ? REQ_STATUS.BORROWING : REQ_STATUS.COMPLETED;
+        // อัปเดตสถานะ: ยืม = BORROWING, เบิก = APPROVED (รอนำส่ง)
+        const nextStatus = header.type === 'BORROW' ? REQ_STATUS.BORROWING : REQ_STATUS.APPROVED;
         await requisitionRepo.updateHeaderStatus(headerId, nextStatus, approvedById, tx);
 
         // บันทึก Transaction Log
@@ -303,6 +304,40 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
             status: "SUCCESS",
             created_by: approvedByName,
             created_by_id: approvedById
+        }, tx);
+
+        const updatedHeader = await requisitionRepo.SelectRequisitionById(headerId, tx);
+        return DTO.mapRequisitionDetailResponse(updatedHeader);
+    });
+};
+
+/**
+ * 6. ปิดงานนำส่งสำหรับใบเบิก (WITHDRAW)
+ */
+const completeDelivery = async (headerId, userSession) => {
+    const deliveredById = userSession?.user_id || null;
+    const deliveredByName = userSession?.user_fullname || deliveredById || 'SYSTEM';
+
+    return requisitionRepo.withTransaction(async (tx) => {
+        const header = await requisitionRepo.SelectRequisitionById(headerId, tx);
+        if (!header) throw createHttpError(404, 'ไม่พบใบเบิกที่ระบุ');
+        if (header.type !== 'WITHDRAW') {
+            throw createHttpError(400, 'ปิดงานนำส่งได้เฉพาะใบเบิก (WITHDRAW) เท่านั้น');
+        }
+        if (header.status !== REQ_STATUS.APPROVED) {
+            throw createHttpError(400, `สถานะปัจจุบันคือ ${header.status} ไม่สามารถปิดงานนำส่งได้`);
+        }
+
+        await requisitionRepo.updateHeaderStatus(headerId, REQ_STATUS.COMPLETED, deliveredById, tx);
+
+        await requisitionRepo.createLogTransaction({
+            action: 'DELIVER',
+            module: 'WAREHOUSE',
+            code: header.doc_no,
+            description: `นำส่งพัสดุใบ ${header.doc_no} เรียบร้อย`,
+            status: 'SUCCESS',
+            created_by: deliveredByName,
+            created_by_id: deliveredById,
         }, tx);
 
         const updatedHeader = await requisitionRepo.SelectRequisitionById(headerId, tx);
@@ -539,6 +574,7 @@ module.exports = {
     getAllRequisitions,
     getRequisitionDetail,
     approveRequisition,
+    completeDelivery,
     rejectRequisition,
     cancelRequisition,
     getActiveBorrows,

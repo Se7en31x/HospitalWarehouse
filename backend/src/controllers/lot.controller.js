@@ -48,6 +48,11 @@ const adjustLotStock = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid lot code" });
         }
         const result = await lotService.adjustLotStock(id, payload, req.user || {});
+
+        req.io.emit('REFRESH_DATA', 'LOTS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
+        req.io.emit('REFRESH_DATA', 'STOCK_MOVEMENTS');
+
         return sendResponse(res, 200, "adjust lot stock success", result);
     } catch (error) {
         if (error.message === 'Lot id not found' || error.message === 'Lot not found') {
@@ -64,6 +69,11 @@ const deleteLot = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid lot id" });
         }
         const result = await lotService.deleteLot(id, req.user || {});
+
+        req.io.emit('REFRESH_DATA', 'LOTS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
+        req.io.emit('REFRESH_DATA', 'STOCK_MOVEMENTS');
+
         return sendResponse(res, 200, "canceling lot success", result);
     } catch (error) {
         if (error.message === 'Lot id not found') {
@@ -80,6 +90,11 @@ const toggleStatus = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid lot id" });
         }
         const result = await lotService.toggleLotStatus(id, req.user || {});
+
+        req.io.emit('REFRESH_DATA', 'LOTS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
+        req.io.emit('REFRESH_DATA', 'STOCK_MOVEMENTS');
+
         return sendResponse(res, 200, "toggle lot status success", result);
     } catch (error) {
         if (error.message === 'Lot id not found') {

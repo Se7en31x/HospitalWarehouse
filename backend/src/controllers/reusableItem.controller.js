@@ -47,6 +47,7 @@ const createReusableReceive = async (req, res) => {
 
         req.io.emit('REFRESH_DATA', 'RECEIVES');
         req.io.emit('REFRESH_DATA', 'REUSABLE_UNITS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
 
         return util.sendResponse(res, 201, 'create reusable receive success', result);
     } catch (error) {
@@ -96,6 +97,7 @@ const updateReusableUnit = async (req, res) => {
         const result = await reusableService.updateReusableUnit(req.params.id, payload, req.user || null);
 
         req.io.emit('REFRESH_DATA', 'REUSABLE_UNITS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
 
         return util.sendResponse(res, 200, 'update reusable unit success', result);
     } catch (error) {
@@ -114,6 +116,7 @@ const returnReusableFromWithdraw = async (req, res) => {
         const result = await reusableService.returnReusableFromWithdraw(req.params.id, payload, req.user || null);
 
         req.io.emit('REFRESH_DATA', 'REUSABLE_UNITS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
 
         return util.sendResponse(res, 200, 'return reusable unit from withdraw success', result);
     } catch (error) {
@@ -174,6 +177,7 @@ const processReturnRequest = async (req, res) => {
 
         req.io.emit('REFRESH_DATA', 'REUSABLE_UNITS');
         req.io.emit('REFRESH_DATA', 'REUSABLE_RETURN_REQUESTS');
+        req.io.emit('REFRESH_DATA', 'ITEMS');
 
         return util.sendResponse(res, 200, 'process reusable return request success', result);
     } catch (error) {

@@ -22,7 +22,7 @@ export interface BorrowerDetails {
 
 export interface RequisitionFilters {
   department_codes?: string[];
-  status?: "PENDING" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED";
+  status?: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED";
   type?: "WITHDRAW" | "BORROW";
   page?: number;
   limit?: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Search, X } from "lucide-react";
 
@@ -15,6 +15,9 @@ export default function ReusableUnitClient() {
   const [items, setItems] = useState<Item.UiItem[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
@@ -42,15 +45,47 @@ export default function ReusableUnitClient() {
   }, []);
 
   useEffect(() => {
-    if (!socket.connected) socket.connect();
-    const handleRefreshSignal = (message: string) => {
-      if (message === "ITEMS" || message === "REUSABLE_UNITS") refreshData();
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
     };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await refreshData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 220);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "ITEMS" || message === "REUSABLE_UNITS") scheduleRefresh();
+    };
+
     socket.on("REFRESH_DATA", handleRefreshSignal);
     return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData]);
+  }, [refreshData, isFetching]);
 
   useEffect(() => {
     const fetchOptions = async () => {

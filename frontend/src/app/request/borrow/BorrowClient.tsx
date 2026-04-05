@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Search, Plus, ShoppingCart, ChevronLeft, ChevronRight, ChevronDown, HandHelping, Package } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
@@ -65,6 +65,9 @@ export default function BorrowClient({ initialItems }: Props) {
   const [isCartBouncing, setIsCartBouncing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
 
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<ItemSvc.UiItem | null>(null);
@@ -100,25 +103,52 @@ export default function BorrowClient({ initialItems }: Props) {
 
   // --- [Real-time Socket.io Connection] ---
   useEffect(() => {
-    // 1. เชื่อมต่อ Socket
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+    };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     if (!socket.connected) socket.connect();
 
-    // 2. ฟังก์ชันจัดการเมื่อได้รับสัญญาณ
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current) return;
+      if (isFetching || isRefreshingRef.current) return;
+      if (showCartModal || showItemDetailModal) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await refreshData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 220);
+    };
+
     const handleRefreshSignal = (message: string) => {
       if (message === "ITEMS") {
-        console.log("⚡ Socket: Received Refresh Signal -> Reloading Data...");
-        refreshData();
+        scheduleRefresh();
       }
     };
 
-    // 3. ฟัง Event ชื่อ 'REFRESH_DATA'
     socket.on("REFRESH_DATA", handleRefreshSignal);
 
-    // 4. Cleanup function เมื่อ Component ถูกทำลาย
     return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData]);
+  }, [refreshData, isFetching, showCartModal, showItemDetailModal]);
 
   // --- [Initialize Data & LocalStorage] ---
   useEffect(() => {
