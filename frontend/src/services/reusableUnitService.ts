@@ -163,6 +163,12 @@ export async function updateReusableUnit(
   });
 }
 
+export async function deleteReusableUnit(id: string): Promise<void> {
+  return request<void>(`/v1/reusable-items/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function returnReusableFromWithdraw(
   id: string,
   payload: { condition?: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE"; note?: string } = {}

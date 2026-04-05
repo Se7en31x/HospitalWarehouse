@@ -110,3 +110,9 @@ export async function updateAsset(id: string, data: Partial<Asset>): Promise<Ass
         body: JSON.stringify(data),
     });
 }
+
+export async function deleteAsset(id: string): Promise<void> {
+    return request<void>(`/v1/assets/${id}`, {
+        method: "DELETE",
+    });
+}

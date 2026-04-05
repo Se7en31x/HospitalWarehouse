@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import Swal from "sweetalert2";
 import {
   Package,
   Save,
@@ -260,7 +261,18 @@ export default function ItemFormModal({
           await ItemSvc.removeItemImage(String(initialData.id));
         }
 
-        toast.success("แก้ไขข้อมูลสำเร็จ");
+        await Swal.fire({
+          title: "สำเร็จ!",
+          text: "แก้ไขข้อมูลสำเร็จ",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+          didClose: () => {
+            onSuccessAction?.();
+          },
+        });
+        onCloseAction?.();
+        return;
       } else {
         const fd = new FormData();
         fd.append("name", formData.name);
@@ -275,11 +287,20 @@ export default function ItemFormModal({
         if (imageFile) fd.append("image", imageFile);
         console.log("Creating item with FormData");
         await ItemSvc.createInventoryItem(fd);
-        toast.success("บันทึกสำเร็จ");
+        
+        await Swal.fire({
+          title: "สำเร็จ!",
+          text: "บันทึกข้อมูลสำเร็จ",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+          didClose: () => {
+            onSuccessAction?.();
+          },
+        });
+        onCloseAction?.();
+        return;
       }
-
-      onSuccessAction?.();
-      onCloseAction?.();
     } catch (error) {
       console.error("Submit error:", error);
       const rawMessage = error instanceof Error ? error.message : "Unknown error";
@@ -332,13 +353,10 @@ export default function ItemFormModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-2 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <PackagePlus className="w-6 h-6 text-indigo-600" />
-              </div>
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">
                   {isEdit ? "แก้ไขข้อมูลพัสดุ" : "เพิ่มพัสดุใหม่"}
@@ -352,7 +370,7 @@ export default function ItemFormModal({
             </div>
             <button
               onClick={onCloseAction}
-              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              className="p-2 hover:bg-slate-50 rounded-full transition-colors"
             >
               <X className="w-5 h-5 text-slate-400" />
             </button>
@@ -361,7 +379,7 @@ export default function ItemFormModal({
           {/* Content */}
           <div className="p-8 space-y-6">
             {/* Form Section */}
-            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+            <div className="bg-white rounded-lg p-6 border border-slate-300 shadow-sm">
               <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
                 <Package className="w-5 h-5 text-slate-500" />
                 ข้อมูลพัสดุ
@@ -377,7 +395,7 @@ export default function ItemFormModal({
                     </label>
                     <div
                       {...getRootProps()}
-                      className="relative border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50 h-[180px] w-full flex flex-col items-center justify-center overflow-hidden"
+                      className="relative border-2 border-dashed border-slate-200 rounded-lg p-4 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-white h-[180px] w-full flex flex-col items-center justify-center overflow-hidden"
                     >
                       <input {...getInputProps()} />
                       {formData.imageUrl ? (
@@ -395,7 +413,7 @@ export default function ItemFormModal({
                               setImageRemoved(true);
                               setFormData((prev) => ({ ...prev, imageUrl: "" }));
                             }}
-                            className="absolute -top-1 -right-1 p-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors z-10 shadow-sm"
+                            className="absolute -top-1 -right-1 p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-colors z-10 shadow-sm"
                             title="ลบรูปภาพ"
                           >
                             <X className="w-3.5 h-3.5" />
@@ -416,7 +434,7 @@ export default function ItemFormModal({
                   </div>
 
                   {/* Fields - Right side */}
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Item Name */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold mb-2 text-slate-700">
@@ -430,7 +448,7 @@ export default function ItemFormModal({
                             setFormData({ ...formData, name: e.target.value })
                           }
                           placeholder="ระบุชื่อพัสดุ"
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white shadow-sm"
                         />
                         {formData.name && (
                           <button
@@ -452,7 +470,7 @@ export default function ItemFormModal({
                     {/* Category */}
                 <div data-category-dropdown>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
-                    ประเภท <span className="text-red-500">*</span>
+                    ประเภท {!isEdit && <span className="text-red-500">*</span>}
                   </label>
                   {isFetchingOptions ? (
                     <div className="flex items-center justify-center h-10 bg-white rounded-lg border border-slate-300">
@@ -464,21 +482,25 @@ export default function ItemFormModal({
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
+                          disabled={isEdit}
                           value={
                             formData.category_id
                               ? categories.find((c) => c.id === formData.category_id)?.name || ""
                               : categorySearchQuery
                           }
                           onChange={(e) => {
+                            if (isEdit) return;
                             setCategorySearchQuery(e.target.value);
                             setIsCategoryDropdownOpen(true);
                             if (formData.category_id) {
                               setFormData({ ...formData, category_id: "" });
                             }
                           }}
-                          onFocus={() => setIsCategoryDropdownOpen(true)}
+                          onFocus={() => {
+                            if (!isEdit) setIsCategoryDropdownOpen(true);
+                          }}
                           placeholder="ค้นหาประเภท..."
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-500 shadow-sm"
                         />
                         {categorySearchQuery && !formData.category_id && (
                           <button
@@ -543,7 +565,7 @@ export default function ItemFormModal({
                       )}
 
                       {/* Clear category selection button */}
-                      {formData.category_id && (
+                      {formData.category_id && !isEdit && (
                         <button
                           type="button"
                           onClick={() => {
@@ -594,7 +616,7 @@ export default function ItemFormModal({
                           }}
                           onFocus={() => setIsUnitDropdownOpen(true)}
                           placeholder="ค้นหาหน่วย..."
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white shadow-sm"
                         />
                         {unitSearchQuery && !formData.unit_id && (
                           <button
@@ -703,7 +725,7 @@ export default function ItemFormModal({
                           }}
                           onFocus={() => setIsWarehouseDropdownOpen(true)}
                           placeholder="ค้นหาคลัง..."
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white shadow-sm"
                         />
                         {warehouseSearchQuery && !formData.warehouse_id && (
                           <button
@@ -821,14 +843,14 @@ export default function ItemFormModal({
                       setFormData({ ...formData, description: e.target.value })
                     }
                     placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white resize-none"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white resize-none shadow-sm"
                   />
                 </div>
 
                 {/* Item Type */}
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">ประเภทสินค้า</label>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="bg-white rounded-lg p-3 border border-slate-300 shadow-sm">
                     <p className="text-sm font-semibold text-slate-700">{getItemTypeLabel(formData.type)}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
                       ระบบกำหนดประเภทจากหมวดหมู่ที่เลือกอัตโนมัติ เพื่อป้องกันข้อมูลไม่สอดคล้องกัน
@@ -877,17 +899,17 @@ export default function ItemFormModal({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 py-3 px-8 border-t border-slate-200 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
+          <div className="sticky bottom-0 py-3 px-8 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-lg">
             <button
               onClick={onCloseAction}
-              className="px-6 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className="px-6 py-2.5 font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
             >
               ยกเลิก
             </button>
             <button
               disabled={isLoading}
               onClick={handleSubmit}
-              className="px-8 py-2.5 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 rounded-lg shadow-lg flex items-center gap-2 transition-colors"
+              className="px-8 py-2.5 font-semibold text-white bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-300 rounded-lg shadow-lg flex items-center gap-2 transition-colors"
             >
               {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
               <Save className="w-4 h-4" />

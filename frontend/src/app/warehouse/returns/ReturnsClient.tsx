@@ -1,17 +1,15 @@
 ﻿"use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
   CheckCircle, Clock, X, Building2, User, Eye, FileText, MapPin, Phone,
-  Calendar, Package, Loader2, Minus, Plus,
+  Calendar, Package, Loader2,
 } from "lucide-react";
-import Swal from "sweetalert2";
-import withReactContent from "sweetalert2-react-content";
-import { getAllRequisitions, getRequisitionById, processReturn, ReturnItemPayload } from "@/services/requisitionService";
+import { getAllRequisitions } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
 
-const MySwal = withReactContent(Swal);
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -77,195 +75,6 @@ const fmtDate = (dateStr?: string | null): string => {
   });
 };
 
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
-
-function DetailModal({
-  header,
-  onClose,
-  onReturn,
-}: {
-  header: RequisitionHeader;
-  onClose: () => void;
-  onReturn?: (h: RequisitionHeader) => void;
-}) {
-  const ext = isExternal(header);
-  const uiStatus = mapUiStatus(header);
-  const canReturn = header.status === "BORROWING";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-
-        {/* Header */}
-        <div className={`px-6 py-4 flex items-center justify-between flex-shrink-0 ${ext ? "bg-emerald-600" : "bg-indigo-600"}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-              {ext ? <User className="w-5 h-5 text-white" /> : <Building2 className="w-5 h-5 text-white" />}
-            </div>
-            <div>
-              <p className="text-white font-bold text-sm">รายละเอียดการยืม — {header.doc_no}</p>
-              <p className="text-white/70 text-xs">{ext ? "ยืมสำหรับบุคคลภายนอก" : "ยืมภายในแผนก"}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition p-1.5 hover:bg-white/10 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
-
-          {/* Type Badge */}
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${ext ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}`}>
-            {ext ? <User className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
-            {ext ? "บุคคลภายนอก" : `แผนก ID: ${header.department_id}`}
-          </div>
-
-          {/* Borrower Info */}
-          {ext && header.borrower_details ? (
-            <>
-              <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-4">
-                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mb-2">เจ้าหน้าที่ผู้ทำรายการ</p>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-indigo-200 rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-indigo-600" />
-                  </div>
-                  <span className="font-semibold text-indigo-800 text-sm">{header.requester}</span>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-                  <User className="w-4 h-4 text-emerald-600" />
-                  <span className="text-sm font-bold text-gray-700">ข้อมูลผู้ยืม (บุคคลภายนอก)</span>
-                </div>
-                <div className="p-4 space-y-2">
-                  <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ชื่อ-นามสกุล" value={header.borrower_details.fullname} />
-                  {header.borrower_details.phone && (
-                    <InfoRow icon={<Phone className="w-3.5 h-3.5" />} label="เบอร์โทร" value={header.borrower_details.phone} />
-                  )}
-                  {header.borrower_details.address && (
-                    <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="ที่อยู่" value={header.borrower_details.address} />
-                  )}
-                  {header.borrower_details.notes && (
-                    <InfoRow icon={<FileText className="w-3.5 h-3.5" />} label="หมายเหตุ" value={header.borrower_details.notes} highlight />
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <Building2 className="w-4 h-4 text-indigo-600" />
-                <span className="text-sm font-bold text-gray-700">ข้อมูลผู้ยืม</span>
-              </div>
-              <div className="p-4 space-y-2">
-                <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ผู้ทำรายการ" value={header.requester || "-"} />
-                <InfoRow icon={<Building2 className="w-3.5 h-3.5" />} label="แผนก ID" value={String(header.department_id || "-")} />
-              </div>
-            </div>
-          )}
-
-          {/* Items Table */}
-          {header.items && header.items.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <Package className="w-4 h-4 text-gray-600" />
-                <span className="text-sm font-bold text-gray-700">รายการพัสดุที่ยืมไป</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-3 w-[80px] text-center">รูป</th>
-                      <th className="px-4 py-3">รายการพัสดุ</th>
-                      <th className="px-4 py-3 w-[100px] text-center">จำนวนยืม</th>
-                      <th className="px-4 py-3 w-[100px] text-center">จ่ายจริง</th>
-                      <th className="px-4 py-3 w-[100px] text-center">คืนแล้ว</th>
-                      <th className="px-4 py-3 w-[110px] text-center">คงค้าง</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {header.items.map((item) => {
-                      const pending = (item.issued || 0) - (item.returned || 0);
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3">
-                            {item.image_url ? (
-                              <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-lg object-cover mx-auto" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
-                                <Package className="w-5 h-5 text-slate-400" />
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="font-bold text-gray-800">{item.name}</p>
-                            <p className="text-xs text-gray-400 font-mono mt-0.5">{item.code}</p>
-                          </td>
-                          <td className="px-4 py-3 text-center font-semibold text-slate-600">{item.qty}</td>
-                          <td className="px-4 py-3 text-center font-semibold text-indigo-600">{item.issued || 0}</td>
-                          <td className="px-4 py-3 text-center font-semibold text-green-600">{item.returned || 0}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`font-bold text-sm ${pending > 0 ? "text-amber-600" : "text-slate-400"}`}>
-                              {pending > 0 ? pending : "ครบแล้ว"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Dates */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <Calendar className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-bold text-gray-700">วันที่</span>
-            </div>
-            <div className="p-4 grid grid-cols-2 gap-2">
-              <MiniCell label="วันที่ทำรายการ" value={fmtDate(header.request_date)} />
-              <MiniCell label="กำหนดคืน" value={fmtDate(header.due_date)} alert={getDaysOverdue(header) > 0} />
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-            <span className="text-sm text-gray-500 font-medium">สถานะ</span>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${getStatusBadgeColor(uiStatus)}`}>
-              {getStatusIcon(uiStatus)} {uiStatus}
-            </span>
-          </div>
-
-          {header.note && (
-            <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-sm text-amber-800">
-              <span className="font-bold">หมายเหตุ:</span> {header.note}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
-          <button onClick={onClose} className="px-6 py-2.5 text-sm font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            ปิดหน้าต่าง
-          </button>
-          {onReturn && canReturn && (
-            <button
-              onClick={() => onReturn(header)}
-              className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white text-sm font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95"
-            >
-              <RefreshCw className="w-4 h-4" />
-              ทำรายการรับคืน
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Return Action Modal ──────────────────────────────────────────────────────
 
 type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
@@ -288,219 +97,6 @@ const conditionOptions: { value: ReturnCondition; label: string; color: string }
   { value: "LOST",       label: "สูญหาย",       color: "text-red-700 bg-red-50" },
   { value: "INCOMPLETE", label: "คืนไม่ครบ",    color: "text-purple-700 bg-purple-50" },
 ];
-
-function ReturnActionModal({
-  header,
-  onClose,
-  onConfirm,
-  isSubmitting,
-}: {
-  header: RequisitionHeader;
-  onClose: () => void;
-  onConfirm: (rows: ReturnItemPayload[]) => void;
-  isSubmitting: boolean;
-}) {
-  const returnable = useMemo<ReturnRowState[]>(() =>
-    (header.items || [])
-      .filter(item => (item.issued || 0) > (item.returned || 0))
-      .map(item => ({
-        req_item_id: item.id,
-        qty_returned: (item.issued || 0) - (item.returned || 0),
-        condition: "GOOD" as ReturnCondition,
-        note: "",
-        max: (item.issued || 0) - (item.returned || 0),
-        name: item.name,
-        code: item.code,
-        issued: item.issued || 0,
-        returned: item.returned || 0,
-      })),
-  [header.items]);
-
-  const [rows, setRows] = useState<ReturnRowState[]>(returnable);
-
-  const updateRow = (idx: number, patch: Partial<ReturnRowState>) => {
-    setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
-  };
-
-  const adjustQty = (idx: number, delta: number) => {
-    setRows(prev => prev.map((r, i) => {
-      if (i !== idx) return r;
-      const next = r.qty_returned + delta;
-      if (next < 0 || next > r.max) return r;
-      return { ...r, qty_returned: next };
-    }));
-  };
-
-  const handleSubmit = () => {
-    const payload: ReturnItemPayload[] = rows
-      .filter(r => r.qty_returned > 0)
-      .map(r => ({
-        req_item_id: r.req_item_id,
-        qty_returned: r.qty_returned,
-        condition: r.condition,
-        note: r.note || undefined,
-      }));
-
-    if (payload.length === 0) {
-      MySwal.fire({ title: "กรุณาระบุจำนวนที่คืน", icon: "warning", timer: 2000, showConfirmButton: false });
-      return;
-    }
-    onConfirm(payload);
-  };
-
-  const ext = isExternal(header);
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-
-        {/* Header */}
-        <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50/50">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-600 shadow-lg">
-              <RefreshCw className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-800">{header.doc_no}</h2>
-              <p className="text-xs text-slate-500">บันทึกการรับคืนพัสดุ</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
-
-          {/* Borrower summary */}
-          <div className="grid grid-cols-2 gap-6 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-            <div className="flex items-center gap-3">
-              <User size={22} className="text-indigo-600 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-indigo-400 uppercase font-bold">ผู้ทำรายการ</p>
-                <p className="font-bold text-indigo-900 text-sm">{header.requester || "-"}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {ext ? <User size={22} className="text-emerald-600 flex-shrink-0" /> : <Building2 size={22} className="text-indigo-600 flex-shrink-0" />}
-              <div>
-                <p className="text-xs text-indigo-400 uppercase font-bold">ผู้ยืม</p>
-                <p className="font-bold text-indigo-900 text-sm">{getBorrowerDisplay(header)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Items Table */}
-          {rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-slate-400 gap-2">
-              <CheckCircle className="w-10 h-10 text-green-300" />
-              <p className="text-sm font-medium">คืนพัสดุครบทุกรายการแล้ว</p>
-            </div>
-          ) : (
-            <div className="border rounded-xl overflow-hidden shadow-sm">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-wide">
-                  <tr>
-                    <th className="px-4 py-3 text-left">รายการพัสดุ</th>
-                    <th className="px-4 py-3 text-center w-[90px]">จ่ายจริง</th>
-                    <th className="px-4 py-3 text-center w-[90px]">คืนแล้ว</th>
-                    <th className="px-4 py-3 text-center w-[160px]">จำนวนที่คืนครั้งนี้</th>
-                    <th className="px-4 py-3 text-center w-[170px]">สภาพ</th>
-                    <th className="px-4 py-3 text-left w-[200px]">หมายเหตุ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((row, idx) => (
-                    <tr key={row.req_item_id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <p className="font-bold text-slate-800 text-sm">{row.name}</p>
-                        <p className="text-xs text-slate-400 font-mono">{row.code}</p>
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-indigo-600">{row.issued}</td>
-                      <td className="px-4 py-3 text-center font-semibold text-green-600">{row.returned}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="flex items-center bg-white p-1 rounded-xl border-2 border-slate-200 shadow-sm focus-within:border-green-500 transition-all">
-                            <button type="button" onClick={() => adjustQty(idx, -1)} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500">
-                              <Minus size={13} strokeWidth={3} />
-                            </button>
-                            <input
-                              type="number"
-                              value={row.qty_returned}
-                              min={0}
-                              max={row.max}
-                              onChange={e => {
-                                const v = Math.max(0, Math.min(row.max, Number(e.target.value)));
-                                updateRow(idx, { qty_returned: v });
-                              }}
-                              className="w-12 bg-transparent text-center font-black text-base outline-none text-green-600"
-                            />
-                            <button type="button" onClick={() => adjustQty(idx, 1)} className="p-1.5 hover:bg-slate-50 rounded-lg text-green-600">
-                              <Plus size={13} strokeWidth={3} />
-                            </button>
-                          </div>
-                          {row.max - row.qty_returned > 0 && (
-                            <span className="text-[10px] text-amber-500 font-bold">ค้างอีก {row.max - row.qty_returned}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={row.condition}
-                          onChange={e => updateRow(idx, { condition: e.target.value as ReturnCondition })}
-                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-                        >
-                          {conditionOptions.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
-                        <span className={`mt-1 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${conditionOptions.find(o => o.value === row.condition)?.color}`}>
-                          {conditionOptions.find(o => o.value === row.condition)?.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={row.note}
-                          onChange={e => updateRow(idx, { note: e.target.value })}
-                          placeholder="หมายเหตุ (ถ้ามี)"
-                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-slate-50"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Condition info */}
-          <div className="text-xs text-slate-500 bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1">
-            <p><span className="font-bold text-green-700">สภาพดี</span> — จะนำพัสดุกลับเข้าสต็อกโดยอัตโนมัติ</p>
-            <p><span className="font-bold text-amber-700">ชำรุด / คืนไม่ครบ</span> — บันทึกการคืนโดยไม่นำกลับเข้าสต็อก</p>
-            <p><span className="font-bold text-red-700">สูญหาย</span> — บันทึกว่าสูญหาย ไม่นำกลับเข้าสต็อก</p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-8 py-5 border-t bg-slate-50/50 flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-2.5 text-sm font-bold text-slate-500 bg-white border rounded-xl hover:bg-slate-50 transition-colors">
-            ยกเลิก
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || rows.every(r => r.qty_returned === 0)}
-            className="px-10 py-2.5 bg-green-600 text-white text-sm font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
-          >
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            ยืนยันการรับคืน
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Helper sub-components ────────────────────────────────────────────────────
 
@@ -525,32 +121,20 @@ function MiniCell({ label, value, alert }: { label: string; value: string; alert
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type StatusFilter = "ทั้งหมด" | "รอการคืน" | "ค้างคืน" | "คืนแล้ว" | "รออนุมัติ" | "ยกเลิก";
-type TypeFilter = "ทั้งหมด" | "INTERNAL" | "EXTERNAL";
+type StatusFilter = "สถานะทั้งหมด" | "รอการคืน" | "ค้างคืน" | "คืนแล้ว" | "รออนุมัติ" | "ยกเลิก";
 
-const STATUS_FILTER_OPTIONS: StatusFilter[] = ["ทั้งหมด", "รอการคืน", "ค้างคืน", "คืนแล้ว", "รออนุมัติ", "ยกเลิก"];
-const TYPE_FILTER_OPTIONS: { value: TypeFilter; label: string }[] = [
-  { value: "ทั้งหมด",  label: "ทุกประเภท" },
-  { value: "INTERNAL", label: "ยืมภายในแผนก" },
-  { value: "EXTERNAL", label: "ยืมบุคคลภายนอก" },
-];
+const STATUS_FILTER_OPTIONS: StatusFilter[] = ["สถานะทั้งหมด", "รอการคืน", "ค้างคืน", "คืนแล้ว", "รออนุมัติ", "ยกเลิก"];
 
 export default function ReturnsClient() {
+  const router = useRouter();
   const [records, setRecords] = useState<RequisitionHeader[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("ทั้งหมด");
-  const [selectedType, setSelectedType] = useState<TypeFilter>("ทั้งหมด");
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("สถานะทั้งหมด");
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isMounted, setIsMounted] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [viewingRecord, setViewingRecord] = useState<RequisitionHeader | null>(null);
-  const [returningRecord, setReturningRecord] = useState<RequisitionHeader | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -583,54 +167,14 @@ export default function ReturnsClient() {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest("[data-status-dd]")) setIsStatusDropdownOpen(false);
-      if (!target.closest("[data-type-dd]")) setIsTypeDropdownOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const openDetail = useCallback(async (id: number) => {
-    setIsLoadingDetail(true);
-    try {
-      const res = await getRequisitionById(id);
-      if (res.success && res.data) setViewingRecord(res.data);
-    } finally {
-      setIsLoadingDetail(false);
-    }
-  }, []);
-
-  const openReturn = useCallback(async (id: number) => {
-    setIsLoadingDetail(true);
-    try {
-      const res = await getRequisitionById(id);
-      if (res.success && res.data) setReturningRecord(res.data);
-    } finally {
-      setIsLoadingDetail(false);
-    }
-  }, []);
-
-  const handleConfirmReturn = useCallback(async (items: ReturnItemPayload[]) => {
-    if (!returningRecord) return;
-    setIsSubmitting(true);
-    try {
-      const result = await processReturn(returningRecord.id, items);
-      if (!result.success) throw new Error(result.message);
-
-      await MySwal.fire({
-        title: "บันทึกสำเร็จ",
-        text: "รับคืนพัสดุเรียบร้อยแล้ว",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      setReturningRecord(null);
-      await fetchRecords();
-    } catch (err) {
-      MySwal.fire({ title: "ข้อผิดพลาด", text: getErrorMessage(err), icon: "error" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [returningRecord, fetchRecords]);
+  const openDetail = useCallback((id: number) => {
+    router.push(`/warehouse/returns/${id}`);
+  }, [router]);
 
   const filteredRecords = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -640,16 +184,10 @@ export default function ReturnsClient() {
         r.doc_no.toLowerCase().includes(term) ||
         (r.requester || "").toLowerCase().includes(term) ||
         (r.borrower_details?.fullname || "").toLowerCase().includes(term);
-      const matchesStatus = selectedStatus === "ทั้งหมด" || uiStatus === selectedStatus;
-      const matchesType =
-        selectedType === "ทั้งหมด"
-          ? true
-          : selectedType === "EXTERNAL"
-          ? isExternal(r)
-          : !isExternal(r);
-      return matchesSearch && matchesStatus && matchesType;
+      const matchesStatus = selectedStatus === "สถานะทั้งหมด" || uiStatus === selectedStatus;
+      return matchesSearch && matchesStatus;
     });
-  }, [records, searchTerm, selectedStatus, selectedType]);
+  }, [records, searchTerm, selectedStatus]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
   const displayRecords = useMemo(() => {
@@ -666,16 +204,7 @@ export default function ReturnsClient() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
-          <p className="text-sm text-gray-500 mt-1">ตรวจสอบและจัดการการคืนพัสดุจากใบยืม</p>
         </div>
-        <button
-          onClick={fetchRecords}
-          disabled={isFetching}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
-          รีเฟรช
-        </button>
       </div>
 
       {/* Filters */}
@@ -691,42 +220,13 @@ export default function ReturnsClient() {
           />
         </div>
 
-        {/* Type Dropdown */}
-        <div className="relative" data-type-dd="">
-          <button
-            onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsStatusDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 shadow-sm w-[200px] justify-between"
-          >
-            <span className="text-slate-800 font-medium">
-              {TYPE_FILTER_OPTIONS.find(t => t.value === selectedType)?.label}
-            </span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isTypeDropdownOpen ? "rotate-180" : ""}`} />
-          </button>
-          {isTypeDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full">
-              <ul className="py-1">
-                {TYPE_FILTER_OPTIONS.map(t => (
-                  <li key={t.value}>
-                    <button
-                      onClick={() => { setSelectedType(t.value); setIsTypeDropdownOpen(false); setCurrentPage(1); }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedType === t.value ? "bg-indigo-50 text-indigo-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
-                    >
-                      {t.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
         {/* Status Dropdown */}
         <div className="relative" data-status-dd="">
           <button
-            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsTypeDropdownOpen(false); }}
+            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); }}
             className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 shadow-sm w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">สถานะ: {selectedStatus}</span>
+            <span className="text-slate-800 font-medium">{selectedStatus}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
           </button>
           {isStatusDropdownOpen && (
@@ -749,15 +249,17 @@ export default function ReturnsClient() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
-        {(isFetching || isLoadingDetail) && (
+      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+        {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <div className="animate-spin">
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+            </div>
           </div>
         )}
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
@@ -773,7 +275,7 @@ export default function ReturnsClient() {
               {displayRecords.map((r, idx) => {
                 const uiStatus = mapUiStatus(r);
                 const overdue = getDaysOverdue(r);
-                const canReturn = r.status === "BORROWING";
+                const canReturn = r.status === "COMPLETED";
                 const ext = isExternal(r);
 
                 return (
@@ -799,29 +301,18 @@ export default function ReturnsClient() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${getStatusBadgeColor(uiStatus)}`}>
-                        {getStatusIcon(uiStatus)} {uiStatus}
+                        {uiStatus}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => openDetail(r.id)}
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          title="ดูรายละเอียด"
+                          className="p-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition"
+                          title="ดูรายละเอียดและรับคืน"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-5 h-5" />
                         </button>
-                        {canReturn && (
-                          <button
-                            onClick={() => openReturn(r.id)}
-                            disabled={isSubmitting}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="รับคืนพัสดุ"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            คืน
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -851,7 +342,7 @@ export default function ReturnsClient() {
           <button
             disabled={currentPage === 1}
             onClick={() => setCurrentPage(p => p - 1)}
-            className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -861,34 +352,12 @@ export default function ReturnsClient() {
           <button
             disabled={currentPage >= totalPages}
             onClick={() => setCurrentPage(p => p + 1)}
-            className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors bg-white"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
-
-      {/* Detail Modal */}
-      {viewingRecord && (
-        <DetailModal
-          header={viewingRecord}
-          onClose={() => setViewingRecord(null)}
-          onReturn={(h) => {
-            setViewingRecord(null);
-            setReturningRecord(h);
-          }}
-        />
-      )}
-
-      {/* Return Action Modal */}
-      {returningRecord && (
-        <ReturnActionModal
-          header={returningRecord}
-          onClose={() => setReturningRecord(null)}
-          onConfirm={handleConfirmReturn}
-          isSubmitting={isSubmitting}
-        />
-      )}
     </div>
   );
 }

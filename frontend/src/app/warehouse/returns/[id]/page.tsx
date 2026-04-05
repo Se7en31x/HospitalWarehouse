@@ -1,0 +1,29 @@
+import React from "react";
+import ReturnDetailClient from "./ReturnDetailClient";
+
+interface ReturnDetailPageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+export const dynamic = "force-dynamic";
+
+export default async function ReturnDetailPage({ params }: ReturnDetailPageProps) {
+  const resolvedParams = await params;
+
+  if (!resolvedParams?.id) {
+    return (
+      <main className="p-8 text-center text-red-600">
+        <h1 className="text-2xl font-bold">ไม่พบรหัสเอกสาร</h1>
+        <p>URL ไม่ถูกต้อง หรือไม่ได้ระบุรหัสเอกสาร</p>
+      </main>
+    );
+  }
+
+  return (
+    <main>
+      <ReturnDetailClient returnId={resolvedParams.id} />
+    </main>
+  );
+}
