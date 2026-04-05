@@ -37,9 +37,9 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
     if (isOpen && requisition && requisition.items) {
       const initialQtys: Record<number, number> = {};
       requisition.items.forEach((item: RequisitionItem) => {
-        // ใช้ยอดพร้อมใช้ (available_stock) หากมี มิฉะนั้น fallback current_stock
+        // ใช้ item.qty และ item.current_stock (ชื่อตาม DTO)
         const requested = item.qty || 0;
-        const stock = (item.available_stock ?? item.current_stock) || 0;
+        const stock = item.current_stock || 0;
         
         // ค่าเริ่มต้นจ่ายจริง = เท่าที่ขอมา แต่ต้องไม่เกินสต็อกที่มี
         initialQtys[item.id] = Math.min(requested, stock);
@@ -173,8 +173,8 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                 {requisition.items?.map((row: RequisitionItem) => {
                   const currentIssued = issuedQtys[row.id] || 0;
                   
-                  // ✅ ยอดพร้อมใช้จริงจาก backend (fallback เป็น current_stock)
-                  const dbStock = (row.available_stock ?? row.current_stock) || 0;
+                  // ✅ ดึงจาก DTO ที่ Flatten มาแล้ว (qty และ current_stock)
+                  const dbStock = row.current_stock || 0;
                   const dbReq = row.qty || 0;
 
                   return (
@@ -264,18 +264,12 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
               {requisition.status === 'COMPLETED' ? '✓ ดำเนินการอนุมัติและตัดสต็อกเรียบร้อยแล้ว' : '✗ คำขอนี้ถูกปฏิเสธแล้ว'}
             </p>
           )}
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
-          >
-            ปิด
-          </button>
           {isPending && (
             <>
               <button
                 onClick={handleReject}
                 disabled={isLoading}
-                className="px-6 py-2.5 bg-white border-2 border-rose-100 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-50 transition-all disabled:opacity-50"
+                className="px-6 py-2.5 bg-rose-600 text-white text-sm font-bold rounded-xl hover:bg-rose-700 transition-all disabled:opacity-50"
               >
                 ปฏิเสธ
               </button>

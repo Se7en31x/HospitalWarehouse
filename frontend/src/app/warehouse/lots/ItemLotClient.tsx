@@ -11,13 +11,12 @@ import {
   Loader2, Plus, AlertCircle, XCircle, BarChart3,
   ToggleRight, ToggleLeft
 } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
-import Swal from "sweetalert2";
 
 import { socket } from "../../../lib/socket";
 import { getLots, getMasterSuppliers, deleteLot, toggleLotStatus, adjustLot } from "@/services/lotservice";
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
 import { saveLots } from "@/services/stockInService";
+import { SweetAlertUtils } from "@/utils/sweetAlert";
 import type * as LotInterface from "@/types/lot_type";
 import type * as ItemInterface from "@/types/items_type";
 import type * as StockIn from "@/types/stockin_type";
@@ -174,11 +173,11 @@ const AdjustLotModal = ({ isOpen, onClose, onConfirm, lot, isAdjusting }: Adjust
                     <p className="text-base text-slate-900 font-medium">{lot.itemName || '-'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-1 text-slate-600">ประเภท</label>
+                    <label className="block text-sm font-semibold mb-1 text-slate-600">หมวดหมู่</label>
                     <p className="text-base text-slate-900">{lot.category || '-'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-1 text-slate-600">คลังสินค้า</label>
+                    <label className="block text-sm font-semibold mb-1 text-slate-600">ตำแหน่งเก็บ(คลัง)</label>
                     <p className="text-base text-slate-900">{lot.warehouse || '-'}</p>
                   </div>
                 </div>
@@ -306,7 +305,6 @@ export default function LotClient({
 
   // Dropdown open states
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
-  const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
 
   // Close dropdowns when clicking outside
@@ -314,20 +312,19 @@ export default function LotClient({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
-      if (!target.closest("[data-filter-warehouse]")) setIsWarehouseOpen(false);
       if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
     };
-    if (isCategoryOpen || isWarehouseOpen || isStatusOpen) {
+    if (isCategoryOpen || isStatusOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isCategoryOpen, isWarehouseOpen, isStatusOpen]);
+  }, [isCategoryOpen, isStatusOpen]);
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
       const [lotsData, itemsData, warehousesData] = await Promise.all([
-        getLots(1, 100),
+        getLots(1, 10000),
         getInventoryItems(),
         getWarehousesOptions(),
       ]);
@@ -370,15 +367,15 @@ export default function LotClient({
       });
 
       if (result.success) {
+        SweetAlertUtils.success('ปรับยอดสำเร็จ', 'ปรับยอดสินค้าเรียบร้อยแล้ว');
         await fetchAllData();
         setIsAdjustModalOpen(false);
         setAdjustingLot(null);
-        Swal.fire({ icon: 'success', title: 'ปรับยอดสำเร็จ', text: `ปรับยอดสินค้าเรียบร้อยแล้ว`, timer: 1500, showConfirmButton: false });
       } else {
         throw new Error(result.message);
       }
     } catch (error: any) {
-      Swal.fire({ icon: 'error', title: 'ปรับยอดไม่สำเร็จ', text: error.message });
+      SweetAlertUtils.error('ปรับยอดไม่สำเร็จ', error.message);
     } finally {
       setIsAdjusting(false);
     }
@@ -388,50 +385,35 @@ export default function LotClient({
     const isCurrentlyActive = lot.status === "ACTIVE";
     const nextActionText = isCurrentlyActive ? 'ระงับการใช้งาน' : 'เปิดใช้งาน';
 
-    const confirmResult = await Swal.fire({
-      title: `ยืนยันการ${nextActionText}?`,
-      text: `คุณต้องการ${nextActionText} Lot: ${lot.lotCode || lot.id} ใช่หรือไม่?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: isCurrentlyActive ? '#f59e0b' : '#10b981', // Amber/Green
-      cancelButtonColor: '#64748b',
-      confirmButtonText: `ยืนยันการ${nextActionText}`,
-      cancelButtonText: 'ย้อนกลับ'
-    });
+    const confirmResult = await SweetAlertUtils.question(
+      `ยืนยันการ${nextActionText}?`,
+      `คุณต้องการ${nextActionText} Lot: ${lot.lotCode || lot.id} ใช่หรือไม่?`
+    );
 
     if (confirmResult.isConfirmed) {
-      Swal.showLoading();
       try {
         const updatedLot = await toggleLotStatus(lot.id);
-        // Replace the updated lot inside the state array
         setLots(prev => prev.map(l => l.id === updatedLot.id ? updatedLot : l));
-        Swal.fire('สำเร็จ!', `Lot ถูกเปลี่ยนสถานะเป็น ${nextActionText} เรียบร้อยแล้ว`, 'success');
+        SweetAlertUtils.success('สำเร็จ!', `Lot ถูกเปลี่ยนสถานะเป็น ${nextActionText} เรียบร้อยแล้ว`);
       } catch (error: any) {
-        Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถทำการเปลี่ยนสถานะได้', 'error');
+        SweetAlertUtils.error('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถทำการเปลี่ยนสถานะได้');
       }
     }
   };
 
   const handleDelete = async (lot: LotInterface.UiLot) => {
-    const confirmResult = await Swal.fire({
-      title: 'ยืนยันการยกเลิก?',
-      text: `คุณต้องการยกเลิก Lot: ${lot.lotCode || lot.id} ใช่หรือไม่? สต็อกจะถูกตัดออกตามจำนวนคงเหลือ`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'ยกเลิกข้อมูล (Soft Delete)',
-      cancelButtonText: 'ย้อนกลับ'
-    });
+    const confirmResult = await SweetAlertUtils.delete(
+      'ยืนยันการยกเลิก?',
+      `คุณต้องการยกเลิก Lot: ${lot.lotCode || lot.id} ใช่หรือไม่? สต็อกจะถูกตัดออกตามจำนวนคงเหลือ`
+    );
 
     if (confirmResult.isConfirmed) {
-      Swal.showLoading();
       try {
         await deleteLot(lot.id);
+        SweetAlertUtils.success('ยกเลิกสำเร็จ!', 'ข้อมูล Lot ถูกยกเลิกเรียบร้อยแล้ว');
         setLots(prev => prev.filter(l => l.id !== lot.id));
-        Swal.fire('ยกเลิกสำเร็จ!', 'ข้อมูล Lot ถูกยกเลิกเรียบร้อยแล้ว', 'success');
       } catch (error: any) {
-        Swal.fire('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถยกเลิกข้อมูลได้', 'error');
+        SweetAlertUtils.error('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถยกเลิกข้อมูลได้');
       }
     }
   };
@@ -459,6 +441,8 @@ export default function LotClient({
     let matchesStatus = true;
     if (statusFilter === 'NEAR') matchesStatus = currentStatus === 'ใกล้หมด';
     if (statusFilter === 'EXPIRED') matchesStatus = currentStatus === 'หมดอายุ';
+    if (statusFilter === 'ACTIVE') matchesStatus = lot.status === 'ACTIVE';
+    if (statusFilter === 'INACTIVE') matchesStatus = lot.status !== 'ACTIVE';
     return matchesSearch && matchesWarehouse && matchesCategory && matchesStatus;
   });
 
@@ -471,33 +455,21 @@ export default function LotClient({
 
     // ตรวจสอบข้อมูลจำเป็น
     if (!stockinForm.productId || !stockinForm.lotId || !stockinForm.quantity || !stockinForm.unit || !stockinForm.warehouseId) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'ข้อมูลไม่ครบถ้วน',
-        text: 'กรุณากรอกข้อมูลจำเป็นให้ครบถ้วน'
-      });
+      SweetAlertUtils.warning('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลจำเป็นให้ครบถ้วน');
       return;
     }
 
     // สร้าง popup ยืนยัน
-    const confirmResult = await Swal.fire({
-      title: 'ยืนยันการรับของเข้า?',
-      html: `
-        <div className="text-left">
-          <p><strong>สินค้า:</strong> ${itemsMaster.find(i => i.id === stockinForm.productId)?.name || '-'}</p>
-          <p><strong>Lot:</strong> ${stockinForm.lotId}</p>
-          <p><strong>จำนวน:</strong> ${stockinForm.quantity} ${stockinForm.unit}</p>
-          <p><strong>ราคาต่อหน่วย:</strong> ${stockinForm.costPerUnit}</p>
-          <p><strong>วันหมดอายุ:</strong> ${stockinForm.expiryDate || '-'}</p>
-        </div>
-      `,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#1e3a8a',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'ยืนยันบันทึก',
-      cancelButtonText: 'ยกเลิก'
-    });
+    const confirmResult = await SweetAlertUtils.question(
+      'ยืนยันการรับของเข้า?',
+      `<div class="text-left" style="text-align:left">
+        <p><strong>สินค้า:</strong> ${itemsMaster.find(i => i.id === stockinForm.productId)?.name || '-'}</p>
+        <p><strong>Lot:</strong> ${stockinForm.lotId}</p>
+        <p><strong>จำนวน:</strong> ${stockinForm.quantity} ${stockinForm.unit}</p>
+        <p><strong>ราคาต่อหน่วย:</strong> ${stockinForm.costPerUnit}</p>
+        <p><strong>วันหมดอายุ:</strong> ${stockinForm.expiryDate || '-'}</p>
+      </div>`
+    );
 
     if (confirmResult.isConfirmed) {
       setIsSavingStockIn(true);
@@ -517,7 +489,6 @@ export default function LotClient({
           costPrice: stockinForm.costPerUnit,
           mfgDate: "",
           expiryDate: stockinForm.expiryDate,
-          barcode: "",
           warehouseId: stockinForm.warehouseId,
           warehouseName: warehousesMaster.find(w => w.id === stockinForm.warehouseId)?.name || ''
         };
@@ -526,13 +497,7 @@ export default function LotClient({
         await saveLots([lotData]);
 
         // แสดงข้อความสำเร็จ
-        Swal.fire({
-          icon: 'success',
-          title: 'บันทึกสำเร็จ',
-          text: 'บันทึกข้อมูลสินค้าเข้าเรียบร้อยแล้ว',
-          timer: 1500,
-          showConfirmButton: false
-        });
+        SweetAlertUtils.success('บันทึกสำเร็จ', 'บันทึกข้อมูลสินค้าเข้าเรียบร้อยแล้ว');
 
         // รีเซตฟอร์ม
         setStockinForm(INITIAL_STOCKIN_FORM);
@@ -541,11 +506,7 @@ export default function LotClient({
         await fetchAllData();
       } catch (error: any) {
         const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึก';
-        Swal.fire({
-          icon: 'error',
-          title: 'บันทึกไม่สำเร็จ',
-          text: errorMsg
-        });
+        SweetAlertUtils.error('บันทึกไม่สำเร็จ', errorMsg);
       } finally {
         setIsSavingStockIn(false);
       }
@@ -574,7 +535,6 @@ export default function LotClient({
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
-      <Toaster position="top-right" />
 
       <AdjustLotModal
         isOpen={isAdjustModalOpen}
@@ -585,9 +545,12 @@ export default function LotClient({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-gray-800">ล็อตพัสดุ</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Action buttons can go here */}
         </div>
       </div>
 
@@ -595,20 +558,20 @@ export default function LotClient({
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
+          <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
         </div>
         {/* Category Dropdown */}
         <div className="relative" data-filter-category>
           <button
             type="button"
-            onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsWarehouseOpen(false); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+            onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{selectedCategory === "ทั้งหมด" ? "ทุกหมวดหมู่" : selectedCategory}</span>
+            <span className="text-slate-800 font-medium">{selectedCategory === "ทั้งหมด" ? "หมวดหมู่ทั้งหมด" : selectedCategory}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
           </button>
           {isCategoryOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {["ทั้งหมด", ...Array.from(new Set(itemsMaster.map(i => i.category)))].map(c => (
                   <li key={c}>
@@ -618,37 +581,7 @@ export default function LotClient({
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
-                      {c === "ทั้งหมด" ? "ทุกหมวดหมู่" : c}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        {/* Warehouse Dropdown */}
-        <div className="relative" data-filter-warehouse>
-          <button
-            type="button"
-            onClick={() => { setIsWarehouseOpen(!isWarehouseOpen); setIsCategoryOpen(false); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
-          >
-            <span className="text-slate-800 font-medium">{selectedWarehouse === "ทั้งหมด" ? "ทุกคลัง" : selectedWarehouse}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isWarehouseOpen ? "rotate-180" : ""}`} />
-          </button>
-          {isWarehouseOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
-              <ul className="py-1">
-                {[{ id: "all", name: "ทั้งหมด" }, ...warehousesMaster].map(wh => (
-                  <li key={wh.id}>
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedWarehouse(wh.name === "ทั้งหมด" ? "ทั้งหมด" : wh.name); setIsWarehouseOpen(false); setCurrentPage(1); }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedWarehouse === wh.name || (selectedWarehouse === "ทั้งหมด" && wh.name === "ทั้งหมด") ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                    >
-                      {wh.name === "ทั้งหมด" ? "ทุกคลัง" : wh.name}
+                      {c === "ทั้งหมด" ? "หมวดหมู่ทั้งหมด" : c}
                     </button>
                   </li>
                 ))}
@@ -661,16 +594,16 @@ export default function LotClient({
         <div className="relative" data-filter-status>
           <button
             type="button"
-            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); setIsWarehouseOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{{ ALL: "ทุกสถานะ", NEAR: "ใกล้หมดอายุ", EXPIRED: "หมดอายุ" }[statusFilter] || "ทุกสถานะ"}</span>
+            <span className="text-slate-800 font-medium">{{ ALL: "สถานะทั้งหมด", NEAR: "ใกล้หมดอายุ", EXPIRED: "หมดอายุ", ACTIVE: "ใช้งานได้", INACTIVE: "ระงับการใช้งาน" }[statusFilter] || "สถานะทั้งหมด"}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
           </button>
           {isStatusOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
-                {[{ value: "ALL", label: "ทุกสถานะ" }, { value: "NEAR", label: "ใกล้หมดอายุ" }, { value: "EXPIRED", label: "หมดอายุ" }].map(s => (
+                {[{ value: "ALL", label: "สถานะทั้งหมด" }, { value: "NEAR", label: "ใกล้หมดอายุ" }, { value: "EXPIRED", label: "หมดอายุ" }, { value: "ACTIVE", label: "ใช้งานได้" }, { value: "INACTIVE", label: "ระงับการใช้งาน" }].map(s => (
                   <li key={s.value}>
                     <button
                       type="button"
@@ -690,62 +623,90 @@ export default function LotClient({
 
       {/* Content - Main Lot Management Table */}
       <div className="space-y-6">
-        <div className="h-[65vh] rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col">
+        <div 
+          className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col"
+          style={{ height: '65vh' }}
+        >
           {loading && (
             <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-blue-900" />
+              <div className="animate-spin">
+                <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+              </div>
             </div>
           )}
-          <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+          <div 
+            className="flex-1" 
+            style={{
+              overflowX: 'auto',
+              overflowY: 'auto',
+              scrollbarWidth: 'auto',
+              msOverflowStyle: 'auto',
+            } as React.CSSProperties}
+          >
+            <style>{`
+              div::-webkit-scrollbar {
+                width: 0;
+                height: 8px;
+              }
+              div::-webkit-scrollbar-track {
+                background: #f1f5f9;
+              }
+              div::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 4px;
+              }
+              div::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+              }
+            `}</style>
+            <table className="w-full text-sm text-left table-fixed">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 w-[120px]">เลข Lot</th>
-                  <th className="px-6 py-4 w-[250px]">รหัส / ชื่อสินค้า</th>
-                  <th className="px-6 py-4 w-[120px]">ประเภท</th>
-                  <th className="px-6 py-4 w-[140px]">คลังสินค้า</th>
-                  <th className="px-6 py-4 text-center w-[100px]">ราคา</th>
-                  <th className="px-6 py-4 text-center w-[120px]">คงเหลือ</th>
-                  <th className="px-6 py-4 text-center w-[120px]">วันหมดอายุ</th>
-                  <th className="px-6 py-4 text-center w-[100px]">สถานะอายุ</th>
-                  <th className="px-6 py-4 text-center w-[140px]">สถานะการใช้งาน</th>
-                  <th className="px-6 py-4 text-right w-[120px]">จัดการ</th>
+                  <th className="px-6 py-4 w-[60px] text-center">#</th>
+                  <th className="px-6 py-4 w-[80px]">รูปภาพ</th>
+                  <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
+                  <th className="px-6 py-4 w-[100px]">รหัส LOT</th>
+                  <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
+                  <th className="px-6 py-4 w-[150px]">หมวดหมู่</th>
+                  <th className="px-6 py-4 w-[120px]">คงเหลือ</th>
+                  <th className="px-6 py-4 w-[120px]">วันหมดอายุ</th>
+                  <th className="px-6 py-4 w-[120px]">สถานะ</th>
+                  <th className="px-6 py-4 text-center w-[120px]">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {currentItems.map((lot, idx) => {
                   const currentStatus = calculateStatus(lot.expiryDate);
                   const enrichedData = getEnrichedLotData(lot);
+                  const rowNumber = startIndex + idx + 1;
                   return (
                     <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-center font-medium text-slate-600">{rowNumber}</td>
+                      <td className="px-6 py-4">
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                          <Package className="w-6 h-6 text-slate-400" />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
                       <td className="px-6 py-4 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-800 line-clamp-1" title={enrichedData.itemName}>{enrichedData.itemName}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 font-mono">{enrichedData.itemCode}</div>
+                        <div className="font-semibold text-slate-800 line-clamp-2" title={enrichedData.itemName}>{enrichedData.itemName}</div>
                       </td>
                       <td className="px-6 py-4 text-slate-600">{enrichedData.category}</td>
-                      <td className="px-6 py-4">{enrichedData.warehouse}</td>
-                      <td className="px-6 py-4 text-center font-mono">{formatMoney(lot.cost)}</td>
-                      <td className="px-6 py-4 text-center">{lot.quantity.toLocaleString()} {enrichedData.unit}</td>
-                      <td className={`px-6 py-4 text-center ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${currentStatus === 'ปกติ' ? 'bg-green-100 text-green-800' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {currentStatus}
+                      <td className="px-6 py-4">{lot.quantity.toLocaleString()} {enrichedData.unit}</td>
+                      <td className={`px-6 py-4 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${lot.status !== 'ACTIVE' ? 'bg-red-100 text-red-800' : currentStatus === 'ปกติ' ? 'bg-green-100 text-green-800' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {lot.status !== 'ACTIVE' ? 'ระงับการใช้งาน' : (currentStatus === 'ปกติ' ? 'ใช้งานได้' : currentStatus)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${lot.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {lot.status === 'ACTIVE' ? 'ใช้งานได้' : 'ระงับการใช้งาน'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1 items-center">
+                        <div className="flex justify-center gap-1">
                           <button onClick={() => handleToggleStatus(lot)} className={`p-2 rounded-lg transition-colors ${lot.status === 'ACTIVE' ? 'text-green-500 hover:bg-green-50' : 'text-red-400 hover:bg-red-50'}`} title={lot.status === 'ACTIVE' ? 'กดเพื่อระงับการใช้งาน' : 'กดเพื่อเปิดใช้งาน'}>
-                            {lot.status === 'ACTIVE' ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                            {lot.status === 'ACTIVE' ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
                           </button>
-                          <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                          <button onClick={() => openAdjustModal(lot)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Wrench className="w-4 h-4" /></button>
-                          <button onClick={() => handleDelete(lot)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => openAdjustModal(lot)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Wrench className="w-5 h-5" /></button>
+                          <button onClick={() => handleDelete(lot)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -772,9 +733,9 @@ export default function LotClient({
         <div className="flex items-center justify-between mt-6">
           <p className="text-sm text-slate-500">แสดง {currentItems.length} จาก {filteredData.length} รายการ</p>
           <div className="flex items-center gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
             <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-            <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border rounded-lg disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+            <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
           </div>
         </div>
       </div>

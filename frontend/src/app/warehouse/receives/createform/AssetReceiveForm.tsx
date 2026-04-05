@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import Swal from "sweetalert2";
 import {
   Plus,
   Save,
@@ -8,6 +9,7 @@ import {
   Calendar,
   Loader2,
   Trash2,
+  X,
 } from "lucide-react";
 
 import * as ReceiveSvc from "@/services/receiveService";
@@ -165,7 +167,6 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
     setItems([...items, newItem]);
     setFormData((prev) => resetItemFields(prev));
     setFormErrors({});
-    toast.success("เพิ่มรายการสำเร็จ");
   };
 
   const handleRemoveItem = (index: number) => {
@@ -189,12 +190,13 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
       try {
         const itemDetail = await StockInSvc.getItemDetail(itemId);
         if (itemDetail) {
-          category = itemDetail.category || category;
-          categoryId = itemDetail.categoryId || categoryId;
-          unit = itemDetail.unit || unit;
-          unitId = itemDetail.unitId || unitId;
-          warehouseId = itemDetail.warehouseId || warehouseId;
-          warehouseName = itemDetail.warehouseName || warehouseName;
+          // API returns nested objects: categories, unit, warehouses
+          category = itemDetail.category_name || itemDetail.categories?.name || itemDetail.category?.name || category;
+          categoryId = itemDetail.category_id || itemDetail.categories?.id || categoryId;
+          unit = itemDetail.unit_name || itemDetail.unit?.name || unit;
+          unitId = itemDetail.unit_id || itemDetail.unit?.id || unitId;
+          warehouseId = itemDetail.warehouse_id || itemDetail.warehouses?.id || warehouseId;
+          warehouseName = itemDetail.warehouse_name || itemDetail.warehouses?.name || warehouseName;
         }
       } catch {}
 
@@ -211,7 +213,6 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
       }));
       setItemSearchQuery("");
       setIsItemDropdownOpen(false);
-      toast.success("เลือกสินค้าสำเร็จ");
     } catch {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า");
     } finally {
@@ -250,7 +251,13 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
           cost_price: item.costPrice || 0,
         })),
       });
-      toast.success("บันทึกรับครุภัณฑ์เข้าระบบสำเร็จ");
+      Swal.fire({
+        title: "สำเร็จ",
+        text: "บันทึกรับครุภัณฑ์เข้าระบบสำเร็จ",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
 
       setItems([]);
       setTimeout(() => {
@@ -278,13 +285,13 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-10">
+    <div className="flex flex-col min-h-screen bg-white p-6">
       <Toaster position="top-right" />
-      <div className="w-full">
+      <div className="w-full flex flex-col flex-1">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-semibold text-gray-800">รับครุภัณฑ์ภายในองค์กร (Med Asset)</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-3xl font-semibold text-gray-800">รับครุภัณฑ์ภายในองค์กร</h2>
           <button
             onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
@@ -293,17 +300,17 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
           </button>
         </div>
 
-        <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="space-y-6 w-full flex-1 flex flex-col">
 
           {/* ── ประเภทการรับเข้า ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">ประเภทการรับเข้า</p>
             <div className="flex flex-wrap gap-2">
               {([
                 { type: "purchase" as const,       label: "รับพัสดุจากการจัดซื้อ" },
-                { type: "donation" as const,        label: "รับพัสดุจากการบริจาค" },
-                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร (Med Asset)" },
                 { type: "reusable-unit" as const,   label: "รับของใช้ซ้ำรายชิ้น" },
+                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร" },
+                { type: "donation" as const,        label: "รับพัสดุจากการบริจาค" },
               ]).map(({ type, label }) => {
                 const active = type === "purchase-asset";
                 return (
@@ -327,7 +334,7 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
           </div>
 
           {/* ── ข้อมูลเอกสาร ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">ข้อมูลเอกสาร</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* วันที่รับเข้า */}
@@ -392,10 +399,13 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
                   {selectedDepartmentId && (
                     <button
                       type="button"
-                      onClick={() => { setSelectedDepartmentId(null); setDeptSearchQuery(""); }}
+                      onClick={() => {
+                        setSelectedDepartmentId(null);
+                        setDeptSearchQuery("");
+                      }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
-                      ✕
+                      <X className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -414,67 +424,61 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
               {/* Supplier */}
               <div data-supplier-dropdown>
                 <label className="block text-sm font-medium text-slate-600 mb-2">ผู้จำหน่าย</label>
-                {isFetchingOptions ? (
-                  <div className="flex items-center justify-center h-11 bg-slate-50 rounded-lg border border-slate-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={
-                        formData.supplierId
-                          ? suppliers.find((s) => s.id === formData.supplierId)?.name || ""
-                          : supplierSearchQuery
-                      }
-                      onChange={(e) => {
-                        setSupplierSearchQuery(e.target.value);
-                        setIsSupplierDropdownOpen(true);
-                        if (formData.supplierId) setFormData({ ...formData, supplierId: "" });
-                      }}
-                      onFocus={() => setIsSupplierDropdownOpen(true)}
-                      placeholder="ค้นหาผู้จำหน่าย..."
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {isSupplierDropdownOpen && !formData.supplierId && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
-                        {filteredSuppliers.length > 0 ? (
-                          <ul className="py-1">
-                            {filteredSuppliers.map((supplier) => (
-                              <li key={supplier.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSupplierSelect(supplier.id)}
-                                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
-                                >
-                                  {supplier.name}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="px-5 py-3.5 text-sm text-slate-400 text-center">พิมพ์เพื่อค้นหา</p>
-                        )}
-                      </div>
-                    )}
-                    {formData.supplierId && (
-                      <button
-                        type="button"
-                        onClick={() => { setFormData({ ...formData, supplierId: "" }); setSupplierSearchQuery(""); }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={
+                      formData.supplierId
+                        ? suppliers.find((s) => s.id === formData.supplierId)?.name || ""
+                        : supplierSearchQuery
+                    }
+                    onChange={(e) => {
+                      setSupplierSearchQuery(e.target.value);
+                      setIsSupplierDropdownOpen(true);
+                      if (formData.supplierId) setFormData({ ...formData, supplierId: "" });
+                    }}
+                    onFocus={() => setIsSupplierDropdownOpen(true)}
+                    placeholder="ค้นหาผู้จำหน่าย..."
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {isSupplierDropdownOpen && !formData.supplierId && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
+                      {filteredSuppliers.length > 0 ? (
+                        <ul className="py-1">
+                          {filteredSuppliers.map((supplier) => (
+                            <li key={supplier.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleSupplierSelect(supplier.id)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
+                              >
+                                {supplier.name}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="px-5 py-3.5 text-sm text-slate-400 text-center">พิมพ์เพื่อค้นหา</p>
+                      )}
+                    </div>
+                  )}
+                  {formData.supplierId && (
+                    <button
+                      type="button"
+                      onClick={() => { setFormData({ ...formData, supplierId: "" }); setSupplierSearchQuery(""); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
           {/* ── เพิ่มรายการครุภัณฑ์ ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">เพิ่มรายการครุภัณฑ์</p>
 
             <div className="space-y-6">
@@ -483,64 +487,55 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
                 <label className="block text-sm font-medium text-slate-600 mb-2">
                   ชื่อสินค้า <span className="text-red-500">*</span>
                 </label>
-                {isFetchingOptions ? (
-                  <div className="flex items-center justify-center h-11 bg-slate-50 rounded-lg border border-slate-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <div className="relative" data-item-dropdown>
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
-                    <input
-                      type="text"
-                      value={formData.itemId ? formData.itemName : itemSearchQuery}
-                      onChange={(e) => {
-                        if (!formData.itemId) { setItemSearchQuery(e.target.value); setIsItemDropdownOpen(true); }
+                <div className="relative" data-item-dropdown>
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                  <input
+                    type="text"
+                    value={formData.itemId ? formData.itemName : itemSearchQuery}
+                    onChange={(e) => {
+                      if (!formData.itemId) { setItemSearchQuery(e.target.value); setIsItemDropdownOpen(true); } else { setItemSearchQuery(e.target.value); setIsItemDropdownOpen(true); }
+                    }}
+                    onFocus={() => { setIsItemDropdownOpen(true); }}
+                    placeholder="ค้นหาสินค้า..."
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  {formData.itemId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...INITIAL_FORM_DATA, supplierId: formData.supplierId, poNumber: formData.poNumber });
+                        setItemSearchQuery("");
                       }}
-                      onFocus={() => { if (!formData.itemId) setIsItemDropdownOpen(true); }}
-                      placeholder="ค้นหาสินค้า..."
-                      readOnly={!!formData.itemId}
-                      className={`w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${
-                        formData.itemId ? "bg-slate-50 cursor-not-allowed text-slate-600" : "bg-white"
-                      }`}
-                    />
-                    {isItemDropdownOpen && !formData.itemId && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
-                        {filteredItems.length > 0 ? (
-                          <ul className="py-1">
-                            {filteredItems.map((item) => (
-                              <li key={item.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleItemSelect(item.id)}
-                                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
-                                >
-                                  <p className="font-medium">{item.name}</p>
-                                  {item.category && <p className="text-xs text-slate-400">{item.category}</p>}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="px-5 py-3.5 text-sm text-slate-400 text-center">
-                            {itemSearchQuery ? "ไม่พบสินค้า" : "พิมพ์เพื่อค้นหา"}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {formData.itemId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData({ ...formData, itemId: "", itemName: "", categoryId: "", category: "", unitId: "", unit: "", warehouseId: "", warehouseName: "" });
-                          setItemSearchQuery(""); setIsItemDropdownOpen(false);
-                        }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                )}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isItemDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
+                      {filteredItems.length > 0 ? (
+                        <ul className="py-1">
+                          {filteredItems.map((item) => (
+                            <li key={item.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleItemSelect(item.id)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
+                              >
+                                <p className="font-medium">{item.name}</p>
+                                {item.category && <p className="text-xs text-slate-400">{item.category}</p>}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="px-5 py-3.5 text-sm text-slate-400 text-center">
+                          {itemSearchQuery ? "ไม่พบสินค้า" : "พิมพ์เพื่อค้นหา"}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {formErrors.itemId && <p className="text-red-500 text-xs mt-1">{formErrors.itemId}</p>}
               </div>
 
@@ -599,7 +594,7 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
 
           {/* ── ตารางรายการที่เพิ่มแล้ว ── */}
           {items.length > 0 && (
-            <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-lg border-2 border-slate-200 overflow-hidden">
               <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
                 <p className="text-sm font-medium text-slate-700">รายการครุภัณฑ์</p>
                 <span className="text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">

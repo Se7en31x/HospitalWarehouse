@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { Calendar, Loader2, Plus, Save, Search, Trash2 } from "lucide-react";
+import Swal from "sweetalert2";
+import { Calendar, Loader2, Plus, Save, Search, Trash2, X } from "lucide-react";
 
 import * as ReceiveSvc from "@/services/receiveService";
 import * as ItemSvc from "@/services/itemsService";
@@ -163,7 +164,6 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
     setItems([...items, newItem]);
     setFormData({ ...INITIAL_FORM_DATA, supplierId: formData.supplierId, poNumber: formData.poNumber });
     setFormErrors({});
-    toast.success("เพิ่มรายการสำเร็จ");
   };
 
   const handleSaveAll = async () => {
@@ -190,8 +190,14 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
         })),
       });
 
-      toast.success(`รับเข้าของใช้ซ้ำสำเร็จ (${created.total_units} ชิ้น)`);
-      setTimeout(() => router.push("/warehouse/receives"), 1200);
+      Swal.fire({
+        title: "สำเร็จ",
+        text: `รับเข้าของใช้ซ้ำสำเร็จ (${created.total_units} ชิ้น)`,
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+      setTimeout(() => router.push("/warehouse/receives"), 1700);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       toast.error("เกิดข้อผิดพลาด: " + errorMsg);
@@ -209,10 +215,10 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-10">
+    <div className="flex flex-col min-h-screen bg-white p-6">
       <Toaster position="top-right" />
-      <div className="w-full">
-        <div className="flex items-center justify-between mb-8">
+      <div className="w-full flex flex-col flex-1">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-3xl font-semibold text-gray-800">รับของใช้ซ้ำรายชิ้น</h2>
           <button
             onClick={() => router.back()}
@@ -222,15 +228,15 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
           </button>
         </div>
 
-        <div className="space-y-6 max-w-5xl mx-auto">
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+        <div className="space-y-6 w-full flex-1 flex flex-col">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">ประเภทการรับเข้า</p>
             <div className="flex flex-wrap gap-2">
               {[
                 { type: "purchase" as const, label: "รับพัสดุจากการจัดซื้อ" },
-                { type: "donation" as const, label: "รับพัสดุจากการบริจาค" },
-                { type: "purchase-asset" as const, label: "รับครุภัณฑ์ภายในองค์กร" },
                 { type: "reusable-unit" as const, label: "รับของใช้ซ้ำรายชิ้น" },
+                { type: "purchase-asset" as const, label: "รับครุภัณฑ์ภายในองค์กร" },
+                { type: "donation" as const, label: "รับพัสดุจากการบริจาค" },
               ].map(({ type, label }) => {
                 const active = type === "reusable-unit";
                 return (
@@ -253,7 +259,7 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
             </p>
           </div>
 
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">ข้อมูลเอกสาร</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -270,52 +276,58 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
               </div>
               <div data-supplier-dropdown>
                 <label className="block text-sm font-medium text-slate-600 mb-2">ผู้จำหน่าย</label>
-                {isFetchingOptions ? (
-                  <div className="flex items-center justify-center h-11 bg-slate-50 rounded-lg border border-slate-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={
-                        formData.supplierId
-                          ? suppliers.find((s) => s.id === formData.supplierId)?.name || ""
-                          : supplierSearchQuery
-                      }
-                      onChange={(e) => {
-                        setSupplierSearchQuery(e.target.value);
-                        setIsSupplierDropdownOpen(true);
-                        if (formData.supplierId) setFormData({ ...formData, supplierId: "" });
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={
+                      formData.supplierId && suppliers.length > 0
+                        ? (suppliers.find((s) => s.id === formData.supplierId)?.name as string) || ""
+                        : (supplierSearchQuery as string) || ""
+                    }
+                    onChange={(e) => {
+                      setSupplierSearchQuery(e.target.value || "");
+                      setIsSupplierDropdownOpen(true);
+                      if (formData.supplierId) setFormData({ ...formData, supplierId: "" });
+                    }}
+                    onFocus={() => setIsSupplierDropdownOpen(true)}
+                    placeholder="ค้นหาผู้จำหน่าย..."
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {formData.supplierId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, supplierId: "" });
+                        setSupplierSearchQuery("");
                       }}
-                      onFocus={() => setIsSupplierDropdownOpen(true)}
-                      placeholder="ค้นหาผู้จำหน่าย..."
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {isSupplierDropdownOpen && !formData.supplierId && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
-                        {filteredSuppliers.length > 0 ? (
-                          <ul className="py-1">
-                            {filteredSuppliers.map((supplier) => (
-                              <li key={supplier.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSupplierSelect(supplier.id)}
-                                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
-                                >
-                                  {supplier.name}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="px-5 py-3.5 text-sm text-slate-400 text-center">พิมพ์เพื่อค้นหา</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isSupplierDropdownOpen && !formData.supplierId && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
+                      {filteredSuppliers.length > 0 ? (
+                        <ul className="py-1">
+                          {filteredSuppliers.map((supplier) => (
+                            <li key={supplier.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleSupplierSelect(supplier.id)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
+                              >
+                                {supplier.name}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="px-5 py-3.5 text-sm text-slate-400 text-center">พิมพ์เพื่อค้นหา</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div data-dept-dropdown>
                 <label className="block text-sm font-medium text-slate-600 mb-2">แผนกรับผิดชอบเริ่มต้น</label>
@@ -324,19 +336,31 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
                   <input
                     type="text"
                     value={
-                      selectedDepartmentId
-                        ? departments.find((d) => d.id === selectedDepartmentId)?.name || ""
-                        : deptSearchQuery
+                      selectedDepartmentId && departments.length > 0
+                        ? (departments.find((d) => d.id === selectedDepartmentId)?.name as string) || ""
+                        : (deptSearchQuery as string) || ""
                     }
                     onChange={(e) => {
-                      setDeptSearchQuery(e.target.value);
+                      setDeptSearchQuery(e.target.value || "");
                       setIsDeptDropdownOpen(true);
                       if (selectedDepartmentId) setSelectedDepartmentId(null);
                     }}
                     onFocus={() => setIsDeptDropdownOpen(true)}
                     placeholder="ค้นหาแผนก..."
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  {selectedDepartmentId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDepartmentId(null);
+                        setDeptSearchQuery("");
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                   {isDeptDropdownOpen && !selectedDepartmentId && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
                       {departments
@@ -372,66 +396,72 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">เพิ่มรายการของใช้ซ้ำ</p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2" data-item-dropdown>
-                <label className="block text-sm font-medium text-slate-600 mb-2">ชื่อสินค้า</label>
-                {isFetchingOptions ? (
-                  <div className="flex items-center justify-center h-11 bg-slate-50 rounded-lg border border-slate-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
-                    <input
-                      type="text"
-                      value={formData.itemId ? formData.itemName : itemSearchQuery}
-                      onChange={(e) => {
-                        if (!formData.itemId) {
-                          setItemSearchQuery(e.target.value);
-                          setIsItemDropdownOpen(true);
-                        }
+                <label className="block text-sm font-medium text-slate-600 mb-2">ชื่อสินค้า <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                  <input
+                    type="text"
+                    value={formData.itemId ? (formData.itemName as string) || "" : (itemSearchQuery as string) || ""}
+                    onChange={(e) => {
+                      if (!formData.itemId) {
+                        setItemSearchQuery(e.target.value);
+                        setIsItemDropdownOpen(true);
+                      } else {
+                        setItemSearchQuery(e.target.value);
+                        setIsItemDropdownOpen(true);
+                      }
+                    }}
+                    onFocus={() => {
+                      setIsItemDropdownOpen(true);
+                    }}
+                    placeholder="ค้นหาสินค้า (type = REUSABLE)..."
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  {formData.itemId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...INITIAL_FORM_DATA, supplierId: formData.supplierId, poNumber: formData.poNumber });
+                        setItemSearchQuery("");
                       }}
-                      onFocus={() => {
-                        if (!formData.itemId) setIsItemDropdownOpen(true);
-                      }}
-                      placeholder="ค้นหาสินค้า (type = REUSABLE)..."
-                      readOnly={!!formData.itemId}
-                      className={`w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${
-                        formData.itemId ? "bg-slate-50 cursor-not-allowed text-slate-600" : "bg-white"
-                      }`}
-                    />
-                    {isItemDropdownOpen && !formData.itemId && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
-                        {filteredItems.length > 0 ? (
-                          <ul className="py-1">
-                            {filteredItems.map((item) => (
-                              <li key={item.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleItemSelect(item.id)}
-                                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
-                                >
-                                  <p className="font-medium">{item.name}</p>
-                                  {item.category && <p className="text-xs text-slate-400">{item.category}</p>}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="px-5 py-3.5 text-sm text-slate-400 text-center">ไม่พบสินค้า REUSABLE</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isItemDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
+                      {filteredItems.length > 0 ? (
+                        <ul className="py-1">
+                          {filteredItems.map((item) => (
+                            <li key={item.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleItemSelect(item.id)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm text-slate-900"
+                              >
+                                <p className="font-medium">{item.name}</p>
+                                {item.category && <p className="text-xs text-slate-400">{item.category}</p>}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="px-5 py-3.5 text-sm text-slate-400 text-center">ไม่พบสินค้า REUSABLE</p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {formErrors.itemId && <p className="text-red-500 text-xs mt-1">{formErrors.itemId}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">จำนวนรายชิ้น</label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">จำนวนรายชิ้น <span className="text-red-500">*</span></label>
                 <input
                   type="number"
                   min="1"
@@ -506,11 +536,11 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end mt-auto pt-6">
             <button
               onClick={handleSaveAll}
               disabled={isSaving}
-              className="px-8 py-2.5 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 rounded-lg shadow-lg flex items-center gap-2 transition-colors"
+              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium shadow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               <Save className="w-4 h-4" />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import Swal from "sweetalert2";
 import {
   Plus,
   Save,
@@ -63,11 +64,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
           ReceiveSvc.getSuppliers(),
         ]);
 
-        const consumableItems = (itemsData || []).filter(
-          (item) => (item.type || "CONSUMABLE").toUpperCase() === "CONSUMABLE"
-        );
-
-        const itemOptions: StockIn.ItemOption[] = consumableItems.map((item) => ({
+        const itemOptions: StockIn.ItemOption[] = itemsData.map((item) => ({
           id: item.id,
           name: item.name || "ไม่ระบุชื่อ",
           category: item.category || "ไม่ระบุหมวดหมู่",
@@ -147,7 +144,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
 
     const selectedItem = itemsList.find((item) => item.id === formData.itemId);
     if (!selectedItem) {
-      toast.error("ไม่พบสินค้าที่เลือก");
+      
       return;
     }
 
@@ -160,12 +157,17 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
     setItems([...items, newItem]);
     setFormData((prev) => resetItemFields(prev));
     setFormErrors({});
-    toast.success("เพิ่มรายการสำเร็จ");
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
-    toast.success("ลบรายการแล้ว");
+    Swal.fire({
+      title: "สำเร็จ",
+      text: "ลบรายการแล้ว",
+      icon: "success",
+      timer: 1500,
+      showConfirmButton: false,
+    });
   };
 
   const handleItemSelect = async (itemId: string) => {
@@ -207,7 +209,6 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
       }));
       setItemSearchQuery("");
       setIsItemDropdownOpen(false);
-      toast.success("เลือกสินค้าสำเร็จ");
     } catch {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า");
     } finally {
@@ -246,7 +247,13 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
             cost_price: item.costPrice || 0,
           })),
         });
-        toast.success("บันทึกเตรียมรับพัสดุสำเร็จ");
+        Swal.fire({
+          title: "สำเร็จ",
+          text: "บันทึกเตรียมรับพัสดุสำเร็จ",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
       } else {
         createdReceive = await ReceiveSvc.createReceive({
           doc_no: `REC-${Date.now()}`,
@@ -264,7 +271,13 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
             expired_at: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
           })),
         });
-        toast.success("บันทึกรับพัสดุเข้าคลังสำเร็จ");
+        Swal.fire({
+          title: "สำเร็จ",
+          text: "บันทึกรับพัสดุเข้าคลังสำเร็จ",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
       }
 
       setItems([]);
@@ -296,12 +309,12 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
   const showQuantityOrdered = lotMode === "prepare";
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-10">
+    <div className="flex flex-col min-h-screen bg-white p-6">
       <Toaster position="top-right" />
-      <div className="w-full">
+      <div className="w-full flex flex-col flex-1">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-3xl font-semibold text-gray-800">รับพัสดุจากการจัดซื้อ</h2>
           <button
             onClick={() => router.back()}
@@ -311,17 +324,17 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
           </button>
         </div>
 
-        <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="space-y-6 w-full flex-1 flex flex-col">
 
           {/* ── ประเภทการรับเข้า ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">ประเภทการรับเข้า</p>
             <div className="flex flex-wrap gap-2">
               {([
                 { type: "purchase" as const,       label: "รับพัสดุจากการจัดซื้อ" },
-                { type: "donation" as const,        label: "รับพัสดุจากการบริจาค" },
-                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร (Med Asset)" },
                 { type: "reusable-unit" as const,   label: "รับของใช้ซ้ำรายชิ้น" },
+                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร" },
+                { type: "donation" as const,        label: "รับพัสดุจากการบริจาค" },
               ]).map(({ type, label }) => {
                 const active = type === "purchase";
                 return (
@@ -342,7 +355,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
           </div>
 
           {/* ── รูปแบบการรับพัสดุ ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">รูปแบบการรับพัสดุเข้าคลัง</p>
             <div className="flex gap-2">
               {([
@@ -373,7 +386,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
           </div>
 
           {/* ── ข้อมูลเอกสาร ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">ข้อมูลเอกสาร</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* PO Number */}
@@ -390,12 +403,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
               {/* Supplier */}
               <div data-supplier-dropdown>
                 <label className="block text-sm font-medium text-slate-600 mb-2">ผู้จำหน่าย</label>
-                {isFetchingOptions ? (
-                  <div className="flex items-center justify-center h-11 bg-slate-50 rounded-lg border border-slate-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <div className="relative">
+                <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                     <input
                       type="text"
@@ -445,14 +453,13 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                         ✕
                       </button>
                     )}
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
 
           {/* ── เพิ่มรายการสินค้า ── */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-6">
+          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">เพิ่มรายการสินค้า</p>
 
             <div className="space-y-6">
@@ -461,12 +468,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                 <label className="block text-sm font-medium text-slate-600 mb-2">
                   ชื่อสินค้า <span className="text-red-500">*</span>
                 </label>
-                {isFetchingOptions ? (
-                  <div className="flex items-center justify-center h-11 bg-slate-50 rounded-lg border border-slate-300">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <div className="relative" data-item-dropdown>
+                <div className="relative" data-item-dropdown>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
                     <input
                       type="text"
@@ -517,8 +519,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                         ✕
                       </button>
                     )}
-                  </div>
-                )}
+                </div>
                 {formErrors.itemId && <p className="text-red-500 text-xs mt-1">{formErrors.itemId}</p>}
               </div>
 
@@ -527,7 +528,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                 {[
                   { label: "ประเภท", value: formData.category },
                   { label: "หน่วย",  value: formData.unit },
-                  { label: "คลัง",   value: formData.warehouseName },
+                  { label: "ตำแหน่งเก็บ(คลัง)",   value: formData.warehouseName },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <label className="block text-sm font-medium text-slate-400 mb-1.5">{label}</label>
@@ -652,65 +653,83 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
 
           {/* ── ตารางรายการที่เพิ่มแล้ว ── */}
           {items.length > 0 && (
-            <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+            <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden flex flex-col">
+              <div className="px-6 py-3.5 border-b border-slate-300 flex items-center justify-between">
                 <p className="text-sm font-medium text-slate-700">รายการสินค้า</p>
-                <span className="text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                <span className="text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-lg">
                   {items.length} รายการ
                 </span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-xs text-slate-500 font-semibold uppercase border-b border-slate-100">
+              <div
+                className="flex-1"
+                style={{
+                  overflowX: 'auto',
+                  overflowY: 'auto',
+                  scrollbarWidth: 'auto',
+                  msOverflowStyle: 'auto',
+                } as React.CSSProperties}
+              >
+                <style>{`
+                  div::-webkit-scrollbar {
+                    width: 0;
+                    height: 8px;
+                  }
+                  div::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                  }
+                  div::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 4px;
+                  }
+                  div::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                `}</style>
+                <table className="w-full text-sm text-left table-fixed">
+                  <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
                     <tr>
-                      <th className="px-5 py-3.5 w-10">#</th>
-                      <th className="px-5 py-3.5">สินค้า</th>
-                      <th className="px-5 py-3.5">ประเภท</th>
+                      <th className="px-6 py-4 w-[50px]">#</th>
+                      <th className="px-6 py-4 w-[220px]">ชื่อสินค้า</th>
+                      <th className="px-6 py-4 w-[180px]">ประเภท</th>
                       {showBothQty ? (
                         <>
-                          <th className="px-5 py-3.5 text-right">สั่งซื้อ</th>
-                          <th className="px-5 py-3.5 text-right">รับจริง</th>
+                          <th className="px-6 py-4 w-[120px] text-right">สั่งซื้อ</th>
+                          <th className="px-6 py-4 w-[120px] text-right">รับจริง</th>
                         </>
                       ) : (
-                        <th className="px-5 py-3.5 text-right">สั่งซื้อ</th>
+                        <th className="px-6 py-4 w-[120px] text-right">สั่งซื้อ</th>
                       )}
-                      <th className="px-5 py-3.5">Lot Code</th>
-                      <th className="px-5 py-3.5">หน่วย</th>
-                      <th className="px-5 py-3.5">คลัง</th>
-                      <th className="px-5 py-3.5 w-12"></th>
+                      <th className="px-6 py-4 w-[150px]">Lot Code</th>
+                      <th className="px-6 py-4 w-[120px]">หน่วย</th>
+                      <th className="px-6 py-4 w-[160px]">ตำแหน่งเก็บ</th>
+                      <th className="px-6 py-4 w-[80px] text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
                     {items.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3 text-slate-400 text-sm">{index + 1}</td>
-                        <td className="px-5 py-3 font-medium text-slate-900">{item.itemName}</td>
-                        <td className="px-5 py-3 text-slate-500">{item.category}</td>
+                        <td className="px-6 py-4 w-[50px] text-sm text-slate-500">{index + 1}</td>
+                        <td className="px-6 py-4 w-[220px] font-medium">{item.itemName}</td>
+                        <td className="px-6 py-4 w-[180px] text-slate-600">{item.category}</td>
                         {showBothQty ? (
                           <>
-                            <td className="px-5 py-3 text-right">
-                              <span className="font-semibold text-slate-700">{item.quantityOrdered}</span>
-                            </td>
-                            <td className="px-5 py-3 text-right">
-                              <span className="font-semibold text-slate-700">{item.quantityReceived}</span>
-                            </td>
+                            <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityOrdered}</td>
+                            <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityReceived}</td>
                           </>
                         ) : (
-                          <td className="px-5 py-3 text-right">
-                            <span className="font-semibold text-slate-700">{item.quantityOrdered}</span>
-                          </td>
+                          <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityOrdered}</td>
                         )}
-                        <td className="px-5 py-3 font-mono text-sm text-slate-600">
+                        <td className="px-6 py-4 w-[150px] font-mono text-sm text-slate-600">
                           {item.lotCode || <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-5 py-3 text-slate-500">{item.unit}</td>
-                        <td className="px-5 py-3 text-slate-500">{item.warehouseName}</td>
-                        <td className="px-5 py-3.5">
+                        <td className="px-6 py-4 w-[120px] text-slate-600">{item.unit}</td>
+                        <td className="px-6 py-4 w-[160px] text-slate-600">{item.warehouseName}</td>
+                        <td className="px-6 py-4 w-[80px] text-center">
                           <button
                             onClick={() => handleRemoveItem(index)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors inline-block"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" strokeWidth={2.5} />
                           </button>
                         </td>
                       </tr>
@@ -722,7 +741,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
           )}
 
           {/* บันทึก */}
-          <div className="flex justify-end pb-8">
+          <div className="flex justify-end mt-auto pt-6">
             <button
               onClick={handleSaveAll}
               disabled={items.length === 0 || isSaving}

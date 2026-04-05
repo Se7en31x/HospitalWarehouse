@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { ChevronDown, Loader2, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Save, Trash2, X, Package, Search } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
+
+// ─── Types & Interfaces ───────────────────────────────────────────────────────
 
 interface ProcessItemForm {
   item_id: string;
@@ -27,6 +29,20 @@ interface ProcessUnitForm {
   note: string;
 }
 
+interface UnitFormTableProps {
+  unitForms: ProcessUnitForm[];
+  onUpdate: (unitId: string, patch: Partial<ProcessUnitForm>) => void;
+}
+
+interface ItemFormTableProps {
+  forms: ProcessItemForm[];
+  onUpdate: (itemId: string, patch: Partial<ProcessItemForm>) => void;
+}
+
+type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const RETURN_REQUEST_STATUS_LABEL: Record<string, string> = {
   REQUESTED: "รอคลังรับงาน",
   PROCESSING: "กำลังตรวจรับ",
@@ -37,40 +53,177 @@ const CONDITION_LABEL: Record<string, string> = {
   GOOD: "ปกติ",
   DAMAGED: "ชำรุด",
   LOST: "สูญหาย",
+  INCOMPLETE: "คืนไม่ครบ",
 };
 
+const conditionOptions: { value: ReturnCondition; label: string }[] = [
+  { value: "GOOD", label: CONDITION_LABEL.GOOD },
+  { value: "DAMAGED", label: CONDITION_LABEL.DAMAGED },
+  { value: "LOST", label: CONDITION_LABEL.LOST },
+  { value: "INCOMPLETE", label: CONDITION_LABEL.INCOMPLETE },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const fmtDateTime = (dateStr?: string | null): string => {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleString("th-TH");
+};
+
+const getTotalItems = (items: any[]): number => {
+  return items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
+};
+
+// ─── Sub-Components ───────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const statusMap: Record<string, string> = {
+    REQUESTED: "รอคลังรับงาน",
+    PROCESSING: "กำลังตรวจรับ",
+    COMPLETED: "ปิดงานแล้ว",
+  };
+
+  const styles: Record<string, string> = {
+    "รอคลังรับงาน": "bg-amber-50 text-amber-700 border-amber-200",
+    "กำลังตรวจรับ": "bg-blue-50 text-blue-700 border-blue-200",
+    "ปิดงานแล้ว": "bg-green-50 text-green-700 border-green-200",
+  };
+
+  const displayStatus = statusMap[status] || status;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${styles[displayStatus] || "bg-gray-50"}`}>
+      {displayStatus}
+    </span>
+  );
+}
+
+function UnitFormTable({ unitForms, onUpdate }: UnitFormTableProps) {
+  return (
+    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-4 py-3 text-left w-[180px]">Unit Code</th>
+            <th className="px-4 py-3 text-left w-[180px]">Serial</th>
+            <th className="px-4 py-3 text-left">รายการ</th>
+            <th className="px-4 py-3 text-left w-[160px]">ผลตรวจสภาพ</th>
+            <th className="px-4 py-3 text-left">หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {unitForms.map((row: ProcessUnitForm) => (
+            <tr key={row.unit_id} className="border-t border-slate-100">
+              <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.unit_code}</td>
+              <td className="px-4 py-3">{row.serial_no}</td>
+              <td className="px-4 py-3 font-medium">{row.item_name}</td>
+              <td className="px-4 py-3">
+                <select
+                  value={row.condition}
+                  onChange={(e) => onUpdate(row.unit_id, { condition: e.target.value as ReturnCondition })}
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                >
+                  {conditionOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-4 py-3">
+                <input
+                  value={row.note}
+                  onChange={(e) => onUpdate(row.unit_id, { note: e.target.value })}
+                  placeholder="หมายเหตุรายชิ้น"
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ItemFormTable({ forms, onUpdate }: ItemFormTableProps) {
+  return (
+    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-4 py-3 text-left">รายการ</th>
+            <th className="px-4 py-3 text-left w-[140px]">จำนวนที่ขอคืน</th>
+            <th className="px-4 py-3 text-left w-[150px]">รับคืนจริง</th>
+            <th className="px-4 py-3 text-left w-[160px]">ผลตรวจสภาพ</th>
+            <th className="px-4 py-3 text-left">หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {forms.map((row: ProcessItemForm) => (
+            <tr key={row.item_id} className="border-t border-slate-100">
+              <td className="px-4 py-3 font-medium">{row.item_name}</td>
+              <td className="px-4 py-3">{row.requested_qty}</td>
+              <td className="px-4 py-3">
+                <input
+                  type="number"
+                  min={0}
+                  max={row.requested_qty}
+                  value={row.return_qty}
+                  onChange={(e) => onUpdate(row.item_id, { return_qty: Math.max(0, Math.min(row.requested_qty, Number(e.target.value || 0))) })}
+                  className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              </td>
+              <td className="px-4 py-3">
+                <select
+                  value={row.condition}
+                  onChange={(e) => onUpdate(row.item_id, { condition: e.target.value as ReturnCondition })}
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                >
+                  {conditionOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-4 py-3">
+                <input
+                  value={row.note}
+                  onChange={(e) => onUpdate(row.item_id, { note: e.target.value })}
+                  placeholder="หมายเหตุ"
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function ReturnsDepartmentClient() {
+  // State - Data & Fetch
   const [records, setRecords] = useState<reusableSvc.ReusableReturnRequest[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
-
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [isDeptOpen, setIsDeptOpen] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
 
+  // State - Filters & UI
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [isDeptOpen, setIsDeptOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // State - Modal
   const [activeRequest, setActiveRequest] = useState<reusableSvc.ReusableReturnRequest | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [forms, setForms] = useState<ProcessItemForm[]>([]);
   const [unitForms, setUnitForms] = useState<ProcessUnitForm[]>([]);
   const [processNote, setProcessNote] = useState("");
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingRequestId, setDeletingRequestId] = useState<number | null>(null);
 
-  useEffect(() => {
-    departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest("[data-filter-dept]")) setIsDeptOpen(false);
-    };
-
-    if (isDeptOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isDeptOpen]);
-
+  // Fetch Data
   const fetchData = useCallback(async () => {
     setIsFetching(true);
     try {
@@ -81,23 +234,51 @@ export default function ReturnsDepartmentClient() {
         status: "REQUESTED",
       });
       setRecords(response.items || []);
-    } catch {
+    } catch (err) {
+      console.error("fetch return requests failed", err);
       toast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");
     } finally {
       setIsFetching(false);
     }
   }, [departmentFilter]);
 
+  // Initialize & Load Options
   useEffect(() => {
+    departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
     fetchData();
   }, [fetchData]);
 
+  // Handle click outside dropdowns
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-filter-dept]")) setIsDeptOpen(false);
+    };
+    if (isDeptOpen) {
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }
+  }, [isDeptOpen]);
+
+  // Computed Values
   const selectedDeptLabel = useMemo(() => {
     if (!departmentFilter) return "แผนกทั้งหมด";
     return departments.find((d) => String(d.id) === departmentFilter)?.name || "แผนกทั้งหมด";
   }, [departmentFilter, departments]);
 
-  const openProcessModal = async (request: reusableSvc.ReusableReturnRequest) => {
+  const filteredRecords = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return records.filter((rec) => {
+      const matchesSearch =
+        (rec.doc_no || "").toLowerCase().includes(term) ||
+        (rec.department_name || "").toLowerCase().includes(term) ||
+        (rec.contact_name || "").toLowerCase().includes(term);
+      return matchesSearch;
+    });
+  }, [records, searchTerm]);
+
+  // Event Handlers
+  const openProcessModal = useCallback(async (request: reusableSvc.ReusableReturnRequest) => {
     setActiveRequest(request);
     setProcessNote("");
     setForms([]);
@@ -138,22 +319,29 @@ export default function ReturnsDepartmentClient() {
         );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "ดึงรายละเอียดใบคำขอไม่สำเร็จ");
+      toast.error(getErrorMessage(error) || "ดึงรายละเอียดใบคำขอไม่สำเร็จ");
       setActiveRequest(null);
     } finally {
       setIsLoadingDetail(false);
     }
-  };
+  }, []);
 
-  const updateForm = (itemId: string, patch: Partial<ProcessItemForm>) => {
+  const closeProcessModal = useCallback(() => {
+    setActiveRequest(null);
+    setForms([]);
+    setUnitForms([]);
+    setProcessNote("");
+  }, []);
+
+  const updateForm = useCallback((itemId: string, patch: Partial<ProcessItemForm>) => {
     setForms((prev) => prev.map((row) => (row.item_id === itemId ? { ...row, ...patch } : row)));
-  };
+  }, []);
 
-  const updateUnitForm = (unitId: string, patch: Partial<ProcessUnitForm>) => {
+  const updateUnitForm = useCallback((unitId: string, patch: Partial<ProcessUnitForm>) => {
     setUnitForms((prev) => prev.map((row) => (row.unit_id === unitId ? { ...row, ...patch } : row)));
-  };
+  }, []);
 
-  const handleProcess = async () => {
+  const handleProcess = useCallback(async () => {
     if (!activeRequest) return;
 
     setIsSaving(true);
@@ -189,19 +377,16 @@ export default function ReturnsDepartmentClient() {
       }
 
       toast.success(`ปิดงานใบ ${activeRequest.doc_no} สำเร็จ`);
-      setActiveRequest(null);
-      setForms([]);
-      setUnitForms([]);
-      setProcessNote("");
+      closeProcessModal();
       fetchData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "บันทึกผลตรวจรับไม่สำเร็จ");
+      toast.error(getErrorMessage(error) || "บันทึกผลตรวจรับไม่สำเร็จ");
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [activeRequest, unitForms, forms, processNote, closeProcessModal, fetchData]);
 
-  const handleDeleteRequest = async (request: reusableSvc.ReusableReturnRequest) => {
+  const handleDeleteRequest = useCallback(async (request: reusableSvc.ReusableReturnRequest) => {
     const confirmed = window.confirm(`ยืนยันลบคำขอ ${request.doc_no} ?`);
     if (!confirmed) return;
 
@@ -211,43 +396,46 @@ export default function ReturnsDepartmentClient() {
       toast.success(`ลบคำขอ ${request.doc_no} เรียบร้อย`);
       fetchData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "ลบคำขอไม่สำเร็จ");
+      toast.error(getErrorMessage(error) || "ลบคำขอไม่สำเร็จ");
     } finally {
       setDeletingRequestId(null);
     }
-  };
+  }, [fetchData]);
 
+  // Render
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
       <Toaster position="top-right" />
 
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
-          <p className="text-sm text-slate-500 mt-1">ทำงานจากใบคำขอคืน: คลังรับของ ตรวจสภาพ และอัปเดตสถานะรายชิ้นใน Reusable</p>
-        </div>
-        <button
-          onClick={fetchData}
-          disabled={isFetching}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
-          รีเฟรช
-        </button>
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
       </div>
 
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="ค้นหา เลขที่ / แผนก / ผู้ประสานงาน..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+          />
+        </div>
+
         <div className="relative" data-filter-dept>
           <button
             type="button"
             onClick={() => setIsDeptOpen((prev) => !prev)}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[220px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[220px] justify-between"
           >
             <span className="text-slate-800 font-medium truncate">{selectedDeptLabel}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
           </button>
           {isDeptOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 <li>
                   <button
@@ -281,62 +469,95 @@ export default function ReturnsDepartmentClient() {
         </div>
       </div>
 
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative">
+      {/* Table Container */}
+      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+            <div className="animate-spin">
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full" />
+            </div>
           </div>
         )}
-
-        <div className="overflow-x-auto">
+        <div
+          className="flex-1"
+          style={{
+            overflowX: "auto",
+            overflowY: "auto",
+            scrollbarWidth: "auto",
+            msOverflowStyle: "auto",
+          } as React.CSSProperties}
+        >
+          <style>{`
+            div::-webkit-scrollbar {
+              width: 0;
+              height: 8px;
+            }
+            div::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            div::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+            }
+            div::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[70px]">#</th>
-                <th className="px-6 py-4 w-[170px]">เลขที่คำขอ</th>
-                <th className="px-6 py-4 w-[180px]">แผนก</th>
-                <th className="px-6 py-4 w-[180px]">นัดรับของ</th>
-                <th className="px-6 py-4 w-[140px]">สถานะ</th>
-                <th className="px-6 py-4 w-[120px] text-center">จำนวนรายการ</th>
-                <th className="px-6 py-4">ผู้ประสานงาน</th>
-                <th className="px-6 py-4 w-[160px] text-right">จัดการ</th>
+                <th className="px-6 py-4 w-[50px]">#</th>
+                <th className="px-6 py-4 w-[140px]">เลขที่คำขอ</th>
+                <th className="px-6 py-4 w-[160px]">แผนก</th>
+                <th className="px-6 py-4 w-[150px]">นัดรับของ</th>
+                <th className="px-6 py-4 w-[120px]">สถานะ</th>
+                <th className="px-6 py-4 w-[100px] text-center">จำนวนรายการ</th>
+                <th className="px-6 py-4 w-[140px]">ผู้ประสานงาน</th>
+                <th className="px-6 py-4 w-[140px] text-center">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {records.map((rec, idx) => (
+              {filteredRecords.map((rec, idx) => (
                 <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">{idx + 1}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-900">{rec.doc_no}</td>
-                  <td className="px-6 py-4">{rec.department_name || "-"}</td>
-                  <td className="px-6 py-4">{rec.preferred_pickup_at ? new Date(rec.preferred_pickup_at).toLocaleString("th-TH") : "-"}</td>
-                  <td className="px-6 py-4">{RETURN_REQUEST_STATUS_LABEL[rec.status] || rec.status}</td>
-                  <td className="px-6 py-4 text-center">{rec.items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0)}</td>
-                  <td className="px-6 py-4">{rec.contact_name || "-"}</td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="inline-flex items-center gap-2">
+                  <td className="px-6 py-4 text-slate-400 text-xs">{idx + 1}</td>
+                  <td className="px-6 py-4 font-mono text-sm font-semibold text-indigo-700">{rec.doc_no}</td>
+                  <td className="px-6 py-4 text-slate-700 text-sm">{rec.department_name || "-"}</td>
+                  <td className="px-6 py-4 text-slate-700 text-sm">{fmtDateTime(rec.preferred_pickup_at)}</td>
+                  <td className="px-6 py-4">
+                    <StatusBadge status={rec.status} />
+                  </td>
+                  <td className="px-6 py-4 text-center font-semibold text-slate-700 text-sm">{getTotalItems(rec.items)}</td>
+                  <td className="px-6 py-4 text-slate-700 text-sm">{rec.contact_name || "-"}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex justify-center gap-1">
+                      <button
+                        onClick={() => openProcessModal(rec)}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                      >
+                        ตรวจรับ
+                      </button>
                       <button
                         onClick={() => handleDeleteRequest(rec)}
                         disabled={deletingRequestId === rec.id}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:bg-slate-300 inline-flex items-center gap-1"
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                        title="ลบ"
                       >
-                        {deletingRequestId === rec.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        ลบคำขอ
-                      </button>
-                      <button
-                        onClick={() => openProcessModal(rec)}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        ตรวจรับและปิดงาน
+                        {deletingRequestId === rec.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {records.length === 0 && !isFetching && (
+              {filteredRecords.length === 0 && !isFetching && (
                 <tr>
                   <td colSpan={8}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <p className="text-sm font-medium">ไม่พบใบคำขอคืนที่รอคลังดำเนินการ</p>
+                      <Package className="w-12 h-12 text-slate-300" />
+                      <p className="text-sm font-medium">{searchTerm ? "ไม่พบผลการค้นหา" : "ไม่พบใบคำขอคืนที่รอคลังดำเนินการ"}</p>
                     </div>
                   </td>
                 </tr>
@@ -346,140 +567,94 @@ export default function ReturnsDepartmentClient() {
         </div>
       </div>
 
+      {/* Pagination */}
+      <div className="flex items-center justify-between mt-6">
+        <p className="text-sm text-slate-500">แสดง {filteredRecords.length} จาก {records.length} รายการ</p>
+        <div className="flex items-center gap-2">
+          <button className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-medium">หน้า 1 / 1</span>
+          <button className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed bg-white">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Process Modal */}
       {activeRequest && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setActiveRequest(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" 
+          onClick={closeProcessModal}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
               <h3 className="text-lg font-bold text-slate-900">ตรวจรับคืนใบ {activeRequest.doc_no}</h3>
-              <button onClick={() => setActiveRequest(null)} className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg">
+              <button 
+                onClick={closeProcessModal} 
+                className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6">
+            {/* Modal Content */}
+            <div className="overflow-y-auto p-6 flex-1">
               {isLoadingDetail && (
                 <div className="py-10 flex items-center justify-center text-slate-500">
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" /> กำลังโหลดรายละเอียดรายชิ้น...
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  กำลังโหลดรายละเอียด...
                 </div>
               )}
 
               {!isLoadingDetail && unitForms.length > 0 && (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left w-[180px]">Unit Code</th>
-                        <th className="px-4 py-3 text-left w-[180px]">Serial</th>
-                        <th className="px-4 py-3 text-left">รายการ</th>
-                        <th className="px-4 py-3 text-left w-[160px]">ผลตรวจสภาพ</th>
-                        <th className="px-4 py-3 text-left">หมายเหตุ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {unitForms.map((row) => (
-                        <tr key={row.unit_id} className="border-t border-slate-100">
-                          <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.unit_code}</td>
-                          <td className="px-4 py-3">{row.serial_no}</td>
-                          <td className="px-4 py-3 font-medium">{row.item_name}</td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={row.condition}
-                              onChange={(e) => updateUnitForm(row.unit_id, { condition: e.target.value as ProcessUnitForm["condition"] })}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5"
-                            >
-                              <option value="GOOD">{CONDITION_LABEL.GOOD}</option>
-                              <option value="DAMAGED">{CONDITION_LABEL.DAMAGED}</option>
-                              <option value="LOST">{CONDITION_LABEL.LOST}</option>
-                            </select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              value={row.note}
-                              onChange={(e) => updateUnitForm(row.unit_id, { note: e.target.value })}
-                              placeholder="หมายเหตุรายชิ้น"
-                              className="w-full rounded-lg border border-slate-300 px-2 py-1.5"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <p className="text-sm font-semibold text-slate-700 mb-3">รายชิ้นอุปกรณ์</p>
+                  <div className="mb-6">
+                    <UnitFormTable unitForms={unitForms} onUpdate={updateUnitForm} />
+                  </div>
+                </>
               )}
 
               {!isLoadingDetail && unitForms.length === 0 && (
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left">รายการ</th>
-                      <th className="px-4 py-3 text-left w-[140px]">จำนวนที่ขอคืน</th>
-                      <th className="px-4 py-3 text-left w-[150px]">รับคืนจริง</th>
-                      <th className="px-4 py-3 text-left w-[160px]">ผลตรวจสภาพ</th>
-                      <th className="px-4 py-3 text-left">หมายเหตุ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forms.map((row) => (
-                      <tr key={row.item_id} className="border-t border-slate-100">
-                        <td className="px-4 py-3 font-medium">{row.item_name}</td>
-                        <td className="px-4 py-3">{row.requested_qty}</td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="number"
-                            min={0}
-                            max={row.requested_qty}
-                            value={row.return_qty}
-                            onChange={(e) => updateForm(row.item_id, { return_qty: Math.max(0, Math.min(row.requested_qty, Number(e.target.value || 0))) })}
-                            className="w-24 rounded-lg border border-slate-300 px-2 py-1.5"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={row.condition}
-                            onChange={(e) => updateForm(row.item_id, { condition: e.target.value as ProcessItemForm["condition"] })}
-                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5"
-                          >
-                            <option value="GOOD">{CONDITION_LABEL.GOOD}</option>
-                            <option value="DAMAGED">{CONDITION_LABEL.DAMAGED}</option>
-                            <option value="LOST">{CONDITION_LABEL.LOST}</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            value={row.note}
-                            onChange={(e) => updateForm(row.item_id, { note: e.target.value })}
-                            placeholder="หมายเหตุ"
-                            className="w-full rounded-lg border border-slate-300 px-2 py-1.5"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                <>
+                  <p className="text-sm font-semibold text-slate-700 mb-3">รายการพัสดุ</p>
+                  <div className="mb-6">
+                    <ItemFormTable forms={forms} onUpdate={updateForm} />
+                  </div>
+                </>
               )}
 
-              <div className="mt-4">
-                <label className="text-xs text-slate-500">บันทึกการตรวจรับ (รวม)</label>
-                <textarea
-                  rows={2}
-                  value={processNote}
-                  onChange={(e) => setProcessNote(e.target.value)}
-                  className="w-full mt-1 rounded-xl border border-slate-300 px-3 py-2"
-                  placeholder="เช่น รับของครบตามนัด"
-                />
-              </div>
+              {!isLoadingDetail && (
+                <div>
+                  <label className="text-xs text-slate-500 font-semibold">บันทึกการตรวจรับ (รวม)</label>
+                  <textarea
+                    rows={2}
+                    value={processNote}
+                    onChange={(e) => setProcessNote(e.target.value)}
+                    className="w-full mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="เช่น รับของครบตามนัด"
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-              <button onClick={() => setActiveRequest(null)} className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
+              <button
+                onClick={closeProcessModal}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition font-medium"
+              >
                 ยกเลิก
               </button>
               <button
                 onClick={handleProcess}
-                disabled={isSaving}
-                className="px-5 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-300 flex items-center gap-2"
+                disabled={isSaving || isLoadingDetail}
+                className="px-5 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-300 transition flex items-center gap-2 font-medium"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 บันทึกผลตรวจรับ
