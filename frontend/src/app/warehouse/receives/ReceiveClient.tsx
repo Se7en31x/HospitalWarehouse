@@ -16,12 +16,14 @@ const TYPE_LABEL: Record<ReceiveType, string> = {
     PURCHASE: "จัดซื้อ",
     DONATION: "บริจาค",
     PURCHASE_ASSET: "ครุภัณฑ์",
+    REUSABLE_UNIT: "ของใช้ซ้ำรายชิ้น",
 };
 
 const TYPE_COLOR: Record<ReceiveType, string> = {
     PURCHASE: "bg-blue-100 text-blue-700",
     DONATION: "bg-blue-100 text-blue-700",
     PURCHASE_ASSET: "bg-blue-100 text-blue-700",
+    REUSABLE_UNIT: "bg-blue-100 text-blue-700",
 };
 
 const STATUS_CONFIG: Record<ReceiveStatus, { color: string; label: string; dot: string }> = {
@@ -62,6 +64,7 @@ const typeOptions = [
     { value: "PURCHASE", label: "จัดซื้อ" },
     { value: "DONATION", label: "บริจาค" },
     { value: "PURCHASE_ASSET", label: "ครุภัณฑ์" },
+    { value: "REUSABLE_UNIT", label: "ของใช้ซ้ำรายชิ้น" },
 ];
 
 const statusOptions = [

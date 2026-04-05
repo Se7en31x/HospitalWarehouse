@@ -15,6 +15,7 @@ const assetRoutes = require('./asset.route')
 const departmentRoutes = require('./user.route')
 const stockMovementRoutes = require('./stockmovement.routes')
 const borrowRoutes = require('./borrow.routes')
+const reusableItemRoutes = require('./reusableItem.routes')
 
 
 const v1 = express.Router()
@@ -33,6 +34,7 @@ v1.use('/suppliers', supplierRoutes)
 v1.use('/receives', receiveRoutes)
 v1.use('/files', fileRoutes)
 v1.use('/assets', assetRoutes)
+v1.use('/reusable-items', reusableItemRoutes)
 v1.use('/departments', departmentRoutes)
 v1.use('/stock-movements', stockMovementRoutes)
 

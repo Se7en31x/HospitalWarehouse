@@ -51,7 +51,7 @@ async function requestList<T>(path: string): Promise<T & { items: unknown[] }> {
 
 // ============ Types ============
 
-export type ReceiveType = "PURCHASE" | "DONATION" | "PURCHASE_ASSET";
+export type ReceiveType = "PURCHASE" | "DONATION" | "PURCHASE_ASSET" | "REUSABLE_UNIT";
 export type ReceiveStatus = "PENDING" | "COMPLETED" | "CANCELLED";
 
 export interface ReceiveItem {
@@ -176,4 +176,39 @@ export async function cancelReceive(headerId: number, reason?: string): Promise<
 
 export async function getSuppliers(): Promise<Array<{ id: string; name: string }>> {
     return request<Array<{ id: string; name: string }>>("/v1/suppliers/option");
+}
+
+export interface ReusableUnitInput {
+    unit_code?: string;
+    serial_no?: string;
+    department_id?: number | null;
+    status?: "AVAILABLE" | "IN_USE" | "REPAIR" | "DISPOSED";
+    condition?: "GOOD" | "DAMAGED" | "LOST" | "BROKEN";
+    note?: string;
+}
+
+export interface ReusableReceivePayload {
+    doc_no: string;
+    supplier_id?: string | null;
+    donor_name?: string | null;
+    receive_date?: string | null;
+    note?: string | null;
+    items: Array<{
+        item_id: string;
+        cost_price?: number;
+        units: ReusableUnitInput[];
+    }>;
+}
+
+export async function createReusableReceive(payload: ReusableReceivePayload): Promise<{
+    receive_id: number;
+    doc_no: string;
+    type: "REUSABLE_UNIT";
+    total_items: number;
+    total_units: number;
+}> {
+    return request("/v1/reusable-items/receive", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
 }

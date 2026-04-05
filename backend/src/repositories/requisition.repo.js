@@ -84,13 +84,48 @@ const createReturnLog = async (data, tx = prisma) => {
     return tx.return_log.create({ data });
 };
 
+const selectItemsForRequisition = async (itemIds = [], tx = prisma) => {
+    const normalizedIds = Array.from(new Set((itemIds || []).filter(Boolean)));
+    if (!normalizedIds.length) return [];
+
+    return tx.items.findMany({
+        where: {
+            id: { in: normalizedIds },
+            deleted_at: null,
+        },
+        select: {
+            id: true,
+            name: true,
+            type: true,
+            allowed_borrow: true,
+            status: true,
+        },
+    });
+};
+
 // --- Queries ---
 const SelectRequisitionById = async (id, tx = prisma) => {
     return tx.requisition_header.findUnique({
         where: { id: Number(id) },
         include: {
             requisition_item: { 
-                include: { items: true } 
+                include: {
+                    items: {
+                        include: {
+                            _count: {
+                                select: {
+                                    reusable_item_units: {
+                                        where: {
+                                            status: 'AVAILABLE',
+                                            condition: 'GOOD',
+                                            deleted_at: null,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }
             },
             borrower_details: true,
             profiles_requisition_header_requester_idToprofiles: true
@@ -146,6 +181,49 @@ const getItemLots = async (itemId, tx = prisma) => {
     });
 };
 
+const selectAvailableReusableUnitsByItem = async (itemId, qty, tx = prisma) => {
+    return tx.reusable_item_units.findMany({
+        where: {
+            item_id: itemId,
+            status: 'AVAILABLE',
+            condition: 'GOOD',
+            deleted_at: null,
+        },
+        orderBy: [{ created_at: 'asc' }, { unit_code: 'asc' }],
+        take: Number(qty),
+    });
+};
+
+const updateReusableUnitStatus = async (id, data, tx = prisma) => {
+    return tx.reusable_item_units.update({
+        where: { id },
+        data,
+    });
+};
+
+const createReusableUnitLog = async (data, tx = prisma) => {
+    return tx.reusable_item_unit_logs.create({ data });
+};
+
+const selectIssuedReusableUnitsForDocItem = async ({ itemId, docNo, reqItemId, issueAction = 'ISSUE_BORROW_REUSABLE', limit }, tx = prisma) => {
+    return tx.reusable_item_units.findMany({
+        where: {
+            item_id: itemId,
+            status: 'IN_USE',
+            deleted_at: null,
+            movement_logs: {
+                some: {
+                    action: issueAction,
+                    ref_doc_no: docNo,
+                    note: { contains: `REQ_ITEM:${reqItemId}` },
+                },
+            },
+        },
+        orderBy: [{ updated_at: 'asc' }, { created_at: 'asc' }],
+        take: Number(limit),
+    });
+};
+
 
 const updateRequisitionItem = async (id, data, tx = prisma) => {
     return tx.requisition_item.update({
@@ -192,12 +270,12 @@ const softDeleteHeader = async (id, tx = prisma) => {
     });
 };
 
-// รายการยืมที่อยู่ระหว่างดำเนินการ (BORROW + COMPLETED) — สำหรับหน้าคืนรายการ
+// รายการยืมที่อยู่ระหว่างดำเนินการ (BORROW + BORROWING) — สำหรับหน้าคืนรายการ
 const SelectActiveBorrows = async () => {
     return prisma.requisition_header.findMany({
         where: {
             type: 'BORROW',
-            status: 'COMPLETED',
+            status: 'BORROWING',
         },
         include: {
             _count: { select: { requisition_item: true } },
@@ -218,10 +296,15 @@ module.exports = {
     createAllocation,
     createBorrowerDetails,
     createReturnLog,
+    selectItemsForRequisition,
     SelectRequisitionById,
     SelectAllRequisitions,
     createLogTransaction,
     getItemLots,
+    selectAvailableReusableUnitsByItem,
+    updateReusableUnitStatus,
+    createReusableUnitLog,
+    selectIssuedReusableUnitsForDocItem,
     updateRequisitionItem,
     updateHeaderStatus,
     softDeleteHeader,

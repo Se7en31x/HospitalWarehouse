@@ -44,7 +44,7 @@ const updateCategory = (id, data) => prisma.categories.update({
 const selectOptions = () => prisma.categories.findMany({
 	where: { deleted_at: null },
 	orderBy: { name: 'asc' },
-	select: { id: true, name: true }
+	select: { id: true, name: true, item_type: true }
 });
 
 module.exports = {

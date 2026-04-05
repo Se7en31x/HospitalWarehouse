@@ -62,6 +62,7 @@ const mapRequisitionDetailResponse = (data) => {
         ...mapRequisitionListResponse(data),
         // ✅ ยุบชั้นข้อมูลสินค้าให้หน้าบ้านเรียก row.name ได้เลย
         items: (data.requisition_item || []).map(ri => ({
+            itemType: ri.items?.type || 'CONSUMABLE',
             id: ri.id,
             item_id: ri.item_id,
             name: ri.items?.name || 'Unknown',
@@ -69,6 +70,10 @@ const mapRequisitionDetailResponse = (data) => {
             image_url: ri.items?.image_url || null,
             qty: ri.req_qty || 0,
             current_stock: ri.items?.current_stock || 0,
+            available_stock:
+                (ri.items?.type || '').toString().toUpperCase() === 'REUSABLE'
+                    ? Number(ri.items?._count?.reusable_item_units || 0)
+                    : Number(ri.items?.current_stock || 0),
             approved: ri.approved_qty || 0,
             issued: ri.issued_qty || 0,
             returned: ri.returned_qty || 0,

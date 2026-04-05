@@ -17,6 +17,7 @@ export interface Category {
   id: string;
   name: string;
   code_prefix: string;
+  item_type?: "CONSUMABLE" | "REUSABLE" | "MED_ASSET" | string;
   description?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -42,6 +43,7 @@ export interface Warehouse {
 export interface CategoryPayload {
   name: string;
   code_prefix: string;
+  item_type?: "CONSUMABLE" | "REUSABLE" | "MED_ASSET";
   description?: string;
 }
 

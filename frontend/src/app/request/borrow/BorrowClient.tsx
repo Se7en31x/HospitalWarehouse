@@ -28,13 +28,20 @@ interface BorrowHistory {
   status: 'BORROWED' | 'RETURNED' | 'PARTIAL';
 }
 
+const mapBorrowableStock = (rows: ItemSvc.UiItem[] = []): ItemSvc.UiItem[] => {
+  return rows.map((item) => ({
+    ...item,
+    stock: typeof item.availableStock === "number" ? item.availableStock : item.stock,
+  }));
+};
+
 export default function BorrowClient({ initialItems }: Props) {
 
   const { departments, isLoading: isAuthLoaded } = useAuth();
   const [selectedDeptId, setSelectedDeptId] = useState<string>("");
   
   // ✅ State สำหรับรายการ Items
-  const [items, setItems] = useState<ItemSvc.UiItem[]>(initialItems || []);
+  const [items, setItems] = useState<ItemSvc.UiItem[]>(mapBorrowableStock(initialItems || []));
 
   // ✅ State สำหรับ Options (Dropdowns)
   const [categories, setCategories] = useState<ItemSvc.categoryOptions>([]);
@@ -75,8 +82,8 @@ export default function BorrowClient({ initialItems }: Props) {
   const refreshData = useCallback(async () => {
     setIsFetching(true);
     try {
-      const data = await ItemSvc.getInventoryItems({ allowed_borrow: true });
-      setItems(data || []);
+      const data = await ItemSvc.getInventoryItems({ allowed_borrow: true, type: 'REUSABLE' });
+      setItems(mapBorrowableStock(data || []));
     } catch (error) {
       console.error("Fetch error:", error);
     } finally {

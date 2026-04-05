@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { FileBarChart, Archive, HandHelping, Undo2, User } from 'lucide-react';
+import { FileBarChart, Archive, HandHelping, Undo2, User, ClipboardCheck } from 'lucide-react';
 
 const ReportsOverviewPage = () => {
   const router = useRouter();
@@ -49,6 +49,21 @@ const ReportsOverviewPage = () => {
         'คืนเมื่อไร',
         'จำนวนที่คืนครบ/ไม่ครบ',
         'หมายเหตุ (เช่น ชำรุด, สูญหาย)',
+      ],
+    },
+    {
+      name: 'รายงานคำขอส่งคืนคลัง (Reusable)',
+      path: '/request/reports/reusable-return-requests',
+      icon: <ClipboardCheck className="w-8 h-8 text-amber-600" />,
+      desc: 'ติดตามใบคำขอส่งคืนคลังของแผนก พร้อมสถานะและจำนวนรายการที่แจ้งคืน',
+      value: 'ใหม่',
+      unit: 'รายงาน',
+      bgColor: 'bg-amber-50',
+      details: [
+        'เลขที่ใบคำขอคืนคลัง (RTR-...)',
+        'แผนกที่ส่งคำขอ',
+        'วันเวลานัดรับของ และสถานะใบคำขอ',
+        'จำนวนรายการและจำนวนที่แจ้งคืนต่อใบ',
       ],
     },
     {

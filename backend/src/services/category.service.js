@@ -23,7 +23,8 @@ const getCategoryById = async (id) => {
 }
 
 const createCategory = async (data) => {
-	const newCategory = await categoryRepo.createCategory(data);
+	const payload = DTO.createCategoryDTO(data);
+	const newCategory = await categoryRepo.createCategory(payload);
 	return newCategory;
 }
 

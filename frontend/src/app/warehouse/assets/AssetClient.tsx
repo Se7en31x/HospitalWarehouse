@@ -13,11 +13,11 @@ import * as Item from "@/types/items_type";
 import { socket } from "../../../lib/socket";
 import ItemFormModal from "../items/ItemFormModal";
 
-export default function AssetClient({ initialItems }: { initialItems: Item.UiItem[] }) {
+export default function AssetClient({ initialItems }: { initialItems?: Item.UiItem[] }) {
   const router = useRouter();
 
   // --- [States] ---
-  const [items, setItems] = useState<Item.UiItem[]>(initialItems || []);
+  const [items, setItems] = useState<Item.UiItem[]>(initialItems ?? []);
   const [isFetching, setIsFetching] = useState(false);
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
 
@@ -26,7 +26,10 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
     setIsFetching(true);
     try {
       const data = await ItemSvc.getInventoryItems();
-      const assetOnly = (data || []).filter(i => i.type === "ASSET");
+      const assetOnly = (data || []).filter((i) => {
+        const type = (i.type || "").toUpperCase();
+        return type === "MED_ASSET" || type === "ASSET";
+      });
       setItems(assetOnly);
     } catch (error) {
       console.error("Fetch error:", error);
@@ -56,8 +59,16 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
       }
     };
     fetchOptions();
-    if (!initialItems || initialItems.length === 0) refreshData();
-  }, [initialItems, refreshData]);
+    if (!initialItems || initialItems.length === 0) {
+      refreshData();
+    }
+  }, [refreshData, initialItems]);
+
+  useEffect(() => {
+    if (Array.isArray(initialItems) && initialItems.length > 0) {
+      setItems(initialItems);
+    }
+  }, [initialItems]);
 
   // --- [Search & Filter States] ---
   const [searchTerm, setSearchTerm] = useState("");

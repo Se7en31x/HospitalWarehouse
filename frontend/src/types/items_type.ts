@@ -15,6 +15,7 @@ export interface ApiItem {
 	name?: string | null;
 	description?: string | null;
 	current_stock?: number | null;
+	available_stock?: number | null;
 	min_stock?: number | null;
 	status?: ItemStatus | null;
 	image_url?: string | null;
@@ -46,6 +47,7 @@ export interface UiItem {
 	warehouseId: string;
 	location: string;
 	stock: number;
+	availableStock?: number;
 	minStock: number;
 	price: number;
 	status: ItemStatus;
@@ -58,6 +60,7 @@ export interface UiItem {
 export interface Option {
 	id: UUID;
 	name: string;
+	item_type?: string | null;
 }
 
 export type categoryOptions = Option[];

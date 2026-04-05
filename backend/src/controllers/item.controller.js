@@ -99,7 +99,7 @@ const softDeletedItem = async (req, res) => {
         if (!id) {
             return util.sendResponse(res, 400, "Invalid this parameter");
         }
-        const deletedItem = await itemService.softDeletedItem(id, req.user.user_id, req.user.user_fullname)
+        const deletedItem = await itemService.softDeletedItem(id)
 
         req.io.emit('REFRESH_DATA', 'ITEMS');
 

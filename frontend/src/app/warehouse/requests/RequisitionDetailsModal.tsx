@@ -37,9 +37,9 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
     if (isOpen && requisition && requisition.items) {
       const initialQtys: Record<number, number> = {};
       requisition.items.forEach((item: RequisitionItem) => {
-        // ใช้ item.qty และ item.current_stock (ชื่อตาม DTO)
+        // ใช้ยอดพร้อมใช้ (available_stock) หากมี มิฉะนั้น fallback current_stock
         const requested = item.qty || 0;
-        const stock = item.current_stock || 0;
+        const stock = (item.available_stock ?? item.current_stock) || 0;
         
         // ค่าเริ่มต้นจ่ายจริง = เท่าที่ขอมา แต่ต้องไม่เกินสต็อกที่มี
         initialQtys[item.id] = Math.min(requested, stock);
@@ -173,8 +173,8 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                 {requisition.items?.map((row: RequisitionItem) => {
                   const currentIssued = issuedQtys[row.id] || 0;
                   
-                  // ✅ ดึงจาก DTO ที่ Flatten มาแล้ว (qty และ current_stock)
-                  const dbStock = row.current_stock || 0;
+                  // ✅ ยอดพร้อมใช้จริงจาก backend (fallback เป็น current_stock)
+                  const dbStock = (row.available_stock ?? row.current_stock) || 0;
                   const dbReq = row.qty || 0;
 
                   return (

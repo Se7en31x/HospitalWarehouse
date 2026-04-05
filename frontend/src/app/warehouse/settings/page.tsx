@@ -79,7 +79,12 @@ export default function SettingsPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
-  const [categoryForm, setCategoryForm] = useState<CategoryPayload>({ name: "", code_prefix: "", description: "" });
+  const [categoryForm, setCategoryForm] = useState<CategoryPayload>({
+    name: "",
+    code_prefix: "",
+    item_type: "CONSUMABLE",
+    description: "",
+  });
   const [unitForm, setUnitForm] = useState<UnitPayload>({ name: "", description: "" });
   const [warehouseForm, setWarehouseForm] = useState<WarehousePayload>({ name: "", location: "", description: "" });
   const [supplierForm, setSupplierForm] = useState<SupplierPayload>({ name: "", contact: "", address: "", phone: "", tax_id: "" });
@@ -245,7 +250,7 @@ export default function SettingsPage() {
     setFormMode("create");
     if (activeTab === "categories") {
       setEditingCategoryId(null);
-      setCategoryForm({ name: "", code_prefix: "", description: "" });
+      setCategoryForm({ name: "", code_prefix: "", item_type: "CONSUMABLE", description: "" });
     }
     if (activeTab === "units") {
       setEditingUnitId(null);
@@ -389,11 +394,12 @@ export default function SettingsPage() {
             <table className="w-full text-sm text-left divide-y divide-slate-100">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
                 <tr>
-                  <th className="px-6 py-4 w-[22%]">ชื่อประเภทพัสดุ</th>
+                  <th className="px-6 py-4 w-[20%]">ชื่อประเภทพัสดุ</th>
                   <th className="px-6 py-4 w-[10%]">Prefix Code</th>
-                  <th className="px-6 py-4 w-[22%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[13%]">วันที่สร้าง</th>
-                  <th className="px-6 py-4 w-[13%]">วันที่แก้ไข</th>
+                  <th className="px-6 py-4 w-[16%]">ผูกประเภท</th>
+                  <th className="px-6 py-4 w-[20%]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[12%]">วันที่สร้าง</th>
+                  <th className="px-6 py-4 w-[12%]">วันที่แก้ไข</th>
                   <th className="px-6 py-4 w-[20%] text-right">จัดการ</th>
                 </tr>
               </thead>
@@ -405,6 +411,11 @@ export default function SettingsPage() {
                       <td className="px-6 py-4">
                         <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">
                           {cat.code_prefix}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 rounded-md">
+                          {cat.item_type || "CONSUMABLE"}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -425,6 +436,7 @@ export default function SettingsPage() {
                               setCategoryForm({
                                 name: cat.name,
                                 code_prefix: cat.code_prefix,
+                                item_type: (cat.item_type || "CONSUMABLE") as CategoryPayload["item_type"],
                                 description: cat.description || "",
                               });
                               setIsFormModalOpen(true);
@@ -445,7 +457,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

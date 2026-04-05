@@ -39,34 +39,36 @@ model item_allocation {
 }
 
 model items {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String
-  code               String               @unique(map: "items_code_unique")
-  category_id        String?              @db.Uuid
-  unit_id            String?              @db.Uuid
-  min_stock          Int?                 @default(0)
-  current_stock      Int?                 @default(0)
-  image_url          String?
-  status             String?              @default("ACTIVE") @db.VarChar(20)
-  sell_price         Decimal?             @default(0) @db.Decimal(10, 2)
-  created_at         DateTime?            @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime?            @default(now()) @updatedAt @db.Timestamptz(6)
-  deleted_at         DateTime?            @db.Timestamptz(6)
-  warehouse_id       String?              @db.Uuid
-  description        String?
-  image_public_id    String?              @db.VarChar(100)
-  type               String?              @default("CONSUMABLE") @db.VarChar(20)
-  allowed_req        Boolean?             @default(true)
-  allowed_borrow     Boolean?             @default(false)
-  inventory_snapshot inventory_snapshot[]
-  item_lots          item_lots[]
-  categories         categories?          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_category_fk")
-  unit               units?               @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_unit_fk")
-  warehouses         warehouses?          @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_warehouse_fk")
-  medical_assets     medical_assets[]
-  receive_item       receive_item[]
-  requisition_item   requisition_item[]
-  stocks_movement    stocks_movement[]
+  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                          String
+  code                          String                          @unique(map: "items_code_unique")
+  category_id                   String?                         @db.Uuid
+  unit_id                       String?                         @db.Uuid
+  min_stock                     Int?                            @default(0)
+  current_stock                 Int?                            @default(0)
+  image_url                     String?
+  status                        String?                         @default("ACTIVE") @db.VarChar(20)
+  sell_price                    Decimal?                        @default(0) @db.Decimal(10, 2)
+  created_at                    DateTime?                       @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime?                       @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at                    DateTime?                       @db.Timestamptz(6)
+  warehouse_id                  String?                         @db.Uuid
+  description                   String?
+  image_public_id               String?                         @db.VarChar(100)
+  type                          String?                         @default("CONSUMABLE") @db.VarChar(20)
+  allowed_req                   Boolean?                        @default(true)
+  allowed_borrow                Boolean?                        @default(false)
+  inventory_snapshot            inventory_snapshot[]
+  item_lots                     item_lots[]
+  categories                    categories?                     @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_category_fk")
+  unit                          units?                          @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_unit_fk")
+  warehouses                    warehouses?                     @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "items_warehouse_fk")
+  medical_assets                medical_assets[]
+  receive_item                  receive_item[]
+  requisition_item              requisition_item[]
+  reusable_item_units           reusable_item_units[]
+  reusable_return_request_items reusable_return_request_items[]
+  stocks_movement               stocks_movement[]
 
   @@schema("inventory")
 }
@@ -139,6 +141,7 @@ model categories {
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   updated_at  DateTime? @default(now()) @updatedAt @db.Timestamptz(6)
   deleted_at  DateTime? @db.Timestamptz(6)
+  item_type   String    @default("CONSUMABLE") @db.VarChar(20)
   items       items[]
 
   @@schema("inventory")
@@ -172,7 +175,7 @@ model stocks_movement {
   type          String    @db.VarChar(50)
   note          String?
   created_by    String?
-  created_by_id Int?
+  created_by_id String?   @db.Uuid
   created_at    DateTime? @default(now()) @db.Timestamptz(6)
   items         items?    @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "stock_movement_item_fk")
 
@@ -207,25 +210,56 @@ model warehouses {
 }
 
 model departments {
-  id             Int              @id
-  name           String?          @db.VarChar(255)
-  description    String?          @db.VarChar(255)
-  created_at     DateTime?        @db.Timestamptz(6)
-  updated_at     DateTime?        @db.Timestamptz(6)
-  deleted_at     DateTime?        @db.Timestamptz(6)
-  is_disable     Boolean?
-  code           String?          @db.VarChar
-  medical_assets medical_assets[]
+  id                       Int                        @id
+  name                     String?                    @db.VarChar(255)
+  description              String?                    @db.VarChar(255)
+  created_at               DateTime?                  @db.Timestamptz(6)
+  updated_at               DateTime?                  @db.Timestamptz(6)
+  deleted_at               DateTime?                  @db.Timestamptz(6)
+  is_disable               Boolean?
+  code                     String?                    @db.VarChar
+  name_en                  String?                    @db.VarChar(255)
+  medical_assets           medical_assets[]
+  reusable_item_units      reusable_item_units[]
+  reusable_return_requests reusable_return_requests[]
 
   @@schema("public")
 }
 
-model sex {
-  id          Int     @id
-  name        String? @db.VarChar(25)
-  description String? @db.VarChar
+model reusable_return_requests {
+  id                  Int                             @id @default(autoincrement())
+  doc_no              String                          @unique @db.VarChar(50)
+  department_id       Int
+  preferred_pickup_at DateTime?                       @db.Timestamptz(6)
+  contact_name        String?                         @db.VarChar(255)
+  contact_phone       String?                         @db.VarChar(50)
+  note                String?
+  status              String                          @default("REQUESTED") @db.VarChar(20)
+  requested_by        String?                         @db.Uuid
+  created_at          DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime                        @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at          DateTime?                       @db.Timestamptz(6)
+  request_items       reusable_return_request_items[]
+  departments         departments                     @relation(fields: [department_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reusable_return_request_department")
 
-  @@schema("public")
+  @@index([department_id], map: "idx_reusable_return_requests_department")
+  @@index([status], map: "idx_reusable_return_requests_status")
+  @@schema("inventory")
+}
+
+model reusable_return_request_items {
+  id            Int                      @id @default(autoincrement())
+  request_id    Int
+  item_id       String                   @db.Uuid
+  requested_qty Int
+  note          String?
+  created_at    DateTime                 @default(now()) @db.Timestamptz(6)
+  items         items                    @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reusable_return_request_item_item")
+  request       reusable_return_requests @relation(fields: [request_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_reusable_return_request_item_request")
+
+  @@index([item_id], map: "idx_reusable_return_request_items_item")
+  @@index([request_id], map: "idx_reusable_return_request_items_request")
+  @@schema("inventory")
 }
 
 model supplier {
@@ -269,17 +303,18 @@ model receive_header {
 }
 
 model receive_item {
-  id             Int              @id @default(autoincrement())
-  header_id      Int
-  item_id        String           @db.Uuid
-  lot_code       String?          @db.VarChar(100)
-  qty            Int              @default(0)
-  cost_price     Decimal?         @default(0) @db.Decimal(10, 2)
-  expired_at     DateTime?        @db.Timestamptz(6)
-  expected_qty   Int              @default(0)
-  medical_assets medical_assets[]
-  receive_header receive_header   @relation(fields: [header_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "receive_item_header_fk")
-  items          items            @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "receive_item_item_fk")
+  id                  Int                   @id @default(autoincrement())
+  header_id           Int
+  item_id             String                @db.Uuid
+  lot_code            String?               @db.VarChar(100)
+  qty                 Int                   @default(0)
+  cost_price          Decimal?              @default(0) @db.Decimal(10, 2)
+  expired_at          DateTime?             @db.Timestamptz(6)
+  expected_qty        Int                   @default(0)
+  medical_assets      medical_assets[]
+  receive_header      receive_header        @relation(fields: [header_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "receive_item_header_fk")
+  items               items                 @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "receive_item_item_fk")
+  reusable_item_units reusable_item_units[]
 
   @@index([header_id], map: "idx_receive_item_header")
   @@schema("inventory")
@@ -349,6 +384,48 @@ model medical_assets {
   @@index([department_id], map: "idx_medical_assets_dept_id")
   @@index([item_id], map: "idx_medical_assets_item_id")
   @@index([status], map: "idx_medical_assets_status")
+  @@schema("inventory")
+}
+
+model reusable_item_units {
+  id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unit_code       String                    @unique @db.VarChar(50)
+  item_id         String                    @db.Uuid
+  receive_item_id Int?
+  serial_no       String?                   @db.VarChar(100)
+  department_id   Int?
+  status          String                    @default("AVAILABLE") @db.VarChar(20)
+  condition       String                    @default("GOOD") @db.VarChar(20)
+  note            String?
+  created_at      DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?                 @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at      DateTime?                 @db.Timestamptz(6)
+  movement_logs   reusable_item_unit_logs[]
+  departments     departments?              @relation(fields: [department_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reusable_unit_department")
+  items           items                     @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reusable_unit_item")
+  receive_item    receive_item?             @relation(fields: [receive_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reusable_unit_receive_item")
+
+  @@index([department_id], map: "idx_reusable_units_dept_id")
+  @@index([item_id], map: "idx_reusable_units_item_id")
+  @@index([status], map: "idx_reusable_units_status")
+  @@schema("inventory")
+}
+
+model reusable_item_unit_logs {
+  id                 Int                 @id @default(autoincrement())
+  unit_id            String              @db.Uuid
+  action             String              @db.VarChar(30)
+  from_department_id Int?
+  to_department_id   Int?
+  ref_doc_no         String?             @db.VarChar(50)
+  note               String?
+  performed_by       String?             @db.Uuid
+  created_at         DateTime?           @default(now()) @db.Timestamptz(6)
+  reusable_item_unit reusable_item_units @relation(fields: [unit_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_reusable_unit_log_unit")
+
+  @@index([action], map: "idx_reusable_unit_logs_action")
+  @@index([created_at], map: "idx_reusable_unit_logs_created_at")
+  @@index([unit_id], map: "idx_reusable_unit_logs_unit_id")
   @@schema("inventory")
 }
 
@@ -897,30 +974,32 @@ model profiles {
   cid                                                          String?              @db.VarChar(13)
   profession_id                                                String?              @db.VarChar(50)
   title_code                                                   String?              @db.VarChar(3)
-  role_id                                                      Int?
   system                                                       String[]             @default([])
   department                                                   String[]             @default([])
+  role                                                         String?              @db.VarChar(50)
+  status_                                                      String?              @map("status ") @db.VarChar
+  created_at                                                   DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at                                                   DateTime?            @db.Timestamptz(6)
+  deleted_at                                                   DateTime?            @db.Timestamptz(6)
   receive_header                                               receive_header[]
   requisition_header_requisition_header_approver_idToprofiles  requisition_header[] @relation("requisition_header_approver_idToprofiles")
   requisition_header_requisition_header_requester_idToprofiles requisition_header[] @relation("requisition_header_requester_idToprofiles")
   return_log                                                   return_log[]
-  roles                                                        roles?               @relation(fields: [role_id], references: [id], onUpdate: NoAction, map: "fk_profiles_role")
   users                                                        users                @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }
 
 model roles {
-  id           Int        @id @default(autoincrement())
-  code         String     @unique
+  id           Int       @id @default(autoincrement())
+  code         String    @unique
   role_name_en String
   role_name_th String
   description  String?
-  is_disabled  Boolean?   @default(false)
-  created_at   DateTime?  @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime?  @default(now()) @db.Timestamptz(6)
-  deleted_at   DateTime?  @db.Timestamptz(6)
-  profiles     profiles[]
+  is_disabled  Boolean?  @default(false)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
 
   @@schema("public")
 }
@@ -950,6 +1029,220 @@ model return_log {
 
   @@index([req_item_id], map: "idx_return_log_req_item")
   @@schema("inventory")
+}
+
+model lookup_allergy_severity {
+  severity_code String @id(map: "PK_9c8968774dabc50382b36b7c2c6") @db.VarChar(1)
+  label         String @db.VarChar(50)
+
+  @@schema("public")
+}
+
+model lookup_ward {
+  ward_code String @id(map: "PK_57dceb2eae725dd5f76ad1ebb2f") @db.VarChar(1)
+  ward      String @db.VarChar(5)
+
+  @@schema("public")
+}
+
+model category {
+  id          Int            @id @default(autoincrement())
+  name        String?
+  code_prefix String?
+  created_at  DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?      @default(now()) @db.Timestamp(6)
+  items       public_items[]
+
+  @@schema("public")
+}
+
+model public_item_allocation {
+  id               Int                     @id @default(autoincrement())
+  req_item_id      Int
+  lot_id           String
+  qty              Int
+  status           String?                 @default("PENDING") @db.VarChar(20)
+  requisition_item public_requisition_item @relation(fields: [req_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_req_item_alloc")
+  item_lot         item_lot                @relation(fields: [lot_id], references: [id])
+
+  @@index([req_item_id], map: "idx_alloc_req_item")
+  @@map("item_allocation")
+  @@schema("public")
+}
+
+model item_lot {
+  id              String                   @id
+  item_id         Int?
+  quantity        Int?
+  expried_at      DateTime?                @db.Timestamp(6)
+  warehouse_id    Int?
+  created_at      DateTime?                @db.Timestamp(6)
+  status          String?
+  deleted_at      DateTime?                @db.Timestamp(6)
+  deleted_by      String?
+  image_url       String?
+  deleted_by_id   String?
+  item_allocation public_item_allocation[]
+  items           public_items?            @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "item_id_fk")
+  warehouse       warehouse?               @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "warehouse_id_fk")
+
+  @@schema("public")
+}
+
+model public_items {
+  id               Int                       @id @default(autoincrement())
+  name             String?
+  code             String?
+  category_id      Int?
+  unit_id          Int?
+  warehouse_id     Int?
+  min_stock        Int?                      @default(0)
+  created_at       DateTime?                 @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?                 @default(now()) @db.Timestamp(6)
+  status           String?
+  deleted_at       DateTime?                 @db.Timestamp(6)
+  deleted_by_id    Int?
+  deleted_by       String?
+  image_url        String?
+  current_stock    Int?                      @default(0)
+  item_lot         item_lot[]
+  category         category?                 @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unit             unit?                     @relation(fields: [unit_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouse        warehouse?                @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requisition_item public_requisition_item[]
+  stock_movement   stock_movement[]
+
+  @@map("items")
+  @@schema("public")
+}
+
+model public_logs_transaction {
+  id           Int       @id @default(autoincrement())
+  action       String    @db.VarChar(50)
+  module       String    @db.VarChar(50)
+  target_table String?   @db.VarChar(50)
+  target_id    String?   @db.VarChar(50)
+  old_data     Json?
+  new_data     Json?
+  description  String?
+  status       String?   @db.VarChar(20)
+  username     String?   @db.VarChar(100)
+  ip_address   String?   @db.VarChar(50)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([action], map: "idx_logs_action")
+  @@index([created_at], map: "idx_logs_created_at")
+  @@map("logs_transaction")
+  @@schema("public")
+}
+
+model lookup_district {
+  district        String          @id(map: "PK_e0b363f1dc2ca7aacc8caf14d7d") @db.VarChar(4)
+  provcode        String          @db.VarChar(2)
+  distcode        String          @db.VarChar(2)
+  value           String          @db.VarChar(100)
+  lookup_province lookup_province @relation(fields: [provcode], references: [province], onDelete: NoAction, onUpdate: NoAction, map: "FK_1f35dc9ce131dac36aa548d7bcf")
+
+  @@unique([provcode, distcode], map: "UQ_48960e8af70cc09f8798ba163b2")
+  @@schema("public")
+}
+
+model lookup_province {
+  province           String               @id(map: "PK_e53c63a93fa1009b252981dc918") @db.VarChar(2)
+  value              String               @db.VarChar(100)
+  zone               String?              @db.VarChar(2)
+  region             String?              @db.VarChar(2)
+  lookup_district    lookup_district[]
+  lookup_subdistrict lookup_subdistrict[]
+
+  @@schema("public")
+}
+
+model lookup_subdistrict {
+  subdistrict     String          @id(map: "PK_536aec56b7ba1e4641ecdb3c4a9") @db.VarChar(6)
+  provcode        String          @db.VarChar(2)
+  distcode        String          @db.VarChar(2)
+  subdistcode     String          @db.VarChar(2)
+  value           String          @db.VarChar(100)
+  lookup_province lookup_province @relation(fields: [provcode], references: [province], onDelete: NoAction, onUpdate: NoAction, map: "FK_45ca7926d0b1ac05cb9c5385e32")
+
+  @@schema("public")
+}
+
+model public_requisition_header {
+  id               Int                       @id @default(autoincrement())
+  doc_no           String?                   @unique @db.VarChar(50)
+  type             String                    @db.VarChar(20)
+  status           String                    @default("DRAFT") @db.VarChar(20)
+  requester_id     Int
+  approver_id      Int?
+  request_date     DateTime?                 @default(now()) @db.Timestamptz(6)
+  due_date         DateTime?                 @db.Timestamptz(6)
+  return_date      DateTime?                 @db.Timestamptz(6)
+  note             String?
+  created_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  requisition_item public_requisition_item[]
+
+  @@index([doc_no], map: "idx_req_header_doc_no")
+  @@index([status], map: "idx_req_header_status")
+  @@map("requisition_header")
+  @@schema("public")
+}
+
+model public_requisition_item {
+  id                 Int                       @id @default(autoincrement())
+  header_id          Int
+  item_id            Int
+  req_qty            Int
+  approved_qty       Int?
+  issued_qty         Int?                      @default(0)
+  returned_qty       Int?                      @default(0)
+  note               String?
+  item_allocation    public_item_allocation[]
+  requisition_header public_requisition_header @relation(fields: [header_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_req_header")
+  items              public_items              @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([header_id], map: "idx_req_item_header")
+  @@map("requisition_item")
+  @@schema("public")
+}
+
+model stock_movement {
+  id            Int           @id @default(autoincrement())
+  item_id       Int?
+  lot_id        String?
+  quantity      Int           @default(0)
+  type          String
+  created_at    DateTime?     @default(now()) @db.Timestamp(6)
+  created_by    String?
+  reason        String?
+  created_by_id Int?
+  items         public_items? @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model unit {
+  id         Int            @id @default(autoincrement())
+  name       String?
+  created_at DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at DateTime?      @default(now()) @db.Timestamp(6)
+  items      public_items[]
+
+  @@schema("public")
+}
+
+model warehouse {
+  id         Int            @id @default(autoincrement())
+  name       String?
+  location   String?
+  created_at DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at DateTime?      @default(now()) @db.Timestamp(6)
+  item_lot   item_lot[]
+  items      public_items[]
+
+  @@schema("public")
 }
 
 /// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.

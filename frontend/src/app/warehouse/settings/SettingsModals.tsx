@@ -95,6 +95,21 @@ export default function SettingsModals({
                       <input value={categoryForm.code_prefix} onChange={(e) => onCategoryFormChange({ ...categoryForm, code_prefix: e.target.value })} placeholder="ตัวอักษรย่อ (เช่น OFC)" className={`${inputClass} uppercase font-mono`} maxLength={5} />
                     </div>
                     <div className="md:col-span-2">
+                      <label className={labelClass}>ประเภทสินค้าเริ่มต้นของหมวดหมู่ <span className="text-red-500">*</span></label>
+                      <select
+                        value={categoryForm.item_type || "CONSUMABLE"}
+                        onChange={(e) => onCategoryFormChange({
+                          ...categoryForm,
+                          item_type: e.target.value as "CONSUMABLE" | "REUSABLE" | "MED_ASSET",
+                        })}
+                        className={inputClass}
+                      >
+                        <option value="CONSUMABLE">CONSUMABLE - วัสดุสิ้นเปลือง</option>
+                        <option value="REUSABLE">REUSABLE - ของใช้ซ้ำรายชิ้น</option>
+                        <option value="MED_ASSET">MED_ASSET - ครุภัณฑ์ภายในองค์กร</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
                       <label className={labelClass}>รายละเอียด (ไม่บังคับ)</label>
                       <textarea value={categoryForm.description || ""} onChange={(e) => onCategoryFormChange({ ...categoryForm, description: e.target.value })} placeholder="ระบุรายละเอียดเพิ่มเติม" className={`${inputClass} resize-none h-24`} />
                     </div>

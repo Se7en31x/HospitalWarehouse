@@ -48,20 +48,19 @@ interface DetailModalProps {
 
 function DetailModal({ record, onClose }: DetailModalProps) {
   if (!record) return null;
-  const isExternal = !!record.borrower_details;
   const borrower = record.borrower_details as BorrowerDetails | undefined | null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div className={`px-6 py-4 flex items-center justify-between flex-shrink-0 ${isExternal ? "bg-emerald-600" : "bg-indigo-600"}`}>
+        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0 bg-emerald-600">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-              {isExternal ? <User className="w-5 h-5 text-white" /> : <Building2 className="w-5 h-5 text-white" />}
+              <User className="w-5 h-5 text-white" />
             </div>
             <div>
               <p className="text-white font-bold text-sm">{record.doc_no}</p>
-              <p className="text-white/70 text-xs">{isExternal ? "ยืมสำหรับบุคคลภายนอก" : "ยืมภายในแผนก"}</p>
+              <p className="text-white/70 text-xs">ติดตามการยืมของบุคคลภายนอก</p>
             </div>
           </div>
           <button onClick={onClose} className="text-white/70 hover:text-white transition p-1.5 hover:bg-white/10 rounded-lg">
@@ -71,11 +70,11 @@ function DetailModal({ record, onClose }: DetailModalProps) {
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-              {isExternal ? <User className="w-4 h-4 text-emerald-600" /> : <Building2 className="w-4 h-4 text-indigo-600" />}
+              <User className="w-4 h-4 text-emerald-600" />
               <span className="text-sm font-bold text-gray-700">ข้อมูลผู้ยืม</span>
             </div>
             <div className="p-4 space-y-2">
-              {isExternal && borrower ? (
+              {borrower ? (
                 <>
                   <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ผู้ทำรายการให้" value={record.requester ?? "-"} />
                   <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ชื่อผู้ยืม" value={borrower.fullname ?? "-"} />
@@ -234,11 +233,17 @@ export default function ReturnItemClient() {
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return records.filter((r) => {
+      if (!r.borrower_details) return false;
+
+      const borrower = r.borrower_details as BorrowerDetails | undefined | null;
       if (!term) return true;
+
       return (
         r.doc_no.toLowerCase().includes(term) ||
         (r.requester ?? "").toLowerCase().includes(term) ||
-        (r.department_name ?? "").toLowerCase().includes(term)
+        (r.department_name ?? "").toLowerCase().includes(term) ||
+        (borrower?.fullname ?? "").toLowerCase().includes(term) ||
+        (borrower?.phone ?? "").toLowerCase().includes(term)
       );
     });
   }, [records, searchTerm]);
@@ -254,8 +259,8 @@ export default function ReturnItemClient() {
       <Toaster position="top-right" />
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">รายการที่กำลังยืม</h2>
-          <p className="text-sm text-gray-500 mt-1">ติดตามรายการที่ยังไม่ได้คืน</p>
+          <h2 className="text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
+          <p className="text-sm text-gray-500 mt-1">แสดงเฉพาะรายการยืมบุคคลภายนอกที่ยังไม่คืน</p>
         </div>
         <button
           onClick={fetchData}
@@ -271,7 +276,7 @@ export default function ReturnItemClient() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหา เลขที่, ผู้ยืม, แผนก..."
+            placeholder="ค้นหาเลขที่เอกสาร, ชื่อผู้ยืมภายนอก, เบอร์โทร..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
@@ -291,7 +296,7 @@ export default function ReturnItemClient() {
               <tr>
                 <th className="px-5 py-4 w-12">#</th>
                 <th className="px-5 py-4">เลขที่เอกสาร</th>
-                <th className="px-5 py-4">ผู้ทำรายการ</th>
+                <th className="px-5 py-4">ผู้ยืมภายนอก</th>
                 <th className="px-5 py-4">แผนก</th>
                 <th className="px-5 py-4 text-center">จำนวนสินค้า</th>
                 <th className="px-5 py-4">วันที่ยืม</th>
@@ -303,17 +308,15 @@ export default function ReturnItemClient() {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {displayed.map((r, idx) => {
                 const overdue = isOverdue(r.due_date);
+                const borrower = r.borrower_details as BorrowerDetails | undefined | null;
                 return (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                     <td className="px-5 py-4 font-mono font-medium text-indigo-700">{r.doc_no}</td>
                     <td className="px-5 py-4">
-                      <div className="font-medium text-gray-800">{r.requester ?? "-"}</div>
-                      {r.borrower_details && (
-                        <div className="text-xs text-emerald-600 font-medium">
-                          บุคคลภายนอก: {(r.borrower_details as BorrowerDetails).fullname}
-                        </div>
-                      )}
+                      <div className="font-medium text-gray-800">{borrower?.fullname ?? "-"}</div>
+                      <div className="text-xs text-emerald-700 font-medium">{borrower?.phone ?? "-"}</div>
+                      <div className="text-xs text-slate-400">ผู้ทำรายการ: {r.requester ?? "-"}</div>
                     </td>
                     <td className="px-5 py-4 text-gray-600">{r.department_name ?? `แผนก ${r.department_id}`}</td>
                     <td className="px-5 py-4 text-center font-medium text-gray-700">{r.item_count ?? 0}</td>
@@ -342,7 +345,7 @@ export default function ReturnItemClient() {
                   <td colSpan={9}>
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
-                      <p className="text-sm font-medium">ไม่มีรายการที่กำลังยืมอยู่</p>
+                      <p className="text-sm font-medium">ไม่มีรายการยืมภายนอกที่ค้างคืนหรือยังไม่คืน</p>
                     </div>
                   </td>
                 </tr>

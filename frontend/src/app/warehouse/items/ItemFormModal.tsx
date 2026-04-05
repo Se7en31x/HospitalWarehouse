@@ -56,9 +56,47 @@ const INITIAL_FORM_DATA: FormData = {
   warehouse_id: "",
   min_stock: 0,
   imageUrl: "",
-  type: "CONSUMABLE",
+  type: "",
   allowed_req: true,
   allowed_borrow: false,
+};
+
+const normalizeItemType = (value?: string | null) => {
+  const normalized = (value || "").toString().trim().toUpperCase();
+  if (!normalized) return "CONSUMABLE";
+  if (normalized === "ASSET") return "MED_ASSET";
+  if (["CONSUMABLE", "REUSABLE", "MED_ASSET"].includes(normalized)) return normalized;
+  return "CONSUMABLE";
+};
+
+const getItemTypeLabel = (type?: string) => {
+  if (!type || !type.toString().trim()) return "ยังไม่ได้เลือกหมวดหมู่";
+  const normalized = normalizeItemType(type);
+  if (normalized === "REUSABLE") return "ของใช้ซ้ำรายชิ้น";
+  if (normalized === "MED_ASSET") return "ครุภัณฑ์ภายในองค์กร (Med Asset)";
+  return "วัสดุสิ้นเปลือง";
+};
+
+const mapItemErrorMessage = (message: string) => {
+  const normalized = (message || "").toLowerCase();
+
+  if (normalized.includes("cannot change category") && normalized.includes("transactions")) {
+    return "ไม่สามารถเปลี่ยนหมวดหมู่ได้ เนื่องจากพัสดุนี้มีประวัติการใช้งานแล้ว";
+  }
+
+  if (normalized.includes("type is controlled by category")) {
+    return "ไม่สามารถแก้ไขประเภทพัสดุโดยตรงได้ ระบบจะกำหนดประเภทตามหมวดหมู่ที่เลือก";
+  }
+
+  if (normalized.includes("category id not found")) {
+    return "ไม่พบหมวดหมู่ที่เลือก กรุณาเลือกหมวดหมู่ใหม่อีกครั้ง";
+  }
+
+  if (normalized.includes("item id not found")) {
+    return "ไม่พบข้อมูลพัสดุที่ต้องการแก้ไข";
+  }
+
+  return message;
 };
 
 export default function ItemFormModal({
@@ -85,6 +123,7 @@ export default function ItemFormModal({
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [warehouseSearchQuery, setWarehouseSearchQuery] = useState("");
   const [isWarehouseDropdownOpen, setIsWarehouseDropdownOpen] = useState(false);
+  const isReusableType = normalizeItemType(formData.type) === "REUSABLE";
 
   // Fetch options on mount
   useEffect(() => {
@@ -146,7 +185,7 @@ export default function ItemFormModal({
           warehouse_id: initialData.warehouseId || "",
           min_stock: initialData.minStock,
           imageUrl: initialData.imageUrl || "",
-          type: initialData.type || "CONSUMABLE",
+          type: normalizeItemType(initialData.type),
           allowed_req: initialData.allowed_req ?? true,
           allowed_borrow: initialData.allowed_borrow ?? false,
         });
@@ -160,6 +199,12 @@ export default function ItemFormModal({
       setFormErrors({});
     }
   }, [isOpen, isEdit, initialData, categories, warehouses, units]);
+
+  useEffect(() => {
+    if (!isReusableType && formData.allowed_borrow) {
+      setFormData((prev) => ({ ...prev, allowed_borrow: false }));
+    }
+  }, [isReusableType, formData.allowed_borrow]);
 
   const validateForm = (): FormErrors => {
     const errors: FormErrors = {};
@@ -193,6 +238,8 @@ export default function ItemFormModal({
 
     setIsLoading(true);
     try {
+      const effectiveAllowedBorrow = isReusableType ? formData.allowed_borrow : false;
+
       if (isEdit && initialData) {
         const updatePayload: Item.UpdatePayload = {
           name: formData.name,
@@ -201,9 +248,8 @@ export default function ItemFormModal({
           unit_id: formData.unit_id,
           warehouse_id: formData.warehouse_id,
           status: "ACTIVE",
-          type: formData.type,
           allowed_req: formData.allowed_req,
-          allowed_borrow: formData.allowed_borrow,
+          allowed_borrow: effectiveAllowedBorrow,
         };
         console.log("Updating item - ID:", initialData.id, "Payload:", updatePayload);
         await ItemSvc.updateInventoryItem(String(initialData.id), updatePayload);
@@ -224,9 +270,8 @@ export default function ItemFormModal({
         fd.append("unit_id", formData.unit_id);
         fd.append("warehouse_id", formData.warehouse_id);
         fd.append("status", "ACTIVE");
-        fd.append("type", formData.type);
         fd.append("allowed_req", String(formData.allowed_req));
-        fd.append("allowed_borrow", String(formData.allowed_borrow));
+        fd.append("allowed_borrow", String(effectiveAllowedBorrow));
         if (imageFile) fd.append("image", imageFile);
         console.log("Creating item with FormData");
         await ItemSvc.createInventoryItem(fd);
@@ -237,9 +282,10 @@ export default function ItemFormModal({
       onCloseAction?.();
     } catch (error) {
       console.error("Submit error:", error);
+      const rawMessage = error instanceof Error ? error.message : "Unknown error";
+      const friendlyMessage = mapItemErrorMessage(rawMessage);
       toast.error(
-        "เกิดข้อผิดพลาด: " +
-          (error instanceof Error ? error.message : "Unknown error")
+        "เกิดข้อผิดพลาด: " + friendlyMessage
       );
     } finally {
       setIsLoading(false);
@@ -466,7 +512,14 @@ export default function ItemFormModal({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setFormData({ ...formData, category_id: c.id });
+                                        const nextType = normalizeItemType(c.item_type);
+                                        setFormData({
+                                          ...formData,
+                                          category_id: c.id,
+                                          type: nextType,
+                                          allowed_borrow:
+                                            nextType === "REUSABLE" ? formData.allowed_borrow : false,
+                                        });
                                         setCategorySearchQuery("");
                                         setIsCategoryDropdownOpen(false);
                                       }}
@@ -494,7 +547,7 @@ export default function ItemFormModal({
                         <button
                           type="button"
                           onClick={() => {
-                            setFormData({ ...formData, category_id: "" });
+                            setFormData({ ...formData, category_id: "", type: "", allowed_borrow: false });
                             setCategorySearchQuery("");
                             setIsCategoryDropdownOpen(false);
                           }}
@@ -775,28 +828,11 @@ export default function ItemFormModal({
                 {/* Item Type */}
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">ประเภทสินค้า</label>
-                  <div className="flex gap-3">
-                    {[
-                      { value: "CONSUMABLE", label: "วัสดุสิ้นเปลือง", desc: "จัดการแบบ Lot / มีจำนวนคงคลัง" },
-                      { value: "ASSET", label: "ครุภัณฑ์", desc: "ติดตามรายชิ้น / มี Serial Number" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, type: opt.value })}
-                        className={`flex-1 text-left px-4 py-3 rounded-xl border-2 transition-all ${formData.type === opt.value ? "border-indigo-500 bg-indigo-50" : "border-slate-200 bg-white hover:border-slate-300"}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${formData.type === opt.value ? "border-indigo-500" : "border-slate-300"}`}>
-                            {formData.type === opt.value && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
-                          </span>
-                          <div>
-                            <p className={`text-sm font-semibold ${formData.type === opt.value ? "text-indigo-700" : "text-slate-700"}`}>{opt.label}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-700">{getItemTypeLabel(formData.type)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      ระบบกำหนดประเภทจากหมวดหมู่ที่เลือกอัตโนมัติ เพื่อป้องกันข้อมูลไม่สอดคล้องกัน
+                    </p>
                   </div>
                 </div>
 
@@ -806,13 +842,23 @@ export default function ItemFormModal({
                   <div className="flex gap-6">
                     {[
                       { key: "allowed_req" as const, label: "อนุญาตให้เบิก", desc: "ผู้ใช้สามารถสร้างคำขอเบิกได้" },
-                      { key: "allowed_borrow" as const, label: "อนุญาตให้ยืม", desc: "ผู้ใช้สามารถสร้างคำขอยืมได้" },
+                      {
+                        key: "allowed_borrow" as const,
+                        label: "อนุญาตให้ยืม",
+                        desc: isReusableType
+                          ? "ผู้ใช้สามารถสร้างคำขอยืมได้"
+                          : "ใช้ได้เฉพาะของใช้ซ้ำ (REUSABLE)",
+                      },
                     ].map(({ key, label, desc }) => (
                       <button
                         key={key}
                         type="button"
-                        onClick={() => setFormData({ ...formData, [key]: !formData[key] })}
-                        className="flex items-center gap-3 group"
+                        onClick={() => {
+                          if (key === "allowed_borrow" && !isReusableType) return;
+                          setFormData({ ...formData, [key]: !formData[key] });
+                        }}
+                        disabled={key === "allowed_borrow" && !isReusableType}
+                        className="flex items-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 relative border ${formData[key] ? "bg-indigo-500 border-indigo-500" : "bg-slate-200 border-slate-300"}`}>
                           <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${formData[key] ? "translate-x-5" : "translate-x-0"}`} />

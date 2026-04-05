@@ -38,7 +38,7 @@ const INITIAL_FORM_DATA: FormData = {
 };
 
 interface Props {
-  onChangeType: (type: "purchase" | "donation" | "purchase-asset") => void;
+  onChangeType: (type: "purchase" | "donation" | "purchase-asset" | "reusable-unit") => void;
 }
 
 export default function AssetReceiveForm({ onChangeType }: Props) {
@@ -72,7 +72,12 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
 
         setDepartments(deptsData || []);
 
-        const itemOptions: StockIn.ItemOption[] = itemsData.map((item) => ({
+        const medAssetItems = (itemsData || []).filter((item) => {
+          const type = (item.type || "").toUpperCase();
+          return type === "MED_ASSET" || type === "ASSET";
+        });
+
+        const itemOptions: StockIn.ItemOption[] = medAssetItems.map((item) => ({
           id: item.id,
           name: item.name || "ไม่ระบุชื่อ",
           category: item.category || "ไม่ระบุหมวดหมู่",
@@ -279,7 +284,7 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-semibold text-gray-800">รับครุภัณฑ์ภายในองค์กร</h2>
+          <h2 className="text-3xl font-semibold text-gray-800">รับครุภัณฑ์ภายในองค์กร (Med Asset)</h2>
           <button
             onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
@@ -297,7 +302,8 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
               {([
                 { type: "purchase" as const,       label: "รับพัสดุจากการจัดซื้อ" },
                 { type: "donation" as const,        label: "รับพัสดุจากการบริจาค" },
-                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร" },
+                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร (Med Asset)" },
+                { type: "reusable-unit" as const,   label: "รับของใช้ซ้ำรายชิ้น" },
               ]).map(({ type, label }) => {
                 const active = type === "purchase-asset";
                 return (

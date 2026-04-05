@@ -7,8 +7,8 @@ export const metadata = {
 };
 
 export default async function BorrowPage() {
-  // ดึงเฉพาะของที่อนุญาตให้ยืม
-  const items = await getInventoryItems({ allowed_borrow: true });
+  // ดึงเฉพาะของใช้ซ้ำที่อนุญาตให้ยืม
+  const items = await getInventoryItems({ allowed_borrow: true, type: "REUSABLE" });
   
   return <BorrowClient initialItems={items} />;
 }

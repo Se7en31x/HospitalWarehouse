@@ -93,6 +93,7 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
 	warehouseId: item.warehouse_id || "",
 	location: item.warehouse_name || item.warehouses?.name || item.warehouse?.name || "-",
 	stock: item.current_stock || 0,
+	availableStock: item.available_stock === null || item.available_stock === undefined ? undefined : Number(item.available_stock),
 	description: item.description || "",
 	minStock: item.min_stock || 0,
 	price: 0,

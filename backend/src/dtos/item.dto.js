@@ -1,3 +1,15 @@
+const toBoolean = (value, defaultValue = false) => {
+    if (value === undefined || value === null || value === '') return defaultValue;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+
+    const normalized = value.toString().trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+
+    return defaultValue;
+};
+
 const createItemDTO = (data, itemCode) => ({
     name: data.name,
     description: data.description || null,
@@ -10,8 +22,8 @@ const createItemDTO = (data, itemCode) => ({
     image_url: data.image_url || null,
     image_public_id: data.image_public_id || null,
     type: data.type || 'CONSUMABLE',
-    allowed_req: data.allowed_req !== undefined ? Boolean(data.allowed_req) : true,
-    allowed_borrow: data.allowed_borrow !== undefined ? Boolean(data.allowed_borrow) : false,
+    allowed_req: toBoolean(data.allowed_req, true),
+    allowed_borrow: toBoolean(data.allowed_borrow, false),
 });
 
 const updateItemDTO = (data = {}) => {
@@ -48,14 +60,11 @@ const updateItemDTO = (data = {}) => {
     if (Object.prototype.hasOwnProperty.call(data, 'image_url')) {
         payload.image_url = data.image_url;
     }
-    if (Object.prototype.hasOwnProperty.call(data, 'type')) {
-        payload.type = data.type;
-    }
     if (Object.prototype.hasOwnProperty.call(data, 'allowed_req')) {
-        payload.allowed_req = Boolean(data.allowed_req);
+        payload.allowed_req = toBoolean(data.allowed_req, true);
     }
     if (Object.prototype.hasOwnProperty.call(data, 'allowed_borrow')) {
-        payload.allowed_borrow = Boolean(data.allowed_borrow);
+        payload.allowed_borrow = toBoolean(data.allowed_borrow, false);
     }
 
     return payload;

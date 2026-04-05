@@ -57,7 +57,7 @@ const createStockMovementDTO = (item = {}, docNo = '', createdByName = 'SYSTEM',
     type: 'RECEIVE_IN',
     note: `Receive IN: ${docNo}`,
     created_by: createdByName,
-    created_by_id: Number.isFinite(Number(createdById)) ? Number(createdById) : null,
+    created_by_id: createdById ? createdById.toString().trim() : null,
 });
 
 const createCancelStockMovementDTO = (item = {}, docNo = '', createdByName = 'SYSTEM', createdById = null, lotId = null) => ({
@@ -67,7 +67,7 @@ const createCancelStockMovementDTO = (item = {}, docNo = '', createdByName = 'SY
     type: 'RECEIVE_CANCEL',
     note: `Cancel Receive: ${docNo}`,
     created_by: createdByName,
-    created_by_id: Number.isFinite(Number(createdById)) ? Number(createdById) : null,
+    created_by_id: createdById ? createdById.toString().trim() : null,
 });
 
 const listReceivesQueryDTO = (query = {}) => ({

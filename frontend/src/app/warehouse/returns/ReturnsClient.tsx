@@ -773,7 +773,7 @@ export default function ReturnsClient() {
               {displayRecords.map((r, idx) => {
                 const uiStatus = mapUiStatus(r);
                 const overdue = getDaysOverdue(r);
-                const canReturn = r.status === "COMPLETED";
+                const canReturn = r.status === "BORROWING";
                 const ext = isExternal(r);
 
                 return (

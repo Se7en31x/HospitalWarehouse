@@ -36,7 +36,7 @@ const INITIAL_FORM_DATA: FormData = {
 };
 
 interface Props {
-  onChangeType: (type: "purchase" | "donation" | "purchase-asset") => void;
+  onChangeType: (type: "purchase" | "donation" | "purchase-asset" | "reusable-unit") => void;
 }
 
 export default function DonationReceiveForm({ onChangeType }: Props) {
@@ -57,7 +57,11 @@ export default function DonationReceiveForm({ onChangeType }: Props) {
       try {
         const itemsData = await ItemSvc.getInventoryItems();
 
-        const itemOptions: StockIn.ItemOption[] = itemsData.map((item) => ({
+        const consumableItems = (itemsData || []).filter(
+          (item) => (item.type || "CONSUMABLE").toUpperCase() === "CONSUMABLE"
+        );
+
+        const itemOptions: StockIn.ItemOption[] = consumableItems.map((item) => ({
           id: item.id,
           name: item.name || "ไม่ระบุชื่อ",
           category: item.category || "ไม่ระบุหมวดหมู่",
@@ -270,7 +274,8 @@ export default function DonationReceiveForm({ onChangeType }: Props) {
               {([
                 { type: "purchase" as const,       label: "รับพัสดุจากการจัดซื้อ" },
                 { type: "donation" as const,        label: "รับพัสดุจากการบริจาค" },
-                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร" },
+                { type: "purchase-asset" as const,  label: "รับครุภัณฑ์ภายในองค์กร (Med Asset)" },
+                { type: "reusable-unit" as const,   label: "รับของใช้ซ้ำรายชิ้น" },
               ]).map(({ type, label }) => {
                 const active = type === "donation";
                 return (

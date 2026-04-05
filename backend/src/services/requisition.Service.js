@@ -11,6 +11,13 @@ const REQ_STATUS = {
     CANCELLED: 'CANCELLED',
 };
 
+const ITEM_TYPE = {
+    CONSUMABLE: 'CONSUMABLE',
+    REUSABLE: 'REUSABLE',
+    MED_ASSET: 'MED_ASSET',
+    ASSET: 'ASSET',
+};
+
 /**
  * Helper สำหรับสร้าง Error Object
  */
@@ -18,6 +25,24 @@ const createHttpError = (statusCode, message) => {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;
+};
+
+const normalizeItemType = (type) => {
+    const normalized = (type || '').toString().trim().toUpperCase();
+    return normalized || ITEM_TYPE.CONSUMABLE;
+};
+
+const getReusableReturnState = (condition = 'GOOD') => {
+    const normalizedCondition = (condition || 'GOOD').toString().trim().toUpperCase();
+
+    if (normalizedCondition === 'LOST') {
+        return { status: 'DISPOSED', condition: 'LOST' };
+    }
+    if (normalizedCondition === 'DAMAGED' || normalizedCondition === 'INCOMPLETE') {
+        return { status: 'REPAIR', condition: normalizedCondition };
+    }
+
+    return { status: 'AVAILABLE', condition: 'GOOD' };
 };
 
 /**
@@ -33,6 +58,35 @@ const createRequisition = async (data, userSession) => {
     }
 
     return requisitionRepo.withTransaction(async (tx) => {
+        const requestType = (data.type || '').toString().trim().toUpperCase();
+        const requestedItemIds = (data.items || []).map((item) => item.item_id).filter(Boolean);
+        const itemsFromDb = await requisitionRepo.selectItemsForRequisition(requestedItemIds, tx);
+        const itemMap = new Map(itemsFromDb.map((item) => [item.id, item]));
+
+        for (const reqItem of data.items) {
+            const dbItem = itemMap.get(reqItem.item_id);
+            if (!dbItem) {
+                throw createHttpError(404, `ไม่พบสินค้า item_id: ${reqItem.item_id}`);
+            }
+            if ((dbItem.status || '').toUpperCase() !== 'ACTIVE') {
+                throw createHttpError(400, `สินค้า ${dbItem.name} ไม่อยู่ในสถานะพร้อมใช้งาน`);
+            }
+        }
+
+        if (requestType === 'BORROW') {
+            for (const reqItem of data.items) {
+                const dbItem = itemMap.get(reqItem.item_id);
+                const itemType = normalizeItemType(dbItem?.type);
+
+                if (!dbItem?.allowed_borrow) {
+                    throw createHttpError(400, `สินค้า ${dbItem?.name || reqItem.item_id} ไม่ได้เปิดให้ยืม`);
+                }
+                if (itemType !== ITEM_TYPE.REUSABLE) {
+                    throw createHttpError(400, `สินค้า ${dbItem?.name || reqItem.item_id} ไม่ใช่ประเภทของใช้ซ้ำ (REUSABLE)`);
+                }
+            }
+        }
+
         // สร้างเลขที่เอกสาร (เช่น REQ-20260401-001)
         const newDocNo = await requisitionRepo.generateDocNo(data.type, tx);
 
@@ -135,6 +189,64 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
             if (!currentReqItem) throw createHttpError(404, `ไม่พบรายการเบิก ID: ${rItemId}`);
 
             totalQty += qtyNeeded;
+
+            const itemType = normalizeItemType(currentReqItem.items?.type);
+
+            if (itemType === ITEM_TYPE.REUSABLE) {
+                const issueAction = header.type === 'BORROW' ? 'ISSUE_BORROW_REUSABLE' : 'ISSUE_WITHDRAW_REUSABLE';
+                const reusableUnits = await requisitionRepo.selectAvailableReusableUnitsByItem(
+                    currentReqItem.item_id,
+                    qtyNeeded,
+                    tx
+                );
+
+                if ((reusableUnits?.length || 0) < qtyNeeded) {
+                    const missing = qtyNeeded - (reusableUnits?.length || 0);
+                    throw createHttpError(400, `สินค้า ${currentReqItem.items.name} (ใช้ซ้ำ) ไม่พอ (ขาด ${missing})`);
+                }
+
+                for (const unit of reusableUnits) {
+                    await requisitionRepo.updateReusableUnitStatus(
+                        unit.id,
+                        {
+                            status: 'IN_USE',
+                            department_id: header.department_id || unit.department_id || null,
+                            updated_at: new Date(),
+                        },
+                        tx
+                    );
+
+                    await requisitionRepo.createReusableUnitLog(
+                        {
+                            unit_id: unit.id,
+                            action: issueAction,
+                            from_department_id: unit.department_id || null,
+                            to_department_id: header.department_id || null,
+                            ref_doc_no: header.doc_no,
+                            note: `REQ_ITEM:${rItemId}`,
+                            performed_by: approvedById,
+                        },
+                        tx
+                    );
+                }
+
+                await stockMovementRepo.createStockMovement({
+                    item_id: currentReqItem.item_id,
+                    lot_id: null,
+                    quantity: qtyNeeded,
+                    type: 'OUT',
+                    note: `เบิกจ่ายพัสดุใช้ซ้ำตามใบงาน: ${header.doc_no}`,
+                    created_by: approvedByName,
+                    created_by_id: approvedById,
+                }, tx);
+
+                await requisitionRepo.updateRequisitionItem(rItemId, {
+                    issued_qty: qtyNeeded,
+                    approved_qty: qtyNeeded,
+                }, tx);
+
+                continue;
+            }
 
             // ตัดสต็อกแบบ FEFO (First Expired, First Out)
             const lots = await requisitionRepo.getItemLots(currentReqItem.item_id, tx);
@@ -295,6 +407,8 @@ const processReturn = async (headerId, returnItems, userSession) => {
                 throw createHttpError(400, `จำนวนคืนเกินกว่าที่ยังค้างอยู่ (สูงสุด ${maxQty})`);
             }
 
+            const itemType = normalizeItemType(currentReqItem.items?.type);
+
             // บันทึก return_log
             await requisitionRepo.createReturnLog({
                 req_item_id: rItemId,
@@ -309,6 +423,61 @@ const processReturn = async (headerId, returnItems, userSession) => {
             await requisitionRepo.updateRequisitionItem(rItemId, {
                 returned_qty: { increment: qtyToReturn },
             }, tx);
+
+            if (itemType === ITEM_TYPE.REUSABLE) {
+                const targetUnits = await requisitionRepo.selectIssuedReusableUnitsForDocItem(
+                    {
+                        itemId: currentReqItem.item_id,
+                        docNo: header.doc_no,
+                        reqItemId: rItemId,
+                        limit: qtyToReturn,
+                    },
+                    tx
+                );
+
+                if ((targetUnits?.length || 0) < qtyToReturn) {
+                    throw createHttpError(400, `ไม่พบรายการครุภัณฑ์ใช้ซ้ำที่รอคืนครบตามจำนวน (${qtyToReturn})`);
+                }
+
+                const nextUnitState = getReusableReturnState(condition || 'GOOD');
+
+                for (const unit of targetUnits) {
+                    await requisitionRepo.updateReusableUnitStatus(
+                        unit.id,
+                        {
+                            status: nextUnitState.status,
+                            condition: nextUnitState.condition,
+                            updated_at: new Date(),
+                        },
+                        tx
+                    );
+
+                    await requisitionRepo.createReusableUnitLog(
+                        {
+                            unit_id: unit.id,
+                            action: 'RETURN_BORROW_REUSABLE',
+                            from_department_id: unit.department_id || null,
+                            to_department_id: unit.department_id || null,
+                            ref_doc_no: header.doc_no,
+                            note: `REQ_ITEM:${rItemId}${note ? ` | ${note}` : ''}`,
+                            performed_by: receivedById,
+                        },
+                        tx
+                    );
+                }
+
+                await stockMovementRepo.createStockMovement({
+                    item_id: currentReqItem.item_id,
+                    lot_id: null,
+                    quantity: qtyToReturn,
+                    type: 'ADJUST_IN',
+                    note: `รับคืนพัสดุใช้ซ้ำจากใบ: ${header.doc_no}`,
+                    created_by: receivedByName,
+                    created_by_id: receivedById,
+                }, tx);
+
+                continue;
+            }
 
             // สภาพดี → คืนสต็อก (ADJUST_IN)
             if (condition === 'GOOD') {

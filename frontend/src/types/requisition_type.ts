@@ -33,11 +33,13 @@ export interface RequisitionFilters {
 export interface RequisitionItem {
   id: number;
   item_id: string;
+  itemType?: string;
   name: string;
   code: string;
   image_url?: string | null;
   qty: number;
   current_stock: number;
+  available_stock?: number;
   approved: number;
   issued: number;
   returned: number;

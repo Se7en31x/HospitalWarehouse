@@ -27,11 +27,18 @@ interface CartItem extends ItemSvc.UiItem {
   quantity: number;
 }
 
+const mapRequestableStock = (rows: ItemSvc.UiItem[] = []): ItemSvc.UiItem[] => {
+  return rows.map((item) => ({
+    ...item,
+    stock: typeof item.availableStock === "number" ? item.availableStock : item.stock,
+  }));
+};
+
 export default function WithdrawClient({ initialItems }: Props) {
   const { departments, isLoading: isAuthLoaded } = useAuth();
 
   // ✅ State สำหรับรายการ Items
-  const [items, setItems] = useState<ItemSvc.UiItem[]>(initialItems || []);
+  const [items, setItems] = useState<ItemSvc.UiItem[]>(mapRequestableStock(initialItems || []));
   
   // ✅ State สำหรับ Options (Dropdowns)
   const [categories, setCategories] = useState<ItemSvc.categoryOptions>([]);
@@ -66,7 +73,7 @@ export default function WithdrawClient({ initialItems }: Props) {
     setIsFetching(true);
     try {
       const data = await ItemSvc.getInventoryItems({ allowed_req: true });
-      setItems(data || []);
+      setItems(mapRequestableStock(data || []));
     } catch (error) {
       console.error("Fetch error:", error);
     } finally {

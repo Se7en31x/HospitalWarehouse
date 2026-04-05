@@ -28,6 +28,7 @@ export default function WarehouseSidebar() {
       items: [
         { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
         { name: 'รับคืนพัสดุ', path: '/warehouse/returns', icon: Undo2 },
+        { name: 'รับคืนจากแผนก', path: '/warehouse/returns-department', icon: Undo2 },
       ]
     },
     {

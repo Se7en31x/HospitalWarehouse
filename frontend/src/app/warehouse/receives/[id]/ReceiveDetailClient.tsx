@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<ReceiveType, string> = {
   PURCHASE: "จัดซื้อ",
   DONATION: "บริจาค",
   PURCHASE_ASSET: "ครุภัณฑ์",
+  REUSABLE_UNIT: "ของใช้ซ้ำรายชิ้น",
 };
 
 const STATUS_LABEL: Record<ReceiveStatus, string> = {

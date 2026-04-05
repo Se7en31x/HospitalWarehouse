@@ -159,6 +159,43 @@ const SelectItemById = (id) => {
     });
 };
 
+const selectCategoryById = (id) => {
+    return prisma.categories.findFirst({
+        where: { id, deleted_at: null },
+        select: { id: true, item_type: true },
+    });
+};
+
+const countItemUsages = async (itemId) => {
+    const [receiveCount, lotCount, requisitionCount, medAssetCount, reusableUnitCount] = await prisma.$transaction([
+        prisma.receive_item.count({ where: { item_id: itemId } }),
+        prisma.item_lots.count({ where: { item_id: itemId } }),
+        prisma.requisition_item.count({ where: { item_id: itemId } }),
+        prisma.medical_assets.count({ where: { item_id: itemId } }),
+        prisma.reusable_item_units.count({ where: { item_id: itemId, deleted_at: null } }),
+    ]);
+
+    return receiveCount + lotCount + requisitionCount + medAssetCount + reusableUnitCount;
+};
+
+const countAvailableReusableUnitsByItemIds = async (itemIds = []) => {
+    const normalizedIds = Array.from(new Set((itemIds || []).filter(Boolean)));
+    if (!normalizedIds.length) return [];
+
+    return prisma.reusable_item_units.groupBy({
+        by: ['item_id'],
+        where: {
+            item_id: { in: normalizedIds },
+            status: 'AVAILABLE',
+            condition: 'GOOD',
+            deleted_at: null,
+        },
+        _count: {
+            _all: true,
+        },
+    });
+};
+
 const createItem = (data) => prisma.items.create({ data });
 
 const updateItem = (id, data, tx = prisma) => tx.items.update({
@@ -186,6 +223,9 @@ module.exports = {
     generateItemCode,
     SelectAllItems,
     SelectItemById,
+    selectCategoryById,
+    countItemUsages,
+    countAvailableReusableUnitsByItemIds,
     SelectItemPublicId,
     createItem,
     updateItem,
