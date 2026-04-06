@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  Search, RefreshCw, ChevronLeft, ChevronRight,
+  Search, ChevronLeft, ChevronRight, ChevronDown,
   Clock, X, Building2, User, Eye,
   MapPin, Phone, Calendar, Package, Loader2, FileText,
 } from "lucide-react";
@@ -11,7 +11,12 @@ import { getBorrowActive, getRequisitionById } from "@/services/requisitionServi
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
 import { socket } from "@/lib/socket";
 
-// === Helpers ===
+// === Helper Functions ===
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return String(error);
+};
 
 const fmtDate = (d?: string | null) => {
   if (!d) return "-";
@@ -24,6 +29,15 @@ const isOverdue = (due?: string | null): boolean => {
   if (!due) return false;
   return new Date(due) < new Date();
 };
+
+// === Interfaces ===
+
+interface DetailModalProps {
+  record: RequisitionHeader | null;
+  onClose: () => void;
+}
+
+// === Status Badge Component ===
 
 const StatusBadge = ({ overdue }: { overdue: boolean }) => {
   if (overdue) {
@@ -40,12 +54,28 @@ const StatusBadge = ({ overdue }: { overdue: boolean }) => {
   );
 };
 
-// === Detail Modal ===
+// === Helper Components for Detail Modal ===
 
-interface DetailModalProps {
-  record: RequisitionHeader | null;
-  onClose: () => void;
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <span className="text-gray-400 mt-0.5 flex-shrink-0">{icon}</span>
+      <span className="text-gray-500 flex-shrink-0 w-28">{label}</span>
+      <span className="font-medium text-gray-800 flex-1">{value}</span>
+    </div>
+  );
 }
+
+function MiniInfo({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-2.5">
+      <p className="text-[10px] text-gray-400 uppercase font-bold">{label}</p>
+      <p className={`text-sm font-semibold mt-0.5 ${alert ? "text-red-600" : "text-gray-800"}`}>{value}</p>
+    </div>
+  );
+}
+
+// === Detail Modal ===
 
 function DetailModal({ record, onClose }: DetailModalProps) {
   if (!record) return null;
@@ -159,39 +189,32 @@ function DetailModal({ record, onClose }: DetailModalProps) {
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2 text-sm">
-      <span className="text-gray-400 mt-0.5 flex-shrink-0">{icon}</span>
-      <span className="text-gray-500 flex-shrink-0 w-28">{label}</span>
-      <span className="font-medium text-gray-800 flex-1">{value}</span>
-    </div>
-  );
-}
-
-function MiniInfo({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-2.5">
-      <p className="text-[10px] text-gray-400 uppercase font-bold">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 ${alert ? "text-red-600" : "text-gray-800"}`}>{value}</p>
-    </div>
-  );
-}
-
 // === Main Component ===
 
 export default function ReturnItemClient() {
+  // ✅ State สำหรับรายการ Records
   const [records, setRecords] = useState<RequisitionHeader[]>([]);
-  const [isFetching, setIsFetching] = useState(true);
+
+  // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [selectedDepartment, setSelectedDepartment] = useState("แผนกทั้งหมด");
+  const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isDepartmentDropdownOpen, setIsDepartmentDropdownOpen] = useState(false);
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+
+  // ✅ State สำหรับ Modal
   const [detailLoading, setDetailLoading] = useState<number | null>(null);
   const [viewingDetail, setViewingDetail] = useState<RequisitionHeader | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
+  const [isFetching, setIsFetching] = useState(true);
 
+  // --- [Data Fetching Logic] ---
   const fetchData = useCallback(async () => {
     setIsFetching(true);
     try {
@@ -208,14 +231,15 @@ export default function ReturnItemClient() {
         toast.error(result.message || "ไม่สามารถดึงข้อมูลได้");
         setRecords([]);
       }
-    } catch {
-      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+    } catch (error) {
+      toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
       setRecords([]);
     } finally {
       setIsFetching(false);
     }
   }, []);
 
+  // --- [Initialize Data] ---
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
@@ -268,6 +292,25 @@ export default function ReturnItemClient() {
     };
   }, [fetchData, viewingDetail, detailLoading]);
 
+  // --- [Close dropdowns when clicking outside] ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-department-dropdown]")) {
+        setIsDepartmentDropdownOpen(false);
+      }
+      if (!target.closest("[data-status-dropdown]")) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+
+    if (isDepartmentDropdownOpen || isStatusDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isDepartmentDropdownOpen, isStatusDropdownOpen]);
+
+  // --- [Detail Modal Handler] ---
   const openDetail = useCallback(async (id: number) => {
     setDetailLoading(id);
     try {
@@ -277,68 +320,202 @@ export default function ReturnItemClient() {
       } else {
         toast.error(result.message || "ไม่สามารถโหลดรายละเอียดได้");
       }
-    } catch {
-      toast.error("เกิดข้อผิดพลาด");
+    } catch (error) {
+      toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาด");
     } finally {
       setDetailLoading(null);
     }
   }, []);
 
+  // --- [Filter Options Logic] ---
+  const filterDepartments = useMemo(() => {
+    const depts = new Set(
+      records
+        .map((r) => r.department_name)
+        .filter((name): name is string => Boolean(name))
+    );
+    return ["แผนกทั้งหมด", ...Array.from(depts)];
+  }, [records]);
+
+  const filterStatuses = ["สถานะทั้งหมด", "ค้างคืน", "อยู่ระหว่างยืม"];
+
+  // --- [Filter & Search Logic] ---
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return records.filter((r) => {
       if (!r.borrower_details) return false;
 
       const borrower = r.borrower_details as BorrowerDetails | undefined | null;
-      if (!term) return true;
-
-      return (
+      
+      // Search filter
+      if (term && !(
         r.doc_no.toLowerCase().includes(term) ||
         (r.requester ?? "").toLowerCase().includes(term) ||
         (r.department_name ?? "").toLowerCase().includes(term) ||
         (borrower?.fullname ?? "").toLowerCase().includes(term) ||
         (borrower?.phone ?? "").toLowerCase().includes(term)
-      );
-    });
-  }, [records, searchTerm]);
+      )) {
+        return false;
+      }
 
+      // Department filter
+      if (selectedDepartment !== "แผนกทั้งหมด" && r.department_name !== selectedDepartment) {
+        return false;
+      }
+
+      // Status filter
+      if (selectedStatus !== "สถานะทั้งหมด") {
+        const overdue = isOverdue(r.due_date);
+        const status = overdue ? "ค้างคืน" : "อยู่ระหว่างยืม";
+        if (status !== selectedStatus) {
+          return false;
+        }
+      }
+
+      // Date range filter
+      if (startDate || endDate) {
+        const reqDate = r.request_date ? new Date(r.request_date) : null;
+        if (startDate && reqDate && reqDate < new Date(startDate)) {
+          return false;
+        }
+        if (endDate && reqDate && reqDate > new Date(endDate)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [records, searchTerm, selectedDepartment, selectedStatus, startDate, endDate]);
+
+  // --- [Pagination Logic] ---
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const displayed = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filtered.slice(start, start + itemsPerPage);
   }, [filtered, currentPage]);
 
+  // --- [Render JSX] ---
   return (
     <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
       <Toaster position="top-right" />
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
-          <p className="text-sm text-gray-500 mt-1">แสดงเฉพาะรายการยืมบุคคลภายนอกที่ยังไม่คืน</p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={isFetching}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
-          รีเฟรช
-        </button>
       </div>
-      <div className="flex flex-wrap gap-3 mb-5 items-center">
-        <div className="relative w-72">
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-6 items-end">
+        {/* Search */}
+        <div className="relative w-56">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหาเลขที่เอกสาร, ชื่อผู้ยืมภายนอก, เบอร์โทร..."
+            placeholder="ค้นหาเลขที่เอกสาร / ชื่อผู้ยืม..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
-        <span className="text-sm text-slate-500">ทั้งหมด {filtered.length} รายการ</span>
+
+        {/* Department Dropdown */}
+        <div className="relative" data-department-dropdown>
+          <button
+            onClick={() => { setIsDepartmentDropdownOpen(!isDepartmentDropdownOpen); setIsStatusDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[160px] justify-between"
+          >
+            <span className="text-slate-800 font-medium truncate">{selectedDepartment}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isDepartmentDropdownOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {isDepartmentDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterDepartments.map((d) => (
+                  <li key={d}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDepartment(d);
+                        setIsDepartmentDropdownOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                        selectedDepartment === d
+                          ? "bg-blue-50 text-blue-700 font-medium"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Status Dropdown */}
+        <div className="relative" data-status-dropdown>
+          <button
+            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDepartmentDropdownOpen(false); }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[160px] justify-between"
+          >
+            <span className="text-slate-800 font-medium truncate">{selectedStatus}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {isStatusDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+              <ul className="py-1">
+                {filterStatuses.map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStatus(s);
+                        setIsStatusDropdownOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                        selectedStatus === s
+                          ? "bg-blue-50 text-blue-700 font-medium"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+          />
+        </div>
       </div>
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ minHeight: "400px" }}>
+
+      {/* Table Content */}
+      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
@@ -408,18 +585,34 @@ export default function ReturnItemClient() {
           </table>
         </div>
       </div>
-      <div className="flex items-center justify-between mt-5">
-        <p className="text-sm text-slate-500">แสดง {displayed.length} จาก {filtered.length} รายการ</p>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between mt-6">
+        <p className="text-sm text-slate-600">
+          แสดง {displayed.length} จาก {filtered.length} รายการ
+        </p>
         <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)} className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+          >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm font-medium px-3 py-1">หน้า {currentPage} / {totalPages}</span>
-          <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)} className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition">
+          <span className="text-sm font-medium px-3 py-1">
+            หน้า {currentPage} / {totalPages || 1}
+          </span>
+          <button
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+          >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
+
+      {/* Detail Modal */}
       {viewingDetail && <DetailModal record={viewingDetail} onClose={() => setViewingDetail(null)} />}
     </div>
   );

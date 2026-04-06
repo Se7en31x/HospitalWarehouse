@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Minus, Plus, ShoppingCart, X } from "lucide-react";
+import React, { useState } from "react";
+import { Minus, Plus, ShoppingCart, X, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 // ✅ ใช้ Path Alias และชื่อไฟล์ตัวเล็กตามที่ตกลงกัน
@@ -52,6 +52,31 @@ export default function CartModal({
   onUpdateQty,
   onSuccess,
 }: CartModalProps) {
+  const [isDeptOpen, setIsDeptOpen] = useState(false);
+
+  // ตัวจัดการ click-outside สำหรับปิด dropdown
+  React.useEffect(() => {
+    if (!isDeptOpen) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-dept-dropdown]")) {
+        setIsDeptOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isDeptOpen]);
+
+  // ปิด dropdown เมื่อ modal ถูกปิด
+  React.useEffect(() => {
+    if (!isOpen) {
+      setIsDeptOpen(false);
+    }
+  }, [isOpen]);
+
+  const selectedDeptName = departments.find((d) => String(d.id) === selectedDeptId)?.name || "-- กรุณาเลือกแผนก --";
 
   const handleSubmit = async (): Promise<void> => {
     if (!selectedDeptId || selectedItems.length === 0) {
@@ -140,24 +165,45 @@ export default function CartModal({
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
 
-          {/* Department Selection */}
-          <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-            <label className="text-[10px] font-bold text-indigo-600 uppercase mb-2 block">
-              ระบุแผนกที่เบิก
-            </label>
-            <select
-              value={selectedDeptId}
-              onChange={(e) => onDeptChange(e.target.value)}
-              className="w-full p-2 bg-white border border-slate-200 rounded-lg font-semibold text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+          {/* Department Selection - Dropdown Style */}
+          <div className="border border-slate-300 rounded-lg p-4">
+            <div className="relative" data-dept-dropdown>
+              <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">
+                ระบุแผนกที่เบิก
+              </label>
+              <button
+              type="button"
+              onClick={() => setIsDeptOpen(!isDeptOpen)}
+              className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm"
             >
-              <option value="">-- กรุณาเลือกแผนก --</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}> {/* ✅ ใช้ ID เป็น Value */}
-                  {d.name} ({d.code})
-                </option>
-              ))}
-            </select>
-          </div>
+              <span className="text-slate-800 font-medium">{selectedDeptName}</span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+            </button>
+            
+            {isDeptOpen && (
+              <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
+                <ul className="py-1">
+                  {departments.map((d) => (
+                    <li key={d.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onDeptChange(String(d.id));
+                          setIsDeptOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                          String(d.id) === selectedDeptId
+                            ? "bg-indigo-50 text-indigo-700 font-medium"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {d.name} ({d.code})
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}            </div>          </div>
 
           {/* Table */}
           <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -212,10 +258,16 @@ export default function CartModal({
                   ))}
                 </tbody>
               </table>
-              {selectedItems.length === 0 && (
-                <div className="text-center py-10 text-slate-400">ตะกร้าว่างเปล่า</div>
-              )}
             </div>
+            {selectedItems.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 bg-slate-50 border-t border-slate-200">
+                <ShoppingCart size={40} className="text-slate-300" />
+                <div className="text-center">
+                  <p className="font-semibold text-slate-600">ตะกร้าว่างเปล่า</p>
+                  <p className="text-xs text-slate-500 mt-1">กรุณาเลือกรายการที่ต้องการเบิก</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

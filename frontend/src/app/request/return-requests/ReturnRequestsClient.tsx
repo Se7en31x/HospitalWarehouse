@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { Loader2, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Loader2, Plus, Search, X, ChevronDown } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
@@ -38,10 +38,25 @@ export default function ReturnRequestsClient() {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerItem, setPickerItem] = useState<reusableSvc.ReturnableSummaryItem | null>(null);
   const [pickerUnits, setPickerUnits] = useState<reusableSvc.ReusableUnit[]>([]);
+  const [isDeptOpen, setIsDeptOpen] = useState(false);
 
   useEffect(() => {
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
   }, []);
+
+  useEffect(() => {
+    if (!isDeptOpen) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-dept-dropdown]")) {
+        setIsDeptOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isDeptOpen]);
 
   useEffect(() => {
     if (!departmentId) {
@@ -90,6 +105,8 @@ export default function ReturnRequestsClient() {
   const selectedQtyTotal = useMemo(() => {
     return selectedList.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
   }, [selectedList]);
+
+  const selectedDeptName = departments.find((d) => String(d.id) === departmentId)?.name || "-- กรุณาเลือกแผนก --";
 
   const openItemPicker = async (item: reusableSvc.ReturnableSummaryItem) => {
     if (!departmentId) {
@@ -198,50 +215,60 @@ export default function ReturnRequestsClient() {
     <div className="flex flex-col min-h-screen bg-white p-8 gap-6">
       <Toaster position="top-right" />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-800">ส่งคืนคลัง (Reusable)</h2>
-          <p className="text-sm text-slate-500 mt-1">เลือกรายการใหญ่ก่อน แล้วเข้าไปเลือกรายการย่อยรายตัวที่จะส่งคืน</p>
-        </div>
-        <button
-          onClick={() => {
-            if (departmentId) {
-              reusableSvc.getReturnableWithdrawSummary(departmentId).then((res) => setSummaryItems(res.items || []));
-            }
-          }}
-          className="px-4 py-2 border border-slate-200 rounded-xl text-sm inline-flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" /> รีเฟรช
-        </button>
+      <div>
+        <h2 className="text-3xl font-bold text-gray-800">ส่งคืนคลัง</h2>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">รายการที่ส่งคืนได้</h3>
 
-        <div className="max-w-md mb-4">
-          <label className="text-xs text-slate-500">แผนก</label>
-          <select
-            value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            className="w-full mt-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          >
-            <option value="">เลือกแผนก</option>
-            {departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
+        <div className="border border-slate-300 rounded-lg p-4 mb-4 max-w-sm">
+          <div className="relative" data-dept-dropdown>
+            <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">แผนก <span className="text-red-500">*</span></label>
+            <button
+              type="button"
+              onClick={() => setIsDeptOpen(!isDeptOpen)}
+              className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm"
+            >
+              <span className="text-slate-800 font-medium">{selectedDeptName}</span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+            </button>
+            
+            {isDeptOpen && (
+              <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
+                <ul className="py-1">
+                  {departments.map((d) => (
+                    <li key={d.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDepartmentId(String(d.id));
+                          setIsDeptOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                          String(d.id) === departmentId
+                            ? "bg-blue-50 text-blue-700 font-medium"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {d.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-100 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3">รายการ</th>
-                <th className="text-left px-4 py-3 w-48">รหัสรายการ</th>
-                <th className="text-left px-4 py-3 w-36">ถือใช้งานอยู่</th>
-                <th className="text-left px-4 py-3 w-56">เลือกรายการย่อย</th>
+                <th className="text-left px-4 py-3 w-[200px] font-bold text-slate-700">รายการ</th>
+                <th className="text-left px-4 py-3 w-[160px] font-bold text-slate-700">รหัสรายการ</th>
+                <th className="text-left px-4 py-3 w-[120px] font-bold text-slate-700">ถือใช้งานอยู่</th>
+                <th className="text-left px-4 py-3 w-[160px] font-bold text-slate-700">เลือกรายการย่อย</th>
               </tr>
             </thead>
             <tbody>
@@ -276,7 +303,7 @@ export default function ReturnRequestsClient() {
                       <button
                         type="button"
                         onClick={() => openItemPicker(item)}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                       >
                         เลือกรายการย่อย ({selectedUnitsByItem[item.item_id]?.length || 0})
                       </button>
@@ -294,7 +321,7 @@ export default function ReturnRequestsClient() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">2) รายละเอียดคำขอคืน</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -304,7 +331,7 @@ export default function ReturnRequestsClient() {
               type="datetime-local"
               value={preferredPickupAt}
               onChange={(e) => setPreferredPickupAt(e.target.value)}
-              className="w-full mt-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              className="w-full mt-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
           </div>
         </div>
@@ -316,7 +343,7 @@ export default function ReturnRequestsClient() {
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             placeholder="รายละเอียดเพิ่มเติม"
-            className="w-full mt-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="w-full mt-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
         </div>
 
@@ -324,7 +351,7 @@ export default function ReturnRequestsClient() {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || !selectedList.length || !departmentId}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:bg-slate-300 inline-flex items-center gap-2"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:bg-slate-300 inline-flex items-center gap-2 transition-colors"
           >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} ส่งคำขอคืนคลัง
           </button>
@@ -333,13 +360,13 @@ export default function ReturnRequestsClient() {
 
       {pickerOpen && pickerItem && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setPickerOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">เลือกรายการย่อยที่จะส่งคืน</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{pickerItem.item_name || "-"} ({pickerItem.item_code || "-"})</p>
               </div>
-              <button onClick={() => setPickerOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg">
+              <button onClick={() => setPickerOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -352,17 +379,17 @@ export default function ReturnRequestsClient() {
                   placeholder="ค้นหา Unit Code / Serial..."
                   value={pickerKeyword}
                   onChange={(e) => setPickerKeyword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+                  className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
                 />
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[50vh] overflow-y-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+                  <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
                     <tr>
-                      <th className="text-left px-4 py-3 w-12"></th>
-                      <th className="text-left px-4 py-3 w-[220px]">Unit Code</th>
-                      <th className="text-left px-4 py-3">Serial</th>
+                      <th className="text-left px-4 py-3 w-[48px] font-bold text-slate-700"></th>
+                      <th className="text-left px-4 py-3 w-[220px] font-bold text-slate-700">Unit Code</th>
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Serial</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -401,7 +428,7 @@ export default function ReturnRequestsClient() {
               <button
                 type="button"
                 onClick={() => setPickerOpen(false)}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold transition-colors"
               >
                 เสร็จสิ้น
               </button>

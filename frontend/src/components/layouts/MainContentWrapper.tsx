@@ -2,29 +2,40 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 export default function MainContentWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [isAllowScroll, setIsAllowScroll] = useState(false);
 
-  // Log เพื่อ debug (เปิด DevTools Console ดู)
   useEffect(() => {
     console.log("Current pathname:", pathname);
   }, [pathname]);
 
-  // ปรับเงื่อนไขให้ยืดหยุ่นที่สุด (ครอบคลุม sub-path และ case-insensitive)
+  // Check window size to force scrolling on zoomed/small screens
+  useEffect(() => {
+    const handleResize = () => {
+      // 1536 corresponds to 125% zoom on a 1920px screen
+      setIsAllowScroll(window.innerWidth <= 1745);
+    };
+
+    handleResize(); // Check immediately on mount
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const isNoScrollPage = 
-    pathname?.toLowerCase().includes('/items') ||  // ถ้ามีหน้า /items ตรงไหนก็ได้
+    pathname?.toLowerCase().includes('/items') ||  
     pathname?.toLowerCase().startsWith('/items/')||
-    pathname?.toLowerCase().includes('/settings') ||  // ถ้ามีหน้า /settings ตรงไหนก็ได้
+    pathname?.toLowerCase().includes('/settings') ||  
     pathname?.toLowerCase().startsWith('/settings/');
 
-
-  console.log("isNoScrollPage:", isNoScrollPage); // ดูว่าตรวจจับถูกไหม
+  // If zoomed (isAllowScroll) or if it's not a restricted page, allow scrolling
+  const shouldScroll = isAllowScroll || !isNoScrollPage;
 
   return (
     <main 
-      className={`flex-1 ${isNoScrollPage ? "" : "overflow-y-auto"}`}
+      className={`flex-1 min-w-0 ${shouldScroll ? "overflow-y-auto" : ""}`}
     >
       <div className="max-w-8xl mx-auto">
         {children}

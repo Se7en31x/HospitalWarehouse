@@ -131,6 +131,8 @@ export default function ReturnsClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("สถานะทั้งหมด");
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isMounted, setIsMounted] = useState(false);
@@ -185,9 +187,18 @@ export default function ReturnsClient() {
         (r.requester || "").toLowerCase().includes(term) ||
         (r.borrower_details?.fullname || "").toLowerCase().includes(term);
       const matchesStatus = selectedStatus === "สถานะทั้งหมด" || uiStatus === selectedStatus;
-      return matchesSearch && matchesStatus;
+      const matchDate =
+        !startDate && !endDate
+          ? true
+          : (() => {
+              const d = new Date(r.due_date ?? "");
+              const s = startDate ? new Date(startDate) : null;
+              const e = endDate ? new Date(endDate) : null;
+              return (!s || d >= s) && (!e || d <= e);
+            })();
+      return matchesSearch && matchesStatus && matchDate;
     });
-  }, [records, searchTerm, selectedStatus]);
+  }, [records, searchTerm, selectedStatus, startDate, endDate]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
   const displayRecords = useMemo(() => {
@@ -216,7 +227,7 @@ export default function ReturnsClient() {
             placeholder="ค้นหา เลขที่ ชื่อผู้ยืม..."
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
@@ -224,13 +235,13 @@ export default function ReturnsClient() {
         <div className="relative" data-status-dd="">
           <button
             onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 shadow-sm w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedStatus}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
           </button>
           {isStatusDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full">
               <ul className="py-1">
                 {STATUS_FILTER_OPTIONS.map(s => (
                   <li key={s}>
@@ -245,6 +256,25 @@ export default function ReturnsClient() {
               </ul>
             </div>
           )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+          />
         </div>
       </div>
 
@@ -264,8 +294,9 @@ export default function ReturnsClient() {
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
-                <th className="px-6 py-4 w-[220px]">ผู้ยืม</th>
-                <th className="px-6 py-4 w-[80px] text-center">รายการ</th>
+                <th className="px-6 py-4 w-[180px]">ผู้ดำเนินเรื่องยืม</th>
+                <th className="px-6 py-4 w-[180px]">ผู้ยืม</th>
+                <th className="px-6 py-4 w-[80px]">รายการ</th>
                 <th className="px-6 py-4 w-[120px]">กำหนดคืน</th>
                 <th className="px-6 py-4 w-[120px]">สถานะ</th>
                 <th className="px-6 py-4 text-center w-[110px]">จัดการ</th>
@@ -280,8 +311,8 @@ export default function ReturnsClient() {
 
                 return (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                    <td className="px-6 py-4 font-mono text-sm font-semibold text-indigo-700">{r.doc_no}</td>
+                    <td className="px-6 py-4 text-slate-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                    <td className="px-6 py-4 font-mono text-sm text-black">{r.doc_no}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${ext ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
                         {ext ? <User className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
@@ -289,10 +320,12 @@ export default function ReturnsClient() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-semibold text-gray-800 text-sm truncate">{getBorrowerDisplay(r)}</div>
-                      <div className="text-xs text-gray-400 truncate">{r.requester}</div>
+                      <div className="text-gray-800 text-sm truncate">{r.requester || "-"}</div>
                     </td>
-                    <td className="px-6 py-4 text-center font-semibold text-slate-600">{r.item_count ?? 0}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-gray-800 text-sm truncate">{getBorrowerDisplay(r)}</div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600">{r.item_count ?? 0}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-slate-700">{fmtDate(r.due_date)}</div>
                       {overdue > 0 && (
@@ -320,7 +353,7 @@ export default function ReturnsClient() {
               })}
               {displayRecords.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">ไม่พบข้อมูล</p>
