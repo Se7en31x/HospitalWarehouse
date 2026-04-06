@@ -1,69 +1,24 @@
-"use client";
+  "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import toast, { Toaster } from "react-hot-toast";
-import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Save, Trash2, X, Package, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Save, Trash2, X, Package, Search, Eye } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
+import {
+  UnitFormTable,
+  ItemFormTable,
+  type ProcessItemForm,
+  type ProcessUnitForm,
+  type ReturnCondition,
+  RETURN_REQUEST_STATUS_LABEL,
+  CONDITION_LABEL,
+  conditionOptions,
+  showToast,
+} from "./ReturnForms";
 
 // ─── Types & Interfaces ───────────────────────────────────────────────────────
-
-interface ProcessItemForm {
-  item_id: string;
-  item_name: string;
-  requested_qty: number;
-  return_qty: number;
-  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
-  note: string;
-}
-
-interface ProcessUnitForm {
-  unit_id: string;
-  unit_code: string;
-  serial_no: string;
-  item_id: string;
-  item_name: string;
-  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
-  note: string;
-}
-
-interface UnitFormTableProps {
-  unitForms: ProcessUnitForm[];
-  onUpdate: (unitId: string, patch: Partial<ProcessUnitForm>) => void;
-}
-
-interface ItemFormTableProps {
-  forms: ProcessItemForm[];
-  onUpdate: (itemId: string, patch: Partial<ProcessItemForm>) => void;
-}
-
-type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const RETURN_REQUEST_STATUS_LABEL: Record<string, string> = {
-  REQUESTED: "รอคลังรับงาน",
-  PROCESSING: "กำลังตรวจรับ",
-  COMPLETED: "ปิดงานแล้ว",
-};
-
-const CONDITION_LABEL: Record<string, string> = {
-  GOOD: "ปกติ",
-  DAMAGED: "ชำรุด",
-  LOST: "สูญหาย",
-  INCOMPLETE: "คืนไม่ครบ",
-};
-
-const conditionOptions: { value: ReturnCondition; label: string }[] = [
-  { value: "GOOD", label: CONDITION_LABEL.GOOD },
-  { value: "DAMAGED", label: CONDITION_LABEL.DAMAGED },
-  { value: "LOST", label: CONDITION_LABEL.LOST },
-  { value: "INCOMPLETE", label: CONDITION_LABEL.INCOMPLETE },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -100,107 +55,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function UnitFormTable({ unitForms, onUpdate }: UnitFormTableProps) {
-  return (
-    <div className="overflow-x-auto border border-slate-200 rounded-xl">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left w-[180px]">Unit Code</th>
-            <th className="px-4 py-3 text-left w-[180px]">Serial</th>
-            <th className="px-4 py-3 text-left">รายการ</th>
-            <th className="px-4 py-3 text-left w-[160px]">ผลตรวจสภาพ</th>
-            <th className="px-4 py-3 text-left">หมายเหตุ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {unitForms.map((row: ProcessUnitForm) => (
-            <tr key={row.unit_id} className="border-t border-slate-100">
-              <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.unit_code}</td>
-              <td className="px-4 py-3">{row.serial_no}</td>
-              <td className="px-4 py-3 font-medium">{row.item_name}</td>
-              <td className="px-4 py-3">
-                <select
-                  value={row.condition}
-                  onChange={(e) => onUpdate(row.unit_id, { condition: e.target.value as ReturnCondition })}
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                >
-                  {conditionOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-4 py-3">
-                <input
-                  value={row.note}
-                  onChange={(e) => onUpdate(row.unit_id, { note: e.target.value })}
-                  placeholder="หมายเหตุรายชิ้น"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ItemFormTable({ forms, onUpdate }: ItemFormTableProps) {
-  return (
-    <div className="overflow-x-auto border border-slate-200 rounded-xl">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left">รายการ</th>
-            <th className="px-4 py-3 text-left w-[140px]">จำนวนที่ขอคืน</th>
-            <th className="px-4 py-3 text-left w-[150px]">รับคืนจริง</th>
-            <th className="px-4 py-3 text-left w-[160px]">ผลตรวจสภาพ</th>
-            <th className="px-4 py-3 text-left">หมายเหตุ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {forms.map((row: ProcessItemForm) => (
-            <tr key={row.item_id} className="border-t border-slate-100">
-              <td className="px-4 py-3 font-medium">{row.item_name}</td>
-              <td className="px-4 py-3">{row.requested_qty}</td>
-              <td className="px-4 py-3">
-                <input
-                  type="number"
-                  min={0}
-                  max={row.requested_qty}
-                  value={row.return_qty}
-                  onChange={(e) => onUpdate(row.item_id, { return_qty: Math.max(0, Math.min(row.requested_qty, Number(e.target.value || 0))) })}
-                  className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                />
-              </td>
-              <td className="px-4 py-3">
-                <select
-                  value={row.condition}
-                  onChange={(e) => onUpdate(row.item_id, { condition: e.target.value as ReturnCondition })}
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                >
-                  {conditionOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-4 py-3">
-                <input
-                  value={row.note}
-                  onChange={(e) => onUpdate(row.item_id, { note: e.target.value })}
-                  placeholder="หมายเหตุ"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ReturnsDepartmentClient() {
@@ -213,6 +67,8 @@ export default function ReturnsDepartmentClient() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [isDeptOpen, setIsDeptOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // State - Modal
   const [activeRequest, setActiveRequest] = useState<reusableSvc.ReusableReturnRequest | null>(null);
@@ -236,7 +92,7 @@ export default function ReturnsDepartmentClient() {
       setRecords(response.items || []);
     } catch (err) {
       console.error("fetch return requests failed", err);
-      toast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");
+      showToast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");
     } finally {
       setIsFetching(false);
     }
@@ -273,9 +129,18 @@ export default function ReturnsDepartmentClient() {
         (rec.doc_no || "").toLowerCase().includes(term) ||
         (rec.department_name || "").toLowerCase().includes(term) ||
         (rec.contact_name || "").toLowerCase().includes(term);
-      return matchesSearch;
+      const matchDate =
+        !startDate && !endDate
+          ? true
+          : (() => {
+              const d = new Date(rec.preferred_pickup_at ?? "");
+              const s = startDate ? new Date(startDate) : null;
+              const e = endDate ? new Date(endDate) : null;
+              return (!s || d >= s) && (!e || d <= e);
+            })();
+      return matchesSearch && matchDate;
     });
-  }, [records, searchTerm]);
+  }, [records, searchTerm, startDate, endDate]);
 
   // Event Handlers
   const openProcessModal = useCallback(async (request: reusableSvc.ReusableReturnRequest) => {
@@ -319,7 +184,7 @@ export default function ReturnsDepartmentClient() {
         );
       }
     } catch (error) {
-      toast.error(getErrorMessage(error) || "ดึงรายละเอียดใบคำขอไม่สำเร็จ");
+      showToast.error(getErrorMessage(error) || "ดึงรายละเอียดใบคำขอไม่สำเร็จ");
       setActiveRequest(null);
     } finally {
       setIsLoadingDetail(false);
@@ -359,7 +224,7 @@ export default function ReturnsDepartmentClient() {
       } else {
         const validItems = forms.filter((row) => row.return_qty > 0);
         if (!validItems.length) {
-          toast.error("กรุณาระบุจำนวนรับคืนอย่างน้อย 1 รายการ");
+          showToast.error("กรุณาระบุจำนวนรับคืนอย่างน้อย 1 รายการ");
           setIsSaving(false);
           return;
         }
@@ -376,11 +241,11 @@ export default function ReturnsDepartmentClient() {
         });
       }
 
-      toast.success(`ปิดงานใบ ${activeRequest.doc_no} สำเร็จ`);
+      showToast.success(`ปิดงานใบ ${activeRequest.doc_no} สำเร็จ`);
       closeProcessModal();
       fetchData();
     } catch (error) {
-      toast.error(getErrorMessage(error) || "บันทึกผลตรวจรับไม่สำเร็จ");
+      showToast.error(getErrorMessage(error) || "บันทึกผลตรวจรับไม่สำเร็จ");
     } finally {
       setIsSaving(false);
     }
@@ -393,10 +258,10 @@ export default function ReturnsDepartmentClient() {
     setDeletingRequestId(request.id);
     try {
       await reusableSvc.deleteReusableReturnRequest(request.id);
-      toast.success(`ลบคำขอ ${request.doc_no} เรียบร้อย`);
+      showToast.success(`ลบคำขอ ${request.doc_no} เรียบร้อย`);
       fetchData();
     } catch (error) {
-      toast.error(getErrorMessage(error) || "ลบคำขอไม่สำเร็จ");
+      showToast.error(getErrorMessage(error) || "ลบคำขอไม่สำเร็จ");
     } finally {
       setDeletingRequestId(null);
     }
@@ -405,11 +270,12 @@ export default function ReturnsDepartmentClient() {
   // Render
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
-      <Toaster position="top-right" />
 
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
+        </div>
       </div>
 
       {/* Filters */}
@@ -421,7 +287,7 @@ export default function ReturnsDepartmentClient() {
             placeholder="ค้นหา เลขที่ / แผนก / ผู้ประสานงาน..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
@@ -467,6 +333,25 @@ export default function ReturnsDepartmentClient() {
             </div>
           )}
         </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+          />
+        </div>
       </div>
 
       {/* Table Container */}
@@ -509,32 +394,33 @@ export default function ReturnsDepartmentClient() {
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[140px]">เลขที่คำขอ</th>
                 <th className="px-6 py-4 w-[160px]">แผนก</th>
-                <th className="px-6 py-4 w-[150px]">นัดรับของ</th>
-                <th className="px-6 py-4 w-[120px]">สถานะ</th>
-                <th className="px-6 py-4 w-[100px] text-center">จำนวนรายการ</th>
                 <th className="px-6 py-4 w-[140px]">ผู้ประสานงาน</th>
+                <th className="px-6 py-4 w-[150px]">นัดรับของ</th>
+                <th className="px-6 py-4 w-[100px]">จำนวนรายการ</th>
+                <th className="px-6 py-4 w-[120px]">สถานะ</th>
                 <th className="px-6 py-4 w-[140px] text-center">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredRecords.map((rec, idx) => (
                 <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-slate-400 text-xs">{idx + 1}</td>
-                  <td className="px-6 py-4 font-mono text-sm font-semibold text-indigo-700">{rec.doc_no}</td>
+                  <td className="px-6 py-4 text-slate-700 text-xs">{idx + 1}</td>
+                  <td className="px-6 py-4 font-mono text-sm text-black">{rec.doc_no}</td>
                   <td className="px-6 py-4 text-slate-700 text-sm">{rec.department_name || "-"}</td>
-                  <td className="px-6 py-4 text-slate-700 text-sm">{fmtDateTime(rec.preferred_pickup_at)}</td>
+                  <td className="px-6 py-4 text-slate-700 text-sm">{rec.contact_name || "-"}</td>
+                  <td className="px-6 py-4 text-slate-700 text-sm text-left">{fmtDateTime(rec.preferred_pickup_at)}</td>
+                  <td className="px-6 py-4 text-slate-700 text-sm text-left">{getTotalItems(rec.items)}</td>
                   <td className="px-6 py-4">
                     <StatusBadge status={rec.status} />
                   </td>
-                  <td className="px-6 py-4 text-center font-semibold text-slate-700 text-sm">{getTotalItems(rec.items)}</td>
-                  <td className="px-6 py-4 text-slate-700 text-sm">{rec.contact_name || "-"}</td>
                   <td className="px-6 py-4">
-                    <div className="flex justify-center gap-1">
+                    <div className="flex justify-center gap-2">
                       <button
                         onClick={() => openProcessModal(rec)}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                        title="ดู"
                       >
-                        ตรวจรับ
+                        <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDeleteRequest(rec)}
@@ -545,7 +431,7 @@ export default function ReturnsDepartmentClient() {
                         {deletingRequestId === rec.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         )}
                       </button>
                     </div>
