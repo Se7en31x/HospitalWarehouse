@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import SettingsModals from "./SettingsModals";
 import { formatThaiDateTime } from "@/utils/formatters";
+import { SweetAlertUtils } from "@/utils/sweetAlert";
 import type {
   Category,
   CategoryPayload,
@@ -70,10 +71,6 @@ export default function SettingsPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
 
-  // Delete Modal State
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: TabType; name: string } | null>(null);
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -108,7 +105,7 @@ export default function SettingsPage() {
       setWarehouses(whs || []);
       setSuppliers(sups || []);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
       setIsLoading(false);
     }
@@ -119,14 +116,14 @@ export default function SettingsPage() {
   }, []);
 
   const sectionTitle = useMemo(() => {
-    if (activeTab === "categories") return "รายการประเภทพัสดุ";
+    if (activeTab === "categories") return "รายการหมวดหมู่พัสดุ";
     if (activeTab === "units") return "รายการหน่วยนับ";
     if (activeTab === "warehouses") return "รายการคลังสินค้า";
     return "รายการผู้จำหน่าย";
   }, [activeTab]);
 
   const formTitle = useMemo(() => {
-    if (activeTab === "categories") return formMode === "create" ? "เพิ่มประเภทพัสดุ" : "แก้ไขประเภทพัสดุ";
+    if (activeTab === "categories") return formMode === "create" ? "เพิ่มหมวดหมู่พัสดุ" : "แก้ไขหมวดหมู่พัสดุ";
     if (activeTab === "units") return formMode === "create" ? "เพิ่มหน่วยนับ" : "แก้ไขหน่วยนับ";
     if (activeTab === "warehouses") return formMode === "create" ? "เพิ่มคลังสินค้า" : "แก้ไขคลังสินค้า";
     return formMode === "create" ? "เพิ่มผู้จำหน่าย" : "แก้ไขผู้จำหน่าย";
@@ -298,36 +295,42 @@ export default function SettingsPage() {
       if (success) {
         await loadAllData();
         setIsFormModalOpen(false);
+        SweetAlertUtils.success("สำเร็จ", "บันทึกข้อมูลเรียบร้อย");
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
     } finally {
       setIsSaving(false);
     }
   };
 
-  // การจัดการการลบผ่าน Modal
-  const confirmDelete = (id: string, type: TabType, name: string) => {
-    setItemToDelete({ id, type, name });
-    setDeleteModalOpen(true);
-  };
-
-  const executeDelete = async () => {
-    if (!itemToDelete) return;
+  // การจัดการการลบผ่าน SweetAlert
+  const confirmDelete = async (id: string, type: TabType, name: string) => {
+    const result = await SweetAlertUtils.delete("ลบข้อมูล", `คุณต้องการลบ ${name} ใช่หรือไม่?`);
+    if (!result.isConfirmed) return;
+    
     setIsSaving(true);
     try {
-      if (itemToDelete.type === "categories") await deleteCategory(itemToDelete.id);
-      if (itemToDelete.type === "units") await deleteUnit(itemToDelete.id);
-      if (itemToDelete.type === "warehouses") await deleteWarehouse(itemToDelete.id);
-      if (itemToDelete.type === "suppliers") await deleteSupplier(itemToDelete.id);
+      if (type === "categories") await deleteCategory(id);
+      if (type === "units") await deleteUnit(id);
+      if (type === "warehouses") await deleteWarehouse(id);
+      if (type === "suppliers") await deleteSupplier(id);
       await loadAllData();
+      SweetAlertUtils.success("สำเร็จ", "ลบข้อมูลเรียบร้อย");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "ลบข้อมูลไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "ลบข้อมูลไม่สำเร็จ");
     } finally {
       setIsSaving(false);
-      setDeleteModalOpen(false);
-      setItemToDelete(null);
     }
+  };
+
+  const getItemTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      CONSUMABLE: "วัสดุสิ้นเปลือง",
+      REUSABLE: "ของใช้ซ้ำรายชิ้น",
+      MED_ASSET: "ครุภัณฑ์ภายในองค์กร",
+    };
+    return labels[type] || type;
   };
 
   return (
@@ -340,7 +343,7 @@ export default function SettingsPage() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-slate-200">
         {[
-          { id: "categories", label: "ประเภทพัสดุ", icon: <Package className="w-4 h-4" /> },
+          { id: "categories", label: "หมวดหมู่พัสดุ", icon: <Package className="w-4 h-4" /> },
           { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4" /> },
           { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4" /> },
           { id: "suppliers", label: "ผู้จำหน่าย", icon: <Truck className="w-4 h-4" /> },
@@ -371,7 +374,7 @@ export default function SettingsPage() {
             setKeywordByTab((prev) => ({ ...prev, [activeTab]: keyword }));
             setPageByTab((prev) => ({ ...prev, [activeTab]: 1 }));
           }}
-          className="w-72 border border-slate-200 bg-white rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+          className="w-72 border border-slate-200 bg-white rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
         />
         <button
           onClick={handleOpenCreateForm}
@@ -383,52 +386,78 @@ export default function SettingsPage() {
       </div>
 
       {/* Table Container */}
-      <div className="h-[60vh] rounded-xl bg-white shadow-lg overflow-hidden relative border border-slate-100 mb-6">
+      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col mb-6" style={{ height: '50vh' }}>
         {isLoading && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="animate-spin">
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+            </div>
           </div>
         )}
-        <div className="overflow-x-auto h-full flex flex-col">
+        <div 
+          className="flex-1" 
+          style={{
+            overflowX: 'auto',
+            overflowY: 'auto',
+            scrollbarWidth: 'auto',
+            msOverflowStyle: 'auto',
+          } as React.CSSProperties}
+        >
+          <style>{`
+            div::-webkit-scrollbar {
+              width: 0;
+              height: 8px;
+            }
+            div::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            div::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+            }
+            div::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
           {activeTab === "categories" && (
-            <table className="w-full text-sm text-left divide-y divide-slate-100">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+            <table className="w-full text-sm text-left table-fixed">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 w-[20%]">ชื่อประเภทพัสดุ</th>
-                  <th className="px-6 py-4 w-[10%]">Prefix Code</th>
-                  <th className="px-6 py-4 w-[16%]">ผูกประเภท</th>
-                  <th className="px-6 py-4 w-[20%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[12%]">วันที่สร้าง</th>
-                  <th className="px-6 py-4 w-[12%]">วันที่แก้ไข</th>
-                  <th className="px-6 py-4 w-[20%] text-right">จัดการ</th>
+                  <th className="px-6 py-4 w-[50px]">#</th>
+                  <th className="px-6 py-4 w-[200px]">ชื่อประเภท</th>
+                  <th className="px-6 py-4 w-[120px]">Prefix</th>
+                  <th className="px-6 py-4 w-[150px]">ผูกประเภท</th>
+                  <th className="px-6 py-4 w-[250px]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 flex-1">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedCategories.length > 0 ? (
-                  pagedCategories.map((cat) => (
+                  pagedCategories.map((cat, idx) => (
                     <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">{cat.name}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.categories - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
+                      <td className="px-6 py-4 w-[200px]">{cat.name}</td>
+                      <td className="px-6 py-4 w-[120px]">
                         <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">
                           {cat.code_prefix}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 rounded-md">
-                          {cat.item_type || "CONSUMABLE"}
-                        </span>
+                      <td className="px-6 py-4 w-[150px]">
+                        {getItemTypeLabel(cat.item_type || "CONSUMABLE")}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[250px]">
                         {cat.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(cat.created_at)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(cat.updated_at)}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1">
+                      <td className="px-6 py-4 w-[100px] text-center">
+                        <div className="flex justify-center gap-1">
                           <button
                             onClick={() => {
                               setFormMode("edit");
@@ -443,13 +472,13 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(cat.id, "categories", cat.name)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
                       </td>
@@ -457,7 +486,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
@@ -472,32 +501,34 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "units" && (
-            <table className="w-full text-sm text-left divide-y divide-slate-100">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+            <table className="w-full text-sm text-left table-fixed">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 w-[30%]">ชื่อหน่วยนับ</th>
-                  <th className="px-6 py-4 w-[32%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[13%]">วันที่สร้าง</th>
-                  <th className="px-6 py-4 w-[13%]">วันที่แก้ไข</th>
-                  <th className="px-6 py-4 w-[12%] text-right">จัดการ</th>
+                  <th className="px-6 py-4 w-[50px]">#</th>
+                  <th className="px-6 py-4 w-[250px]">ชื่อหน่วยนับ</th>
+                  <th className="px-6 py-4 w-[350px]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedUnits.length > 0 ? (
-                  pagedUnits.map((unit) => (
+                  pagedUnits.map((unit, idx) => (
                     <tr key={unit.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">{unit.name}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.units - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
+                      <td className="px-6 py-4 w-[250px]">{unit.name}</td>
+                      <td className="px-6 py-4 w-[350px]">
                         {unit.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(unit.created_at)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(unit.updated_at)}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1">
+                      <td className="px-6 py-4 w-[100px] text-center">
+                        <div className="flex justify-center gap-1">
                           <button
                             onClick={() => {
                               setFormMode("edit");
@@ -510,83 +541,13 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(unit.id, "units", unit.name)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5}>
-                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
-                        </svg>
-                        <p className="text-sm font-medium">ไม่พบข้อมูล</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-
-          {activeTab === "warehouses" && (
-            <table className="w-full text-sm text-left divide-y divide-slate-100">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
-                <tr>
-                  <th className="px-6 py-4 w-[18%]">ชื่อคลังสินค้า</th>
-                  <th className="px-6 py-4 w-[18%]">สถานที่ตั้ง</th>
-                  <th className="px-6 py-4 w-[23%]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[12%]">วันที่สร้าง</th>
-                  <th className="px-6 py-4 w-[12%]">วันที่แก้ไข</th>
-                  <th className="px-6 py-4 w-[17%] text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedWarehouses.length > 0 ? (
-                  pagedWarehouses.map((wh) => (
-                    <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">{wh.name}</td>
-                      <td className="px-6 py-4">{wh.location || "-"}</td>
-                      <td className="px-6 py-4">
-                        {wh.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        {formatThaiDateTime(wh.created_at)}
-                      </td>
-                      <td className="px-6 py-4">
-                        {formatThaiDateTime(wh.updated_at)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            onClick={() => {
-                              setFormMode("edit");
-                              setEditingWarehouseId(wh.id);
-                              setWarehouseForm({
-                                name: wh.name,
-                                location: wh.location || "",
-                                description: wh.description || "",
-                              });
-                              setIsFormModalOpen(true);
-                            }}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => confirmDelete(wh.id, "warehouses", wh.name)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
                       </td>
@@ -608,35 +569,109 @@ export default function SettingsPage() {
             </table>
           )}
 
-          {activeTab === "suppliers" && (
-            <table className="w-full text-sm text-left divide-y divide-slate-100">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0">
+          {activeTab === "warehouses" && (
+            <table className="w-full text-sm text-left table-fixed">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 w-[18%]">ชื่อผู้จำหน่าย</th>
-                  <th className="px-6 py-4 w-[14%]">ผู้ติดต่อ</th>
-                  <th className="px-6 py-4 w-[12%]">โทรศัพท์</th>
-                  <th className="px-6 py-4 w-[12%]">เลขผู้เสียภาษี</th>
-                  <th className="px-6 py-4 w-[12%]">วันที่สร้าง</th>
-                  <th className="px-6 py-4 w-[12%]">วันที่แก้ไข</th>
-                  <th className="px-6 py-4 w-[20%] text-right">จัดการ</th>
+                  <th className="px-6 py-4 w-[50px]">#</th>
+                  <th className="px-6 py-4 w-[180px]">ชื่อคลังสินค้า</th>
+                  <th className="px-6 py-4 w-[180px]">สถานที่ตั้ง</th>
+                  <th className="px-6 py-4 w-[250px]">รายละเอียด</th>
+                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {pagedWarehouses.length > 0 ? (
+                  pagedWarehouses.map((wh, idx) => (
+                    <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.warehouses - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
+                      <td className="px-6 py-4 w-[180px]">{wh.name}</td>
+                      <td className="px-6 py-4 w-[180px]">{wh.location || "-"}</td>
+                      <td className="px-6 py-4 w-[250px]">
+                        {wh.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                      </td>
+                      <td className="px-6 py-4 w-[100px]">
+                        {formatThaiDateTime(wh.created_at)}
+                      </td>
+                      <td className="px-6 py-4 w-[100px]">
+                        {formatThaiDateTime(wh.updated_at)}
+                      </td>
+                      <td className="px-6 py-4 w-[100px] text-center">
+                        <div className="flex justify-center gap-1">
+                          <button
+                            onClick={() => {
+                              setFormMode("edit");
+                              setEditingWarehouseId(wh.id);
+                              setWarehouseForm({
+                                name: wh.name,
+                                location: wh.location || "",
+                                description: wh.description || "",
+                              });
+                              setIsFormModalOpen(true);
+                            }}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(wh.id, "warehouses", wh.name)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={8}>
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                        </svg>
+                        <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {activeTab === "suppliers" && (
+            <table className="w-full text-sm text-left table-fixed">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+                <tr>
+                  <th className="px-6 py-4 w-[50px]">#</th>
+                  <th className="px-6 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
+                  <th className="px-6 py-4 w-[150px]">ผู้ติดต่อ</th>
+                  <th className="px-6 py-4 w-[130px]">โทรศัพท์</th>
+                  <th className="px-6 py-4 w-[150px]">เลขผู้เสียภาษี</th>
+                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedSuppliers.length > 0 ? (
-                  pagedSuppliers.map((sup) => (
+                  pagedSuppliers.map((sup, idx) => (
                     <tr key={sup.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">{sup.name}</td>
-                      <td className="px-6 py-4">{sup.contact || <span className="text-slate-400">-</span>}</td>
-                      <td className="px-6 py-4">{sup.phone || <span className="text-slate-400">-</span>}</td>
-                      <td className="px-6 py-4">{sup.tax_id || <span className="text-slate-400">-</span>}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.suppliers - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
+                      <td className="px-6 py-4 w-[180px]">{sup.name}</td>
+                      <td className="px-6 py-4 w-[150px]">{sup.contact || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-6 py-4 w-[130px]">{sup.phone || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-6 py-4 w-[150px]">{sup.tax_id || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(sup.created_at)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(sup.updated_at)}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1">
+                      <td className="px-6 py-4 w-[100px] text-center">
+                        <div className="flex justify-center gap-1">
                           <button
                             onClick={() => {
                               setFormMode("edit");
@@ -652,13 +687,13 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(sup.id, "suppliers", sup.name)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
                       </td>
@@ -666,7 +701,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
@@ -742,14 +777,6 @@ export default function SettingsPage() {
         onSupplierFormChange={setSupplierForm}
         isSaving={isSaving}
         onFormSubmit={handleFormSubmit}
-        // Delete Modal Props
-        deleteModalOpen={deleteModalOpen}
-        itemToDelete={itemToDelete}
-        onDeleteModalClose={() => {
-          setDeleteModalOpen(false);
-          setItemToDelete(null);
-        }}
-        onConfirmDelete={executeDelete}
       />
     </div>
   );

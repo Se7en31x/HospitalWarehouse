@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   Plus,
   Minus,
@@ -18,6 +18,7 @@ import {
   AlertCircle,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -109,24 +110,42 @@ export default function BorrowCartModal({
   departments,
   onDeptChange,
 }: BorrowCartModalProps) {
-  const [activeTab, setActiveTab] = useState<"BORROW" | "EXTERNAL">("BORROW");
-  // Step wizard for EXTERNAL tab: 1 = cart + return date, 2 = personal info form, 3 = summary
   const [externalStep, setExternalStep] = useState<1 | 2 | 3>(1);
 
   // ✅ State สำหรับ Loading ตอนกดปุ่ม
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ Global Notes สำหรับ BORROW tab
-  const [globalNotes, setGlobalNotes] = useState("");
-
   // ✅ แผนกของผู้ดำเนินการ (EXTERNAL tab)
   const [externalOperatorDeptId, setExternalOperatorDeptId] = useState("");
+  const [isDeptOpen, setIsDeptOpen] = useState(false);
 
   // ✅ External Person Form State
   const [externalForm, setExternalForm] =
     useState<ExternalPersonForm>(initialExternalForm);
   const [fileError, setFileError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ✅ Handle click-outside to close dropdown
+  React.useEffect(() => {
+    if (!isDeptOpen) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-dept-dropdown]")) {
+        setIsDeptOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isDeptOpen]);
+
+  // ✅ Close dropdown when modal closes
+  React.useEffect(() => {
+    if (!showCartModal) {
+      setIsDeptOpen(false);
+    }
+  }, [showCartModal]);
 
   // --- [Helper Actions] ---
   const removeFromCart = useCallback(
@@ -386,7 +405,7 @@ export default function BorrowCartModal({
   if (!showCartModal) return null;
 
   const inputClass =
-    "w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 outline-none transition-all placeholder:text-gray-400 disabled:bg-slate-100";
+    "w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-400 outline-none transition-all placeholder:text-gray-400 disabled:bg-slate-100";
 
   const labelClass = "block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1";
 
@@ -394,24 +413,15 @@ export default function BorrowCartModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
 
-        {/* Tabs Header */}
-        <div className="flex border-b border-gray-200 flex-shrink-0">
-          <button
-            className={`flex-1 py-4 font-bold text-center transition-colors text-sm ${activeTab === "BORROW" ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50" : "text-gray-500 hover:bg-gray-50"}`}
-            onClick={() => { setActiveTab("BORROW"); }}
-          >
-            ตะกร้ายืม ({selectedItems.length})
-          </button>
-          <button
-            className={`flex-1 py-4 font-bold text-center transition-colors text-sm ${activeTab === "EXTERNAL" ? "text-emerald-600 border-b-2 border-emerald-600 bg-emerald-50/50" : "text-gray-500 hover:bg-gray-50"}`}
-            onClick={() => { setActiveTab("EXTERNAL"); setExternalStep(1); }}
-          >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 flex-shrink-0 px-5 py-4 bg-emerald-50/50">
+          <h2 className="text-lg font-bold text-gray-900">
             ยืมบุคคลภายนอก
-          </button>
+          </h2>
           <button
             onClick={() => setShowCartModal(false)}
             disabled={isSubmitting}
-            className="px-4 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
           >
             <X className="w-6 h-6" />
           </button>
@@ -420,174 +430,27 @@ export default function BorrowCartModal({
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-5 bg-gray-50/30">
 
-          {/* --- TAB: BORROW --- */}
-          {activeTab === "BORROW" && (
-            <div className="space-y-4">
-
-              {/* ✅ Department Selection Section */}
-              <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm">
-                <label className="text-[10px] font-bold text-indigo-600 uppercase mb-2 block">
-                  ระบุแผนกที่ทำการยืม
-                </label>
-                <select
-                  value={selectedDeptId}
-                  onChange={(e) => onDeptChange(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg font-semibold text-sm focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 outline-none"
-                >
-                  <option value="">-- กรุณาเลือกแผนก --</option>
-                  {(departments || []).map((d) => (
-                    <option key={d.id} value={String(d.id)}>
-                      แผนก{d.name} ({d.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Notes Section - BORROW */}
-              <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
-                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
-                  <FileText className="w-4 h-4 text-indigo-500" /> หมายเหตุ
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="ระบุวัตถุประสงค์หรือรายละเอียดเพิ่มเติม (ถ้ามี)"
-                  value={globalNotes}
-                  onChange={(e) => setGlobalNotes(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none resize-none disabled:bg-slate-100"
-                />
-              </div>
-
-              {/* Return Date Section */}
-              <div className="bg-white p-4 rounded-xl border border-indigo-200 shadow-sm">
-                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
-                  <Clock className="w-4 h-4 text-indigo-600" /> วันที่คืนครุภัณฑ์ (สูงสุด 90 วัน)
-                </label>
-                <input
-                  type="date"
-                  disabled={isSubmitting}
-                  className="w-full border border-indigo-300 rounded-lg p-2.5 text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none mb-3 disabled:bg-slate-100"
-                  value={globalReturnDate}
-                  onChange={(e) => setGlobalReturnDate(e.target.value)}
-                  min={new Date().toISOString().split("T")[0]}
-                  max={(() => {
-                    const maxDate = new Date();
-                    maxDate.setDate(maxDate.getDate() + 90);
-                    return maxDate.toISOString().split("T")[0];
-                  })()}
-                />
-                <div className="flex gap-2">
-                  {[30, 60, 90].map((days) => (
-                    <button
-                      key={days}
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        const date = new Date();
-                        date.setDate(date.getDate() + days);
-                        setGlobalReturnDate(date.toISOString().split("T")[0]);
-                      }}
-                      className="flex-1 py-2 px-3 rounded-lg bg-indigo-100 text-indigo-700 font-semibold text-sm hover:bg-indigo-200 transition disabled:opacity-50"
-                    >
-                      {days} วัน
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                  <ShoppingCart className="w-4 h-4 text-indigo-600" />
-                  <span className="text-sm font-bold text-gray-700">รายการที่ต้องการยืม</span>
-                  <span className="ml-auto text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{selectedItems.length} รายการ</span>
-                </div>
-                {selectedItems.length === 0 ? (
-                  <div className="text-center py-10 flex flex-col items-center">
-                    <ShoppingCart className="w-10 h-10 text-gray-200 mb-2" />
-                    <p className="text-gray-400 text-sm font-medium">ยังไม่มีรายการในตะกร้า</p>
-                    <p className="text-xs text-gray-300 mt-1">กรุณาเลือกรายการจากหน้าระบบยืม</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase">
-                          <th className="px-3 py-2.5 text-left w-14">รูป</th>
-                          <th className="px-3 py-2.5 text-left">ชื่อรายการ</th>
-                          <th className="px-3 py-2.5 text-left w-28">ประเภท</th>
-                          <th className="px-3 py-2.5 text-center w-32">จำนวน</th>
-                          <th className="px-3 py-2.5 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedItems.map((item) => (
-                          <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-3 py-2.5">
-                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 flex-shrink-0">
-                                {item.imageUrl
-                                  ? <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
-                                  : <Package className="w-5 h-5 text-gray-300" />}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <div className="font-semibold text-gray-900 text-sm">{item.name}</div>
-                              <div className="text-xs text-gray-400">{item.code}</div>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className="text-xs text-gray-600">{item.category}</span>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <div className="flex items-center justify-center gap-1 bg-gray-50 rounded-lg border border-gray-200 p-1">
-                                <button disabled={isSubmitting} onClick={() => updateCartQuantity(item.id, -1)}
-                                  className="w-6 h-6 flex items-center justify-center hover:bg-white rounded disabled:opacity-50">
-                                  <Minus className="w-3 h-3" />
-                                </button>
-                                <span className="w-8 text-center font-bold text-sm text-gray-800">{item.quantity}</span>
-                                <button disabled={isSubmitting} onClick={() => updateCartQuantity(item.id, 1)}
-                                  className="w-6 h-6 flex items-center justify-center hover:bg-white rounded disabled:opacity-50">
-                                  <Plus className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <button disabled={isSubmitting} onClick={() => removeFromCart(item.id)}
-                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* --- TAB: EXTERNAL PERSON --- */}
-          {activeTab === "EXTERNAL" && (
-            <div className="space-y-4">
+          <div className="space-y-4">
 
               {/* Step Indicator */}
               <div className="flex items-center gap-2 px-1 overflow-x-auto pb-2 mb-2 no-scrollbar">
                 <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all whitespace-nowrap ${
-                  externalStep === 1 ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-700"
+                  externalStep === 1 ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"
                 }`}>
                   <span>1</span>
                   <span>ตะกร้า &amp; วันคืน</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all whitespace-nowrap ${
-                  externalStep === 2 ? "bg-emerald-600 text-white" : externalStep > 2 ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+                  externalStep === 2 ? "bg-blue-600 text-white" : externalStep > 2 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
                 }`}>
                   <span>2</span>
                   <span>ข้อมูลผู้ยืม</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all whitespace-nowrap ${
-                  externalStep === 3 ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-500"
+                  externalStep === 3 ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
                 }`}>
                   <span>3</span>
                   <span>สรุปข้อมูล</span>
@@ -598,16 +461,16 @@ export default function BorrowCartModal({
               {externalStep === 1 && (
                 <>
                   {/* Return Date Section */}
-                  <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <Clock className="w-4 h-4 text-emerald-600" />
+                      <Clock className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">วันที่คืนครุภัณฑ์ (สูงสุด 90 วัน) <span className="text-red-500">*</span></span>
                     </div>
                     <div className="p-4 space-y-3">
                       <input
                         type="date"
                         disabled={isSubmitting}
-                        className="w-full border border-emerald-300 rounded-lg p-2.5 text-gray-700 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-slate-100"
+                        className="w-full border border-blue-300 rounded-lg p-2.5 text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
                         value={externalForm.returnDate}
                         onChange={(e) => handleExternalFormChange("returnDate", e.target.value)}
                         min={new Date().toISOString().split("T")[0]}
@@ -628,7 +491,7 @@ export default function BorrowCartModal({
                               date.setDate(date.getDate() + days);
                               handleExternalFormChange("returnDate", date.toISOString().split("T")[0]);
                             }}
-                            className="flex-1 py-2 px-3 rounded-lg bg-emerald-100 text-emerald-700 font-semibold text-sm hover:bg-emerald-200 transition disabled:opacity-50"
+                            className="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-700 font-semibold text-sm hover:bg-blue-200 transition disabled:opacity-50"
                           >
                             {days} วัน
                           </button>
@@ -638,11 +501,11 @@ export default function BorrowCartModal({
                   </div>
 
                   {/* Items Table */}
-                  <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-emerald-100 bg-emerald-50/40">
-                      <ShoppingCart className="w-4 h-4 text-emerald-600" />
+                  <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-blue-100 bg-blue-50/40">
+                      <ShoppingCart className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">รายการที่ต้องการยืม</span>
-                      <span className="ml-auto text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">{selectedItems.length} รายการ</span>
+                      <span className="ml-auto text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">{selectedItems.length} รายการ</span>
                     </div>
                     {selectedItems.length === 0 ? (
                       <div className="text-center py-10 flex flex-col items-center">
@@ -712,43 +575,67 @@ export default function BorrowCartModal({
               {externalStep === 2 && (
                 <>
                   {/* Header */}
-                  <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                       <User className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <p className="font-bold text-emerald-800 text-sm">ยืมสำหรับบุคคลภายนอก</p>
-                      <p className="text-xs text-emerald-600">กรุณากรอกข้อมูลผู้ขอยืมให้ครบถ้วน</p>
+                      <p className="font-bold text-blue-800 text-sm">ยืมสำหรับบุคคลภายนอก</p>
+                      <p className="text-xs text-blue-600">กรุณากรอกข้อมูลผู้ขอยืมให้ครบถ้วน</p>
                     </div>
                   </div>
 
                   {/* Operator Department Section */}
-                  <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-emerald-50/50">
-                      <User className="w-4 h-4 text-emerald-600" />
-                      <span className="text-sm font-bold text-gray-700">แผนกของผู้ดำเนินการ <span className="text-red-500">*</span></span>
-                    </div>
-                    <div className="p-4">
-                      <select
-                        value={externalOperatorDeptId}
-                        onChange={(e) => setExternalOperatorDeptId(e.target.value)}
+                  <div className="border border-slate-300 rounded-lg p-4">
+                    <div className="relative" data-dept-dropdown>
+                      <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">
+                        แผนกของผู้ดำเนินการ <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsDeptOpen(!isDeptOpen)}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg font-semibold text-sm focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 outline-none"
+                        className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm disabled:opacity-50"
                       >
-                        <option value="">-- เลือกแผนกที่ดำเนินการ --</option>
-                        {(departments || []).map((d) => (
-                          <option key={d.id} value={String(d.id)}>
-                            {d.name} ({d.code})
-                          </option>
-                        ))}
-                      </select>
+                        <span className="text-slate-800 font-medium">
+                          {externalOperatorDeptId 
+                            ? departments.find((d) => String(d.id) === externalOperatorDeptId)?.name || "-- เลือกแผนกที่ดำเนินการ --"
+                            : "-- เลือกแผนกที่ดำเนินการ --"}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      
+                      {isDeptOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
+                          <ul className="py-1">
+                            {(departments || []).map((d) => (
+                              <li key={d.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExternalOperatorDeptId(String(d.id));
+                                    setIsDeptOpen(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                    String(d.id) === externalOperatorDeptId
+                                      ? "bg-blue-50 text-blue-700 font-medium"
+                                      : "text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {d.name} ({d.code})
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Personal Info Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <User className="w-4 h-4 text-emerald-600" />
+                      <User className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">ข้อมูลส่วนตัว</span>
                     </div>
                     <div className="p-4 space-y-3">
@@ -771,7 +658,7 @@ export default function BorrowCartModal({
                   {/* Address Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
+                      <MapPin className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">ที่อยู่</span>
                     </div>
                     <div className="p-4 space-y-3">
@@ -851,7 +738,7 @@ export default function BorrowCartModal({
                   {/* Contact Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <Phone className="w-4 h-4 text-emerald-600" />
+                      <Phone className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">ช่องทางติดต่อ</span>
                     </div>
                     <div className="p-4 space-y-3">
@@ -880,18 +767,18 @@ export default function BorrowCartModal({
                   {/* Document Upload Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <FileText className="w-4 h-4 text-emerald-600" />
+                      <FileText className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสารสำเนาบัตรประชาชน</span>
                       <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / PNG / JPG · ไม่เกิน 5 MB</span>
                     </div>
                     <div className="p-4">
                       {externalForm.document ? (
-                        <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                             {externalForm.document.type === "application/pdf" ? (
-                              <FileText className="w-5 h-5 text-emerald-600" />
+                              <FileText className="w-5 h-5 text-blue-600" />
                             ) : (
-                              <CheckCircle className="w-5 h-5 text-emerald-600" />
+                              <CheckCircle className="w-5 h-5 text-blue-600" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -915,7 +802,7 @@ export default function BorrowCartModal({
                           className={`flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
                             fileError
                               ? "border-red-300 bg-red-50 hover:bg-red-50"
-                              : "border-gray-200 bg-gray-50 hover:border-emerald-400 hover:bg-emerald-50/30"
+                              : "border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/30"
                           }`}
                         >
                           <input
@@ -926,11 +813,11 @@ export default function BorrowCartModal({
                             disabled={isSubmitting}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${fileError ? "bg-red-100" : "bg-emerald-100"}`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${fileError ? "bg-red-100" : "bg-blue-100"}`}>
                             {fileError ? (
                               <AlertCircle className="w-5 h-5 text-red-500" />
                             ) : (
-                              <Upload className="w-5 h-5 text-emerald-600" />
+                              <Upload className="w-5 h-5 text-blue-600" />
                             )}
                           </div>
                           <div className="text-center">
@@ -947,7 +834,7 @@ export default function BorrowCartModal({
                   {/* Notes Section - EXTERNAL */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <FileText className="w-4 h-4 text-emerald-600" />
+                      <FileText className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">หมายเหตุ</span>
                     </div>
                     <div className="p-4">
@@ -957,7 +844,7 @@ export default function BorrowCartModal({
                         value={externalForm.notes}
                         onChange={(e) => handleExternalFormChange("notes", e.target.value)}
                         disabled={isSubmitting}
-                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-emerald-500 outline-none resize-none disabled:bg-slate-100"
+                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none resize-none disabled:bg-slate-100"
                       />
                     </div>
                   </div>
@@ -967,13 +854,13 @@ export default function BorrowCartModal({
               {/* Step 3: Confirmation Summary */}
               {externalStep === 3 && (
                 <>
-                  <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                       <CheckCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <p className="font-bold text-emerald-800 text-sm">ตรวจสอบข้อมูล</p>
-                      <p className="text-xs text-emerald-600">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยันการยืม</p>
+                      <p className="font-bold text-blue-800 text-sm">ตรวจสอบข้อมูล</p>
+                      <p className="text-xs text-blue-600">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยันการยืม</p>
                     </div>
                   </div>
 
@@ -1004,31 +891,10 @@ export default function BorrowCartModal({
                 </>
               )}
             </div>
-          )}
         </div>
 
         {/* Footer */}
-        {activeTab === "BORROW" && selectedItems.length > 0 && (
-          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0">
-            <div className="flex justify-between items-center mb-4 text-sm text-gray-600">
-              <span>รวมทั้งหมด</span>
-              <span className="text-xl font-bold text-indigo-600">
-                {selectedItems.reduce((a, b) => a + b.quantity, 0)}{" "}
-                <span className="text-sm font-normal text-gray-500">ชิ้น</span>
-              </span>
-            </div>
-            <button
-              onClick={submitBorrow}
-              disabled={isSubmitting || !selectedDeptId || !globalReturnDate}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Clock className="w-5 h-5" />}
-              {isSubmitting ? "กำลังส่งคำขอ..." : "ยืนยันการยืม"}
-            </button>
-          </div>
-        )}
-
-        {activeTab === "EXTERNAL" && externalStep === 1 && (
+        {externalStep === 1 && (
           <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0">
             <button
               onClick={() => {
@@ -1042,7 +908,7 @@ export default function BorrowCartModal({
                 }
                 setExternalStep(2);
               }}
-              className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2"
             >
               ถัดไป
               <ChevronRight className="w-5 h-5" />
@@ -1050,7 +916,7 @@ export default function BorrowCartModal({
           </div>
         )}
 
-        {activeTab === "EXTERNAL" && externalStep === 2 && (
+        {externalStep === 2 && (
           <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex gap-3">
             <button
               onClick={() => setExternalStep(1)}
@@ -1069,7 +935,7 @@ export default function BorrowCartModal({
                 }
                 setExternalStep(3);
               }}
-              className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"
+              className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2"
             >
               ถัดไป
               <ChevronRight className="w-5 h-5" />
@@ -1077,7 +943,7 @@ export default function BorrowCartModal({
           </div>
         )}
 
-        {activeTab === "EXTERNAL" && externalStep === 3 && (
+        {externalStep === 3 && (
           <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex gap-3">
             <button
               onClick={() => setExternalStep(2)}
@@ -1090,7 +956,7 @@ export default function BorrowCartModal({
             <button
               onClick={submitExternalBorrow}
               disabled={isSubmitting}
-              className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

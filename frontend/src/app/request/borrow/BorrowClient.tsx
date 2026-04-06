@@ -1,19 +1,20 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Search, Plus, ShoppingCart, ChevronLeft, ChevronRight, ChevronDown, HandHelping, Package } from "lucide-react";
+import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown, X } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
+import * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
+import { useAuth } from "@/lib/useAuth";
 import BorrowCartModal from "./BorrowCartModal";
 import ItemDetailModal from "./ItemDetailModal";
-import { useAuth } from "@/lib/useAuth";
 
 interface Props {
-  initialItems: ItemSvc.UiItem[];
+  initialItems: Item.UiItem[];
 }
 
-interface CartItem extends ItemSvc.UiItem {
+interface CartItem extends Item.UiItem {
   quantity: number;
   returnDate?: string;
 }
@@ -28,7 +29,7 @@ interface BorrowHistory {
   status: 'BORROWED' | 'RETURNED' | 'PARTIAL';
 }
 
-const mapBorrowableStock = (rows: ItemSvc.UiItem[] = []): ItemSvc.UiItem[] => {
+const mapBorrowableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => {
   return rows.map((item) => ({
     ...item,
     stock: typeof item.availableStock === "number" ? item.availableStock : item.stock,
@@ -41,18 +42,18 @@ export default function BorrowClient({ initialItems }: Props) {
   const [selectedDeptId, setSelectedDeptId] = useState<string>("");
   
   // ✅ State สำหรับรายการ Items
-  const [items, setItems] = useState<ItemSvc.UiItem[]>(mapBorrowableStock(initialItems || []));
+  const [items, setItems] = useState<Item.UiItem[]>(mapBorrowableStock(initialItems || []));
 
   // ✅ State สำหรับ Options (Dropdowns)
-  const [categories, setCategories] = useState<ItemSvc.categoryOptions>([]);
-  const [units, setUnits] = useState<ItemSvc.unitOptions>([]);
+  const [categories, setCategories] = useState<Item.categoryOptions>([]);
+  const [units, setUnits] = useState<Item.unitOptions>([]);
 
   // ✅ State สำหรับ Cart และ Shopping
   const [selectedItems, setSelectedItems] = useState<CartItem[]>([]);
 
   // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("ประเภททั้งหมด");
+  const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
   const [selectedUnit, setSelectedUnit] = useState("หน่วยทั้งหมด");
   const [selectedLocation, setSelectedLocation] = useState("ตำแหน่งทั้งหมด");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -67,7 +68,8 @@ export default function BorrowClient({ initialItems }: Props) {
   const [isFetching, setIsFetching] = useState(false);
 
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
-  const [selectedItemForDetail, setSelectedItemForDetail] = useState<ItemSvc.UiItem | null>(null);
+  const [selectedItemForDetail, setSelectedItemForDetail] = useState<Item.UiItem | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
 
   // State ยืม/คืน
   const [globalReturnDate, setGlobalReturnDate] = useState('');
@@ -189,7 +191,7 @@ export default function BorrowClient({ initialItems }: Props) {
   }, [isCategoryDropdownOpen, isUnitDropdownOpen, isLocationDropdownOpen]);
 
   // --- [Filter Logic] ---
-  const filterCategories = ["ประเภททั้งหมด", ...(categories || []).map((c) => c.name)];
+  const filterCategories = ["หมวดหมู่ทั้งหมด", ...(categories || []).map((c) => c.name)];
   const filterUnits = ["หน่วยทั้งหมด", ...(units || []).map((u) => u.name)];
   const filterLocations = useMemo(() => {
     const locations = new Set(items.map((item) => item.location).filter(Boolean));
@@ -203,7 +205,7 @@ export default function BorrowClient({ initialItems }: Props) {
         (item.code || "").toLowerCase().includes(term) ||
         (item.name || "").toLowerCase().includes(term);
 
-      const matchesCat = selectedCategory === "ประเภททั้งหมด" || item.category === selectedCategory;
+      const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
       const matchesUnit = selectedUnit === "หน่วยทั้งหมด" || item.unit === selectedUnit;
       const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
 
@@ -218,7 +220,7 @@ export default function BorrowClient({ initialItems }: Props) {
   }, [filteredItems, currentPage, itemsPerPage]);
 
   // --- [Helper Actions] ---
-  const openItemDetail = useCallback((item: ItemSvc.UiItem) => {
+  const openItemDetail = useCallback((item: Item.UiItem) => {
     setSelectedItemForDetail(item);
     setShowItemDetailModal(true);
   }, []);
@@ -269,7 +271,7 @@ export default function BorrowClient({ initialItems }: Props) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCartModal(true)}
-            className={`px-4 py-2 rounded-xl bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${isCartBouncing ? "animate-bounce-custom" : ""
+            className={`px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${isCartBouncing ? "animate-bounce-custom" : ""
               }`}
           >
             <ShoppingCart className="w-4 h-4" />
@@ -287,7 +289,7 @@ export default function BorrowClient({ initialItems }: Props) {
             placeholder="ค้นหา..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
@@ -295,7 +297,7 @@ export default function BorrowClient({ initialItems }: Props) {
         <div className="relative" data-category-dropdown>
           <button
             onClick={() => { setIsCategoryDropdownOpen(!isCategoryDropdownOpen); setIsUnitDropdownOpen(false); setIsLocationDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedCategory}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryDropdownOpen ? "rotate-180" : ""}`} />
@@ -303,7 +305,7 @@ export default function BorrowClient({ initialItems }: Props) {
 
           {/* Category Dropdown Menu */}
           {isCategoryDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterCategories.map((c) => (
                   <li key={c}>
@@ -329,7 +331,7 @@ export default function BorrowClient({ initialItems }: Props) {
         <div className="relative" data-unit-dropdown>
           <button
             onClick={() => { setIsUnitDropdownOpen(!isUnitDropdownOpen); setIsCategoryDropdownOpen(false); setIsLocationDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedUnit}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUnitDropdownOpen ? "rotate-180" : ""}`} />
@@ -337,7 +339,7 @@ export default function BorrowClient({ initialItems }: Props) {
 
           {/* Unit Dropdown Menu */}
           {isUnitDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterUnits.map((u) => (
                   <li key={u}>
@@ -366,7 +368,7 @@ export default function BorrowClient({ initialItems }: Props) {
         <div className="relative" data-location-dropdown>
           <button
             onClick={() => { setIsLocationDropdownOpen(!isLocationDropdownOpen); setIsCategoryDropdownOpen(false); setIsUnitDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedLocation}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationDropdownOpen ? "rotate-180" : ""}`} />
@@ -374,7 +376,7 @@ export default function BorrowClient({ initialItems }: Props) {
 
           {/* Location Dropdown Menu */}
           {isLocationDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterLocations.map((loc) => (
                   <li key={loc}>
@@ -401,7 +403,7 @@ export default function BorrowClient({ initialItems }: Props) {
       </div>
 
       {/* Table Content */}
-      <div className="rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -409,17 +411,41 @@ export default function BorrowClient({ initialItems }: Props) {
             </div>
           </div>
         )}
-        <div className="overflow-x-auto overflow-y-auto flex-1">
+        <div 
+          className="flex-1" 
+          style={{
+            overflowX: 'auto',
+            overflowY: 'auto',
+            scrollbarWidth: 'auto',
+            msOverflowStyle: 'auto',
+          } as React.CSSProperties}
+        >
+          <style>{`
+            div::-webkit-scrollbar {
+              width: 0;
+              height: 8px;
+            }
+            div::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            div::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+            }
+            div::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
-                <th className="px-6 py-4 w-[120px]">รหัสครุภัณฑ์</th>
+                <th className="px-6 py-4 w-[120px]">รหัสพัสดุ</th>
                 <th className="px-6 py-4 w-[300px]">ชื่อรายการ</th>
-                <th className="px-6 py-4 w-[140px]">ประเภท</th>
+                <th className="px-6 py-4 w-[140px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[150px]">ตำแหน่ง</th>
-                <th className="px-6 py-4 text-center w-[150px]">คงเหลือ</th>
+                <th className="px-6 py-4 w-[150px]">คงเหลือ</th>
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
@@ -432,9 +458,14 @@ export default function BorrowClient({ initialItems }: Props) {
                   <td className="px-6 py-4 w-[100px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
-                        <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
+                        <button
+                          onClick={() => setLightboxImage({ url: item.imageUrl!, name: item.name })}
+                          className="w-full h-full focus:outline-none"
+                        >
+                          <img src={item.imageUrl} className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in" alt={item.name} />
+                        </button>
                       ) : (
-                        <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
+                        <PackagePlus className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
                       )}
                     </div>
                   </td>
@@ -446,14 +477,14 @@ export default function BorrowClient({ initialItems }: Props) {
                   </td>
                   <td className="px-6 py-4 w-[140px] text-slate-600">{item.category}</td>
                   <td className="px-6 py-4 w-[150px]">{item.location || '-'}</td>
-                  <td className="px-6 py-4 text-center w-[150px]">
+                  <td className="px-6 py-4 w-[150px]">
                     {item.stock} {item.unit}
                   </td>
                   <td className="px-6 py-4 text-right w-[100px]">
                     <button
                       onClick={() => addToCart(item)}
                       disabled={item.stock <= 0}
-                      className="p-1.5 bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="p-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       title="เพิ่มเข้าตะกร้า"
                     >
                       <Plus size={16} />
@@ -487,7 +518,7 @@ export default function BorrowClient({ initialItems }: Props) {
           <button
             disabled={currentPage === 1}
             onClick={() => setCurrentPage((p) => p - 1)}
-            className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -497,7 +528,7 @@ export default function BorrowClient({ initialItems }: Props) {
           <button
             disabled={currentPage >= totalPages}
             onClick={() => setCurrentPage((p) => p + 1)}
-            className="p-2 border border-slate-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -526,6 +557,32 @@ export default function BorrowClient({ initialItems }: Props) {
         departments={departments}
         onDeptChange={setSelectedDeptId}
       />
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative bg-white rounded-lg shadow-2xl p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-lg shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.name}
+              className="w-[350px] h-[280px] object-contain rounded-lg"
+            />
+            <p className="text-center text-sm text-slate-600 mt-2 pb-1">{lightboxImage.name}</p>
+          </div>
+        </div>
+      )}
 
     </div>
   );

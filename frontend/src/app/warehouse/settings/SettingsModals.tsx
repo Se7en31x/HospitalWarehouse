@@ -3,9 +3,9 @@
 import {
   X,
   Save,
-  AlertTriangle,
-  Trash2,
+  ChevronDown,
 } from "lucide-react";
+import { useState, useEffect } from "react";
 import type {
   Category,
   CategoryPayload,
@@ -37,12 +37,6 @@ interface SettingsModalsProps {
   onSupplierFormChange: (form: SupplierPayload) => void;
   isSaving: boolean;
   onFormSubmit: () => void;
-
-  // Delete Modal Props
-  deleteModalOpen: boolean;
-  itemToDelete: { id: string; type: TabType; name: string } | null;
-  onDeleteModalClose: () => void;
-  onConfirmDelete: () => void;
 }
 
 export default function SettingsModals({
@@ -60,20 +54,39 @@ export default function SettingsModals({
   onSupplierFormChange,
   isSaving,
   onFormSubmit,
-  deleteModalOpen,
-  itemToDelete,
-  onDeleteModalClose,
-  onConfirmDelete,
 }: SettingsModalsProps) {
+  const [isItemTypeOpen, setIsItemTypeOpen] = useState(false);
+  
   const labelClass = "block text-sm font-semibold text-slate-700 mb-1.5";
   const inputClass = "w-full border border-slate-300 bg-white rounded-lg px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm";
+  
+  const itemTypeOptions = [
+    { value: "CONSUMABLE", label: "CONSUMABLE - วัสดุสิ้นเปลือง" },
+    { value: "REUSABLE", label: "REUSABLE - ของใช้ซ้ำรายชิ้น" },
+    { value: "MED_ASSET", label: "MED_ASSET - ครุภัณฑ์ภายในองค์กร" },
+  ];
+  
+  const getItemTypeLabel = (value: string) => {
+    return itemTypeOptions.find(opt => opt.value === value)?.label || value;
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-filter-item-type]")) setIsItemTypeOpen(false);
+    };
+    if (isItemTypeOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isItemTypeOpen]);
 
   return (
     <>
       {/* ================= ADD / EDIT FORM MODAL (POP-UP) ================= */}
       {isFormModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
             
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-900">{formTitle}</h2>
@@ -96,18 +109,43 @@ export default function SettingsModals({
                     </div>
                     <div className="md:col-span-2">
                       <label className={labelClass}>ประเภทสินค้าเริ่มต้นของหมวดหมู่ <span className="text-red-500">*</span></label>
-                      <select
-                        value={categoryForm.item_type || "CONSUMABLE"}
-                        onChange={(e) => onCategoryFormChange({
-                          ...categoryForm,
-                          item_type: e.target.value as "CONSUMABLE" | "REUSABLE" | "MED_ASSET",
-                        })}
-                        className={inputClass}
-                      >
-                        <option value="CONSUMABLE">CONSUMABLE - วัสดุสิ้นเปลือง</option>
-                        <option value="REUSABLE">REUSABLE - ของใช้ซ้ำรายชิ้น</option>
-                        <option value="MED_ASSET">MED_ASSET - ครุภัณฑ์ภายในองค์กร</option>
-                      </select>
+                      <div className="relative" data-filter-item-type>
+                        <button
+                          type="button"
+                          onClick={() => setIsItemTypeOpen(!isItemTypeOpen)}
+                          className="w-full flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm justify-between"
+                        >
+                          <span className="text-slate-800 font-medium text-left">{getItemTypeLabel(categoryForm.item_type || "CONSUMABLE")}</span>
+                          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isItemTypeOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {isItemTypeOpen && (
+                          <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 w-full max-h-64 overflow-y-auto">
+                            <ul className="py-1">
+                              {itemTypeOptions.map(opt => (
+                                <li key={opt.value}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onCategoryFormChange({
+                                        ...categoryForm,
+                                        item_type: opt.value as "CONSUMABLE" | "REUSABLE" | "MED_ASSET",
+                                      });
+                                      setIsItemTypeOpen(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                      (categoryForm.item_type || "CONSUMABLE") === opt.value
+                                        ? "bg-blue-50 text-blue-700 font-medium"
+                                        : "text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <label className={labelClass}>รายละเอียด (ไม่บังคับ)</label>
@@ -181,41 +219,6 @@ export default function SettingsModals({
                 {isSaving ? <div className="w-4 h-4 border-2 border-indigo-200 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
                 {isSaving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= DELETE CONFIRMATION MODAL ================= */}
-      {deleteModalOpen && itemToDelete && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden transform transition-all animate-in zoom-in-95 duration-200">
-            <div className="p-6 flex flex-col items-center text-center">
-              <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle className="w-7 h-7" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">ยืนยันการลบข้อมูล</h3>
-              <p className="text-sm text-slate-500 mb-6">
-                คุณต้องการลบ <span className="font-bold text-slate-800">{itemToDelete?.name}</span> ใช่หรือไม่?<br/>
-                การกระทำนี้ไม่สามารถกู้คืนได้
-              </p>
-              <div className="flex w-full gap-3">
-                <button
-                  onClick={onDeleteModalClose}
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={onConfirmDelete}
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-sm transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
-                >
-                  {isSaving ? <div className="w-4 h-4 border-2 border-red-200 border-t-white rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  {isSaving ? "กำลังลบ..." : "ลบข้อมูล"}
-                </button>
-              </div>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, HandHelping } from "lucide-react";
+import { X, PackagePlus, Plus, Minus } from "lucide-react";
 
 interface ItemDetailModalProps {
   isOpen: boolean;
@@ -48,7 +48,7 @@ export default function ItemDetailModal({
       <div className="bg-white rounded-xl w-full max-w-md shadow-xl overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-          <h2 className="font-bold text-slate-800">รายละเอียดครุภัณฑ์</h2>
+          <h2 className="font-bold text-slate-800">รายละเอียดสินค้า</h2>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -67,7 +67,7 @@ export default function ItemDetailModal({
                 {item.imageUrl ? (
                   <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
                 ) : (
-                  <HandHelping className="w-14 h-14 text-slate-300" />
+                  <PackagePlus className="w-14 h-14 text-slate-300" />
                 )}
               </div>
             </div>
@@ -77,7 +77,7 @@ export default function ItemDetailModal({
               {/* Left Column */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase">รหัสครุภัณฑ์</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">รหัสพัสดุ</label>
                   <p className="text-sm font-medium text-slate-800">{item.code}</p>
                 </div>
                 <div>
@@ -109,7 +109,7 @@ export default function ItemDetailModal({
                   คงเหลือ
                 </label>
                 <div className="flex-1 flex items-center">
-                  <p className="text-lg font-bold text-indigo-600">
+                  <p className="text-lg font-bold text-blue-600">
                     {item.stock} {item.unit}
                   </p>
                 </div>
@@ -118,17 +118,31 @@ export default function ItemDetailModal({
               {/* Quantity Selection Right */}
               <div className="flex flex-col">
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
-                  จำนวนที่ต้องการยืม
+                  จำนวนที่ต้องการเบิก
                 </label>
                 <div className="flex-1 flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max={item.stock}
-                    value={quantity}
-                    onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
-                    className="flex-1 text-center px-3 py-2 border border-slate-200 rounded text-lg font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
+                  <div className="flex items-center border border-slate-200 rounded overflow-hidden">
+                    <button
+                      onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
+                      className="px-2 py-2 text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      max={item.stock}
+                      value={quantity}
+                      onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
+                      className="w-16 text-center px-2 py-2 border-0 text-lg font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    <button
+                      onClick={() => handleQuantityChange(Math.min(item.stock, quantity + 1))}
+                      className="px-2 py-2 text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
 
                   <span className="text-sm font-medium text-slate-600 min-w-max">{item.unit}</span>
                 </div>
@@ -150,7 +164,7 @@ export default function ItemDetailModal({
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
           >
             เพิ่มลงตะกร้า
           </button>

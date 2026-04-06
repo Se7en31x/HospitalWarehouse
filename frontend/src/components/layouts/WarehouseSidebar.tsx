@@ -1,13 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, LayoutDashboard, PackageSearch, Layers, ArrowDownToLine, ClipboardCheck, History, FileBarChart, Tags, Settings, Undo2, ChevronLeft } from 'lucide-react';
+import { Menu, LayoutDashboard, PackageSearch, Layers, ArrowDownToLine, ClipboardCheck, History, FileBarChart, Tags, Settings, Undo2, ChevronLeft, PackageCheck   } from 'lucide-react';
 
 export default function WarehouseSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1536) {
+        setCollapsed(true);
+      } else {
+        setCollapsed(false);
+      }
+    };
+
+    // Check immediately on mount
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const menus = [
     {
@@ -28,7 +44,8 @@ export default function WarehouseSidebar() {
       items: [
         { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
         { name: 'รับคืนพัสดุ', path: '/warehouse/returns', icon: Undo2 },
-        { name: 'รับคืนจากแผนก', path: '/warehouse/returns-department', icon: Undo2 },
+        { name: 'รับคืนจากแผนก', path: '/warehouse/returns-department', icon: PackageCheck  },
+
       ]
     },
     {
@@ -42,11 +59,14 @@ export default function WarehouseSidebar() {
   ];
 
   const isActive = (menuPath: string) => {
-    return menuPath === '/warehouse' ? pathname === menuPath : pathname.startsWith(menuPath);
+    if (menuPath === '/warehouse') {
+      return pathname === menuPath;
+    }
+    return pathname === menuPath || pathname.startsWith(menuPath + '/');
   };
 
   return (
-    <aside className={`relative h-screen ${collapsed ? 'w-20' : 'w-64'} bg-white border-r border-slate-200 flex flex-col transition-all duration-300 shadow-sm z-20`}>
+    <aside className={`relative h-screen shrink-0 ${collapsed ? 'w-20' : 'w-64'} bg-white border-r border-slate-200 flex flex-col transition-all duration-300 shadow-sm z-20`}>
       <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-4 py-3 border-b border-slate-50`}>
         {!collapsed && <span className="text-[11px] font-bold text-blue-600 uppercase tracking-widest">Main Menu</span>}
         <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
