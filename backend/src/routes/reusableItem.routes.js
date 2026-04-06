@@ -4,6 +4,7 @@ const reusableController = require('../controllers/reusableItem.controller');
 
 router.post('/receive', reusableController.createReusableReceive);
 router.get('/', reusableController.getReusableUnits);
+router.get('/barcodes/resolve', reusableController.resolveBarcode);
 router.get('/returnable-summary', reusableController.getReturnableWithdrawSummary);
 router.post('/return-requests', reusableController.createReturnRequest);
 router.get('/return-requests', reusableController.getReturnRequests);

@@ -1,219 +1,186 @@
-/**
- * Report Service - Hospital Warehouse System
- * Handles all report-related API calls with clean error handling
- */
-
 import Cookies from "js-cookie";
-import * as ReportTypes from "@/types/reports_type";
+import * as T from "@/types/report_type";
 
-export type { Report, ReportFilterParams, ReportSummary } from "@/types/reports_type";
-
-// --- Types & Constants ---
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
-// --- Helper Functions ---
-
 /**
- * ดึง Header สำหรับ Request (รองรับทั้งช่วงเทส และช่วงใช้งานจริง)
+ * Helper: จัดการ Fetch และแกะ JSON พร้อมระบุ Type
  */
-const getHeaders = () => {
-    const token = Cookies.get("user_token");
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-    };
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
-    return headers;
-};
+async function request<Data>(path: string, options?: RequestInit): Promise<Data> {
+  const token = Cookies.get("user_token");
+  const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-/**
- * ตรวจสอบและแปลง Response เป็น JSON อย่างปลอดภัย
- */
-async function parseJson<T>(res: Response): Promise<T> {
-    const contentType = res.headers.get("content-type") || "";
-    
-    // ถ้าไม่ใช่ JSON (เช่น ได้ HTML 404/500 กลับมา) ให้โยน Error พร้อมข้อความจากหน้าเว็บ
-    if (!contentType.includes("application/json")) {
-        const raw = await res.text();
-        const errorSnippet = raw.slice(0, 100).replace(/<[^>]*>?/gm, ''); // ตัด tag HTML ออก
-        throw new Error(`Server Error: ${errorSnippet || "Invalid response format"}`);
-    }
-    
-    return (await res.json()) as T;
+  const res = await fetch(`${baseUrl}${cleanPath}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
+    cache: "no-store",
+  });
+
+  const result = await res.json();
+  if (!res.ok || result.success === false) {
+    throw new Error(result.message || `API Error: ${res.status}`);
+  }
+  return result.data as Data;
 }
 
-/**
- * ฟังก์ชันกลางสำหรับยิง API
- */
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-    if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
+// --- API Implementation ---
 
-    // จัดการเรื่อง slash ให้ถูกต้อง (ป้องกัน // ใน URL)
-    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+/** 1. รายงานคงคลัง */
+export async function getStockBalanceReports(params?: T.ReportQueryParams): Promise<T.Report[]> {
+  const query = new URLSearchParams();
+  if (params?.warehouse_id || params?.warehouseId) 
+    query.append("warehouseId", params.warehouse_id || params.warehouseId || "");
+  if (params?.search) query.append("search", params.search);
 
-    const res = await fetch(`${baseUrl}${cleanPath}`, {
-        ...options,
-        headers: {
-            ...getHeaders(),
-            ...(options?.headers || {}),
-        },
-        cache: "no-store",
-    });
-
-    // แกะก้อนข้อมูล { success, data, message }
-    const result = await parseJson<{ success: boolean; data: T; message?: string; error?: string }>(res);
-    
-    if (!res.ok || result.success === false) {
-        throw new Error(result.error || result.message || `Request failed with status ${res.status}`);
-    }
-
-    return result.data;
+  const data = await request<T.PaginatedResponse<T.StockBalanceRaw>>(`/reports/stock-balance?${query.toString()}`);
+  
+  return data.items.map((item): T.Report => ({
+    id: String(item.id),
+    reportNo: item.code,
+    type: "stock-balance",
+    date: new Date().toISOString().split("T")[0],
+    warehouse: item.warehouse,
+    totalItems: 1,
+    totalValue: item.currentStock,
+    status: "COMPLETED",
+    items: [{
+      id: String(item.id),
+      itemCode: item.code,
+      itemName: item.name,
+      quantity: item.currentStock,
+      unit: item.unit,
+    }],
+  }));
 }
 
-// --- Main Service Functions ---
+/** 2. รายงานเคลื่อนไหว / จ่ายออก */
+export async function getStockMovementReports(params?: T.ReportQueryParams): Promise<T.Report[]> {
+  const query = new URLSearchParams();
+  const isOut = params?.type === 'OUT' || params?.type === 'stockout';
+  const apiPath = isOut ? '/reports/stock-out' : '/reports/stock-movement';
+  
+  if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.append("dateTo", params.dateTo);
+  if (params?.search) query.append("search", params.search);
 
-/**
- * ดึงรายงานการเบิกพัสดุ (Requisition Reports)
- */
-export async function getRequisitionReports(
-    params?: ReportTypes.ReportQueryParams
-): Promise<ReportTypes.RequisitionReport[]> {
-    try {
-        const query = new URLSearchParams();
-        if (params?.type) query.append("type", params.type);
-        if (params?.status) query.append("status", params.status);
-        if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
-        if (params?.dateTo) query.append("dateTo", params.dateTo);
-        if (params?.search) query.append("search", params.search);
-        if (params?.department_name) query.append("department_name", params.department_name);
-
-        // ✅ แก้ไขเป็น /v1/requisitions (พหูพจน์) ตาม Route ของ Backend
-        const data = await request<any[]>(`/v1/requisitions?${query.toString()}`);
-
-        return (data || []).map((req) => ({
-            id: String(req.id),
-            reportNo: req.doc_no || "-",
-            type: "requisition" as const,
-            date: req.created_at?.split("T")[0] || new Date().toISOString().split("T")[0],
-            requester: req.requester?.display_name || "Tester Mode",
-            department: req.department_name || "-",
-            totalItems: req.requisition_item?.length || 0,
-            totalValue: calculateReqTotal(req.requisition_item || []),
-            status: (req.status || "PENDING").toUpperCase() as ReportTypes.ReportStatus,
-            items: (req.requisition_item || []).map((item: any) => ({
-                id: String(item.id),
-                itemId: item.item_id || "",
-                itemCode: item.items?.code || "-",
-                itemName: item.items?.name || "-",
-                category: item.items?.category || "-",
-                quantity: item.req_qty || 0,
-                unit: item.items?.unit || "-",
-                unitPrice: Number(item.items?.price || 0),
-                totalPrice: (item.req_qty || 0) * Number(item.items?.price || 0),
-                warehouse: item.items?.location || "-",
-            })),
-            notes: req.note,
-            createdAt: req.created_at,
-        }));
-    } catch (error) {
-        console.error("🚫 Error fetching requisition reports:", error);
-        return [];
-    }
+  const data = await request<T.PaginatedResponse<T.StockMovementRaw>>(`${apiPath}?${query.toString()}`);
+  
+  return data.items.map((item): T.Report => ({
+    id: String(item.id),
+    reportNo: item.itemCode,
+    type: isOut ? "stockout" : "stock-movement",
+    date: item.date,
+    warehouse: item.warehouse,
+    totalItems: 1,
+    totalValue: item.quantity,
+    status: "COMPLETED",
+    notes: item.note,
+    items: [{
+      id: String(item.id),
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      quantity: item.quantity,
+      unit: item.unit,
+    }],
+  }));
 }
 
-/**
- * สรุปสถิติสำหรับ Dashboard
- */
-export function getReportSummary(reports: ReportTypes.Report[]): ReportTypes.ReportSummary[] {
-    const summaryMap: Record<string, ReportTypes.ReportSummary> = {
-        requisition: {
-            type: "requisition",
-            label: "รายการเบิก/ยืม",
-            count: 0,
-            totalValue: 0,
-            totalItems: 0,
-            color: "text-indigo-600",
-            bgColor: "bg-indigo-100",
-            icon: "📋",
-        },
-        // เพิ่มประเภทอื่นๆ ได้ที่นี่
-    };
+/** 3. รายงานสินค้าหมดอายุ */
+export async function getExpiredLotsReports(params?: T.ReportQueryParams): Promise<T.Report[]> {
+  const query = new URLSearchParams();
+  if (params?.dateTo) query.append("dateTo", params.dateTo);
 
-    reports.forEach((report) => {
-        if (summaryMap[report.type]) {
-            summaryMap[report.type].count += 1;
-            summaryMap[report.type].totalValue += report.totalValue || 0;
-            summaryMap[report.type].totalItems += report.totalItems || 0;
-        }
-    });
-
-    return Object.values(summaryMap);
+  const data = await request<T.PaginatedResponse<T.ExpiredLotRaw>>(`/reports/expired-lots?${query.toString()}`);
+  
+  return data.items.map((item): T.Report => ({
+    id: String(item.id),
+    reportNo: item.lotCode,
+    type: "expired-lots",
+    date: item.expiredAt,
+    warehouse: item.warehouse,
+    totalItems: 1,
+    totalValue: item.quantity,
+    status: "COMPLETED",
+    items: [{
+      id: String(item.id),
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      lotCode: item.lotCode,
+      quantity: item.quantity,
+      unit: item.unit,
+      expiryDate: item.expiredAt,
+    }],
+  }));
 }
 
-// --- Internal Helpers ---
+/** 4. รายงานนำเข้า */
+/** 4. รายงานนำเข้า (Stock In) */
+export async function getStockInReports(params?: T.ReportQueryParams): Promise<T.Report[]> {
+  const query = new URLSearchParams();
+  if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
+  if (params?.search) query.append("search", params.search);
 
-function calculateReqTotal(items: any[]): number {
-    return items.reduce((sum, item) => {
-        const price = Number(item.items?.price || 0);
-        return sum + (item.req_qty || 0) * price;
-    }, 0);
+  const data = await request<T.PaginatedResponse<T.StockInRaw>>(`/reports/stock-in?${query.toString()}`);
+  
+  return data.items.map((item): T.Report => ({
+    id: String(item.id),
+    reportNo: item.docNo,
+    type: "stockin",
+    date: item.receiveDate,
+    supplier: item.supplier,
+    warehouse: item.warehouse,
+    totalItems: 1,
+    totalValue: item.quantity,
+    status: "COMPLETED",
+    items: [{
+      id: String(item.id),
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      quantity: item.quantity,
+      unit: item.unit,          
+      unitPrice: item.costPrice,
+      lotCode: item.lotCode,
+      expiryDate: item.expiredAt,
+    }],
+  }));
 }
 
-/**
- * ส่งออกรายงานเป็น PDF หรือ Excel
- */
-export async function exportReports(
-    reports: ReportTypes.Report[],
-    format: "pdf" | "excel"
-): Promise<void> {
-    try {
-        const res = await fetch(`${API_URL}/v1/reports/export`, {
-            method: "POST",
-            headers: getHeaders(),
-            body: JSON.stringify({ reports: reports.map((r) => r.id), format }),
-        });
+/** 5. รายงานเบิกพัสดุ */
+export async function getRequisitionReports(params?: T.ReportQueryParams): Promise<T.Report[]> {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.department_name) query.append("department_name", params.department_name);
 
-        if (!res.ok) {
-            throw new Error(`Export failed with status ${res.status}`);
-        }
-
-        const blob = await res.blob();
-        const ext = format === "pdf" ? "pdf" : "xlsx";
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `report_${new Date().toISOString().split("T")[0]}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-    } catch (error) {
-        console.error("🚫 Export error:", error);
-        throw error;
-    }
+  // อันนี้ Backend Map มาให้ตรงกับ T.Report แล้ว
+  const data = await request<T.PaginatedResponse<T.Report>>(`/reports/requisitions?${query.toString()}`);
+  return data.items;
 }
 
-/**
- * ดึงรายงานทั้งหมดแบบรวมศูนย์
- */
-export async function getAllReports(filters?: ReportTypes.ReportFilterParams): Promise<ReportTypes.Report[]> {
-    try {
-        // ดึงเฉพาะ Requisition ก่อนในเวอร์ชันนี้
-        const reports = await getRequisitionReports({
-            type: filters?.type,
-            status: filters?.status,
-            dateFrom: filters?.startDate,
-            dateTo: filters?.endDate,
-            search: filters?.searchTerm,
-            department_name: filters?.department,
-        });
+/** 6. รวมรายงานทั้งหมด */
+export async function getAllReports(filters?: T.ReportFilterParams): Promise<T.Report[]> {
+  const params: T.ReportQueryParams = {
+    dateFrom: filters?.startDate,
+    dateTo: filters?.endDate,
+    search: filters?.searchTerm,
+    warehouse_id: filters?.warehouse
+  };
 
-        // เรียงลำดับตามวันที่ล่าสุด
-        return reports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    } catch (error) {
-        console.error("🚫 Error in getAllReports:", error);
-        return [];
-    }
+  const results = await Promise.allSettled([
+    getRequisitionReports(params),
+    getStockInReports(params),
+    getStockBalanceReports(params),
+    getExpiredLotsReports(params),
+    getStockMovementReports({ ...params, type: 'OUT' })
+  ]);
+
+  const all = results
+    .filter((r): r is PromiseFulfilledResult<T.Report[]> => r.status === "fulfilled")
+    .flatMap(r => r.value);
+
+  return all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }

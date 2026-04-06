@@ -156,12 +156,38 @@ const getAllRequisitions = async ({
 };
 
 /**
- * 3. ดึงข้อมูลรายใบ (ชื่อตรงกับ Controller: getRequisitionDetail)
+ * 3. ดึงข้อมูลรายใบ (เพิ่มข้อมูล Lot และ Unit ที่ว่างให้หน้าบ้าน)
  */
 const getRequisitionDetail = async (headerId) => {
     const header = await requisitionRepo.SelectRequisitionById(headerId);
     if (!header) throw createHttpError(404, 'ไม่พบใบเบิกที่ระบุ');
-    return DTO.mapRequisitionDetailResponse(header);
+    
+    const mapped = DTO.mapRequisitionDetailResponse(header);
+
+    // ฝังข้อมูล Options ให้หน้าบ้านเลือก
+    for (let i = 0; i < mapped.items.length; i++) {
+        const item = mapped.items[i];
+        if (item.itemType === 'REUSABLE') {
+            const units = await requisitionRepo.selectAvailableReusableUnitsByItem(item.item_id, 99999);
+            item.available_units = units.map(u => ({
+                id: u.id,
+                unit_code: u.unit_code,
+            }));
+            item.available_lots = [];
+        } else {
+            const lots = await requisitionRepo.getItemLots(item.item_id);
+            item.available_lots = lots.map(l => ({
+                id: l.id,
+                lot_code: l.lot_code,
+                lot_name: l.lot_name,
+                quantity: l.quantity,
+                expired_at: l.expired_at,
+            }));
+            item.available_units = [];
+        }
+    }
+
+    return mapped;
 };
 
 /**
@@ -181,9 +207,22 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
         let totalQty = 0;
         const reqItemMap = new Map(header.requisition_item.map(item => [item.id, item]));
 
-        for (const [reqItemId, issuedQty] of Object.entries(itemsToIssue)) {
+        for (const [reqItemId, allocationData] of Object.entries(itemsToIssue)) {
             const rItemId = Number(reqItemId);
-            const qtyNeeded = Number(issuedQty);
+            
+            // รองรับทั้งแบบเก่า (ส่งมาเป็นตัวเลข) และแบบใหม่ (ส่งเป็น Object)
+            let qtyNeeded = 0;
+            let explicitLots = null;
+            let explicitUnits = null;
+
+            if (typeof allocationData === 'object' && allocationData !== null) {
+                qtyNeeded = Number(allocationData.qty || 0);
+                explicitLots = allocationData.lots || null; // { lot_id: takeQty }
+                explicitUnits = allocationData.units || null; // [unit_id_1, unit_id_2]
+            } else {
+                qtyNeeded = Number(allocationData);
+            }
+            
             if (qtyNeeded <= 0) continue;
 
             const currentReqItem = reqItemMap.get(rItemId);
@@ -195,11 +234,30 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
 
             if (itemType === ITEM_TYPE.REUSABLE) {
                 const issueAction = header.type === 'BORROW' ? 'ISSUE_BORROW_REUSABLE' : 'ISSUE_WITHDRAW_REUSABLE';
-                const reusableUnits = await requisitionRepo.selectAvailableReusableUnitsByItem(
-                    currentReqItem.item_id,
-                    qtyNeeded,
-                    tx
-                );
+                let reusableUnits = [];
+                
+                // ใช้ Unit เฉพาะเจาะจงที่หน้าบ้านส่งมา
+                if (explicitUnits && Array.isArray(explicitUnits) && explicitUnits.length > 0) {
+                    const allAvailable = await requisitionRepo.selectAvailableReusableUnitsByItem(currentReqItem.item_id, 99999, tx);
+                    const availableMap = new Map(allAvailable.map(u => [u.id.toString(), u]));
+                    for (const uid of explicitUnits) {
+                        const unit = availableMap.get(uid.toString());
+                        if (!unit) {
+                            throw createHttpError(400, `ครุภัณฑ์ชิ้น ${uid} ของ ${currentReqItem.items.name} ไม่พร้อมใช้งาน`);
+                        }
+                        reusableUnits.push(unit);
+                    }
+                    if (reusableUnits.length !== qtyNeeded) {
+                       throw createHttpError(400, `ระบุบาร์โค้ดสินค้า ${currentReqItem.items.name} ไม่ครบตามจำนวนเบิก (${reusableUnits.length} / ${qtyNeeded})`);
+                    }
+                } else {
+                    // หากไม่ได้ส่งมา ให้ค้นหาแบบสุ่มให้เหมือนเดิม
+                    reusableUnits = await requisitionRepo.selectAvailableReusableUnitsByItem(
+                        currentReqItem.item_id,
+                        qtyNeeded,
+                        tx
+                    );
+                }
 
                 if ((reusableUnits?.length || 0) < qtyNeeded) {
                     const missing = qtyNeeded - (reusableUnits?.length || 0);
@@ -249,35 +307,68 @@ const approveRequisition = async (headerId, itemsToIssue, userSession) => {
                 continue;
             }
 
-            // ตัดสต็อกแบบ FEFO (First Expired, First Out)
+            // เริ่มกระบวนการตัดรับของ Lot (แบบมี Explicit Allocation หรือ FEFO Auto)
             const lots = await requisitionRepo.getItemLots(currentReqItem.item_id, tx);
+            const lotMap = new Map(lots.map(l => [l.id.toString(), l]));
             let remaining = qtyNeeded;
 
-            for (const lot of lots) {
-                if (remaining <= 0) break;
-                if (lot.quantity <= 0) continue;
+            if (explicitLots && typeof explicitLots === 'object') {
+                // จ่ายตามที่ระบุมาจากหน้าบ้านเป๊ะๆ
+                for (const [lotIdString, qtyRequested] of Object.entries(explicitLots)) {
+                    const lotToTake = lotMap.get(lotIdString);
+                    const take = Number(qtyRequested);
+                    if (!lotToTake || lotToTake.quantity < take) {
+                        throw createHttpError(400, `Lot ${lotToTake?.lot_code || lotIdString} ไม่พอให้ตัดยอด`);
+                    }
+                    if (take <= 0) continue;
 
-                const take = Math.min(remaining, lot.quantity);
-                remaining -= take;
+                    remaining -= take;
+                    await lotRepo.decrementLotQuantitySafe(lotToTake.id, take, tx);
+                    await requisitionRepo.createAllocation({
+                        req_item_id: rItemId,
+                        lot_id: lotToTake.id,
+                        qty: take,
+                        status: "COMPLETED"
+                    }, tx);
 
-                // ลดสต็อกใน Lot + บันทึกการจับคู่ (Allocation) + บันทึกการเคลื่อนไหว
-                await lotRepo.decrementLotQuantitySafe(lot.id, take, tx);
-                await requisitionRepo.createAllocation({
-                    req_item_id: rItemId,
-                    lot_id: lot.id,
-                    qty: take,
-                    status: "COMPLETED"
-                }, tx);
+                    await stockMovementRepo.createStockMovement({
+                        item_id: currentReqItem.item_id,
+                        lot_id: lotToTake.id,
+                        quantity: take,
+                        type: "OUT",
+                        note: `เบิกจ่ายตามใบงาน (กำหนด Lot): ${header.doc_no}`,
+                        created_by: approvedByName,
+                        created_by_id: approvedById
+                    }, tx);
+                }
+            } else {
+                // ตัดสต็อกแบบ FEFO กรณีไม่ได้ส่ง Explicit Lots มาระบุ
+                for (const lot of lots) {
+                    if (remaining <= 0) break;
+                    if (lot.quantity <= 0) continue;
 
-                await stockMovementRepo.createStockMovement({
-                    item_id: currentReqItem.item_id,
-                    lot_id: lot.id,
-                    quantity: take,
-                    type: "OUT",
-                    note: `เบิกจ่ายตามใบงาน: ${header.doc_no}`,
-                    created_by: approvedByName,
-                    created_by_id: approvedById
-                }, tx);
+                    const take = Math.min(remaining, lot.quantity);
+                    remaining -= take;
+
+                    // ลดสต็อกใน Lot + บันทึกการจับคู่ (Allocation) + บันทึกการเคลื่อนไหว
+                    await lotRepo.decrementLotQuantitySafe(lot.id, take, tx);
+                    await requisitionRepo.createAllocation({
+                        req_item_id: rItemId,
+                        lot_id: lot.id,
+                        qty: take,
+                        status: "COMPLETED"
+                    }, tx);
+
+                    await stockMovementRepo.createStockMovement({
+                        item_id: currentReqItem.item_id,
+                        lot_id: lot.id,
+                        quantity: take,
+                        type: "OUT",
+                        note: `เบิกจ่ายตามใบงาน: ${header.doc_no}`,
+                        created_by: approvedByName,
+                        created_by_id: approvedById
+                    }, tx);
+                }
             }
 
             if (remaining > 0) {

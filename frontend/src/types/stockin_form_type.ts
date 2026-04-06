@@ -14,6 +14,7 @@ export interface FormData {
   costPrice?: number;
   mfgDate?: string;
   expiryDate?: string;
+  barcode?: string;
   lotCode?: string; // Barcode or lot code field
 }
 

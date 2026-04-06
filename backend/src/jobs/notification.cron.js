@@ -6,11 +6,21 @@ const { getIO, buildUserRoom } = require('../utils/socket');
 const TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Bangkok';
 const ENABLED = process.env.ENABLE_NOTIFICATION_CRON !== 'false';
 
+// Schedules still read from env (restart required to change cron schedule itself)
 const scheduleExpiring = process.env.CRON_EXPIRING_LOTS || '5 0 * * *';
 const scheduleLowStock = process.env.CRON_LOW_STOCK || '10 0 * * *';
 const scheduleOverdue = process.env.CRON_OVERDUE_BORROW || '15 0 * * *';
 
-const expiringDaysAhead = Math.max(1, Number(process.env.NOTIFY_EXPIRING_DAYS || 7));
+// Dynamic setting: read from DB at runtime (no restart needed)
+let settingsService = null;
+try { settingsService = require('../services/settings.service'); } catch { /* ignore */ }
+
+const getExpiringDaysAhead = async () => {
+  try {
+    if (settingsService) return await settingsService.getExpiringDays();
+  } catch { /* fall back */ }
+  return Math.max(1, Number(process.env.NOTIFY_EXPIRING_DAYS || 30));
+};
 
 let isRunning = false;
 
@@ -54,7 +64,8 @@ const runExpiringLotsJob = async () => {
   const recipients = await getWarehouseRecipientIds();
   if (!recipients.length) return;
 
-  const lots = await notificationService.getExpiringLots({ daysAhead: expiringDaysAhead, limit: 300 });
+  const daysAhead = await getExpiringDaysAhead();
+  const lots = await notificationService.getExpiringLots({ daysAhead, limit: 300 });
   const todayKey = dayjs().format('YYYY-MM-DD');
 
   for (const lot of lots) {
@@ -188,7 +199,6 @@ const startNotificationCronJobs = () => {
     scheduleExpiring,
     scheduleLowStock,
     scheduleOverdue,
-    expiringDaysAhead,
   });
 };
 

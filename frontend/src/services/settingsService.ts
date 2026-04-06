@@ -9,6 +9,7 @@ import type {
     WarehousePayload,
     Supplier,
     SupplierPayload,
+    SystemSettingsMap,
 } from "@/types/settings_type";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -177,4 +178,13 @@ export const updateSupplier = (id: string, payload: Partial<SupplierPayload>) =>
 export const deleteSupplier = (id: string) =>
     request<Supplier>(`${SETTINGS_BASE}/suppliers/${id}`, {
         method: "DELETE",
+    });
+
+// System settings (notifications/schedules)
+export const getSystemSettings = () => request<SystemSettingsMap>(`${SETTINGS_BASE}/settings`);
+
+export const updateSystemSettings = (payload: Record<string, string | number | boolean>) =>
+    request<SystemSettingsMap>(`${SETTINGS_BASE}/settings`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
     });

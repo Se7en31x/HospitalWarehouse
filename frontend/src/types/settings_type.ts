@@ -77,3 +77,16 @@ export interface SupplierPayload {
   phone?: string;
   tax_id?: string;
 }
+
+export type SystemSettingValueType = "string" | "number" | "boolean";
+
+export interface SystemSettingItem {
+  value: string;
+  type: SystemSettingValueType;
+  label: string;
+  group?: string;
+  id?: number;
+  updated_at?: string;
+}
+
+export type SystemSettingsMap = Record<string, SystemSettingItem>;

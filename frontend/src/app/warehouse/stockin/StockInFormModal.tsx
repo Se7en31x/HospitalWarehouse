@@ -26,6 +26,28 @@ import {
   ReceiveItem,
   ConfirmReceiveFormData,
 } from "@/types/stockin_form_type";
+import { resolveToItemId } from "@/services/barcodeService";
+import { ScanLine } from "lucide-react";
+
+const INITIAL_FORM_DATA: FormData = {
+  itemId: "",
+  itemName: "",
+  categoryId: "",
+  category: "",
+  poNumber: "",
+  quantityOrdered: 1,
+  quantityReceived: 0,
+  unitId: "",
+  unit: "",
+  warehouseId: "",
+  warehouseName: "",
+  supplierId: "",
+  costPrice: 0,
+  mfgDate: "",
+  expiryDate: "",
+  barcode: "",
+  lotCode: "",
+};
 
 const INITIAL_CONFIRM_FORM: ConfirmReceiveFormData = {
   receive_date: new Date().toISOString().split("T")[0],
@@ -46,7 +68,6 @@ export default function StockInFormModal({
   const [suppliers, setSuppliers] = useState<StockIn.Option[]>([]);
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [isDraftMode, setIsDraftMode] = useState(false);
 
   // CONFIRM MODE states
   const [confirmFormData, setConfirmFormData] = useState<ConfirmReceiveFormData>(INITIAL_CONFIRM_FORM);
@@ -68,6 +89,10 @@ export default function StockInFormModal({
   const [isItemDropdownOpen, setIsItemDropdownOpen] = useState(false);
   const [supplierSearchQuery, setSupplierSearchQuery] = useState("");
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
+
+  // BARCODE SCAN state
+  const [scanInput, setScanInput] = useState("");
+  const [scanMessage, setScanMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   // ============ INITIALIZE CONFIRM MODE ============
   useEffect(() => {
@@ -135,7 +160,8 @@ export default function StockInFormModal({
       setItemSearchQuery("");
       setIsItemDropdownOpen(false);
       setIsSaving(false);
-      setIsDraftMode(false);
+      setScanInput("");
+      setScanMessage(null);
     }
   }, [isOpen]);
 
@@ -162,16 +188,13 @@ export default function StockInFormModal({
     if (!formData.itemId) errors.itemId = "กรุณาเลือกสินค้า";
     if (formData.quantityOrdered <= 0)
       errors.quantityOrdered = "จำนวนที่สั่งซื้อต้องมากกว่า 0";
-    if (!isDraftMode) {
-      // Normal mode validation
-      if (formData.quantityReceived < 0)
-        errors.quantityReceived = "จำนวนที่รับต้องมากกว่าหรือเท่ากับ 0";
-      if (formData.quantityReceived > formData.quantityOrdered)
-        errors.quantityReceived =
-          "จำนวนที่รับไม่ควรมากกว่าจำนวนที่สั่งซื้อ";
-      if (!formData.expiryDate) errors.expiryDate = "กรุณาระบุวันหมดอายุ";
-    }
-    // Draft mode: no validation for quantityReceived or expiryDate
+
+    if (formData.quantityReceived < 0)
+      errors.quantityReceived = "จำนวนที่รับต้องมากกว่าหรือเท่ากับ 0";
+    if (formData.quantityReceived > formData.quantityOrdered)
+      errors.quantityReceived = "จำนวนที่รับไม่ควรมากกว่าจำนวนที่สั่งซื้อ";
+    
+    if (!formData.expiryDate) errors.expiryDate = "กรุณาระบุวันหมดอายุ";
 
     return errors;
   };
@@ -210,7 +233,7 @@ export default function StockInFormModal({
         ...formData,
         warehouseId: formData.warehouseId || selectedItem.warehouseId || "",
         itemName: selectedItem.name,
-        isDraft: isDraftMode,
+        isDraft: false,
       };
 
       setItems([...items, newItem]);
@@ -276,6 +299,32 @@ export default function StockInFormModal({
     setIsSupplierDropdownOpen(false);
   };
 
+  // ============ BARCODE SCAN ============
+  const handleScanBarcode = async () => {
+    const raw = scanInput.trim();
+    if (!raw) return;
+
+    try {
+      const itemId = await resolveToItemId(raw);
+      if (!itemId) {
+        setScanMessage({ text: `ไม่พบรหัส ${raw}`, ok: false });
+        return;
+      }
+      
+      const foundInList = itemsList.find(i => i.id === itemId);
+      if (!foundInList) {
+        setScanMessage({ text: "พบข้อมูลแต่ไม่อยู่ในรายการที่เลือกได้", ok: false });
+        return;
+      }
+
+      setScanMessage({ text: `พบ ${foundInList.name}`, ok: true });
+      await handleItemSelect(itemId);
+      setScanInput(""); // clear after success
+    } catch {
+      setScanMessage({ text: "เกิดข้อผิดพลาดในการค้นหา", ok: false });
+    }
+  };
+
   const handleSaveAll = async () => {
     if (items.length === 0) {
       toast.error("กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ");
@@ -284,7 +333,7 @@ export default function StockInFormModal({
 
     setIsSaving(true);
     try {
-      console.log("Saving items (Draft mode:", isDraftMode, "):", items);
+      console.log("Saving items:", items);
       
       // Validate all items before sending
       const invalidItems = items.filter(item => !item.itemId || !item.warehouseId);
@@ -294,21 +343,9 @@ export default function StockInFormModal({
         return;
       }
 
-      // Separate draft and normal items
-      const draftItems = items.filter(item => item.isDraft);
-      const normalItems = items.filter(item => !item.isDraft);
+      await StockInSvc.saveLots(items);
 
-      // Save draft items if any
-      if (draftItems.length > 0) {
-        await StockInSvc.saveDraftLots(draftItems);
-      }
-
-      // Save normal items if any
-      if (normalItems.length > 0) {
-        await StockInSvc.saveLots(normalItems);
-      }
-
-      toast.success("บันทึกขอมูลสำเร็จ");
+      toast.success("บันทึกข้อมูลสำเร็จ");
       setItems([]);
       onSuccessAction?.();
       onCloseAction?.();
@@ -361,12 +398,8 @@ export default function StockInFormModal({
                 <Package className="w-6 h-6 text-indigo-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">
-                  {isDraftMode ? "สร้างใบเตรียมรับของ" : "สร้างใบรับสินค้า"}
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  {isDraftMode ? "บันทึกการเตรียมสินค้าที่คาดว่าจะมา" : "บันทึกการรับสินค้าเข้าคลัง"}
-                </p>
+                <h2 className="text-2xl font-bold text-slate-900">สร้างใบรับสินค้า</h2>
+                <p className="text-sm text-slate-500 mt-1">บันทึกการรับสินค้าเข้าคลัง</p>
               </div>
             </div>
             <button
@@ -379,38 +412,39 @@ export default function StockInFormModal({
 
           {/* Content */}
           <div className="p-8 space-y-6">
-            {/* Mode Toggle */}
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-slate-900">โหมดบันทึก</p>
-                <p className="text-sm text-slate-600 mt-1">
-                  {isDraftMode 
-                    ? "โหมดแบบร่าง: บันทึกเพื่อเตรียมรับของในอนาคต" 
-                    : "โหมดปกติ: บันทึกการรับสินค้าทันที"}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setIsDraftMode(!isDraftMode);
-                  setFormData(INITIAL_FORM_DATA);
-                  setFormErrors({});
-                  setItems([]);
-                }}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  isDraftMode
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                }`}
-              >
-                {isDraftMode ? "โหมดแบบร่าง" : "โหมดปกติ"}
-              </button>
-            </div>
-
             {/* Form Section */}
             <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-slate-500" />
-                ข้อมูลการรับสินค้า
+              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-slate-500" />
+                  ข้อมูลการรับสินค้า
+                </div>
+                {/* Barcode scan input next to title */}
+                <div className="flex items-center gap-2">
+                  <div className="relative w-64">
+                    <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      value={scanInput}
+                      onChange={(e) => { setScanInput(e.target.value); setScanMessage(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleScanBarcode(); } }}
+                      placeholder="สแกนบาร์โค้ดเพื่อเลือกสินค้า..."
+                      className="w-full rounded-lg border border-indigo-300 py-1.5 pl-9 pr-3 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleScanBarcode()}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+                  >
+                    สแกน
+                  </button>
+                  {scanMessage && (
+                    <span className={`text-xs ml-2 ${scanMessage.ok ? "text-emerald-600" : "text-rose-500"}`}>
+                      {scanMessage.text}
+                    </span>
+                  )}
+                </div>
               </h3>
 
               <div className="space-y-4">
@@ -697,15 +731,14 @@ export default function StockInFormModal({
                         setFormData({ ...formData, barcode: e.target.value })
                       }
                       placeholder="บาร์โค้ด"
-                      disabled={isDraftMode}
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white disabled:bg-slate-100 disabled:opacity-60"
+                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
                     />
                   </div>
 
                   {/* Quantity Ordered / Expected */}
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-slate-700">
-                      {isDraftMode ? "จำนวนที่คาดว่าจะมา" : "จำนวนที่สั่งซื้อ"} <span className="text-red-500">*</span>
+                      จำนวนที่อยู่ในเอกสารสั่งซื้อ <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -726,76 +759,70 @@ export default function StockInFormModal({
                     )}
                   </div>
 
-                  {/* Quantity Received (hidden in draft mode) */}
-                  {!isDraftMode && (
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-700">
-                        จำนวนที่รับ <span className="text-red-500">*</span>
-                      </label>
+                  {/* Quantity Received */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-slate-700">
+                      จำนวนที่รับจริง <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.quantityReceived}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          quantityReceived: Number(e.target.value),
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-indigo-50"
+                    />
+                    {formErrors.quantityReceived && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {formErrors.quantityReceived}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Mfg Date */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-slate-700">
+                      วันที่ผลิต
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       <input
-                        type="number"
-                        min="0"
-                        value={formData.quantityReceived}
+                        type="date"
+                        value={formData.mfgDate || ""}
                         onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            quantityReceived: Number(e.target.value),
-                          })
+                          setFormData({ ...formData, mfgDate: e.target.value })
                         }
-                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-indigo-50"
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
                       />
-                      {formErrors.quantityReceived && (
-                        <p className="text-red-500 text-xs mt-1">
-                          {formErrors.quantityReceived}
-                        </p>
-                      )}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Mfg Date (hidden in draft mode) */}
-                  {!isDraftMode && (
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-700">
-                        วันที่ผลิต
-                      </label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                        <input
-                          type="date"
-                          value={formData.mfgDate || ""}
-                          onChange={(e) =>
-                            setFormData({ ...formData, mfgDate: e.target.value })
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                        />
-                      </div>
+                  {/* Expiry Date */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-slate-700">
+                      วันหมดอายุ <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input
+                        type="date"
+                        value={formData.expiryDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, expiryDate: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                      />
                     </div>
-                  )}
-
-                  {/* Expiry Date (required in normal mode, hidden in draft mode) */}
-                  {!isDraftMode && (
-                    <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-700">
-                        วันหมดอายุ <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                        <input
-                          type="date"
-                          value={formData.expiryDate}
-                          onChange={(e) =>
-                            setFormData({ ...formData, expiryDate: e.target.value })
-                          }
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm pl-10 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                        />
-                      </div>
-                      {formErrors.expiryDate && (
-                        <p className="text-red-500 text-xs mt-1">
-                          {formErrors.expiryDate}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                    {formErrors.expiryDate && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {formErrors.expiryDate}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -811,7 +838,7 @@ export default function StockInFormModal({
                   ) : (
                     <Plus className="w-4 h-4" />
                   )}
-                  {isDraftMode ? "เพิ่มรายการเตรียม" : "เพิ่มรายการ"}
+                  เพิ่มรายการ
                 </button>
                 <button
                   onClick={() => {
@@ -855,24 +882,17 @@ export default function StockInFormModal({
                           ประเภท
                         </th>
                         <th className="px-4 py-3 text-center font-semibold text-slate-700">
-                          {items[0]?.isDraft ? "คาดว่าเข้า" : "สั่ง"}
+                          สั่งซื้อ
                         </th>
-                        {!items[0]?.isDraft && (
-                          <th className="px-4 py-3 text-center font-semibold text-slate-700">
-                            รับ
-                          </th>
-                        )}
+                        <th className="px-4 py-3 text-center font-semibold text-slate-700">
+                          รับจริง
+                        </th>
                         <th className="px-4 py-3 text-left font-semibold text-slate-700">
                           หน่วย
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-slate-700">
                           คลัง
                         </th>
-                        {items[0]?.isDraft && (
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700">
-                            สถานะ
-                          </th>
-                        )}
                         <th className="px-4 py-3 text-center font-semibold text-slate-700">
                           การกระทำ
                         </th>
@@ -880,7 +900,7 @@ export default function StockInFormModal({
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {items.map((item, index) => (
-                        <tr key={index} className={`hover:bg-white transition-colors ${item.isDraft ? "bg-blue-50" : ""}`}>
+                        <tr key={index} className="hover:bg-white transition-colors">
                           <td className="px-4 py-3 text-slate-600 font-mono text-sm">
                             {index + 1}
                           </td>
@@ -897,26 +917,17 @@ export default function StockInFormModal({
                               {item.quantityOrdered}
                             </span>
                           </td>
-                          {!item.isDraft && (
-                            <td className="px-4 py-3 text-center">
-                              <span className="inline-block px-2 py-1 bg-indigo-100 text-indigo-700 rounded font-semibold text-xs">
-                                {item.quantityReceived}
-                              </span>
-                            </td>
-                          )}
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-block px-2 py-1 bg-indigo-100 text-indigo-700 rounded font-semibold text-xs">
+                              {item.quantityReceived}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-slate-600 text-sm">
                             {item.unit}
                           </td>
                           <td className="px-4 py-3 text-slate-600 text-sm">
                             {item.warehouseName}
                           </td>
-                          {item.isDraft && (
-                            <td className="px-4 py-3 text-left">
-                              <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded font-semibold text-xs">
-                                แบบร่าง
-                              </span>
-                            </td>
-                          )}
                           <td className="px-4 py-3 text-center">
                             <button
                               onClick={() => handleRemoveItem(index)}
@@ -938,13 +949,10 @@ export default function StockInFormModal({
           <div className="sticky bottom-0 bg-white border-t border-slate-200 px-8 py-4 flex justify-between items-center">
             <div>
               <p className="text-sm text-slate-500">
-                {isDraftMode ? "รายการเตรียม" : "ยอดรวม"}
+                ยอดรวม
               </p>
               <p className="text-2xl font-bold text-indigo-600">
-                {isDraftMode 
-                  ? `${items.length} รายการ`
-                  : `฿${totalAmount.toLocaleString()}`
-                }
+                {`฿${totalAmount.toLocaleString()}`}
               </p>
             </div>
             <div className="flex gap-3">
@@ -964,7 +972,7 @@ export default function StockInFormModal({
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                {isDraftMode ? "บันทึกรายการเตรียมรับ" : "บันทึกใบรับสินค้า"}
+                บันทึกใบรับสินค้า
               </button>
             </div>
           </div>

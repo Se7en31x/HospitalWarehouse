@@ -59,6 +59,48 @@ export interface LotStats {
   nearExpiry: number;
 }
 
+export interface DashboardAnalytics {
+  summary: {
+    totalItems: number;
+    totalLots: number;
+    totalDepartments: number;
+    totalSuppliers: number;
+    totalUsers: number;
+  };
+  lotHealth: {
+    totalLots: number;
+    belowMinimumLots: number;
+    nearExpiryLots: number;
+    normalLots: number;
+    thresholdDate: string;
+  };
+  expiringLotsTop: ExpiringLot[];
+  weeklyRequisitions: WeeklyRequisition[];
+  monthlyRequisitions: Array<Omit<MonthlyRequisition, "label">>;
+  topItems: Array<{ item_code: string; item_name: string; quantity: number }>;
+  expiry: {
+    expiredLots: number;
+    nearExpiryLots: number;
+    monthlyExpiredTrend: Array<{ month: string; expiredLots: number }>;
+  };
+  lowStock: {
+    lowStockItems: number;
+    topLowStockItems: Array<{
+      id: string;
+      item_code: string;
+      item_name: string;
+      min_stock: number;
+      current_stock: number;
+      deficit: number;
+    }>;
+  };
+  stockIn: {
+    monthly: Array<{ month: string; total: number; byType: Record<string, number> }>;
+    thisMonth: { month: string; total: number; byType: Record<string, number> };
+  };
+  generatedAt: string;
+}
+
 // ─── Helpers: fetch count via meta from list endpoints ───────────
 
 async function fetchCount(endpoint: string): Promise<number> {
@@ -86,6 +128,27 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     ]);
 
   return { totalItems, totalItemLots, totalDepartments, totalSuppliers, totalUsers };
+}
+
+export async function getDashboardAnalytics(params?: {
+  expiryDays?: number;
+  weeks?: number;
+  months?: number;
+  topItems?: number;
+  expiringLimit?: number;
+}): Promise<DashboardAnalytics> {
+  const query = new URLSearchParams();
+  if (params?.expiryDays != null) query.set("expiryDays", String(params.expiryDays));
+  if (params?.weeks != null) query.set("weeks", String(params.weeks));
+  if (params?.months != null) query.set("months", String(params.months));
+  if (params?.topItems != null) query.set("topItems", String(params.topItems));
+  if (params?.expiringLimit != null) query.set("expiringLimit", String(params.expiringLimit));
+
+  const qs = query.toString();
+  const body = await fetchJson<{ status: string; message?: string; data: DashboardAnalytics }>(
+    `/v1/analytics/dashboard${qs ? `?${qs}` : ""}`
+  );
+  return body.data;
 }
 
 export async function getExpiringLots(days = 90): Promise<ExpiringLot[]> {

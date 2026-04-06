@@ -1,25 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, use } from "react";
+import { useRouter } from "next/navigation";
 import {
   X, PackageCheck, Building2, User, Loader2, Minus, Plus, ScanLine, Trash2, ArrowRight
 } from "lucide-react";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import {
+  getRequisitionById,
   approveRequisition,
   rejectRequisition,
   completeRequisitionDelivery
-} from "../../../services/requisitionService";
-import { RequisitionHeader, RequisitionItem } from "../../../types/requisition_type";
-
-interface RequisitionDetailsModalProps {
-  isOpen: boolean;
-  requisition: RequisitionHeader | null;
-  onClose: () => void;
-  onSuccess: () => void;
-  displayDeptName: (req: RequisitionHeader) => string;
-  displayRequesterName: (req: RequisitionHeader) => string;
-}
+} from "../../../../services/requisitionService";
+import { RequisitionHeader, RequisitionItem, RequisitionItemLots, RequisitionItemUnits } from "../../../../types/requisition_type";
+import { useAuth } from "@/lib/useAuth"; 
 
 export interface ItemAllocation {
   qty: number;
@@ -27,14 +21,15 @@ export interface ItemAllocation {
   units: string[]; 
 }
 
-const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
-  isOpen,
-  requisition,
-  onClose,
-  onSuccess,
-  displayDeptName,
-  displayRequesterName
-}) => {
+export default function RequisitionDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
+  const unwrappedParams = use(params);
+  const reqId = parseInt(unwrappedParams.id, 10);
+  
+  const { departments } = useAuth();
+  const [requisition, setRequisition] = useState<RequisitionHeader | null>(null);
+  const [isFetching, setIsFetching] = useState(true);
+
   const [allocations, setAllocations] = useState<Record<number, ItemAllocation>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
@@ -45,27 +40,62 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
   const isApproved = requisition?.status === 'APPROVED';
   const canCompleteDelivery = isApproved && requisition?.type === 'WITHDRAW';
 
-  useEffect(() => {
-    if (isOpen && requisition && requisition.items) {
-      const initialAllocs: Record<number, ItemAllocation> = {};
-      requisition.items.forEach((item: RequisitionItem) => {
-        initialAllocs[item.id] = { qty: 0, lots: {}, units: [] };
-      });
-      setAllocations(initialAllocs);
-      if (requisition.items.length > 0) {
-        setSelectedItemId(requisition.items[0].id);
+  const displayDeptName = useCallback((req: RequisitionHeader): string => {
+    const deptInAuth = departments?.find(d => d.id === req.department_id);
+    if (deptInAuth) return deptInAuth.name;
+    return req.department_id ? `แผนก (${req.department_id})` : "ไม่ระบุแผนก";
+  }, [departments]);
+  
+  const displayRequesterName = (req: RequisitionHeader): string => {
+    return req.requester || req.requester_id || "ไม่ระบุผู้ทำรายการ";
+  };
+
+  const fetchRequisition = async () => {
+    setIsFetching(true);
+    try {
+      const res = await getRequisitionById(reqId);
+      if (res.success && res.data) {
+        setRequisition(res.data);
+      } else {
+        toast.error(res.message || "ไม่สามารถโหลดรายละเอียดได้");
+        router.push("/warehouse/requests");
       }
+    } catch {
+      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ 서버");
+    } finally {
+      setIsFetching(false);
     }
-  }, [isOpen, requisition]);
+  };
 
   useEffect(() => {
-    if (!isOpen || !requisition || !isPending) return;
+    if (!isNaN(reqId)) {
+      fetchRequisition();
+    }
+  }, [reqId]);
+
+  useEffect(() => {
+    if (requisition && requisition.items) {
+      if (Object.keys(allocations).length === 0) {
+          const initialAllocs: Record<number, ItemAllocation> = {};
+          requisition.items.forEach((item: RequisitionItem) => {
+            initialAllocs[item.id] = { qty: 0, lots: {}, units: [] };
+          });
+          setAllocations(initialAllocs);
+          if (requisition.items.length > 0) {
+            setSelectedItemId(requisition.items[0].id);
+          }
+      }
+    }
+  }, [requisition]);
+
+  useEffect(() => {
+    if (!requisition || !isPending) return;
     
     setAllocations(prev => {
       const newAllocs = { ...prev };
       let changed = false;
       
-      requisition.items.forEach(item => {
+      requisition.items.forEach((item: RequisitionItem) => {
         const isReusable = item.itemType === 'REUSABLE';
         const alloc = newAllocs[item.id];
         
@@ -74,7 +104,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
           const autoLots: Record<string, number> = {};
           let totalTaken = 0;
 
-          item.available_lots.forEach(lot => {
+          item.available_lots.forEach((lot: RequisitionItemLots) => {
             if (remaining <= 0 || lot.quantity <= 0) return;
             const take = Math.min(remaining, lot.quantity);
             autoLots[lot.id.toString()] = take;
@@ -88,7 +118,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       });
       return changed ? newAllocs : prev;
     });
-  }, [isOpen, requisition, isPending]);
+  }, [requisition, isPending]);
 
   const updateAllocation = (id: number, val: ItemAllocation) => {
     setAllocations(prev => ({ ...prev, [id]: val }));
@@ -124,7 +154,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       return;
     }
 
-    const foundUnit = currentItem.available_units?.find(u => u.unit_code.toLowerCase() === raw.toLowerCase());
+    const foundUnit = currentItem.available_units?.find((u: RequisitionItemUnits) => u.unit_code.toLowerCase() === raw.toLowerCase());
     if (!foundUnit) {
       toast.error(`ไม่พบบาร์โค้ด ${raw} ในรายการที่พร้อมใช้งาน`);
       setScanInput("");
@@ -167,8 +197,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       const res = await approveRequisition(requisition.id, payload);
       if (res.success) {
         toast.success("อนุมัติและตัดสต็อกสำเร็จ!", { id: loadId });
-        onClose();
-        onSuccess(); 
+        router.push("/warehouse/requests");
       } else {
         throw new Error(res.message || "เกิดข้อผิดพลาดจากระบบ");
       }
@@ -191,8 +220,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       const res = await rejectRequisition(requisition.id, reason.trim());
       if (res.success) {
         toast.success("ปฏิเสธรายการแล้ว", { id: loadId });
-        onClose();
-        onSuccess();
+        router.push("/warehouse/requests");
       } else {
         throw new Error(res.message || "ไม่สามารถดำเนินการได้");
       }
@@ -215,8 +243,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       const res = await completeRequisitionDelivery(requisition.id);
       if (res.success) {
         toast.success("บันทึกการนำส่งเรียบร้อย", { id: loadId });
-        onClose();
-        onSuccess();
+        router.push("/warehouse/requests");
       } else {
         throw new Error(res.message || "ไม่สามารถบันทึกการนำส่งได้");
       }
@@ -229,18 +256,28 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
   };
 
   const selectedItem = useMemo(() => {
-    return requisition?.items?.find(i => i.id === selectedItemId);
+    return requisition?.items?.find((i: RequisitionItem) => i.id === selectedItemId);
   }, [requisition, selectedItemId]);
 
-  if (!isOpen || !requisition) return null;
+  if (isFetching) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-4">
+        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-medium animate-pulse">กำลังโหลดข้อมูลใบเบิก...</p>
+      </div>
+    );
+  }
+
+  if (!requisition) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-100 flex flex-col z-[100] animate-in slide-in-from-bottom-4 duration-300 w-screen h-screen overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-slate-50 overflow-hidden">
+      <Toaster position="top-right" />
       
       {/* Header Bar */}
       <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-sm z-10 w-full">
         <div className="flex items-center gap-4">
-          <button onClick={onClose} className="p-2 -ml-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
+          <button onClick={() => router.push("/warehouse/requests")} className="p-2 -ml-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
             <X size={24} />
           </button>
           <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white shadow-sm">
@@ -275,7 +312,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
       </div>
 
       {/* Main Split Layout */}
-      <div className="flex flex-1 overflow-hidden w-full h-full">
+      <div className="flex flex-1 overflow-hidden w-full" style={{ height: "calc(100vh - 64px - 64px)" }}>
         
         {/* Left Side (70%) - Big Table */}
         <div className="w-[70%] bg-white flex flex-col border-r border-slate-200">
@@ -299,7 +336,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {requisition.items?.map((item) => {
+                {requisition.items?.map((item: RequisitionItem) => {
                   const alloc = allocations[item.id] || { qty: 0, lots: {}, units: [] };
                   const isSelected = selectedItemId === item.id;
                   const isComplete = alloc.qty === item.qty;
@@ -419,7 +456,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                           <div className="bg-white border border-slate-200 rounded-xl p-3">
                             <p className="text-xs font-bold text-slate-500 mb-3 ml-1">จิ้มบาร์โค้ดจากรายการที่ว่าง</p>
                             <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
-                              {selectedItem.available_units?.map(unit => {
+                              {selectedItem.available_units?.map((unit: RequisitionItemUnits) => {
                                 const isSelected = alloc.units.includes(unit.id);
                                 return (
                                   <button
@@ -460,7 +497,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                            
                            {selectedItem.available_lots && selectedItem.available_lots.length > 0 ? (
                              <div className="flex flex-col gap-3">
-                               {selectedItem.available_lots.map(lot => {
+                               {selectedItem.available_lots.map((lot: RequisitionItemLots) => {
                                   const lotAllocQty = alloc.lots[lot.id.toString()] || 0;
                                   const isExpired = new Date(lot.expired_at) < new Date();
                                   const isActive = lotAllocQty > 0;
@@ -526,7 +563,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
            {isPending ? (
               <p>ระบบจะบันทึกการตัดคลังแบบอัตโนมัติ กรุณาแน่ใจก่อนกดอนุมัติ</p>
            ) : (
-              <p>รายการนี้ถูกอนุมัติไปแล้วอยู่ในสถานะ {requisition.status}</p>
+              <p>รายการนี้ถูกอนุมัติไปแล้วอยู่ในสถานะ {requisition?.status}</p>
            )}
          </div>
          <div className="flex items-center gap-3">
@@ -566,11 +603,12 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4" onClick={() => setPreviewImage(null)}>
           <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
             <img src={previewImage.url} alt={previewImage.name} className="w-full h-auto max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/20" />
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-12 right-0 text-white flex items-center gap-2 font-bold hover:text-rose-400 transition-colors">
+              ปิดรูปภาพ <X size={24} />
+            </button>
           </div>
         </div>
       )}
     </div>
   );
-};
-
-export default RequisitionDetailsModal;
+}

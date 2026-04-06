@@ -1,12 +1,14 @@
-// src/app/warehouse/reports/page.tsx
 export const dynamic = 'force-dynamic';
 
 import React from "react";
 import ReportsWrapper from "./ReportsWrapper";
-import { getAllReports } from "@/services/reportService";
+// ✅ ตรวจสอบชื่อไฟล์ให้ตรง (ไม่มี s และใช้ .service หรือ Service ตามที่คุณตั้งชื่อไฟล์)
+import { getAllReports } from "@/services/reportService"; 
 import { getInventoryItems } from "@/services/itemsService";
 import { getExpiringLots } from "@/services/dashboardService";
-import type { Report } from "@/types/reports_type";
+
+// ✅ ใช้ Type ตัวใหม่ที่เราเพิ่งทำ (ไม่มี s)
+import type { Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
 
@@ -16,25 +18,41 @@ export default async function WarehouseReportsPage() {
   let initialExpiringLots: ExpiringLot[] = [];
 
   try {
+    // ดึงข้อมูลแบบขนานเพื่อความเร็ว
     const [reports, items, lots] = await Promise.all([
-      getAllReports().catch(() => [] as Report[]),
-      getInventoryItems().catch(() => [] as UiItem[]),
-      getExpiringLots(90).catch(() => [] as ExpiringLot[]),
+      getAllReports().catch(() => {
+        console.error("🚫 Failed to fetch reports");
+        return [] as Report[];
+      }),
+      getInventoryItems().catch(() => {
+        console.error("🚫 Failed to fetch inventory");
+        return [] as UiItem[];
+      }),
+      getExpiringLots(90).catch(() => {
+        console.error("🚫 Failed to fetch expiring lots");
+        return [] as ExpiringLot[];
+      }),
     ]);
+
     initialReports = reports;
     initialItems = items;
     initialExpiringLots = lots;
   } catch (error) {
-    console.error("Error fetching report data:", error);
+    console.error("CRITICAL: Error fetching page data:", error);
   }
 
+  // --- Logic สำหรับสรุปข้อมูลหน้า Dashboard ---
+
+  // 1. สินค้าที่สต็อกต่ำกว่าจุดสั่งซื้อ (Min Stock)
   const lowStockItems = initialItems.filter(
     (item) => item.minStock > 0 && item.stock <= item.minStock
   );
 
+  // 2. นับจำนวนรายการแยกตามประเภท (ใช้ Type ใหม่ได้เลย)
   const requisitionCount = initialReports.filter(
     (r) => r.type === "requisition"
   ).length;
+
   const receiveCount = initialReports.filter(
     (r) => r.type === "stockin"
   ).length;

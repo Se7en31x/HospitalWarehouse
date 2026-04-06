@@ -14,6 +14,7 @@ import {
 import * as ReceiveSvc from "@/services/receiveService";
 import * as StockInSvc from "@/services/stockInService";
 import * as ItemSvc from "@/services/itemsService";
+import { resolveToItemCode } from "@/services/barcodeService";
 import * as StockIn from "@/types/stockin_type";
 import { FormData, FormErrors } from "@/types/stockin_form_type";
 
@@ -54,7 +55,10 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
   const [isItemDropdownOpen, setIsItemDropdownOpen] = useState(false);
   const [supplierSearchQuery, setSupplierSearchQuery] = useState("");
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
-  const [lotMode, setLotMode] = useState<"prepare" | "receive">("receive");
+
+  // BARCODE SCAN State
+  const [scanInput, setScanInput] = useState("");
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAllOptions = async () => {
@@ -125,13 +129,10 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
   const validateForm = (): FormErrors => {
     const errors: FormErrors = {};
     if (!formData.itemId) errors.itemId = "กรุณาเลือกสินค้า";
-    if (lotMode === "prepare") {
-      if (formData.quantityOrdered <= 0) errors.quantityOrdered = "จำนวนต้องมากกว่า 0";
-    } else {
-      if (!formData.lotCode) errors.lotCode = "กรุณาระบุ Lot Code";
-      if (formData.quantityReceived <= 0) errors.quantityReceived = "จำนวนต้องมากกว่า 0";
-      if (!formData.expiryDate) errors.expiryDate = "กรุณาระบุวันหมดอายุ";
-    }
+    if (formData.quantityOrdered <= 0) errors.quantityOrdered = "จำนวนต้องมากกว่า 0";
+    if (!formData.lotCode) errors.lotCode = "กรุณาระบุ Lot Code";
+    if (formData.quantityReceived <= 0) errors.quantityReceived = "จำนวนต้องมากกว่า 0";
+    if (!formData.expiryDate) errors.expiryDate = "กรุณาระบุวันหมดอายุ";
     return errors;
   };
 
@@ -216,6 +217,44 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
     }
   };
 
+  const handleQuickScan = async () => {
+    const raw = scanInput.trim();
+    if (!raw) return;
+
+    try {
+      setIsLoading(true);
+      setScanMessage(null);
+
+      const itemCode = await resolveToItemCode(raw);
+      if (!itemCode) {
+        setScanMessage(`ไม่พบการถอดรหัสจากบาร์โค้ด ${raw}`);
+        return;
+      }
+
+      // Find item in the itemsList
+      const found = itemsList.find((i) =>
+        (i.id || "").toLowerCase() === itemCode.toLowerCase()
+      );
+
+      // if not found by ID, maybe try looking by Name as fallback just in case
+      const foundItem = found || itemsList.find((i) =>
+        (i.name || "").toLowerCase().includes(itemCode.toLowerCase())
+      );
+
+      if (foundItem) {
+        setScanMessage(`✓ พบสินค้า: ${foundItem.name}`);
+        setScanInput("");
+        await handleItemSelect(foundItem.id);
+      } else {
+        setScanMessage(`❌ พบรหัส ${itemCode} แต่ไม่พบสินค้านี้ในระบบ`);
+      }
+    } catch (e) {
+      setScanMessage("❌ เกิดข้อผิดพลาดในการวิเคราะห์บาร์โค้ด");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSupplierSelect = (supplierId: string) => {
     setFormData({ ...formData, supplierId });
     setSupplierSearchQuery("");
@@ -232,29 +271,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
     try {
       let createdReceive: ReceiveSvc.ReceiveHeader | null = null;
 
-      if (lotMode === "prepare") {
-        createdReceive = await ReceiveSvc.createReceive({
-          doc_no: `REC-${Date.now()}`,
-          type: "PURCHASE",
-          supplier_id: formData.supplierId || null,
-          status: "PENDING",
-          note: "เตรียมรับพัสดุ - รอรับของจริง",
-          items: items.map((item) => ({
-            item_id: item.itemId,
-            warehouse_id: item.warehouseId,
-            expected_qty: item.quantityOrdered,
-            qty: 0,
-            cost_price: item.costPrice || 0,
-          })),
-        });
-        Swal.fire({
-          title: "สำเร็จ",
-          text: "บันทึกเตรียมรับพัสดุสำเร็จ",
-          icon: "success",
-          timer: 1500,
-          showConfirmButton: false,
-        });
-      } else {
+
         createdReceive = await ReceiveSvc.createReceive({
           doc_no: `REC-${Date.now()}`,
           type: "PURCHASE",
@@ -278,7 +295,6 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
           timer: 1500,
           showConfirmButton: false,
         });
-      }
 
       setItems([]);
       setTimeout(() => {
@@ -305,8 +321,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
     supplier.name.toLowerCase().includes(supplierSearchQuery.toLowerCase())
   );
 
-  const showBothQty = lotMode === "receive";
-  const showQuantityOrdered = lotMode === "prepare";
+
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-6">
@@ -354,36 +369,6 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
             </div>
           </div>
 
-          {/* ── รูปแบบการรับพัสดุ ── */}
-          <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
-            <p className="text-base font-medium text-slate-600 mb-3">รูปแบบการรับพัสดุเข้าคลัง</p>
-            <div className="flex gap-2">
-              {([
-                { mode: "prepare" as const, label: "เตรียมรับพัสดุ",   desc: "บันทึกจำนวนที่สั่งซื้อไว้ล่วงหน้า รอรับพัสดุจริง" },
-                { mode: "receive" as const, label: "รับพัสดุเข้าคลัง", desc: "ระบุ Lot Code และจำนวนที่รับจริง บันทึกเข้าคลังทันที" },
-              ]).map(({ mode, label, desc }) => {
-                const active = lotMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    onClick={() => {
-                      setLotMode(mode);
-                      setFormData((prev) => resetItemFields(prev));
-                      setItems([]);
-                    }}
-                    className={`flex-1 text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${
-                      active
-                        ? "border-blue-700 bg-blue-50 text-blue-900"
-                        : "border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <p className="font-medium">{label}</p>
-                    <p className={`text-xs mt-0.5 ${active ? "text-blue-600" : "text-slate-400"}`}>{desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           {/* ── ข้อมูลเอกสาร ── */}
           <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
@@ -463,10 +448,45 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
             <p className="text-base font-medium text-slate-600 mb-3">เพิ่มรายการสินค้า</p>
 
             <div className="space-y-6">
+
+              {/* Barcode Quick Scan */}
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                <label className="block text-sm font-semibold text-indigo-900 mb-2">ยิงสแกนเนอร์บาร์โค้ดด่วน</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleQuickScan();
+                      }
+                    }}
+                    placeholder="สแกนรหัสเพื่อเติมข้อมูลสินค้าอัตโนมัติ"
+                    className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleQuickScan()}
+                    disabled={isLoading}
+                    className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                  >
+                    สแกนค้นหา
+                  </button>
+                </div>
+                {scanMessage && (
+                  <p className={`mt-2 text-sm font-medium ${scanMessage.includes("❌") ? "text-red-600" : "text-green-600"}`}>
+                    {scanMessage}
+                  </p>
+                )}
+              </div>
+
               {/* Item Search */}
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">
-                  ชื่อสินค้า <span className="text-red-500">*</span>
+                  ชื่อสินค้า (ค้นหาแบบ Manual) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative" data-item-dropdown>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
@@ -552,39 +572,34 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                     className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
                 </div>
-                {(showQuantityOrdered || showBothQty) && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1.5">
-                      จำนวนที่สั่ง <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="number" min="1"
-                      value={formData.quantityOrdered}
-                      onChange={(e) => setFormData({ ...formData, quantityOrdered: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    />
-                    {formErrors.quantityOrdered && <p className="text-red-500 text-xs mt-1">{formErrors.quantityOrdered}</p>}
-                  </div>
-                )}
-                {showBothQty && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1.5">
-                      จำนวนที่รับจริง <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="number" min="1"
-                      value={formData.quantityReceived}
-                      onChange={(e) => setFormData({ ...formData, quantityReceived: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    />
-                    {formErrors.quantityReceived && <p className="text-red-500 text-xs mt-1">{formErrors.quantityReceived}</p>}
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1.5">
+                    จำนวนที่สั่ง <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number" min="1"
+                    value={formData.quantityOrdered}
+                    onChange={(e) => setFormData({ ...formData, quantityOrdered: Number(e.target.value) })}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  {formErrors.quantityOrdered && <p className="text-red-500 text-xs mt-1">{formErrors.quantityOrdered}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1.5">
+                    จำนวนที่รับจริง <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number" min="1"
+                    value={formData.quantityReceived}
+                    onChange={(e) => setFormData({ ...formData, quantityReceived: Number(e.target.value) })}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  {formErrors.quantityReceived && <p className="text-red-500 text-xs mt-1">{formErrors.quantityReceived}</p>}
+                </div>
               </div>
 
               {/* Lot Info */}
-              {lotMode === "receive" && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
                   <div className="md:col-span-3 -mb-1">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">ข้อมูล Lot</p>
                   </div>
@@ -629,7 +644,6 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                     {formErrors.expiryDate && <p className="text-red-500 text-xs mt-1">{formErrors.expiryDate}</p>}
                   </div>
                 </div>
-              )}
             </div>
 
             {/* Action Buttons */}
@@ -691,14 +705,8 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                       <th className="px-6 py-4 w-[50px]">#</th>
                       <th className="px-6 py-4 w-[220px]">ชื่อสินค้า</th>
                       <th className="px-6 py-4 w-[180px]">ประเภท</th>
-                      {showBothQty ? (
-                        <>
-                          <th className="px-6 py-4 w-[120px] text-right">สั่งซื้อ</th>
-                          <th className="px-6 py-4 w-[120px] text-right">รับจริง</th>
-                        </>
-                      ) : (
                         <th className="px-6 py-4 w-[120px] text-right">สั่งซื้อ</th>
-                      )}
+                        <th className="px-6 py-4 w-[120px] text-right">รับจริง</th>
                       <th className="px-6 py-4 w-[150px]">Lot Code</th>
                       <th className="px-6 py-4 w-[120px]">หน่วย</th>
                       <th className="px-6 py-4 w-[160px]">ตำแหน่งเก็บ</th>
@@ -711,14 +719,8 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                         <td className="px-6 py-4 w-[50px] text-sm text-slate-500">{index + 1}</td>
                         <td className="px-6 py-4 w-[220px] font-medium">{item.itemName}</td>
                         <td className="px-6 py-4 w-[180px] text-slate-600">{item.category}</td>
-                        {showBothQty ? (
-                          <>
-                            <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityOrdered}</td>
-                            <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityReceived}</td>
-                          </>
-                        ) : (
-                          <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityOrdered}</td>
-                        )}
+                        <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityOrdered}</td>
+                        <td className="px-6 py-4 w-[120px] text-right font-semibold">{item.quantityReceived}</td>
                         <td className="px-6 py-4 w-[150px] font-mono text-sm text-slate-600">
                           {item.lotCode || <span className="text-slate-300">—</span>}
                         </td>

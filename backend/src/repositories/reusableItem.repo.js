@@ -292,6 +292,86 @@ const selectUnitsByCodes = async ({ departmentId = null, unitCodes = [] } = {}, 
     });
 };
 
+const selectUnitByBarcodeValue = async ({ value = '', departmentId = null } = {}, tx = prisma) => {
+    const key = (value || '').toString().trim();
+    if (!key) return null;
+
+    return tx.reusable_item_units.findFirst({
+        where: {
+            deleted_at: null,
+            ...(Number.isInteger(Number(departmentId)) && Number(departmentId) > 0 ? { department_id: Number(departmentId) } : {}),
+            OR: [
+                { unit_code: { equals: key, mode: 'insensitive' } },
+                { serial_no: { equals: key, mode: 'insensitive' } },
+            ],
+        },
+        select: {
+            id: true,
+            item_id: true,
+            unit_code: true,
+            serial_no: true,
+            department_id: true,
+            status: true,
+            condition: true,
+            items: {
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                },
+            },
+        },
+    });
+};
+
+const selectLotByBarcodeValue = async ({ value = '' } = {}, tx = prisma) => {
+    const key = (value || '').toString().trim();
+    if (!key) return null;
+
+    return tx.item_lots.findFirst({
+        where: {
+            deleted_at: null,
+            lot_code: { equals: key, mode: 'insensitive' },
+        },
+        select: {
+            id: true,
+            lot_code: true,
+            item_id: true,
+            quantity: true,
+            status: true,
+            expired_at: true,
+            items: {
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                },
+            },
+        },
+    });
+};
+
+const selectItemByBarcodeValue = async ({ value = '' } = {}, tx = prisma) => {
+    const key = (value || '').toString().trim();
+    if (!key) return null;
+
+    return tx.items.findFirst({
+        where: {
+            deleted_at: null,
+            code: { equals: key, mode: 'insensitive' },
+        },
+        select: {
+            id: true,
+            code: true,
+            name: true,
+            current_stock: true,
+            status: true,
+            type: true,
+            warehouse_id: true,
+        },
+    });
+};
+
 const selectInUseWithdrawUnitsByIds = async ({ departmentId, unitIds = [] } = {}, tx = prisma) => {
     const normalizedIds = Array.from(
         new Set(
@@ -370,6 +450,9 @@ module.exports = {
     updateReturnRequestById,
     selectInUseWithdrawUnitsByDeptAndItem,
     selectUnitsByCodes,
+    selectUnitByBarcodeValue,
+    selectLotByBarcodeValue,
+    selectItemByBarcodeValue,
     selectInUseWithdrawUnitsByIds,
     sumPendingReturnRequestQtyByDepartment,
 };

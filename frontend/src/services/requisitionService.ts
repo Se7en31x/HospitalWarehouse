@@ -126,7 +126,7 @@ export const createRequisition = async (
  */
 export const approveRequisition = async (
   requisitionId: number,
-  itemsToIssue: Record<number, number>
+  itemsToIssue: Record<number, number> | Record<string, any>
 ): Promise<ApiResponse<RequisitionHeader | null>> => {
   try {
     const response = await fetch(`${API_BASE_URL}/v1/requisitions/approve/${requisitionId}`, {

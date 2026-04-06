@@ -11,7 +11,7 @@ import {
 import { RequisitionHeader } from "../../../types/requisition_type"; // นำเข้า Type มาใช้
 import { useAuth } from "@/lib/useAuth";
 import toast, { Toaster } from "react-hot-toast";
-import RequisitionDetailsModal from "./RequisitionDetailsModal";
+import { useRouter } from "next/navigation";
 import { socket } from "@/lib/socket";
 
 const getErrorMessage = (error: unknown): string => {
@@ -31,10 +31,9 @@ const RequestClient = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const router = useRouter();
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState<RequisitionHeader | null>(null);
-  const [isDetailLoading, setIsDetailLoading] = useState<number | null>(null);
   const [isCancelLoading, setIsCancelLoading] = useState<number | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
@@ -87,19 +86,24 @@ const RequestClient = () => {
   useEffect(() => {
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) {
+        refreshData();
+      }
     };
 
     onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, []);
+  }, [refreshData]);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
     const scheduleRefresh = () => {
-      if (!isVisibleRef.current) return;
-      if (showDetailsModal || isDetailLoading !== null || isCancelLoading !== null) return;
+      // Allow background refresh if socket pushes it, so we don't strictly block by visibility alone
+      // if (!isVisibleRef.current) return; 
+      // Remove visibility guard on socket, so when it's pushed, it explicitly runs
+      if (isCancelLoading !== null) return;
       if (isRefreshingRef.current) return;
 
       if (refreshTimerRef.current) {
@@ -132,7 +136,7 @@ const RequestClient = () => {
       }
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData, showDetailsModal, isDetailLoading, isCancelLoading]);
+  }, [refreshData, isCancelLoading]);
 
   // --- [Filter Logic] ---
   const filteredRequests = requests.filter(req => {
@@ -330,28 +334,11 @@ const RequestClient = () => {
                   <td className="px-6 py-4 w-[80px] text-center">
                     <div className="flex items-center justify-between gap-1">
                       <button
-                        onClick={async () => {
-                          setIsDetailLoading(req.id);
-                          try {
-                            const res = await getRequisitionById(req.id);
-                            if (res.success && res.data) {
-                              setShowDetailsModal(res.data);
-                            } else {
-                              toast.error(res.message || "ไม่สามารถโหลดรายละเอียดได้");
-                            }
-                          } catch {
-                            toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
-                          } finally {
-                            setIsDetailLoading(null);
-                          }
-                        }}
-                        disabled={isDetailLoading === req.id}
-                        title="ดูรายละเอียด"
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50"
+                        onClick={() => router.push(`/warehouse/requests/${req.id}`)}
+                        title="เข้าสู่หน้าจัดการ"
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                       >
-                        {isDetailLoading === req.id
-                          ? <div className="w-4 h-4 border-2 border-blue-400 border-t-blue-600 rounded-full animate-spin" />
-                          : <Eye className="w-5 h-5" />}
+                        <Eye className="w-5 h-5" />
                       </button>
 
                       {req.status === "PENDING" && (
@@ -437,17 +424,6 @@ const RequestClient = () => {
         </div>
       </div>
 
-      {/* Modal */}
-      {showDetailsModal && (
-        <RequisitionDetailsModal
-          isOpen={!!showDetailsModal}
-          requisition={showDetailsModal}
-          onClose={() => setShowDetailsModal(null)}
-          onSuccess={refreshData}
-          displayDeptName={displayDeptName}
-          displayRequesterName={displayRequesterName}
-        />
-      )}
     </div>
   );
 };

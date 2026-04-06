@@ -721,6 +721,69 @@ const deleteReturnRequest = async (id) => {
     });
 };
 
+const resolveBarcode = async ({ value, departmentId = null } = {}) => {
+    const key = (value || '').toString().trim();
+    if (!key) {
+        throw createHttpError(400, 'value is required');
+    }
+
+    const unit = await reusableRepo.selectUnitByBarcodeValue({ value: key, departmentId });
+    if (unit) {
+        return {
+            type: 'UNIT',
+            value: key,
+            unit: {
+                id: unit.id,
+                unit_code: unit.unit_code,
+                serial_no: unit.serial_no || null,
+                item_id: unit.item_id,
+                item_code: unit.items?.code || null,
+                item_name: unit.items?.name || null,
+                department_id: unit.department_id || null,
+                status: unit.status,
+                condition: unit.condition,
+            },
+        };
+    }
+
+    const lot = await reusableRepo.selectLotByBarcodeValue({ value: key });
+    if (lot) {
+        return {
+            type: 'LOT',
+            value: key,
+            lot: {
+                id: lot.id,
+                lot_code: lot.lot_code,
+                item_id: lot.item_id,
+                item_code: lot.items?.code || null,
+                item_name: lot.items?.name || null,
+                quantity: Number(lot.quantity || 0),
+                status: lot.status,
+                expired_at: lot.expired_at || null,
+            },
+        };
+    }
+
+    const item = await reusableRepo.selectItemByBarcodeValue({ value: key });
+    if (item) {
+        return {
+            type: 'ITEM',
+            value: key,
+            item: {
+                id: item.id,
+                code: item.code,
+                name: item.name,
+                type: item.type,
+                current_stock: Number(item.current_stock || 0),
+                status: item.status,
+                warehouse_id: item.warehouse_id || null,
+            },
+        };
+    }
+
+    return null;
+};
+
 module.exports = {
     createReusableReceive,
     getReusableUnits,
@@ -733,4 +796,5 @@ module.exports = {
     getReturnRequestById,
     processReturnRequest,
     deleteReturnRequest,
+    resolveBarcode,
 };

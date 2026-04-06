@@ -7,7 +7,7 @@ import ReportsClient from "./ReportsClient";
 import ItemsReportClient from "./ItemsReportClient";
 import LowStockReportClient from "./LowStockReportClient";
 import NearExpiryReportClient from "./NearExpiryReportClient";
-import { type Report } from "@/types/reports_type";
+import { type Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
 

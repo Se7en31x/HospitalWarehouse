@@ -1,510 +1,317 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
-	FileText,
-	Search,
-	Calendar,
-	Download,
-	ArrowDownToLine,
-	ArrowUpFromLine,
-	ClipboardCheck,
-	RotateCw,
-	Eye,
-	Filter,
-	ChevronDown,
+    FileText,
+    Search,
+    Calendar,
+    Download,
+    ArrowDownToLine,
+    ArrowUpFromLine,
+    ClipboardCheck,
+    RotateCw,
+    Eye,
+    Filter,
+    ChevronDown,
+    Package,
+    AlertTriangle,
+    History
 } from "lucide-react";
+
+// ✅ Import จากชื่อไฟล์ใหม่ (ไม่มี s)
 import {
-	getAllReports,
-	getReportSummary,
-	exportReports,
-	type Report,
-	type ReportFilterParams,
-	type ReportSummary,
+    getAllReports,
+    // getReportSummary // ถ้าใน service ใหม่ยังไม่ได้ใส่ ให้ใช้ logic ด้านล่างครับ
 } from "@/services/reportService";
 
+import type { 
+    Report, 
+    ReportType, 
+    ReportStatus, 
+    ReportSummary 
+} from "@/types/report_type";
+
 interface ReportsClientProps {
-	initialReports: Report[];
-	selectedType?: string;
+    initialReports: Report[];
+    selectedType?: string;
 }
 
 const ReportsClient: React.FC<ReportsClientProps> = ({
-	initialReports,
-	selectedType: propSelectedType = "all",
+    initialReports,
+    selectedType: propSelectedType = "all",
 }) => {
-	const [reports, setReports] = useState<Report[]>(initialReports);
-	const [filteredReports, setFilteredReports] = useState<Report[]>(initialReports);
-	const [isLoading, setIsLoading] = useState(false);
-	const [summary, setSummary] = useState<ReportSummary[]>([]);
+    const [reports, setReports] = useState<Report[]>(initialReports);
+    const [isLoading, setIsLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedType, setSelectedType] = useState<string>(propSelectedType);
+    const [selectedStatus, setSelectedStatus] = useState<string>("all");
+    const [selectedDepartment, setSelectedDepartment] = useState("all");
+    const [dateRange, setDateRange] = useState({ start: "", end: "" });
+    const [showFilters, setShowFilters] = useState(false);
 
-	// Filter states
-	const [searchTerm, setSearchTerm] = useState("");
-	const [selectedType, setSelectedType] = useState<string>(propSelectedType);
-	const [selectedStatus, setSelectedStatus] = useState<string>("all");
-	const [selectedDepartment, setSelectedDepartment] = useState("all");
-	const [dateRange, setDateRange] = useState({ start: "", end: "" });
-	const [showFilters, setShowFilters] = useState(false);
+    // Sync กับ Props
+    useEffect(() => {
+        setSelectedType(propSelectedType);
+    }, [propSelectedType]);
 
-	// Sync with prop changes
-	useEffect(() => {
-		setSelectedType(propSelectedType);
-	}, [propSelectedType]);
+    // ✅ ค้นหาแผนกที่มีอยู่จริงจากข้อมูล (Safe access เพราะเป็น Optional)
+    const departments = useMemo(() => {
+        const deptSet = new Set(reports.map(r => r.department).filter(Boolean));
+        return Array.from(deptSet) as string[];
+    }, [reports]);
 
-	// Extract unique departments
-	const departments = Array.from(
-		new Set(
-			reports
-				.filter((r) => "department" in r && r.department)
-				.map((r) => ("department" in r ? r.department : ""))
-				.filter(Boolean)
-		)
-	);
+    // ✅ สรุปยอด Summary Cards (คำนวณแบบ Memoization เพื่อ Performance)
+    const summaryData = useMemo((): ReportSummary[] => {
+        const base: Record<string, ReportSummary> = {
+            "requisition": { type: "requisition", label: "การเบิก/ยืม", count: 0, totalValue: 0, totalItems: 0, color: "text-indigo-600", bgColor: "bg-indigo-50", icon: "📋" },
+            "stockin": { type: "stockin", label: "นำเข้าพัสดุ", count: 0, totalValue: 0, totalItems: 0, color: "text-blue-600", bgColor: "bg-blue-50", icon: "📥" },
+            "stock-balance": { type: "stock-balance", label: "คงคลังปัจจุบัน", count: 0, totalValue: 0, totalItems: 0, color: "text-emerald-600", bgColor: "bg-emerald-50", icon: "📦" },
+            "expired-lots": { type: "expired-lots", label: "ใกล้หมดอายุ", count: 0, totalValue: 0, totalItems: 0, color: "text-amber-600", bgColor: "bg-amber-50", icon: "⚠️" },
+            "stockout": { type: "stockout", label: "จ่ายออก", count: 0, totalValue: 0, totalItems: 0, color: "text-rose-600", bgColor: "bg-rose-50", icon: "📤" },
+        };
 
-	// Initialize summary
-	useEffect(() => {
-		const summaryData = getReportSummary(reports);
-		setSummary(summaryData);
-	}, [reports]);
+        reports.forEach(r => {
+            if (base[r.type]) {
+                base[r.type].count++;
+                base[r.type].totalValue += r.totalValue;
+                base[r.type].totalItems += r.totalItems;
+            }
+        });
+        return Object.values(base);
+    }, [reports]);
 
-	// Apply filters
-	useEffect(() => {
-		let filtered = [...reports];
+    // ✅ กรองข้อมูล (Filtering Logic)
+    const filteredReports = useMemo(() => {
+        return reports.filter((r) => {
+            const matchesType = selectedType === "all" || r.type === selectedType;
+            const matchesStatus = selectedStatus === "all" || r.status === selectedStatus;
+            const matchesDept = selectedDepartment === "all" || r.department === selectedDepartment;
+            const matchesDateStart = !dateRange.start || r.date >= dateRange.start;
+            const matchesDateEnd = !dateRange.end || r.date <= dateRange.end;
+            
+            const search = searchTerm.toLowerCase();
+            const matchesSearch = !searchTerm || (
+                r.reportNo.toLowerCase().includes(search) ||
+                r.requester?.toLowerCase().includes(search) ||
+                r.department?.toLowerCase().includes(search) ||
+                r.items.some(it => it.itemName.toLowerCase().includes(search))
+            );
 
-		// Filter by type
-		if (selectedType !== "all") {
-			filtered = filtered.filter((r) => r.type === selectedType);
-		}
+            return matchesType && matchesStatus && matchesDept && matchesDateStart && matchesDateEnd && matchesSearch;
+        });
+    }, [reports, selectedType, selectedStatus, selectedDepartment, dateRange, searchTerm]);
 
-		// Filter by status
-		if (selectedStatus !== "all") {
-			filtered = filtered.filter((r) => r.status === selectedStatus);
-		}
+    const handleRefresh = async () => {
+        setIsLoading(true);
+        try {
+            const freshData = await getAllReports();
+            setReports(freshData);
+        } catch (error) {
+            console.error("Refresh failed:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-		// Filter by department
-		if (selectedDepartment !== "all") {
-			filtered = filtered.filter((r) => {
-				if ("department" in r) return r.department === selectedDepartment;
-				return true;
-			});
-		}
+    // --- Helpers สำหรับ UI ---
 
-		// Filter by date range
-		if (dateRange.start) {
-			filtered = filtered.filter((r) => r.date >= dateRange.start);
-		}
-		if (dateRange.end) {
-			filtered = filtered.filter((r) => r.date <= dateRange.end);
-		}
+    const getTypeLabel = (type: string): string => {
+        const labels: Record<string, string> = {
+            stockin: "นำเข้า",
+            stockout: "จ่ายออก",
+            requisition: "เบิก/ยืม",
+            "stock-balance": "คงคลัง",
+            "stock-movement": "เคลื่อนไหว",
+            "expired-lots": "หมดอายุ",
+        };
+        return labels[type] || type;
+    };
 
-		// Filter by search term
-		if (searchTerm) {
-			const search = searchTerm.toLowerCase();
-			filtered = filtered.filter(
-				(r) =>
-					r.reportNo.toLowerCase().includes(search) ||
-					("requester" in r && r.requester?.toLowerCase().includes(search)) ||
-					("department" in r && r.department?.toLowerCase().includes(search)) ||
-					r.items.some((item) => item.itemName.toLowerCase().includes(search))
-			);
-		}
+    const getTypeIcon = (type: string) => {
+        switch (type) {
+            case "stockin": return <ArrowDownToLine className="w-4 h-4 text-blue-600" />;
+            case "stockout": return <ArrowUpFromLine className="w-4 h-4 text-rose-600" />;
+            case "requisition": return <ClipboardCheck className="w-4 h-4 text-indigo-600" />;
+            case "stock-balance": return <Package className="w-4 h-4 text-emerald-600" />;
+            case "expired-lots": return <AlertTriangle className="w-4 h-4 text-amber-600" />;
+            default: return <History className="w-4 h-4 text-gray-600" />;
+        }
+    };
 
-		setFilteredReports(filtered);
-	}, [reports, selectedType, selectedStatus, selectedDepartment, dateRange, searchTerm]);
+    const getStatusBadge = (status: string) => {
+        const config: Record<string, string> = {
+            PENDING: "bg-yellow-100 text-yellow-800",
+            APPROVED: "bg-green-100 text-green-800",
+            COMPLETED: "bg-blue-100 text-blue-800",
+            REJECTED: "bg-red-100 text-red-800",
+            CANCELLED: "bg-gray-100 text-gray-800",
+        };
+        return (
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config[status] || "bg-gray-100 text-gray-800"}`}>
+                {status}
+            </span>
+        );
+    };
 
-	// Refresh reports
-	const handleRefresh = async () => {
-		setIsLoading(true);
-		try {
-			const freshReports = await getAllReports();
-			setReports(freshReports);
-		} catch (error) {
-			console.error("Error refreshing reports:", error);
-		} finally {
-			setIsLoading(false);
-		}
-	};
+    return (
+        <div className="min-h-screen bg-gray-50/50 p-4 sm:p-6">
+            {/* Header Section */}
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                        <FileText className="w-7 h-7 text-indigo-600" />
+                        {selectedType === "all" ? "คลังพัสดุ: รายงานรวม" : `รายงาน${getTypeLabel(selectedType)}`}
+                    </h1>
+                    <p className="text-gray-500 text-sm mt-1">จัดการและตรวจสอบข้อมูลความเคลื่อนไหวพัสดุในระบบ</p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                    <button onClick={handleRefresh} disabled={isLoading} className="btn-secondary flex items-center gap-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 transition-all text-sm font-medium">
+                        <RotateCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                        รีเฟรช
+                    </button>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-medium shadow-sm">
+                        <Download className="w-4 h-4" />
+                        ส่งออกรายงาน
+                    </button>
+                </div>
+            </div>
 
-	// Export reports
-	const handleExport = async (format: "pdf" | "excel") => {
-		try {
-			setIsLoading(true);
-			await exportReports(filteredReports, format);
-			console.log(`ส่งออกรายงาน ${format.toUpperCase()} เรียบร้อย`);
-		} catch (error) {
-			console.error("Export error:", error);
-		} finally {
-			setIsLoading(false);
-		}
-	};
+            {/* Summary Cards */}
+            {selectedType === "all" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                    {summaryData.map((item) => (
+                        <div key={item.type} className={`${item.bgColor} border border-transparent hover:border-current/10 rounded-xl p-4 transition-all shadow-sm`}>
+                            <div className="flex justify-between items-start mb-3">
+                                <span className="text-xl">{item.icon}</span>
+                                <span className={`text-xs font-bold uppercase tracking-wider ${item.color}`}>{item.label}</span>
+                            </div>
+                            <div className="text-2xl font-bold text-gray-900">{item.count}</div>
+                            <div className="text-xs text-gray-500 mt-1">รายการสะสมทั้งหมด</div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
-	// Get type label
-	const getTypeLabel = (type: string): string => {
-		const labels: Record<string, string> = {
-			stockin: "นำเข้า",
-			stockout: "นำออก",
-			requisition: "คำขอ/ยืม",
-			adjustment: "ปรับปรุง",
-			return: "คืนสินค้า",
-		};
-		return labels[type] || type;
-	};
+            {/* Filters Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+                <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหาเลขที่เอกสาร, ชื่อพัสดุ, หรือผู้เกี่ยวข้อง..." 
+                            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <button 
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${showFilters ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}
+                    >
+                        <Filter className="w-4 h-4" />
+                        ตัวกรองขั้นสูง
+                        <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                    </button>
+                </div>
 
-	// Get type icon
-	const getTypeIcon = (type: string) => {
-		const icons: Record<string, React.ReactNode> = {
-			stockin: <ArrowDownToLine className="w-4 h-4 text-blue-600" />,
-			stockout: <ArrowUpFromLine className="w-4 h-4 text-rose-600" />,
-			requisition: <ClipboardCheck className="w-4 h-4 text-indigo-600" />,
-			adjustment: <RotateCw className="w-4 h-4 text-amber-600" />,
-			return: <ArrowDownToLine className="w-4 h-4 text-green-600" />,
-		};
-		return icons[type] || null;
-	};
+                {showFilters && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-50">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">ประเภทรายการ</label>
+                            <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="w-full p-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                                <option value="all">ทั้งหมด</option>
+                                <option value="requisition">เบิก/ยืม</option>
+                                <option value="stockin">นำเข้า</option>
+                                <option value="stockout">จ่ายออก</option>
+                                <option value="stock-balance">คงคลัง</option>
+                                <option value="expired-lots">สินค้าใกล้หมดอายุ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">แผนกที่เกี่ยวข้อง</label>
+                            <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} className="w-full p-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                                <option value="all">ทุกแผนก</option>
+                                {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">ช่วงเวลา</label>
+                            <div className="flex items-center gap-2">
+                                <input type="date" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} className="flex-1 p-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                                <span className="text-gray-400">ถึง</span>
+                                <input type="date" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} className="flex-1 p-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
 
-	// Get status badge
-	const getStatusBadge = (status: string) => {
-		const statusConfig: Record<string, { color: string; text: string }> = {
-			DRAFT: { color: "bg-gray-100 text-gray-800", text: "ร่างสัญญา" },
-			PENDING: { color: "bg-yellow-100 text-yellow-800", text: "รอดำเนินการ" },
-			APPROVED: { color: "bg-green-100 text-green-800", text: "อนุมัติ" },
-			COMPLETED: { color: "bg-blue-100 text-blue-800", text: "เสร็จสมบูรณ์" },
-			REJECTED: { color: "bg-red-100 text-red-800", text: "ปฏิเสธ" },
-			CANCELLED: { color: "bg-gray-100 text-gray-800", text: "ยกเลิก" },
-		};
-		const config = statusConfig[status] || statusConfig.PENDING;
-		return <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>{config.text}</span>;
-	};
+            {/* Table/List Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50/50 border-b border-gray-100">
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">เอกสาร/วันที่</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ประเภท</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ผู้เกี่ยวข้อง/แผนก</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">จำนวนรายการ</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">สถานะ</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {filteredReports.map((report) => (
+                                <tr key={`${report.type}-${report.id}`} className="hover:bg-gray-50/80 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="font-semibold text-gray-900">{report.reportNo}</div>
+                                        <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                                            <Calendar className="w-3 h-3" />
+                                            {report.date}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-2">
+                                            {getTypeIcon(report.type)}
+                                            <span className="text-sm text-gray-700 font-medium">{getTypeLabel(report.type)}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm text-gray-900 font-medium">{report.requester || report.supplier || '-'}</div>
+                                        <div className="text-xs text-gray-400">{report.department || 'ไม่ระบุแผนก'}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="text-sm font-bold text-gray-900">{report.totalItems}</div>
+                                        <div className="text-xs text-gray-400">รายการ</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {getStatusBadge(report.status)}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-	// Format date
-	const formatDate = (dateString: string): string => {
-		return new Date(dateString).toLocaleDateString("th-TH", {
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-		});
-	};
-
-	// Format currency
-	const formatCurrency = (value: number): string => {
-		return value.toLocaleString("th-TH", {
-			style: "currency",
-			currency: "THB",
-		});
-	};
-
-	return (
-		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-6">
-			{/* Header */}
-			<div className="mb-6">
-				<div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-					<div className="flex items-center gap-3">
-						<div>
-							<h1 className="text-2xl font-bold text-gray-800">
-								{selectedType === "all"
-									? "ระบบรายงานรวมทั้งหมด"
-									: `รายงาน${getTypeLabel(selectedType)}`}
-							</h1>
-							<p className="text-sm text-gray-600 mt-1">
-								{selectedType === "all"
-									? "ภาพรวมการนำเข้า นำออก คำขอ และการปรับปรุงสต็อก"
-									: undefined}
-							</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2 flex-wrap">
-						<button
-							onClick={handleRefresh}
-							disabled={isLoading}
-							className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm disabled:opacity-50"
-						>
-							<RotateCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-							รีเฟรช
-						</button>
-						<button
-							onClick={() => handleExport("pdf")}
-							disabled={isLoading || filteredReports.length === 0}
-							className="flex items-center gap-1.5 px-3 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50"
-						>
-							<Download className="w-4 h-4" />
-							PDF
-						</button>
-						<button
-							onClick={() => handleExport("excel")}
-							disabled={isLoading || filteredReports.length === 0}
-							className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50"
-						>
-							<Download className="w-4 h-4" />
-							Excel
-						</button>
-					</div>
-				</div>
-
-				{/* Summary Cards - Only show all if "all" is selected */}
-				{selectedType === "all" && (
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-						{summary.map((item) => (
-							<div key={item.type} className={`${item.bgColor} rounded-lg p-4`}>
-								<div className="flex items-center justify-between mb-2">
-									<h3 className={`text-sm font-semibold ${item.color}`}>{item.label}</h3>
-									<span className="text-lg">{item.icon}</span>
-								</div>
-								<div className="space-y-1">
-									<p className="text-xs text-gray-600">จำนวน: {item.count} รายการ</p>
-									<p className={`text-sm font-semibold ${item.color}`}>{formatCurrency(item.totalValue)}</p>
-								</div>
-							</div>
-						))}
-					</div>
-				)}
-			</div>
-
-			{/* Search and Filters */}
-			<div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-6">
-				<div className="flex items-center gap-2 mb-4">
-					<Filter className="w-4 h-4 text-gray-600" />
-					<button
-						onClick={() => setShowFilters(!showFilters)}
-						className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1"
-					>
-						ตัวกรอง {showFilters && <ChevronDown className="w-4 h-4 rotate-180" />}
-					</button>
-				</div>
-
-				{/* Search */}
-				<div className="flex-1 mb-4">
-					<div className="relative">
-						<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-						<input
-							type="text"
-							placeholder="ค้นหาด้วยเลขที่, ชื่อผู้ขอ, แผนก หรือชื่อสินค้า..."
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-							className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-						/>
-					</div>
-				</div>
-
-				{/* Filters (Collapsible) */}
-				{showFilters && (
-					<div className="space-y-4 border-t pt-4">
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-							{/* Type Filter - Only show if viewing all reports */}
-							{selectedType === "all" && (
-								<div>
-									<label className="block text-xs font-medium text-gray-700 mb-1">ประเภท</label>
-									<select
-										value={selectedType}
-										onChange={(e) => setSelectedType(e.target.value)}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-									>
-										<option value="all">ทั้งหมด</option>
-										<option value="stockin">นำเข้า</option>
-										<option value="stockout">นำออก</option>
-										<option value="requisition">คำขอ/ยืม</option>
-										<option value="adjustment">ปรับปรุง</option>
-										<option value="return">คืนสินค้า</option>
-									</select>
-								</div>
-							)}
-
-							{/* Status Filter */}
-							<div className={selectedType !== "all" ? "sm:col-span-2 lg:col-span-4" : ""}>
-								<label className="block text-xs font-medium text-gray-700 mb-1">สถานะ</label>
-								<select
-									value={selectedStatus}
-									onChange={(e) => setSelectedStatus(e.target.value)}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-								>
-									<option value="all">ทั้งหมด</option>
-									<option value="DRAFT">ร่างสัญญา</option>
-									<option value="PENDING">รอดำเนินการ</option>
-									<option value="APPROVED">อนุมัติ</option>
-									<option value="COMPLETED">เสร็จสมบูรณ์</option>
-									<option value="REJECTED">ปฏิเสธ</option>
-								</select>
-							</div>
-
-							{/* Department Filter */}
-							{departments.length > 0 && (
-								<div className={selectedType !== "all" ? "sm:col-span-2 lg:col-span-3" : ""}>
-									<label className="block text-xs font-medium text-gray-700 mb-1">แผนก</label>
-									<select
-										value={selectedDepartment}
-										onChange={(e) => setSelectedDepartment(e.target.value)}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-									>
-										<option value="all">ทั้งหมด</option>
-										{departments.map((dept) => (
-											<option key={dept} value={dept}>
-												{dept}
-											</option>
-										))}
-									</select>
-								</div>
-							)}
-
-							{/* Date Range */}
-							<div className={selectedType !== "all" ? "sm:col-span-2 lg:col-span-1" : "sm:col-span-2 lg:col-span-1"}>
-								<label className="block text-xs font-medium text-gray-700 mb-1">วันที่</label>
-								<div className="flex gap-2">
-									<div className="relative flex-1">
-										<input
-											type="date"
-											value={dateRange.start}
-											onChange={(e) =>
-												setDateRange({ ...dateRange, start: e.target.value })
-											}
-											className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-										/>
-										<Calendar className="absolute right-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
-									</div>
-									<div className="relative flex-1">
-										<input
-											type="date"
-											value={dateRange.end}
-											onChange={(e) =>
-												setDateRange({ ...dateRange, end: e.target.value })
-											}
-											className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-										/>
-										<Calendar className="absolute right-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				)}
-			</div>
-
-			{/* Reports List */}
-			<div className="bg-white rounded-lg shadow-sm overflow-hidden">
-				<div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-					<h2 className="text-base font-semibold text-gray-900">
-						รายการรายงาน ({filteredReports.length})
-					</h2>
-				</div>
-
-				{filteredReports.length > 0 ? (
-					<div className="divide-y divide-gray-200">
-						{filteredReports.map((report) => (
-							<div
-								key={`${report.type}-${report.id}`}
-								className="p-4 sm:p-6 hover:bg-gray-50 transition-colors"
-							>
-								<div className="flex items-start justify-between gap-4 flex-wrap">
-									{/* Left Content */}
-									<div className="flex-1 min-w-0">
-										{/* Header Row */}
-										<div className="flex items-center gap-3 mb-3 flex-wrap">
-											<div className="flex items-center gap-2">
-												{getTypeIcon(report.type)}
-												<h3 className="text-base font-semibold text-gray-900">
-													{report.reportNo}
-												</h3>
-											</div>
-											{getStatusBadge(report.status)}
-										</div>
-
-										{/* Details Grid */}
-										<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-											<div>
-												<span className="text-gray-500 text-xs">วันที่:</span>
-												<p className="text-gray-900 font-medium">
-													{formatDate(report.date)}
-												</p>
-											</div>
-
-											<div>
-												<span className="text-gray-500 text-xs">ประเภท:</span>
-												<p className="text-gray-900 font-medium">
-													{getTypeLabel(report.type)}
-												</p>
-											</div>
-
-											{("requester" in report || "department" in report) && (
-												<div>
-													<span className="text-gray-500 text-xs">
-														{"requester" in report ? "ผู้ขอ:" : "ผู้ดำเนินการ:"}
-													</span>
-													<p className="text-gray-900 font-medium">
-														{("requester" in report && report.requester) || "Unknown"}
-													</p>
-												</div>
-											)}
-
-											{"department" in report && (
-												<div>
-													<span className="text-gray-500 text-xs">แผนก:</span>
-													<p className="text-gray-900 font-medium">{report.department}</p>
-												</div>
-											)}
-
-											<div>
-												<span className="text-gray-500 text-xs">จำนวน:</span>
-												<p className="text-gray-900 font-medium">
-													{report.totalItems} รายการ
-												</p>
-											</div>
-
-											<div>
-												<span className="text-gray-500 text-xs">มูลค่า:</span>
-												<p className="text-gray-900 font-semibold">
-													{formatCurrency(report.totalValue)}
-												</p>
-											</div>
-
-											{report.items.length > 0 && (
-												<div className="sm:col-span-2 lg:col-span-3">
-													<span className="text-gray-500 text-xs">สินค้า:</span>
-													<div className="flex flex-wrap gap-2 mt-1">
-														{report.items.slice(0, 3).map((item, idx) => (
-															<span
-																key={idx}
-																className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
-															>
-																{item.itemName}
-																<span className="text-gray-500">x{item.quantity}</span>
-															</span>
-														))}
-														{report.items.length > 3 && (
-															<span className="text-xs text-gray-600 italic">
-																+{report.items.length - 3} รายการอื่น
-															</span>
-														)}
-													</div>
-												</div>
-											)}
-										</div>
-									</div>
-
-									{/* Action Button */}
-									<button
-										onClick={() => console.log("View details:", report)}
-										className="p-2 rounded-lg text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 transition-colors flex-shrink-0"
-										title="ดูรายละเอียด"
-									>
-										<Eye className="w-4 h-4" />
-									</button>
-								</div>
-							</div>
-						))}
-					</div>
-				) : (
-					<div className="text-center py-12">
-						<FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-						<h3 className="text-base font-medium text-gray-900 mb-1">
-							{isLoading ? "กำลังโหลด..." : "ไม่มีรายงาน"}
-						</h3>
-						<p className="text-sm text-gray-600">
-							{isLoading
-								? "รอสักครู่..."
-								: "ไม่มีรายงานที่ตรงกับเงื่อนไขการค้นหา"}
-						</p>
-					</div>
-				)}
-			</div>
-		</div>
-	);
+                {filteredReports.length === 0 && (
+                    <div className="py-20 text-center">
+                        <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Search className="w-8 h-8 text-gray-300" />
+                        </div>
+                        <h3 className="text-gray-900 font-medium">ไม่พบข้อมูลรายงาน</h3>
+                        <p className="text-gray-500 text-sm mt-1">ลองปรับเปลี่ยนตัวกรองหรือคำค้นหาใหม่อีกครั้ง</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default ReportsClient;

@@ -6,6 +6,7 @@ import { Calendar, Loader2, Plus, Save, Search, Trash2, X } from "lucide-react";
 
 import * as ReceiveSvc from "@/services/receiveService";
 import * as ItemSvc from "@/services/itemsService";
+import { resolveToItemCode } from "@/services/barcodeService";
 import * as DeptSvc from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
 import * as StockIn from "@/types/stockin_type";
@@ -55,6 +56,11 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
   const [deptSearchQuery, setDeptSearchQuery] = useState("");
   const [isDeptDropdownOpen, setIsDeptDropdownOpen] = useState(false);
+
+  // BARCODE SCAN State
+  const [scanInput, setScanInput] = useState("");
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchAllOptions = async () => {
@@ -115,6 +121,41 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
     if (!formData.itemId) errors.itemId = "กรุณาเลือกสินค้า";
     if (formData.quantityOrdered <= 0) errors.quantityOrdered = "จำนวนต้องมากกว่า 0";
     return errors;
+  };
+
+  const handleQuickScan = async () => {
+    const raw = scanInput.trim();
+    if (!raw) return;
+
+    try {
+      setIsLoading(true);
+      setScanMessage(null);
+
+      const itemCode = await resolveToItemCode(raw);
+      if (!itemCode) {
+        setScanMessage(`ไม่พบการถอดรหัสจากบาร์โค้ด ${raw}`);
+        return;
+      }
+
+      const found = itemsList.find((i) =>
+        (i.id || "").toLowerCase() === itemCode.toLowerCase()
+      );
+      const foundItem = found || itemsList.find((i) =>
+        (i.name || "").toLowerCase().includes(itemCode.toLowerCase())
+      );
+
+      if (foundItem) {
+        setScanMessage(`✓ พบสินค้า: ${foundItem.name}`);
+        setScanInput("");
+        handleItemSelect(foundItem.id);
+      } else {
+        setScanMessage(`❌ พบรหัส ${itemCode} แต่ไม่พบสินค้านี้ในหมวดหมู่ที่รองรับ`);
+      }
+    } catch (e) {
+      setScanMessage("❌ เกิดข้อผิดพลาดในการวิเคราะห์บาร์โค้ด");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleItemSelect = (itemId: string) => {
@@ -399,9 +440,43 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
           <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
             <p className="text-base font-medium text-slate-600 mb-3">เพิ่มรายการของใช้ซ้ำ</p>
 
+            {/* Barcode Quick Scan */}
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 mb-6">
+              <label className="block text-sm font-semibold text-indigo-900 mb-2">ยิงสแกนเนอร์บาร์โค้ดด่วน</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleQuickScan();
+                    }
+                  }}
+                  placeholder="สแกนรหัสเพื่อเติมข้อมูลสินค้าอัตโนมัติ"
+                  className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleQuickScan()}
+                  disabled={isLoading}
+                  className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  สแกนค้นหา
+                </button>
+              </div>
+              {scanMessage && (
+                <p className={`mt-2 text-sm font-medium ${scanMessage.includes("❌") ? "text-red-600" : "text-green-600"}`}>
+                  {scanMessage}
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2" data-item-dropdown>
-                <label className="block text-sm font-medium text-slate-600 mb-2">ชื่อสินค้า <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">ชื่อสินค้า (ค้นหาแบบ Manual) <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
                   <input

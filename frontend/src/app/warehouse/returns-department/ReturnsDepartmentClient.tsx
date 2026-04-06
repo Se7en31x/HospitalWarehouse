@@ -64,6 +64,10 @@ export default function ReturnsDepartmentClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [forms, setForms] = useState<ProcessItemForm[]>([]);
   const [unitForms, setUnitForms] = useState<ProcessUnitForm[]>([]);
+  const [scanInput, setScanInput] = useState("");
+  const [scanMessage, setScanMessage] = useState("");
+  const [scanOk, setScanOk] = useState<boolean | null>(null);
+  const [scanResolvedType, setScanResolvedType] = useState<"UNIT" | "LOT" | "ITEM" | null>(null);
   const [processNote, setProcessNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [deletingRequestId, setDeletingRequestId] = useState<number | null>(null);
@@ -190,6 +194,10 @@ export default function ReturnsDepartmentClient() {
     setProcessNote("");
     setForms([]);
     setUnitForms([]);
+    setScanInput("");
+    setScanMessage("");
+    setScanOk(null);
+    setScanResolvedType(null);
     setIsLoadingDetail(true);
 
     try {
@@ -237,6 +245,10 @@ export default function ReturnsDepartmentClient() {
     setActiveRequest(null);
     setForms([]);
     setUnitForms([]);
+    setScanInput("");
+    setScanMessage("");
+    setScanOk(null);
+    setScanResolvedType(null);
     setProcessNote("");
   }, []);
 
@@ -247,6 +259,64 @@ export default function ReturnsDepartmentClient() {
   const updateUnitForm = useCallback((unitId: string, patch: Partial<ProcessUnitForm>) => {
     setUnitForms((prev) => prev.map((row) => (row.unit_id === unitId ? { ...row, ...patch } : row)));
   }, []);
+
+  const handleScanUnit = useCallback(() => {
+    const run = async () => {
+      const raw = scanInput.trim();
+      if (!raw || !unitForms.length) return;
+
+      const resolved = await reusableSvc.resolveReusableBarcode(raw, activeRequest?.department_id);
+      setScanResolvedType(resolved?.type || null);
+
+      if (resolved && resolved.type !== "UNIT") {
+        setScanOk(false);
+        setScanMessage(`สแกนได้เป็น ${resolved.type} แต่หน้านี้รองรับเฉพาะ UNIT`);
+        return;
+      }
+
+      const resolvedUnitCode = resolved && resolved.type === "UNIT"
+        ? resolved.unit.unit_code.toLowerCase()
+        : "";
+      const resolvedSerial = resolved && resolved.type === "UNIT"
+        ? (resolved.unit.serial_no || "").toLowerCase()
+        : "";
+
+      const key = raw.toLowerCase();
+      const target = unitForms.find((row) =>
+        row.unit_code.toLowerCase() === key ||
+        row.serial_no.toLowerCase() === key ||
+        (resolvedUnitCode && row.unit_code.toLowerCase() === resolvedUnitCode) ||
+        (resolvedSerial && row.serial_no.toLowerCase() === resolvedSerial)
+      );
+
+      if (!target) {
+        setScanOk(false);
+        setScanMessage(`ไม่พบรหัส ${raw} ในใบคำขอนี้`);
+        return;
+      }
+
+      setUnitForms((prev) =>
+        prev.map((row) => {
+          if (row.unit_id !== target.unit_id) return row;
+          const marker = `[SCN:${raw}]`;
+          const nextNote = row.note?.includes(marker)
+            ? row.note
+            : [row.note, marker].filter(Boolean).join(" ");
+          return {
+            ...row,
+            condition: "GOOD",
+            note: nextNote,
+          };
+        })
+      );
+
+      setScanOk(true);
+      setScanMessage(`พบ ${target.unit_code} และทำเครื่องหมายให้แล้ว`);
+      setScanInput("");
+    };
+
+    void run();
+  }, [scanInput, unitForms, activeRequest?.department_id]);
 
   const handleProcess = useCallback(async () => {
     if (!activeRequest) return;
@@ -542,6 +612,41 @@ export default function ReturnsDepartmentClient() {
               {!isLoadingDetail && unitForms.length > 0 && (
                 <>
                   <p className="text-sm font-semibold text-slate-700 mb-3">รายชิ้นอุปกรณ์</p>
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <label className="text-xs font-semibold text-slate-600">สแกนบาร์โค้ด (Unit Code / Serial)</label>
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={scanInput}
+                        onChange={(e) => setScanInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleScanUnit();
+                          }
+                        }}
+                        placeholder="เช่น UNT-000123 หรือ SN-ABC"
+                        className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleScanUnit}
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                      >
+                        สแกน
+                      </button>
+                    </div>
+                    {scanResolvedType && (
+                      <div className="mt-2">
+                        <span className="inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                          TYPE: {scanResolvedType}
+                        </span>
+                      </div>
+                    )}
+                    {scanMessage && (
+                      <p className={`mt-2 text-xs ${scanOk ? "text-emerald-700" : "text-rose-700"}`}>{scanMessage}</p>
+                    )}
+                  </div>
                   <div className="mb-6">
                     <UnitFormTable unitForms={unitForms} onUpdate={updateUnitForm} />
                   </div>

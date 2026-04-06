@@ -284,7 +284,6 @@ export default function BorrowClient({ initialItems }: Props) {
 
   if (!isMounted) return null;
 
-
   return (
     <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
       <style
@@ -323,7 +322,6 @@ export default function BorrowClient({ initialItems }: Props) {
           />
         </div>
 
-        {/* Category Dropdown */}
         <div className="relative" data-category-dropdown>
           <button
             onClick={() => { setIsCategoryDropdownOpen(!isCategoryDropdownOpen); setIsUnitDropdownOpen(false); setIsLocationDropdownOpen(false); }}

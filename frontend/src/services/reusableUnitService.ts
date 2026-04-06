@@ -1,4 +1,9 @@
 import Cookies from "js-cookie";
+import { resolveBarcode, type BarcodeResolveResult } from "./barcodeService";
+
+// Re-export สำหรับ backward-compat (WithdrawClient ยังใช้ชื่อเดิม)
+export type { BarcodeResolveResult };
+export type ResolvedReusableBarcode = BarcodeResolveResult;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -141,6 +146,8 @@ export interface ReusableReturnRequestListResponse {
   prevPage: number | null;
 }
 
+// ResolvedReusableBarcode ถูก re-export จาก barcodeService (บรรทัด 6) แล้ว — ไม่ต้องประกาศซ้ำ
+
 export async function getReusableUnits(params: GetReusableUnitsParams = {}): Promise<ReusableUnitListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
@@ -237,4 +244,15 @@ export async function deleteReusableReturnRequest(id: number | string): Promise<
   return request<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}`, {
     method: "DELETE",
   });
+}
+
+/**
+ * resolveReusableBarcode — delegate ไปที่ barcodeService กลาง
+ * เรียก /v1/barcodes/resolve เพียง endpoint เดียว
+ */
+export async function resolveReusableBarcode(
+  value: string,
+  departmentId?: number | string
+): Promise<ResolvedReusableBarcode | null> {
+  return resolveBarcode(value, departmentId ?? null);
 }

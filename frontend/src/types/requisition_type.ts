@@ -30,6 +30,19 @@ export interface RequisitionFilters {
   [key: string]: unknown;
 }
 
+export interface RequisitionItemLots {
+  id: number;
+  lot_code: string;
+  lot_name?: string | null;
+  quantity: number;
+  expired_at: string;
+}
+
+export interface RequisitionItemUnits {
+  id: string;
+  unit_code: string;
+}
+
 export interface RequisitionItem {
   id: number;
   item_id: string;
@@ -44,6 +57,8 @@ export interface RequisitionItem {
   issued: number;
   returned: number;
   note?: string;
+  available_lots?: RequisitionItemLots[];
+  available_units?: RequisitionItemUnits[];
 }
 
 export interface RequisitionPayload {

@@ -25,6 +25,7 @@ import type {
   WarehousePayload,
   Supplier,
   SupplierPayload,
+  SystemSettingsMap,
 } from "@/types/settings_type";
 import {
   createCategory,
@@ -39,16 +40,42 @@ import {
   getUnits,
   getWarehouses,
   getSuppliers,
+  getSystemSettings,
+  updateSystemSettings,
   updateCategory,
   updateUnit,
   updateWarehouse,
   updateSupplier,
 } from "@/services/settingsService";
 
-type TabType = "categories" | "units" | "warehouses" | "suppliers";
+type TabType = "categories" | "units" | "warehouses" | "suppliers" | "notifications";
 type FormMode = "create" | "edit";
 
 const ITEMS_PER_PAGE = 10;
+
+const cronDailyToTime = (cron: string): string | null => {
+  const normalized = (cron || "").trim().replace(/\s+/g, " ");
+  const m = normalized.match(/^(\d{1,2}) (\d{1,2}) \* \* \*$/);
+  if (!m) return null;
+  const minute = Number(m[1]);
+  const hour = Number(m[2]);
+  if (Number.isNaN(minute) || Number.isNaN(hour)) return null;
+  if (minute < 0 || minute > 59 || hour < 0 || hour > 23) return null;
+  const hh = String(hour).padStart(2, "0");
+  const mm = String(minute).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+const timeToDailyCron = (time: string): string | null => {
+  const t = (time || "").trim();
+  const m = t.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const hour = Number(m[1]);
+  const minute = Number(m[2]);
+  if (Number.isNaN(minute) || Number.isNaN(hour)) return null;
+  if (minute < 0 || minute > 59 || hour < 0 || hour > 23) return null;
+  return `${minute} ${hour} * * *`;
+};
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("categories");
@@ -59,12 +86,14 @@ export default function SettingsPage() {
     units: "",
     warehouses: "",
     suppliers: "",
+    notifications: "",
   });
   const [pageByTab, setPageByTab] = useState<Record<TabType, number>>({
     categories: 1,
     units: 1,
     warehouses: 1,
     suppliers: 1,
+    notifications: 1,
   });
   
   // Form Modal State
@@ -75,6 +104,8 @@ export default function SettingsPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettingsMap>({});
+  const [systemSettingsDraft, setSystemSettingsDraft] = useState<Record<string, string>>({});
 
   const [categoryForm, setCategoryForm] = useState<CategoryPayload>({
     name: "",
@@ -94,16 +125,23 @@ export default function SettingsPage() {
   const loadAllData = async () => {
     setIsLoading(true);
     try {
-      const [cats, uns, whs, sups] = await Promise.all([
+      const [cats, uns, whs, sups, sys] = await Promise.all([
         getCategories(),
         getUnits(),
         getWarehouses(),
         getSuppliers(),
+        getSystemSettings(),
       ]);
       setCategories(cats || []);
       setUnits(uns || []);
       setWarehouses(whs || []);
       setSuppliers(sups || []);
+      setSystemSettings(sys || {});
+      const draft: Record<string, string> = {};
+      for (const [k, v] of Object.entries(sys || {})) {
+        draft[k] = v?.value ?? "";
+      }
+      setSystemSettingsDraft(draft);
     } catch (error) {
       SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
@@ -119,6 +157,7 @@ export default function SettingsPage() {
     if (activeTab === "categories") return "รายการหมวดหมู่พัสดุ";
     if (activeTab === "units") return "รายการหน่วยนับ";
     if (activeTab === "warehouses") return "รายการคลังสินค้า";
+    if (activeTab === "notifications") return "ตั้งค่าแจ้งเตือนและตารางเวลา";
     return "รายการผู้จำหน่าย";
   }, [activeTab]);
 
@@ -126,6 +165,7 @@ export default function SettingsPage() {
     if (activeTab === "categories") return formMode === "create" ? "เพิ่มหมวดหมู่พัสดุ" : "แก้ไขหมวดหมู่พัสดุ";
     if (activeTab === "units") return formMode === "create" ? "เพิ่มหน่วยนับ" : "แก้ไขหน่วยนับ";
     if (activeTab === "warehouses") return formMode === "create" ? "เพิ่มคลังสินค้า" : "แก้ไขคลังสินค้า";
+    if (activeTab === "notifications") return "ตั้งค่าแจ้งเตือน";
     return formMode === "create" ? "เพิ่มผู้จำหน่าย" : "แก้ไขผู้จำหน่าย";
   }, [formMode, activeTab]);
 
@@ -179,6 +219,7 @@ export default function SettingsPage() {
       units: filteredUnits.length,
       warehouses: filteredWarehouses.length,
       suppliers: filteredSuppliers.length,
+      notifications: 1,
     }),
     [filteredCategories.length, filteredUnits.length, filteredWarehouses.length, filteredSuppliers.length]
   );
@@ -189,6 +230,7 @@ export default function SettingsPage() {
       units: Math.max(1, Math.ceil(totalByTab.units / ITEMS_PER_PAGE)),
       warehouses: Math.max(1, Math.ceil(totalByTab.warehouses / ITEMS_PER_PAGE)),
       suppliers: Math.max(1, Math.ceil(totalByTab.suppliers / ITEMS_PER_PAGE)),
+      notifications: 1,
     }),
     [totalByTab]
   );
@@ -199,6 +241,7 @@ export default function SettingsPage() {
       units: Math.min(pageByTab.units, totalPagesByTab.units),
       warehouses: Math.min(pageByTab.warehouses, totalPagesByTab.warehouses),
       suppliers: Math.min(pageByTab.suppliers, totalPagesByTab.suppliers),
+      notifications: 1,
     }),
     [pageByTab, totalPagesByTab]
   );
@@ -231,8 +274,44 @@ export default function SettingsPage() {
     if (activeTab === "categories") return "ค้นหาประเภท (ชื่อ, prefix, รายละเอียด)";
     if (activeTab === "units") return "ค้นหาหน่วย (ชื่อ, รายละเอียด)";
     if (activeTab === "warehouses") return "ค้นหาคลัง (ชื่อ, สถานที่, รายละเอียด)";
+    if (activeTab === "notifications") return "—";
     return "ค้นหาผู้จำหน่าย (ชื่อ, ผู้ติดต่อ, โทรศัพท์)";
   }, [activeTab]);
+
+  const notificationKeys = useMemo(() => {
+    return Object.entries(systemSettings)
+      .filter(([, v]) => (v?.group || "") === "notification")
+      .map(([k]) => k);
+  }, [systemSettings]);
+
+  const scheduleKeys = useMemo(() => {
+    return Object.entries(systemSettings)
+      .filter(([, v]) => (v?.group || "") === "schedule")
+      .map(([k]) => k);
+  }, [systemSettings]);
+
+  const handleSaveSystemSettings = async () => {
+    setIsSaving(true);
+    try {
+      const payload: Record<string, string | number | boolean> = {};
+      for (const [key, meta] of Object.entries(systemSettings)) {
+        const raw = systemSettingsDraft[key] ?? meta.value ?? "";
+        if (meta.type === "boolean") payload[key] = raw === "true";
+        else if (meta.type === "number") payload[key] = Number(raw || 0);
+        else payload[key] = raw;
+      }
+      const updated = await updateSystemSettings(payload);
+      setSystemSettings(updated || {});
+      const draft: Record<string, string> = {};
+      for (const [k, v] of Object.entries(updated || {})) draft[k] = v?.value ?? "";
+      setSystemSettingsDraft(draft);
+      SweetAlertUtils.success("สำเร็จ", "บันทึกการตั้งค่าเรียบร้อย");
+    } catch (error) {
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     setPageByTab((prev) => ({
@@ -240,10 +319,12 @@ export default function SettingsPage() {
       units: Math.min(prev.units, totalPagesByTab.units),
       warehouses: Math.min(prev.warehouses, totalPagesByTab.warehouses),
       suppliers: Math.min(prev.suppliers, totalPagesByTab.suppliers),
+      notifications: 1,
     }));
   }, [totalPagesByTab]);
 
   const handleOpenCreateForm = () => {
+    if (activeTab === "notifications") return;
     setFormMode("create");
     if (activeTab === "categories") {
       setEditingCategoryId(null);
@@ -347,6 +428,7 @@ export default function SettingsPage() {
           { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4" /> },
           { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4" /> },
           { id: "suppliers", label: "ผู้จำหน่าย", icon: <Truck className="w-4 h-4" /> },
+          { id: "notifications", label: "แจ้งเตือน", icon: <Settings className="w-4 h-4" /> },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -365,24 +447,30 @@ export default function SettingsPage() {
 
       {/* Search/Filter */}
       <div className="flex items-center gap-3 mb-6">
-        <input
-          type="text"
-          placeholder={searchPlaceholder}
-          value={keywordByTab[activeTab]}
-          onChange={(e) => {
-            const keyword = e.target.value;
-            setKeywordByTab((prev) => ({ ...prev, [activeTab]: keyword }));
-            setPageByTab((prev) => ({ ...prev, [activeTab]: 1 }));
-          }}
-          className="w-72 border border-slate-200 bg-white rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-        />
-        <button
-          onClick={handleOpenCreateForm}
-          className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-700 rounded-lg hover:bg-blue-800 shadow-md transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          เพิ่มรายการใหม่
-        </button>
+        {activeTab !== "notifications" ? (
+          <input
+            type="text"
+            placeholder={searchPlaceholder}
+            value={keywordByTab[activeTab]}
+            onChange={(e) => {
+              const keyword = e.target.value;
+              setKeywordByTab((prev) => ({ ...prev, [activeTab]: keyword }));
+              setPageByTab((prev) => ({ ...prev, [activeTab]: 1 }));
+            }}
+            className="w-72 border border-slate-200 bg-white rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
+          />
+        ) : (
+          <div className="text-sm text-slate-600">{sectionTitle}</div>
+        )}
+        {activeTab !== "notifications" && (
+          <button
+            onClick={handleOpenCreateForm}
+            className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-700 rounded-lg hover:bg-blue-800 shadow-md transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            เพิ่มรายการใหม่
+          </button>
+        )}
       </div>
 
       {/* Table Container */}
@@ -714,6 +802,122 @@ export default function SettingsPage() {
               </tbody>
             </table>
           )}
+
+          {activeTab === "notifications" && (
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <h3 className="text-sm font-bold text-slate-800 mb-4">การแจ้งเตือน</h3>
+                  <div className="space-y-4">
+                    {notificationKeys.map((k) => {
+                      const meta = systemSettings[k];
+                      const value = systemSettingsDraft[k] ?? meta?.value ?? "";
+                      if (!meta) return null;
+
+                      if (meta.type === "boolean") {
+                        return (
+                          <label key={k} className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-slate-700">{meta.label}</span>
+                            <input
+                              type="checkbox"
+                              checked={value === "true"}
+                              onChange={(e) =>
+                                setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.checked ? "true" : "false" }))
+                              }
+                              className="h-5 w-5 accent-indigo-600"
+                            />
+                          </label>
+                        );
+                      }
+
+                      if (meta.type === "number") {
+                        return (
+                          <div key={k} className="flex items-center justify-between gap-4">
+                            <label className="text-sm text-slate-700">{meta.label}</label>
+                            <input
+                              type="number"
+                              value={value}
+                              onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                              className="w-40 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                              min={0}
+                            />
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={k} className="flex items-center justify-between gap-4">
+                          <label className="text-sm text-slate-700">{meta.label}</label>
+                          <input
+                            type="text"
+                            value={value}
+                            onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                            className="w-72 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <h3 className="text-sm font-bold text-slate-800 mb-4">ตารางเวลาการทำงาน (Cron)</h3>
+                  <div className="space-y-4">
+                    {scheduleKeys.map((k) => {
+                      const meta = systemSettings[k];
+                      const value = systemSettingsDraft[k] ?? meta?.value ?? "";
+                      if (!meta) return null;
+                      const timeValue = cronDailyToTime(value);
+                      return (
+                        <div key={k} className="space-y-1">
+                          <label className="text-sm text-slate-700">{meta.label}</label>
+                          {timeValue ? (
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="time"
+                                value={timeValue}
+                                onChange={(e) => {
+                                  const cron = timeToDailyCron(e.target.value);
+                                  setSystemSettingsDraft((prev) => ({ ...prev, [k]: cron ?? value }));
+                                }}
+                                className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                              />
+                              <div className="text-xs text-slate-500">
+                                แสดงผลเป็น “ทุกวัน เวลา {timeValue}”
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                placeholder="รองรับรูปแบบรายวัน เช่น 5 0 * * *"
+                              />
+                              <div className="text-xs text-amber-700">
+                                รูปแบบนี้ไม่ใช่ “รายวัน (นาที ชั่วโมง * * *)” จึงแสดงเป็นช่องกรอกขั้นสูง
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={handleSaveSystemSettings}
+                      disabled={isSaving}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-70"
+                    >
+                      {isSaving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -724,7 +928,8 @@ export default function SettingsPage() {
           {((activeTab === "categories" && pagedCategories.length) ||
             (activeTab === "units" && pagedUnits.length) ||
             (activeTab === "warehouses" && pagedWarehouses.length) ||
-            (activeTab === "suppliers" && pagedSuppliers.length)) ||
+            (activeTab === "suppliers" && pagedSuppliers.length) ||
+            (activeTab === "notifications" && 1)) ||
             0}{" "}
           จาก {activeTotal} รายการ
         </p>
@@ -766,7 +971,7 @@ export default function SettingsPage() {
         onFormModalClose={() => setIsFormModalOpen(false)}
         formTitle={formTitle}
         formMode={formMode}
-        activeTab={activeTab}
+        activeTab={activeTab === "notifications" ? "categories" : activeTab}
         categoryForm={categoryForm}
         onCategoryFormChange={setCategoryForm}
         unitForm={unitForm}
