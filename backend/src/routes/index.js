@@ -16,6 +16,7 @@ const departmentRoutes = require('./user.route')
 const stockMovementRoutes = require('./stockmovement.routes')
 const borrowRoutes = require('./borrow.routes')
 const reusableItemRoutes = require('./reusableItem.routes')
+const notificationRoutes = require('./notification.routes')
 
 
 const v1 = express.Router()
@@ -37,5 +38,6 @@ v1.use('/assets', assetRoutes)
 v1.use('/reusable-items', reusableItemRoutes)
 v1.use('/departments', departmentRoutes)
 v1.use('/stock-movements', stockMovementRoutes)
+v1.use('/notifications', notificationRoutes)
 
 module.exports = router

@@ -1,25 +1,20 @@
-  "use client";
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Save, Trash2, X, Package, Search, Eye } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
+import { socket } from "@/lib/socket";
 import {
   UnitFormTable,
   ItemFormTable,
   type ProcessItemForm,
   type ProcessUnitForm,
-  type ReturnCondition,
   RETURN_REQUEST_STATUS_LABEL,
-  CONDITION_LABEL,
-  conditionOptions,
   showToast,
 } from "./ReturnForms";
-
-// ─── Types & Interfaces ───────────────────────────────────────────────────────
-
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -28,26 +23,20 @@ const fmtDateTime = (dateStr?: string | null): string => {
   return new Date(dateStr).toLocaleString("th-TH");
 };
 
-const getTotalItems = (items: any[]): number => {
+const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number => {
   return items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
 };
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const statusMap: Record<string, string> = {
-    REQUESTED: "รอคลังรับงาน",
-    PROCESSING: "กำลังตรวจรับ",
-    COMPLETED: "ปิดงานแล้ว",
-  };
-
   const styles: Record<string, string> = {
     "รอคลังรับงาน": "bg-amber-50 text-amber-700 border-amber-200",
     "กำลังตรวจรับ": "bg-blue-50 text-blue-700 border-blue-200",
     "ปิดงานแล้ว": "bg-green-50 text-green-700 border-green-200",
   };
 
-  const displayStatus = statusMap[status] || status;
+  const displayStatus = RETURN_REQUEST_STATUS_LABEL[status] || status;
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${styles[displayStatus] || "bg-gray-50"}`}>
       {displayStatus}
@@ -78,6 +67,9 @@ export default function ReturnsDepartmentClient() {
   const [processNote, setProcessNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [deletingRequestId, setDeletingRequestId] = useState<number | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
 
   // Fetch Data
   const fetchData = useCallback(async () => {
@@ -103,6 +95,56 @@ export default function ReturnsDepartmentClient() {
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+    };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current) return;
+      if (activeRequest || isLoadingDetail || isSaving || deletingRequestId !== null) return;
+      if (isRefreshingRef.current) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await fetchData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 200);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "REUSABLE_RETURN_REQUESTS") {
+        scheduleRefresh();
+      }
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [fetchData, activeRequest, isLoadingDetail, isSaving, deletingRequestId]);
 
   // Handle click outside dropdowns
   useEffect(() => {

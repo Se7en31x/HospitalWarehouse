@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
   Clock, X, Building2, User, Eye,
@@ -9,6 +9,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { getBorrowActive, getRequisitionById } from "@/services/requisitionService";
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
+import { socket } from "@/lib/socket";
 
 // === Helper Functions ===
 
@@ -208,6 +209,9 @@ export default function ReturnItemClient() {
   // ✅ State สำหรับ Modal
   const [detailLoading, setDetailLoading] = useState<number | null>(null);
   const [viewingDetail, setViewingDetail] = useState<RequisitionHeader | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
   const [isFetching, setIsFetching] = useState(true);
 
   // --- [Data Fetching Logic] ---
@@ -227,8 +231,8 @@ export default function ReturnItemClient() {
         toast.error(result.message || "ไม่สามารถดึงข้อมูลได้");
         setRecords([]);
       }
-    } catch {
-      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+    } catch (error) {
+      toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
       setRecords([]);
     } finally {
       setIsFetching(false);
@@ -237,6 +241,56 @@ export default function ReturnItemClient() {
 
   // --- [Initialize Data] ---
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+    };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current) return;
+      if (viewingDetail || detailLoading !== null) return;
+      if (isRefreshingRef.current) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await fetchData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 220);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "REQUISITIONS") {
+        scheduleRefresh();
+      }
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [fetchData, viewingDetail, detailLoading]);
 
   // --- [Close dropdowns when clicking outside] ---
   useEffect(() => {
@@ -266,8 +320,8 @@ export default function ReturnItemClient() {
       } else {
         toast.error(result.message || "ไม่สามารถโหลดรายละเอียดได้");
       }
-    } catch {
-      toast.error("เกิดข้อผิดพลาด");
+    } catch (error) {
+      toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาด");
     } finally {
       setDetailLoading(null);
     }
@@ -275,7 +329,11 @@ export default function ReturnItemClient() {
 
   // --- [Filter Options Logic] ---
   const filterDepartments = useMemo(() => {
-    const depts = new Set(records.map((r) => r.department_name).filter(Boolean));
+    const depts = new Set(
+      records
+        .map((r) => r.department_name)
+        .filter((name): name is string => Boolean(name))
+    );
     return ["แผนกทั้งหมด", ...Array.from(depts)];
   }, [records]);
 

@@ -7,7 +7,8 @@ import {
 import toast from "react-hot-toast";
 import {
   approveRequisition,
-  rejectRequisition
+  rejectRequisition,
+  completeRequisitionDelivery
 } from "../../../services/requisitionService";
 import { RequisitionHeader, RequisitionItem } from "../../../types/requisition_type";
 
@@ -105,9 +106,36 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
     }
   };
 
+  const handleCompleteDelivery = async () => {
+    if (!requisition) return;
+
+    const confirmed = window.confirm(`ยืนยันนำส่งใบ ${requisition.doc_no} แล้วใช่หรือไม่?`);
+    if (!confirmed) return;
+
+    const loadId = toast.loading("กำลังบันทึกการนำส่ง...");
+    setIsLoading(true);
+    try {
+      const res = await completeRequisitionDelivery(requisition.id);
+      if (res.success) {
+        toast.success("บันทึกการนำส่งเรียบร้อย", { id: loadId });
+        onClose();
+        onSuccess();
+      } else {
+        throw new Error(res.message || "ไม่สามารถบันทึกการนำส่งได้");
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+      toast.error(errMsg, { id: loadId });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen || !requisition) return null;
 
   const isPending = requisition.status === 'PENDING';
+  const isApproved = requisition.status === 'APPROVED';
+  const canCompleteDelivery = isApproved && requisition.type === 'WITHDRAW';
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -122,7 +150,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
             <div>
               <h2 className="text-lg font-bold text-slate-800">{requisition.doc_no}</h2>
               <p className="text-xs text-slate-500">
-                {isPending ? 'ตรวจสอบและยืนยันจำนวนการจ่ายพัสดุ' : requisition.status === 'COMPLETED' ? 'อนุมัติจ่ายพัสดุแล้ว' : 'ปฏิเสธคำขอเบิกแล้ว'}
+                {isPending ? 'ตรวจสอบและยืนยันจำนวนการจ่ายพัสดุ' : canCompleteDelivery ? 'อนุมัติแล้ว รอยืนยันการนำส่ง' : requisition.status === 'COMPLETED' ? 'ปิดงานนำส่งเรียบร้อยแล้ว' : 'ปฏิเสธคำขอเบิกแล้ว'}
               </p>
             </div>
           </div>
@@ -259,9 +287,11 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
         <div className="px-8 py-6 border-t bg-slate-50/50 flex justify-end items-center gap-3">
           {isPending ? (
             <p className="text-xs text-slate-400 mr-auto font-medium">* ตรวจสอบจำนวนก่อนยืนยัน ระบบจะตัดสต็อกทันทีหลังอนุมัติ</p>
+          ) : canCompleteDelivery ? (
+            <p className="text-xs text-slate-400 mr-auto font-medium">* ยืนยันว่าแผนกรับของเรียบร้อยแล้วก่อนปิดงาน</p>
           ) : (
             <p className="text-xs text-slate-400 mr-auto font-medium">
-              {requisition.status === 'COMPLETED' ? '✓ ดำเนินการอนุมัติและตัดสต็อกเรียบร้อยแล้ว' : '✗ คำขอนี้ถูกปฏิเสธแล้ว'}
+              {requisition.status === 'COMPLETED' ? '✓ นำส่งเสร็จสิ้นแล้ว' : '✗ คำขอนี้ถูกปฏิเสธแล้ว'}
             </p>
           )}
           {isPending && (
@@ -282,6 +312,16 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                 ยืนยันอนุมัติจ่ายจริง
               </button>
             </>
+          )}
+          {canCompleteDelivery && (
+            <button
+              onClick={handleCompleteDelivery}
+              disabled={isLoading}
+              className="px-8 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck size={18} />}
+              ยืนยันนำส่งแล้ว (ปิดงาน)
+            </button>
           )}
         </div>
       </div>

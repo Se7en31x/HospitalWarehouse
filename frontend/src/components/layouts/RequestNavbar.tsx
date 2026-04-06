@@ -1,21 +1,29 @@
 "use client";
 
 import Image from "next/image";
-import { Bell, ChevronDown, Settings, LogOut, User, Package } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, LogOut, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import NotificationBell from "./NotificationBell";
 
 export default function RequestNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
 
   const moduleTitle = "ระบบเบิก-ยืม-คืน";
   const userName = "นพ. รักษา ดีเยี่ยม";
   const userRole = "แผนกอายุรกรรม";
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff&rounded=true&size=128`;
-
-  const notifications = [
-    { id: 1, message: "ใบเบิก #REQ-001 อนุมัติแล้ว", time: "5 นาทีที่แล้ว", type: "info" },
-  ];
 
   return (
     <header className="w-full bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-950 text-white shadow-xl relative z-[50]">
@@ -47,36 +55,11 @@ export default function RequestNavbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative self-stretch flex items-center">
-              <button onClick={() => setShowNotificationMenu(!showNotificationMenu)} className="p-2 hover:bg-white/10 rounded-full transition-colors relative group">
-                <Bell className="w-5 h-5 text-blue-100 group-hover:text-white" />
-                <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-blue-900"></span>
-              </button>
-              {showNotificationMenu && (
-                <div className="absolute right-0 top-full w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
-                  <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-100">
-                    <p className="text-sm font-bold text-gray-900">สถานะใบเบิกยืม</p>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.map((n) => (
-                      <div key={n.id} className="flex gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                        <div className="mt-0.5 p-1.5 rounded-full bg-blue-100 text-blue-600">
-                          <Package className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-800">{n.message}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <NotificationBell title="สถานะใบเบิก-ยืม" viewAllHref="/request/notifications" />
 
             <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-            <div className="relative self-stretch flex items-center">
+            <div className="relative self-stretch flex items-center" ref={profileRef}>
               <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group">
                 <div className="flex flex-col items-end leading-none">
                   <span className="text-sm font-semibold text-white">{userName}</span>
