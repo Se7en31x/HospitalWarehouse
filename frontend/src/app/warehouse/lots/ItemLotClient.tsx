@@ -163,23 +163,18 @@ const AdjustLotModal = ({ isOpen, onClose, onConfirm, lot, isAdjusting }: Adjust
                 <Package className="w-5 h-5 text-slate-500" />
                 ข้อมูลพัสดุ
               </h3>
-              <div className="flex flex-col sm:flex-row gap-6 items-start">
-                <div className="w-24 h-24 shrink-0 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
-                  <Package className="w-10 h-10 text-slate-300" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-slate-600">ชื่อสินค้า</label>
+                  <p className="text-base text-slate-900 font-medium">{lot.itemName || '-'}</p>
                 </div>
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold mb-1 text-slate-600">ชื่อสินค้า</label>
-                    <p className="text-base text-slate-900 font-medium">{lot.itemName || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-1 text-slate-600">หมวดหมู่</label>
-                    <p className="text-base text-slate-900">{lot.category || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-1 text-slate-600">ตำแหน่งเก็บ(คลัง)</label>
-                    <p className="text-base text-slate-900">{lot.warehouse || '-'}</p>
-                  </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-slate-600">หมวดหมู่</label>
+                  <p className="text-base text-slate-900">{lot.category || '-'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-slate-600">ตำแหน่งเก็บ(คลัง)</label>
+                  <p className="text-base text-slate-900">{lot.warehouse || '-'}</p>
                 </div>
               </div>
             </div>
@@ -663,7 +658,6 @@ export default function LotClient({
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[60px] text-center">#</th>
-                  <th className="px-6 py-4 w-[80px]">รูปภาพ</th>
                   <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
                   <th className="px-6 py-4 w-[100px]">รหัส LOT</th>
                   <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
@@ -682,11 +676,6 @@ export default function LotClient({
                   return (
                     <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 text-center font-medium text-slate-600">{rowNumber}</td>
-                      <td className="px-6 py-4">
-                        <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
-                          <Package className="w-6 h-6 text-slate-400" />
-                        </div>
-                      </td>
                       <td className="px-6 py-4 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
                       <td className="px-6 py-4 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
                       <td className="px-6 py-4">
@@ -714,7 +703,7 @@ export default function LotClient({
                 })}
                 {currentItems.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={10}>
+                    <td colSpan={9}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

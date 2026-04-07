@@ -117,6 +117,25 @@ export async function getInventoryItems(filters: GetItemsFilters = {}): Promise<
 	return (data || []).map(mapApiToUi);
 }
 
+export async function getAllInventoryItems(filters: Omit<GetItemsFilters, "page" | "limit"> = {}): Promise<Item.UiItem[]> {
+	const allItems: Item.UiItem[] = [];
+	const limit = 100;
+	let page = 1;
+
+	while (true) {
+		const batch = await getInventoryItems({ ...filters, page, limit });
+		allItems.push(...batch);
+
+		if (batch.length < limit) {
+			break;
+		}
+
+		page += 1;
+	}
+
+	return allItems;
+}
+
 export async function getcategoriesOptions(): Promise<Item.categoryOptions> {
 	const data = await request<Item.Option[]>(`/v1/categories/option`);
 	return data || [];

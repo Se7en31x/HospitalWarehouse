@@ -320,14 +320,14 @@ const RequestClient = () => {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {paginatedItems.map((req, idx) => (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 w-[150px] font-medium text-slate-800">{req.doc_no}</td>
-                  <td className="px-6 py-4 w-[150px] text-slate-600">
+                  <td className="px-6 py-4 w-[50px] text-slate-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-4 w-[150px] text-slate-700">{req.doc_no}</td>
+                  <td className="px-6 py-4 w-[150px] text-slate-700">
                     {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
                   </td>
                   <td className="px-6 py-4 w-[200px] text-slate-700">{displayRequesterName(req)}</td>
-                  <td className="px-6 py-4 w-[150px] text-slate-600">{displayDeptName(req)}</td>
-                  <td className="px-6 py-4 w-[100px] text-slate-600">{req.type === "WITHDRAW" ? "เบิก" : "ยืม"}</td>
+                  <td className="px-6 py-4 w-[150px] text-slate-700">{displayDeptName(req)}</td>
+                  <td className="px-6 py-4 w-[100px] text-slate-700">{req.type === "WITHDRAW" ? "เบิก" : "ยืม"}</td>
                   <td className="px-6 py-4 w-[150px]">
                     <StatusBadge status={req.status} />
                   </td>

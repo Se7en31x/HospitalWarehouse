@@ -7,6 +7,30 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
+type RequisitionListApiResult = {
+  status?: string;
+  message?: string;
+  data?: RequisitionHeader[];
+  meta?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    totalPages?: number;
+  };
+};
+
+const normalizeRequisitionListResponse = (
+  result: RequisitionListApiResult
+): ApiResponse<RequisitionHeader[]> & { totalPages?: number } => ({
+  success: result.status === "ok",
+  data: Array.isArray(result.data) ? result.data : [],
+  message: result.message,
+  total: Number(result.meta?.total) || 0,
+  page: Number(result.meta?.page) || 1,
+  limit: Number(result.meta?.limit) || 0,
+  totalPages: Number(result.meta?.totalPages) || 0,
+});
+
 /**
  * ดึงประวัติใบเบิกทั้งหมด
  */
@@ -28,7 +52,7 @@ export const getAllRequisitions = async (
       headers: { "Content-Type": "application/json" },
     });
 
-    const result = await response.json();
+    const result: RequisitionListApiResult = await response.json();
 
     if (!response.ok) {
       return {
@@ -38,7 +62,7 @@ export const getAllRequisitions = async (
       };
     }
 
-    return result;
+    return normalizeRequisitionListResponse(result);
   } catch (_error) {
     return {
       success: false,
@@ -46,6 +70,38 @@ export const getAllRequisitions = async (
       message: "การเชื่อมต่อเครือข่ายขัดข้อง",
     };
   }
+};
+
+export const getAllRequisitionsPages = async (
+  filters: RequisitionFilters = {}
+): Promise<RequisitionHeader[]> => {
+  const limit = Number(filters.limit) || 100;
+  let page = Number(filters.page) || 1;
+  const allRecords: RequisitionHeader[] = [];
+
+  while (true) {
+    const response = await getAllRequisitions({ ...filters, page, limit });
+
+    if (!response.success || !Array.isArray(response.data)) {
+      break;
+    }
+
+    allRecords.push(...response.data);
+
+    const fetchedCount = response.data.length;
+    const total = Number(response.total) || 0;
+    const totalPages = total > 0 && response.limit
+      ? Math.ceil(total / response.limit)
+      : 0;
+
+    if (fetchedCount < limit || (totalPages > 0 && page >= totalPages)) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return allRecords;
 };
 
 /**

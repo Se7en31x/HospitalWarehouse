@@ -43,6 +43,33 @@ export const getStockMovements = async (
   };
 };
 
+export const getAllStockMovements = async (
+  filters?: StockMovementFilters
+): Promise<StockMovement[]> => {
+  const firstPage = await getStockMovements({ ...filters, page: 1, limit: 100 });
+
+  if (!firstPage.success) {
+    return [];
+  }
+
+  const allMovements = [...firstPage.data];
+  const totalPages = Math.max(1, firstPage.meta.totalPages || 1);
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const nextPage = await getStockMovements({
+      ...filters,
+      page,
+      limit: firstPage.meta.limit || 100,
+    });
+
+    if (nextPage.success) {
+      allMovements.push(...nextPage.data);
+    }
+  }
+
+  return allMovements;
+};
+
 export const getStockMovementById = async (
   id: number
 ): Promise<{ success: boolean; data: StockMovement | null; message?: string }> => {

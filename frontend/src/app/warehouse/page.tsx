@@ -81,9 +81,14 @@ export default function WarehouseDashboard() {
   const chartData = chartMode === "week" ? weeklyData : monthlyData;
   const maxChartTotal = Math.max(...chartData.map((d) => d.total), 1);
 
+  const weekDayLabels = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+    const weekdayIndex = (d.getDay() + 6) % 7;
+    const weekday = weekDayLabels[weekdayIndex];
+    const dayMonth = d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+    return `${weekday} ${dayMonth}`;
   };
 
   if (loading) {
@@ -98,7 +103,7 @@ export default function WarehouseDashboard() {
   }
 
   // --- Weekly total ---
-  const currentWeekTotal = weeklyData.length > 0 ? weeklyData[weeklyData.length - 1].total : 0;
+  const currentWeekTotal = weeklyData.reduce((sum, item) => sum + item.total, 0);
 
   // --- Lot Overview Chart ---
   const lotTotal = lotStats?.total ?? 0;
@@ -142,7 +147,7 @@ export default function WarehouseDashboard() {
       </div>
 
       {/* 2. Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-9 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {/* จำนวนสินค้าทั้งหมด */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="p-2 bg-blue-100 text-blue-600 rounded-lg w-fit mb-2"><Package className="w-4 h-4" /></div>
@@ -215,9 +220,9 @@ export default function WarehouseDashboard() {
       </div>
 
       {/* 3. Lot Overview, Requisitions & Top 5 Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-stretch">
         {/* Lot Overview Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:col-span-3">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Layers className="w-5 h-5 text-violet-500" />
@@ -277,12 +282,8 @@ export default function WarehouseDashboard() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 4. Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         {/* Bar Chart - สถิติการเบิกพัสดุ */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-7 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
@@ -316,7 +317,7 @@ export default function WarehouseDashboard() {
                 {chartData.map((item, idx) => {
                   const heightPct = Math.max(5, (item.total / maxChartTotal) * 100);
                   const withdrawPct = item.total > 0 ? (item.withdraw / item.total) * 100 : 0;
-                  const label = "weekStart" in item ? formatDate(item.weekStart) : (item as MonthlyRequisition).label;
+                  const label = "weekStart" in item ? formatDate(item.weekStart) : item.label;
                   return (
                     <div key={idx} className="w-full flex flex-col items-center gap-2 group h-full justify-end">
                       <div

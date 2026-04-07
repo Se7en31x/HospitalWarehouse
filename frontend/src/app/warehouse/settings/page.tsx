@@ -115,7 +115,7 @@ export default function SettingsPage() {
   });
   const [unitForm, setUnitForm] = useState<UnitPayload>({ name: "", description: "" });
   const [warehouseForm, setWarehouseForm] = useState<WarehousePayload>({ name: "", location: "", description: "" });
-  const [supplierForm, setSupplierForm] = useState<SupplierPayload>({ name: "", contact: "", address: "", phone: "", tax_id: "" });
+  const [supplierForm, setSupplierForm] = useState<SupplierPayload>({ name: "", contact: "", phone: "", tax_id: "" });
 
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
@@ -206,7 +206,7 @@ export default function SettingsPage() {
     const keyword = keywordByTab.suppliers.trim().toLowerCase();
     if (!keyword) return suppliers;
     return suppliers.filter((sup) =>
-      [sup.name, sup.contact || "", sup.address || "", sup.phone || "", sup.tax_id || ""]
+      [sup.name, sup.contact || "", sup.phone || "", sup.tax_id || ""]
         .join(" ")
         .toLowerCase()
         .includes(keyword)
@@ -340,7 +340,7 @@ export default function SettingsPage() {
     }
     if (activeTab === "suppliers") {
       setEditingSupplierId(null);
-      setSupplierForm({ name: "", contact: "", address: "", phone: "", tax_id: "" });
+      setSupplierForm({ name: "", contact: "", phone: "", tax_id: "" });
     }
     setIsFormModalOpen(true);
   };
@@ -767,7 +767,6 @@ export default function SettingsPage() {
                               setSupplierForm({
                                 name: sup.name,
                                 contact: sup.contact || "",
-                                address: sup.address || "",
                                 phone: sup.phone || "",
                                 tax_id: sup.tax_id || "",
                               });
@@ -806,115 +805,115 @@ export default function SettingsPage() {
           {activeTab === "notifications" && (
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-lg border border-slate-200 bg-white p-5">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4">การแจ้งเตือน</h3>
-                  <div className="space-y-4">
-                    {notificationKeys.map((k) => {
-                      const meta = systemSettings[k];
-                      const value = systemSettingsDraft[k] ?? meta?.value ?? "";
-                      if (!meta) return null;
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-5">
+                    <h4 className="text-sm font-bold text-slate-800 mb-4">การแจ้งเตือน</h4>
+                    <div className="space-y-4">
+                      {notificationKeys.map((k) => {
+                        const meta = systemSettings[k];
+                        const value = systemSettingsDraft[k] ?? meta?.value ?? "";
+                        if (!meta) return null;
 
-                      if (meta.type === "boolean") {
-                        return (
-                          <label key={k} className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-slate-700">{meta.label}</span>
-                            <input
-                              type="checkbox"
-                              checked={value === "true"}
-                              onChange={(e) =>
-                                setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.checked ? "true" : "false" }))
-                              }
-                              className="h-5 w-5 accent-indigo-600"
-                            />
-                          </label>
-                        );
-                      }
+                        if (meta.type === "boolean") {
+                          return (
+                            <label key={k} className="flex items-center justify-between gap-4">
+                              <span className="text-sm text-slate-700">{meta.label}</span>
+                              <input
+                                type="checkbox"
+                                checked={value === "true"}
+                                onChange={(e) =>
+                                  setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.checked ? "true" : "false" }))
+                                }
+                                className="h-5 w-5 accent-indigo-600"
+                              />
+                            </label>
+                          );
+                        }
 
-                      if (meta.type === "number") {
+                        if (meta.type === "number") {
+                          return (
+                            <div key={k} className="flex items-center justify-between gap-4">
+                              <label className="text-sm text-slate-700">{meta.label}</label>
+                              <input
+                                type="number"
+                                value={value}
+                                onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                                className="w-40 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                min={0}
+                              />
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={k} className="flex items-center justify-between gap-4">
                             <label className="text-sm text-slate-700">{meta.label}</label>
                             <input
-                              type="number"
+                              type="text"
                               value={value}
                               onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                              className="w-40 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                              min={0}
+                              className="w-72 border border-slate-300 rounded-lg px-3 py-2 text-sm"
                             />
                           </div>
                         );
-                      }
-
-                      return (
-                        <div key={k} className="flex items-center justify-between gap-4">
-                          <label className="text-sm text-slate-700">{meta.label}</label>
-                          <input
-                            type="text"
-                            value={value}
-                            onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                            className="w-72 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                          />
-                        </div>
-                      );
-                    })}
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white p-5">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4">ตารางเวลาการทำงาน (Cron)</h3>
-                  <div className="space-y-4">
-                    {scheduleKeys.map((k) => {
-                      const meta = systemSettings[k];
-                      const value = systemSettingsDraft[k] ?? meta?.value ?? "";
-                      if (!meta) return null;
-                      const timeValue = cronDailyToTime(value);
-                      return (
-                        <div key={k} className="space-y-1">
-                          <label className="text-sm text-slate-700">{meta.label}</label>
-                          {timeValue ? (
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="time"
-                                value={timeValue}
-                                onChange={(e) => {
-                                  const cron = timeToDailyCron(e.target.value);
-                                  setSystemSettingsDraft((prev) => ({ ...prev, [k]: cron ?? value }));
-                                }}
-                                className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                              />
-                              <div className="text-xs text-slate-500">
-                                แสดงผลเป็น “ทุกวัน เวลา {timeValue}”
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-5">
+                    <h4 className="text-sm font-bold text-slate-800 mb-4">ตารางเวลาการทำงาน (Cron)</h4>
+                    <div className="space-y-4">
+                      {scheduleKeys.map((k) => {
+                        const meta = systemSettings[k];
+                        const value = systemSettingsDraft[k] ?? meta?.value ?? "";
+                        if (!meta) return null;
+                        const timeValue = cronDailyToTime(value);
+                        return (
+                          <div key={k} className="space-y-1">
+                            <label className="text-sm text-slate-700">{meta.label}</label>
+                            {timeValue ? (
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="time"
+                                  value={timeValue}
+                                  onChange={(e) => {
+                                    const cron = timeToDailyCron(e.target.value);
+                                    setSystemSettingsDraft((prev) => ({ ...prev, [k]: cron ?? value }));
+                                  }}
+                                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                />
+                                <div className="text-xs text-slate-500">
+                                  แสดงผลเป็น “ทุกวัน เวลา {timeValue}”
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <>
-                              <input
-                                type="text"
-                                value={value}
-                                onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
-                                placeholder="รองรับรูปแบบรายวัน เช่น 5 0 * * *"
-                              />
-                              <div className="text-xs text-amber-700">
-                                รูปแบบนี้ไม่ใช่ “รายวัน (นาที ชั่วโมง * * *)” จึงแสดงเป็นช่องกรอกขั้นสูง
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="text"
+                                  value={value}
+                                  onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                  placeholder="รองรับรูปแบบรายวัน เช่น 5 0 * * *"
+                                />
+                                <div className="text-xs text-amber-700">
+                                  รูปแบบนี้ไม่ใช่ “รายวัน (นาที ชั่วโมง * * *)” จึงแสดงเป็นช่องกรอกขั้นสูง
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={handleSaveSystemSettings}
-                      disabled={isSaving}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-70"
-                    >
-                      {isSaving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
-                    </button>
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        onClick={handleSaveSystemSettings}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-70"
+                      >
+                        {isSaving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
+                      </button>
+                    </div>
                   </div>
-                </div>
               </div>
             </div>
           )}
@@ -922,47 +921,48 @@ export default function SettingsPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
-          แสดง{" "}
-          {((activeTab === "categories" && pagedCategories.length) ||
-            (activeTab === "units" && pagedUnits.length) ||
-            (activeTab === "warehouses" && pagedWarehouses.length) ||
-            (activeTab === "suppliers" && pagedSuppliers.length) ||
-            (activeTab === "notifications" && 1)) ||
-            0}{" "}
-          จาก {activeTotal} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={activePage === 1}
-            onClick={() =>
-              setPageByTab((prev) => ({
-                ...prev,
-                [activeTab]: Math.max(1, prev[activeTab] - 1),
-              }))
-            }
-            className="p-2 border rounded-lg border-slate-300 disabled:opacity-30 hover:bg-slate-50 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium">
-            หน้า {activePage} / {activeTotalPages || 1}
-          </span>
-          <button
-            disabled={activePage >= activeTotalPages}
-            onClick={() =>
-              setPageByTab((prev) => ({
-                ...prev,
-                [activeTab]: Math.min(totalPagesByTab[activeTab], prev[activeTab] + 1),
-              }))
-            }
-            className="p-2 border rounded-lg border-slate-300 disabled:opacity-30 hover:bg-slate-50 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+      {activeTab !== "notifications" && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            แสดง{" "}
+            {((activeTab === "categories" && pagedCategories.length) ||
+              (activeTab === "units" && pagedUnits.length) ||
+              (activeTab === "warehouses" && pagedWarehouses.length) ||
+              (activeTab === "suppliers" && pagedSuppliers.length)) ||
+              0}{" "}
+            จาก {activeTotal} รายการ
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={activePage === 1}
+              onClick={() =>
+                setPageByTab((prev) => ({
+                  ...prev,
+                  [activeTab]: Math.max(1, prev[activeTab] - 1),
+                }))
+              }
+              className="p-2 border rounded-lg border-slate-300 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium">
+              หน้า {activePage} / {activeTotalPages || 1}
+            </span>
+            <button
+              disabled={activePage >= activeTotalPages}
+              onClick={() =>
+                setPageByTab((prev) => ({
+                  ...prev,
+                  [activeTab]: Math.min(totalPagesByTab[activeTab], prev[activeTab] + 1),
+                }))
+              }
+              className="p-2 border rounded-lg border-slate-300 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ================= MODALS ================= */}
       <SettingsModals

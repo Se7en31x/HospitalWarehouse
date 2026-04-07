@@ -289,8 +289,8 @@ function DetailContent({
             </div>
             <div>
               <p className="text-xs text-slate-500">สถานะ</p>
-              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold items-center gap-1.5 ${getStatusBadgeColor(uiStatus)}`}>
-                {getStatusIcon(uiStatus)} {uiStatus}
+              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold items-center ${getStatusBadgeColor(uiStatus)}`}>
+                {uiStatus}
               </span>
             </div>
             <div>
@@ -314,53 +314,33 @@ function DetailContent({
           </div>
 
           <div className="space-y-5">
-            {/* ชื่อผู้ยืม */}
-            <div>
-              <p className="text-xs text-slate-500 mb-1">ชื่อผู้ยืม</p>
-              <p className="text-base text-slate-800">{getBorrowerDisplay(header)}</p>
-            </div>
-
-            {/* ที่อยู่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ */}
-            {header.borrower_details?.address && (
+            {/* Row 1: ชื่อผู้ยืม, เบอร์โทร, ที่อยู่ */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <p className="text-xs text-slate-500 mb-2">ที่อยู่</p>
-                <p className="text-base text-slate-800 mb-3">{header.borrower_details.address}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {header.borrower_details.subdistrict && (
-                    <div>
-                      <p className="text-xs text-slate-500">ตำบล</p>
-                      <p className="text-base text-slate-800">{header.borrower_details.subdistrict}</p>
-                    </div>
-                  )}
-                  {header.borrower_details.district && (
-                    <div>
-                      <p className="text-xs text-slate-500">อำเภอ</p>
-                      <p className="text-base text-slate-800">{header.borrower_details.district}</p>
-                    </div>
-                  )}
-                  {header.borrower_details.province && (
-                    <div>
-                      <p className="text-xs text-slate-500">จังหวัด</p>
-                      <p className="text-base text-slate-800">{header.borrower_details.province}</p>
-                    </div>
-                  )}
-                  {header.borrower_details.zipcode && (
-                    <div>
-                      <p className="text-xs text-slate-500">รหัสไปรษณีย์</p>
-                      <p className="text-base text-slate-800">{header.borrower_details.zipcode}</p>
-                    </div>
-                  )}
+                <p className="text-xs text-slate-500 mb-1">ชื่อผู้ยืม</p>
+                <p className="text-base text-slate-800">{getBorrowerDisplay(header)}</p>
+              </div>
+
+              {header.borrower_details?.phone && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">เบอร์โทร</p>
+                  <p className="text-base text-slate-800">{header.borrower_details.phone}</p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* เบอร์โทร */}
-            {header.borrower_details?.phone && (
-              <div>
-                <p className="text-xs text-slate-500 mb-1">เบอร์โทร</p>
-                <p className="text-base text-slate-800">{header.borrower_details.phone}</p>
-              </div>
-            )}
+              {header.borrower_details?.address && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">ที่อยู่</p>
+                  <p className="text-base text-slate-800">
+                    {header.borrower_details.address}
+                    {header.borrower_details.subdistrict && `, ${header.borrower_details.subdistrict}`}
+                    {header.borrower_details.district && ` อำเภอ${header.borrower_details.district}`}
+                    {header.borrower_details.province && `, จังหวัด${header.borrower_details.province}`}
+                    {header.borrower_details.zipcode && `, ${header.borrower_details.zipcode}`}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* หมายเหตุ */}
             {header.borrower_details?.notes && (
@@ -379,13 +359,14 @@ function DetailContent({
         </section>
 
         {/* Items Table */}
-        <section className="rounded-lg bg-white border border-slate-300 overflow-hidden flex flex-col" style={{ height: "340px" }}>
-          <div className="border-b border-slate-300 px-6 py-5 bg-white">
-            <h2 className="text-lg font-semibold text-slate-800">รายการพัสดุ ({header.items?.length || 0} รายการ)</h2>
+        <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col" style={{ height: "400px" }}>
+          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
+            <Package className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold">รายการพัสดุ ({header.items?.length || 0} รายการ)</h2>
           </div>
 
           <div
-            className="flex-1"
+            className="flex-1 border border-slate-200 rounded-lg overflow-hidden"
             style={{
               overflowX: "auto",
               overflowY: "auto",
@@ -412,12 +393,14 @@ function DetailContent({
             <table className="w-full text-base text-left table-fixed">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
                 <tr>
+                  <th className="px-6 py-5 w-[60px] text-center">#</th>
                   <th className="px-6 py-5 w-[70px] text-center">รูป</th>
-                  <th className="px-6 py-5 w-[160px]">รายการพัสดุ</th>
-                  <th className="px-6 py-5 w-[120px] text-center">จำนวนยืม</th>
-                  <th className="px-6 py-5 w-[120px] text-center">จ่ายจริง</th>
-                  <th className="px-6 py-5 w-[120px] text-center">คืนแล้ว</th>
-                  <th className="px-6 py-5 w-[70px] text-center">ค้าง</th>
+                  <th className="px-6 py-5 w-[140px]">รหัสพัสดุ</th>
+                  <th className="px-6 py-5 w-[200px]">รายการพัสดุ</th>
+                  <th className="px-6 py-5 w-[120px]">จำนวนยืม</th>
+                  <th className="px-6 py-5 w-[120px]">จ่ายจริง</th>
+                  <th className="px-6 py-5 w-[120px]">คืนแล้ว</th>
+                  <th className="px-6 py-5 w-[70px]">สถานะ</th>
                   {canReturn && (
                     <>
                       <th className="px-6 py-5 w-[110px] text-center">คืนครั้งนี้</th>
@@ -433,23 +416,26 @@ function DetailContent({
                     if (row.max === 0) return null;
                     return (
                       <tr key={row.req_item_id} className="hover:bg-slate-50">
+                        <td className="px-6 py-5 w-[50px] text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
                         <td className="px-6 py-5 w-[70px]">
                           {header.items?.find(i => i.id === row.req_item_id)?.image_url ? (
-                            <img src={header.items.find(i => i.id === row.req_item_id)?.image_url || ""} alt={row.name} className="w-8 h-8 rounded-lg object-cover mx-auto" />
+                            <img src={header.items.find(i => i.id === row.req_item_id)?.image_url || ""} alt={row.name} className="w-16 h-16 rounded-lg object-cover mx-auto" />
                           ) : (
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
-                              <Package className="w-4 h-4 text-slate-400" />
+                            <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
+                              <Package className="w-6 h-6 text-slate-400" />
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-5 min-w-[160px]">
-                          <p className="font-bold text-slate-800 text-sm">{row.name}</p>
-                          <p className="text-xs text-slate-400 font-mono">{row.code}</p>
+                        <td className="px-6 py-5 w-[140px]">
+                          <p className="text-xs text-black font-mono">{row.code}</p>
                         </td>
-                        <td className="px-6 py-5 w-[80px] text-center font-medium text-slate-600 text-base">{header.items?.find(i => i.id === row.req_item_id)?.qty}</td>
-                        <td className="px-6 py-5 w-[90px] text-center font-medium text-indigo-600 text-base">{row.issued}</td>
-                        <td className="px-6 py-5 w-[80px] text-center font-medium text-green-600 text-base">{row.returned}</td>
-                        <td className="px-6 py-5 w-[70px] text-center">
+                        <td className="px-6 py-5 w-[200px]">
+                          <p className="text-slate-800 text-sm">{row.name}</p>
+                        </td>
+                        <td className="px-6 py-5 w-[80px] font-medium text-slate-600 text-base">{header.items?.find(i => i.id === row.req_item_id)?.qty}</td>
+                        <td className="px-6 py-5 w-[90px] font-medium text-indigo-600 text-base">{row.issued}</td>
+                        <td className="px-6 py-5 w-[80px] font-medium text-green-600 text-base">{row.returned}</td>
+                        <td className="px-6 py-5 w-[70px]">
                           <span className={`font-bold text-sm ${row.max > 0 ? "text-amber-600" : "text-slate-400"}`}>
                             {row.max}
                           </span>
@@ -527,27 +513,30 @@ function DetailContent({
                     );
                   })
                 ) : (
-                  header.items.map((item) => {
+                  header.items.map((item, idx) => {
                     const pending = (item.issued || 0) - (item.returned || 0);
                     return (
                       <tr key={item.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-5 w-[50px] text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
                         <td className="px-6 py-5 w-[70px]">
                           {item.image_url ? (
-                            <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-lg object-cover mx-auto" />
+                            <img src={item.image_url} alt={item.name} className="w-12 h-12 rounded-lg object-cover mx-auto" />
                           ) : (
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
-                              <Package className="w-4 h-4 text-slate-400" />
+                            <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
+                              <Package className="w-6 h-6 text-slate-400" />
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-5 min-w-[160px]">
-                          <p className="font-bold text-slate-800 text-sm">{item.name}</p>
-                          <p className="text-xs text-slate-400 font-mono">{item.code}</p>
+                        <td className="px-6 py-5 w-[140px]">
+                          <p className="text-xs text-black font-mono">{item.code}</p>
                         </td>
-                        <td className="px-6 py-5 w-[80px] text-center font-medium text-slate-600 text-base">{item.qty}</td>
-                        <td className="px-6 py-5 w-[90px] text-center font-medium text-indigo-600 text-base">{item.issued || 0}</td>
-                        <td className="px-6 py-5 w-[80px] text-center font-medium text-green-600 text-base">{item.returned || 0}</td>
-                        <td className="px-6 py-5 w-[70px] text-center">
+                        <td className="px-6 py-5 w-[200px]">
+                          <p className="text-slate-800 text-sm">{item.name}</p>
+                        </td>
+                        <td className="px-6 py-5 w-[80px] font-medium text-slate-600 text-base">{item.qty}</td>
+                        <td className="px-6 py-5 w-[90px] font-medium text-indigo-600 text-base">{item.issued || 0}</td>
+                        <td className="px-6 py-5 w-[80px] font-medium text-green-600 text-base">{item.returned || 0}</td>
+                        <td className="px-6 py-5 w-[70px]">
                           <span className={`font-bold text-sm ${pending > 0 ? "text-amber-600" : "text-slate-400"}`}>
                             {pending > 0 ? pending : "ครบแล้ว"}
                           </span>
@@ -562,7 +551,7 @@ function DetailContent({
             {(!header.items || header.items.length === 0) && (
               <tbody>
                 <tr>
-                  <td colSpan={canReturn ? 9 : 6}>
+                  <td colSpan={canReturn ? 10 : 7}>
                     <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
