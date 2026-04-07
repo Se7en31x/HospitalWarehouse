@@ -202,10 +202,6 @@ export default function SettingsModals({
                       <label className={labelClass}>เลขประจำตัวผู้เสียภาษี</label>
                       <input value={supplierForm.tax_id || ""} onChange={(e) => onSupplierFormChange({ ...supplierForm, tax_id: e.target.value })} placeholder="เลขประจำตัวผู้เสียภาษี" className={inputClass} />
                     </div>
-                    <div className="md:col-span-2">
-                      <label className={labelClass}>ที่อยู่ (ไม่บังคับ)</label>
-                      <textarea value={supplierForm.address || ""} onChange={(e) => onSupplierFormChange({ ...supplierForm, address: e.target.value })} placeholder="ระบุที่อยู่" className={`${inputClass} resize-none h-24`} />
-                    </div>
                   </>
                 )}
               </div>

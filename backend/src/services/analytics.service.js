@@ -8,6 +8,12 @@ const startOfDay = (d) => {
   return x;
 };
 
+const endOfDay = (d) => {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+};
+
 const addDays = (d, days) => new Date(d.getTime() + days * 24 * 60 * 60 * 1000);
 
 const toDateKey = (d) => {
@@ -228,15 +234,15 @@ async function getStockInMonthly({ months }) {
 async function getRequisitionTimeSeries({ weeks, months }) {
   const now = new Date();
 
-  const weeksBack = Math.max(1, weeks);
   const monthsBack = Math.max(1, months);
 
-  const weeksFrom = addDays(now, -(weeksBack * 7));
+  const weekStartDate = mondayOfWeek(now);
+  const weekEndDate = endOfDay(addDays(weekStartDate, 6));
   const monthsFrom = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
 
   const [weeklyRows, monthlyRows] = await Promise.all([
     prisma.requisition_header.findMany({
-      where: { created_at: { gte: weeksFrom, lte: now } },
+      where: { created_at: { gte: weekStartDate, lte: weekEndDate } },
       select: { created_at: true, type: true },
     }),
     prisma.requisition_header.findMany({
@@ -246,11 +252,15 @@ async function getRequisitionTimeSeries({ weeks, months }) {
   ]);
 
   const weeklyBuckets = new Map();
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(weekStartDate, i);
+    const key = toDateKey(d);
+    weeklyBuckets.set(key, { weekStart: key, withdraw: 0, borrow: 0, total: 0 });
+  }
   for (const r of weeklyRows) {
     const dt = r.created_at || now;
-    const weekStart = mondayOfWeek(dt);
-    const key = toDateKey(weekStart);
-    if (!weeklyBuckets.has(key)) weeklyBuckets.set(key, { weekStart: key, withdraw: 0, borrow: 0, total: 0 });
+    const key = toDateKey(startOfDay(dt));
+    if (!weeklyBuckets.has(key)) continue;
     const bucket = weeklyBuckets.get(key);
     const type = String(r.type || '').toUpperCase();
     if (type === 'BORROW') bucket.borrow += 1;

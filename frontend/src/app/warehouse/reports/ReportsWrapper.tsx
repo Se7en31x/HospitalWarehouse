@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronLeft } from "lucide-react";
 import ReportTypeSelector, { type ReportPage } from "./ReportTypeSelector";
 import ReportsClient from "./ReportsClient";
+import RequisitionReportClient from "./RequisitionReportClient";
+import StockInReportClient from "./StockInReportClient";
+import StockOutReportClient from "./StockOutReportClient";
+import StockBalanceReportClient from "./StockBalanceReportClient";
+import ExpiredLotsReportClient from "./ExpiredLotsReportClient";
 import ItemsReportClient from "./ItemsReportClient";
 import LowStockReportClient from "./LowStockReportClient";
 import NearExpiryReportClient from "./NearExpiryReportClient";
@@ -20,20 +24,13 @@ interface ReportsWrapperProps {
 		totalItems: number;
 		totalRequisitions: number;
 		totalReceives: number;
+		totalStockOuts: number;
+		totalStockBalance: number;
+		totalExpiredLots: number;
 		lowStockCount: number;
 		nearExpiryCount: number;
 	};
 }
-
-const pageTitles: Record<ReportPage, string> = {
-	all: "รายงานทั้งหมด",
-	"all-items": "รายงานสินค้าทั้งหมด",
-	requisition: "รายงานคำขอเบิก/ยืม",
-	stockin: "รายงานรับเข้า",
-	"low-stock": "รายงานสินค้าต่ำกว่าจุดต่ำสุด",
-	"near-expiry": "รายงานสินค้าใกล้หมดอายุ",
-};
-
 const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
 	initialReports,
 	initialItems,
@@ -53,6 +50,67 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
 		setShowSelector(true);
 	};
 
+	const renderReportContent = () => {
+		if (selectedType === "all-items") {
+			return <ItemsReportClient initialItems={initialItems} onBack={handleBackToSelector} />;
+		}
+
+		if (selectedType === "low-stock") {
+			return (
+				<LowStockReportClient
+					initialItems={initialLowStockItems}
+					onBack={handleBackToSelector}
+				/>
+			);
+		}
+
+		if (selectedType === "near-expiry") {
+			return (
+				<NearExpiryReportClient
+					initialLots={initialExpiringLots}
+					onBack={handleBackToSelector}
+				/>
+			);
+		}
+
+		if (selectedType === "requisition") {
+			return <RequisitionReportClient onBack={handleBackToSelector} />;
+		}
+
+		if (selectedType === "stockin") {
+			return <StockInReportClient onBack={handleBackToSelector} />;
+		}
+
+		if (selectedType === "stockout") {
+			return <StockOutReportClient onBack={handleBackToSelector} />;
+		}
+
+		if (selectedType === "stock-balance") {
+			return (
+				<StockBalanceReportClient
+					initialItems={initialItems}
+					onBack={handleBackToSelector}
+				/>
+			);
+		}
+
+		if (selectedType === "expired-lots") {
+			return (
+				<ExpiredLotsReportClient
+					initialLots={initialExpiringLots}
+					onBack={handleBackToSelector}
+				/>
+			);
+		}
+
+		return (
+			<ReportsClient
+				initialReports={initialReports}
+				selectedType="all"
+			/>
+		);
+	};
+
 	if (showSelector) {
 		return (
 			<ReportTypeSelector
@@ -63,61 +121,8 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
 		);
 	}
 
-	const renderReportContent = () => {
-		switch (selectedType) {
-			case "all-items":
-				return <ItemsReportClient initialItems={initialItems} />;
-			case "low-stock":
-				return <LowStockReportClient initialItems={initialLowStockItems} />;
-			case "near-expiry":
-				return <NearExpiryReportClient initialLots={initialExpiringLots} />;
-			case "requisition":
-				return (
-					<ReportsClient
-						initialReports={initialReports.filter(
-							(r) => r.type === "requisition"
-						)}
-						selectedType="requisition"
-					/>
-				);
-			case "stockin":
-				return (
-					<ReportsClient
-						initialReports={initialReports.filter(
-							(r) => r.type === "stockin"
-						)}
-						selectedType="stockin"
-					/>
-				);
-			default:
-				return (
-					<ReportsClient
-						initialReports={initialReports}
-						selectedType="all"
-					/>
-				);
-		}
-	};
-
 	return (
 		<div>
-			{/* Back button */}
-			<div className="bg-white border-b border-gray-200 sticky top-0 z-30">
-				<div className="px-4 sm:px-6 py-3 flex items-center gap-3">
-					<button
-						onClick={handleBackToSelector}
-						className="flex items-center gap-1.5 text-hospital hover:text-hospital-dark font-medium transition-colors text-sm"
-					>
-						<ChevronLeft className="w-4 h-4" />
-						กลับ
-					</button>
-					<span className="text-gray-300">|</span>
-					<h2 className="text-sm font-semibold text-gray-800">
-						{pageTitles[selectedType]}
-					</h2>
-				</div>
-			</div>
-
 			{/* Report content */}
 			{renderReportContent()}
 		</div>

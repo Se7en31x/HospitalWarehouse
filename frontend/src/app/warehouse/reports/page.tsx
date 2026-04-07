@@ -4,8 +4,11 @@ import React from "react";
 import ReportsWrapper from "./ReportsWrapper";
 // ✅ ตรวจสอบชื่อไฟล์ให้ตรง (ไม่มี s และใช้ .service หรือ Service ตามที่คุณตั้งชื่อไฟล์)
 import { getAllReports } from "@/services/reportService"; 
-import { getInventoryItems } from "@/services/itemsService";
-import { getExpiringLots } from "@/services/dashboardService";
+import { getAllInventoryItems } from "@/services/itemsService";
+import { getExpiredLots, getExpiringLots } from "@/services/dashboardService";
+import { getAllRequisitionsPages } from "@/services/requisitionService";
+import { getAllStockMovements } from "@/services/stockMovementService";
+import { isBelowMinStock } from "./lowStockReportUtils";
 
 // ✅ ใช้ Type ตัวใหม่ที่เราเพิ่งทำ (ไม่มี s)
 import type { Report } from "@/types/report_type";
@@ -16,15 +19,19 @@ export default async function WarehouseReportsPage() {
   let initialReports: Report[] = [];
   let initialItems: UiItem[] = [];
   let initialExpiringLots: ExpiringLot[] = [];
+  let initialExpiredLots: ExpiringLot[] = [];
+  let requisitionCount = 0;
+  let receiveCount = 0;
+  let stockOutCount = 0;
 
   try {
     // ดึงข้อมูลแบบขนานเพื่อความเร็ว
-    const [reports, items, lots] = await Promise.all([
+    const [reports, items, lots, expiredLots, requisitions, stockIns, stockOuts] = await Promise.all([
       getAllReports().catch(() => {
         console.error("🚫 Failed to fetch reports");
         return [] as Report[];
       }),
-      getInventoryItems().catch(() => {
+      getAllInventoryItems().catch(() => {
         console.error("🚫 Failed to fetch inventory");
         return [] as UiItem[];
       }),
@@ -32,11 +39,31 @@ export default async function WarehouseReportsPage() {
         console.error("🚫 Failed to fetch expiring lots");
         return [] as ExpiringLot[];
       }),
+      getExpiredLots().catch(() => {
+        console.error("🚫 Failed to fetch expired lots");
+        return [] as ExpiringLot[];
+      }),
+      getAllRequisitionsPages({ limit: 100 }).catch(() => {
+        console.error("🚫 Failed to fetch requisitions");
+        return [];
+      }),
+      getAllStockMovements({ type: "RECEIVE_IN" }).catch(() => {
+        console.error("🚫 Failed to fetch stock in movements");
+        return [];
+      }),
+      getAllStockMovements({ type: "OUT" }).catch(() => {
+        console.error("🚫 Failed to fetch stock out movements");
+        return [];
+      }),
     ]);
 
     initialReports = reports;
     initialItems = items;
     initialExpiringLots = lots;
+    initialExpiredLots = expiredLots;
+    requisitionCount = requisitions.length;
+    receiveCount = stockIns.length;
+    stockOutCount = stockOuts.length;
   } catch (error) {
     console.error("CRITICAL: Error fetching page data:", error);
   }
@@ -44,21 +71,13 @@ export default async function WarehouseReportsPage() {
   // --- Logic สำหรับสรุปข้อมูลหน้า Dashboard ---
 
   // 1. สินค้าที่สต็อกต่ำกว่าจุดสั่งซื้อ (Min Stock)
-  const lowStockItems = initialItems.filter(
-    (item) => item.minStock > 0 && item.stock <= item.minStock
-  );
+  const lowStockItems = initialItems.filter(isBelowMinStock);
 
-  // 2. นับจำนวนรายการแยกตามประเภท (ใช้ Type ใหม่ได้เลย)
-  const requisitionCount = initialReports.filter(
-    (r) => r.type === "requisition"
-  ).length;
-
-  const receiveCount = initialReports.filter(
-    (r) => r.type === "stockin"
-  ).length;
+  const stockBalanceCount = initialItems.length;
+  const expiredLotCount = initialExpiredLots.length;
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-white min-h-screen">
       <ReportsWrapper
         initialReports={initialReports}
         initialItems={initialItems}
@@ -68,6 +87,9 @@ export default async function WarehouseReportsPage() {
           totalItems: initialItems.length,
           totalRequisitions: requisitionCount,
           totalReceives: receiveCount,
+          totalStockOuts: stockOutCount,
+          totalStockBalance: stockBalanceCount,
+          totalExpiredLots: expiredLotCount,
           lowStockCount: lowStockItems.length,
           nearExpiryCount: initialExpiringLots.length,
         }}

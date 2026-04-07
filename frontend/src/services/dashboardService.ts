@@ -1,4 +1,5 @@
 import Cookies from "js-cookie";
+import { isNearExpiryDate } from "@/utils/nearExpiryUtils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -151,37 +152,92 @@ export async function getDashboardAnalytics(params?: {
   return body.data;
 }
 
-export async function getExpiringLots(days = 90): Promise<ExpiringLot[]> {
-  const body = await fetchJson<{ data?: Array<Record<string, unknown>> }>(
-    `/v1/lots?page=1&limit=100`
-  );
+async function getAllLotsRaw(): Promise<Array<Record<string, unknown>>> {
+  const limit = 100;
+  let page = 1;
+  const allLots: Array<Record<string, unknown>> = [];
 
-  const now = new Date();
-  const threshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  while (true) {
+    const body = await fetchJson<{
+      data?: Array<Record<string, unknown>>;
+      meta?: { totalPages?: number; page?: number; limit?: number };
+    }>(`/v1/lots?page=${page}&limit=${limit}`);
+
+    const batch = body.data || [];
+    allLots.push(...batch);
+
+    const totalPages = Math.max(1, body.meta?.totalPages || 1);
+    if (page >= totalPages || batch.length < limit) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return allLots;
+}
+
+export async function getExpiringLots(days = 90): Promise<ExpiringLot[]> {
+  const rawLots = await getAllLotsRaw();
 
   const lots: ExpiringLot[] = [];
-  for (const lot of body.data || []) {
+  for (const lot of rawLots) {
     const expiredAt = lot.expired_at ?? lot.expried_at;
     if (!expiredAt) continue;
-    const expDate = new Date(expiredAt as string);
-    if (expDate <= threshold) {
+    if (isNearExpiryDate(String(expiredAt), days)) {
       const items = lot.items as Record<string, unknown> | undefined;
       const warehouses = lot.warehouses as Record<string, unknown> | undefined;
-      const categories = items?.categories as Record<string, unknown> | undefined;
+      const itemName = lot.item_name ?? items?.name;
+      const itemCode = lot.item_code ?? items?.code;
+      const warehouseName = lot.warehouse_name ?? warehouses?.name;
+
       lots.push({
         id: String(lot.id),
         lot_code: String(lot.lot_code || ""),
         quantity: Number(lot.quantity || 0),
         expired_at: String(expiredAt),
-        item_name: String(items?.name || "-"),
-        item_code: String(items?.code || "-"),
-        warehouse_name: String(warehouses?.name || "-"),
+        item_name: String(itemName || "-"),
+        item_code: String(itemCode || "-"),
+        warehouse_name: String(warehouseName || "-"),
       });
     }
   }
 
   return lots.sort(
     (a, b) => new Date(a.expired_at!).getTime() - new Date(b.expired_at!).getTime()
+  );
+}
+
+export async function getExpiredLots(): Promise<ExpiringLot[]> {
+  const rawLots = await getAllLotsRaw();
+  const lots: ExpiringLot[] = [];
+
+  for (const lot of rawLots) {
+    const expiredAt = lot.expired_at ?? lot.expried_at;
+    if (!expiredAt) continue;
+
+    const expiryDate = new Date(String(expiredAt));
+    if (expiryDate >= new Date()) continue;
+
+    const items = lot.items as Record<string, unknown> | undefined;
+    const warehouses = lot.warehouses as Record<string, unknown> | undefined;
+    const itemName = lot.item_name ?? items?.name;
+    const itemCode = lot.item_code ?? items?.code;
+    const warehouseName = lot.warehouse_name ?? warehouses?.name;
+
+    lots.push({
+      id: String(lot.id),
+      lot_code: String(lot.lot_code || ""),
+      quantity: Number(lot.quantity || 0),
+      expired_at: String(expiredAt),
+      item_name: String(itemName || "-"),
+      item_code: String(itemCode || "-"),
+      warehouse_name: String(warehouseName || "-"),
+    });
+  }
+
+  return lots.sort(
+    (a, b) => new Date(b.expired_at!).getTime() - new Date(a.expired_at!).getTime()
   );
 }
 
@@ -281,10 +337,6 @@ export async function getLotStats(expiryDays = 90): Promise<LotStats> {
   for (const item of items) {
     minStockMap.set(String(item.id), Number(item.min_stock) || 0);
   }
-
-  const now = new Date();
-  const threshold = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000);
-
   let belowMinimum = 0;
   let nearExpiry = 0;
 
@@ -295,7 +347,7 @@ export async function getLotStats(expiryDays = 90): Promise<LotStats> {
     const expiredAt = (lot.expired_at ?? lot.expried_at) as string | null;
 
     if (minStock > 0 && quantity < minStock) belowMinimum++;
-    if (expiredAt && new Date(expiredAt) <= threshold) nearExpiry++;
+    if (expiredAt && isNearExpiryDate(expiredAt, expiryDays)) nearExpiry++;
   }
 
   return { total, belowMinimum, nearExpiry };

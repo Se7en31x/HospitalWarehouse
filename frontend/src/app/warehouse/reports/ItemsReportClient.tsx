@@ -1,95 +1,132 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
 	Package,
 	Search,
 	Download,
-	Filter,
 	ChevronDown,
-	ChevronUp,
-	ArrowUpDown,
+	ChevronLeft,
+	ChevronRight,
 } from "lucide-react";
+import * as ItemSvc from "@/services/itemsService";
 import type { UiItem } from "@/services/itemsService";
 
 interface ItemsReportClientProps {
 	initialItems: UiItem[];
+	onBack?: () => void;
 }
-
-type SortField = "code" | "name" | "category" | "stock" | "location";
-type SortDir = "asc" | "desc";
 
 const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 	initialItems,
+	onBack,
 }) => {
 	const [searchTerm, setSearchTerm] = useState("");
-	const [categoryFilter, setCategoryFilter] = useState("all");
-	const [warehouseFilter, setWarehouseFilter] = useState("all");
-	const [showFilters, setShowFilters] = useState(false);
-	const [sortField, setSortField] = useState<SortField>("code");
-	const [sortDir, setSortDir] = useState<SortDir>("asc");
+	const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
+	const [selectedWarehouse, setSelectedWarehouse] = useState("คลังทั้งหมด");
+	const [selectedUnit, setSelectedUnit] = useState("หน่วยทั้งหมด");
+	const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+	const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
+	const [isUnitOpen, setIsUnitOpen] = useState(false);
+	const [isStatusOpen, setIsStatusOpen] = useState(false);
+	const [categories, setCategories] = useState<{ name: string }[]>([]);
+	const [warehouses, setWarehouses] = useState<{ name: string }[]>([]);
+	const [units, setUnits] = useState<{ name: string }[]>([]);
+	const itemsPerPage = 10;
 
-	// Unique categories & warehouses
-	const categories = useMemo(
-		() => Array.from(new Set(initialItems.map((i) => i.category).filter(Boolean))),
+	useEffect(() => {
+		const loadOptions = async () => {
+			try {
+				const [categoryOptions, warehouseOptions, unitOptions] = await Promise.all([
+					ItemSvc.getcategoriesOptions(),
+					ItemSvc.getWarehousesOptions(),
+					ItemSvc.getUnitsOptions(),
+				]);
+
+				setCategories(categoryOptions || []);
+				setWarehouses(warehouseOptions || []);
+				setUnits(unitOptions || []);
+			} catch (error) {
+				console.error("Load report filters failed", error);
+			}
+		};
+
+		loadOptions();
+	}, []);
+
+	const filterCategories = useMemo(
+		() => ["หมวดหมู่ทั้งหมด", ...categories.map((category) => category.name)],
+		[categories]
+	);
+	const filterWarehouses = useMemo(
+		() => ["คลังทั้งหมด", ...warehouses.map((warehouse) => warehouse.name)],
+		[warehouses]
+	);
+	const filterUnits = useMemo(
+		() => ["หน่วยทั้งหมด", ...units.map((unit) => unit.name)],
+		[units]
+	);
+	const filterStatuses = useMemo(
+		() => ["สถานะทั้งหมด", ...Array.from(new Set(initialItems.map((item) => String(item.status)).filter(Boolean)))],
 		[initialItems]
 	);
-	const warehouses = useMemo(
-		() => Array.from(new Set(initialItems.map((i) => i.location).filter(Boolean))),
-		[initialItems]
-	);
 
-	// Filter + sort
 	const filteredItems = useMemo(() => {
 		let items = [...initialItems];
 
 		if (searchTerm) {
-			const s = searchTerm.toLowerCase();
+			const normalizedSearch = searchTerm.toLowerCase();
 			items = items.filter(
-				(i) =>
-					i.code.toLowerCase().includes(s) ||
-					i.name.toLowerCase().includes(s) ||
-					i.category.toLowerCase().includes(s)
+				(item) =>
+					item.code.toLowerCase().includes(normalizedSearch) ||
+					item.name.toLowerCase().includes(normalizedSearch) ||
+					item.category.toLowerCase().includes(normalizedSearch)
 			);
 		}
-		if (categoryFilter !== "all") {
-			items = items.filter((i) => i.category === categoryFilter);
-		}
-		if (warehouseFilter !== "all") {
-			items = items.filter((i) => i.location === warehouseFilter);
-		}
 
-		items.sort((a, b) => {
-			const va = a[sortField] ?? "";
-			const vb = b[sortField] ?? "";
-			if (typeof va === "number" && typeof vb === "number") {
-				return sortDir === "asc" ? va - vb : vb - va;
-			}
-			return sortDir === "asc"
-				? String(va).localeCompare(String(vb), "th")
-				: String(vb).localeCompare(String(va), "th");
-		});
+		if (selectedCategory !== "หมวดหมู่ทั้งหมด") {
+			items = items.filter((item) => item.category === selectedCategory);
+		}
+		if (selectedWarehouse !== "คลังทั้งหมด") {
+			items = items.filter((item) => item.location === selectedWarehouse);
+		}
+		if (selectedUnit !== "หน่วยทั้งหมด") {
+			items = items.filter((item) => item.unit === selectedUnit);
+		}
+		if (selectedStatus !== "สถานะทั้งหมด") {
+			items = items.filter((item) => String(item.status) === selectedStatus);
+		}
 
 		return items;
-	}, [initialItems, searchTerm, categoryFilter, warehouseFilter, sortField, sortDir]);
+	}, [initialItems, searchTerm, selectedCategory, selectedWarehouse, selectedUnit, selectedStatus]);
 
-	const handleSort = (field: SortField) => {
-		if (sortField === field) {
-			setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-		} else {
-			setSortField(field);
-			setSortDir("asc");
+	const totalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+
+	const paginatedItems = useMemo(() => {
+		const start = (currentPage - 1) * itemsPerPage;
+		return filteredItems.slice(start, start + itemsPerPage);
+	}, [filteredItems, currentPage]);
+
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [searchTerm, selectedCategory, selectedWarehouse, selectedUnit, selectedStatus]);
+
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			const target = event.target as HTMLElement;
+			if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
+			if (!target.closest("[data-filter-warehouse]")) setIsWarehouseOpen(false);
+			if (!target.closest("[data-filter-unit]")) setIsUnitOpen(false);
+			if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
+		};
+
+		if (isCategoryOpen || isWarehouseOpen || isUnitOpen || isStatusOpen) {
+			document.addEventListener("mousedown", handleClickOutside);
+			return () => document.removeEventListener("mousedown", handleClickOutside);
 		}
-	};
-
-	const SortIcon = ({ field }: { field: SortField }) => {
-		if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-gray-400" />;
-		return sortDir === "asc" ? (
-			<ChevronUp className="w-3 h-3 text-hospital" />
-		) : (
-			<ChevronDown className="w-3 h-3 text-hospital" />
-		);
-	};
+	}, [isCategoryOpen, isWarehouseOpen, isUnitOpen, isStatusOpen]);
 
 	const getStockBadge = (item: UiItem) => {
 		if (item.minStock > 0 && item.stock <= item.minStock) {
@@ -102,239 +139,300 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 		return null;
 	};
 
-	// Summary stats
-	const totalStock = initialItems.reduce((s, i) => s + i.stock, 0);
-	const lowStockCount = initialItems.filter(
-		(i) => i.minStock > 0 && i.stock <= i.minStock
-	).length;
-
 	return (
-		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-6">
-			{/* Summary cards */}
-			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-				<div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-					<div className="p-2 bg-blue-100 text-blue-600 rounded-lg w-fit mb-2">
-						<Package className="w-4 h-4" />
-					</div>
-					<p className="text-2xl font-bold text-slate-800">
-						{initialItems.length.toLocaleString()}
-					</p>
-					<p className="text-xs text-slate-500 font-medium mt-0.5">
-						รายการสินค้าทั้งหมด
-					</p>
+		<div className="flex flex-col min-h-screen bg-white p-8">
+			<div className="flex items-center justify-between mb-6">
+				<div className="flex items-center gap-4">
+					<h2 className="text-3xl font-bold text-gray-800">รายงานสินค้าทั้งหมด</h2>
 				</div>
-				<div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-					<div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg w-fit mb-2">
-						<Package className="w-4 h-4" />
-					</div>
-					<p className="text-2xl font-bold text-slate-800">
-						{totalStock.toLocaleString()}
-					</p>
-					<p className="text-xs text-slate-500 font-medium mt-0.5">
-						จำนวนคงเหลือรวม
-					</p>
-				</div>
-				<div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-					<div className="p-2 bg-amber-100 text-amber-600 rounded-lg w-fit mb-2">
-						<Package className="w-4 h-4" />
-					</div>
-					<p className="text-2xl font-bold text-slate-800">{lowStockCount}</p>
-					<p className="text-xs text-slate-500 font-medium mt-0.5">
-						สินค้าต่ำกว่า Min Stock
-					</p>
+				<div className="flex items-center gap-3">
+					<button
+						type="button"
+						onClick={onBack}
+						className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-semibold transition-colors flex items-center gap-1.5"
+					>
+						ย้อนกลับ
+					</button>
 				</div>
 			</div>
 
-			{/* Filters */}
-			<div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-6">
-				<div className="flex items-center justify-between mb-3">
-					<div className="relative flex-1 max-w-md">
-						<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-						<input
-							type="text"
-							placeholder="ค้นหาด้วยรหัส, ชื่อ หรือหมวดหมู่..."
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-							className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-hospital focus:border-transparent text-sm"
-						/>
-					</div>
-					<div className="flex items-center gap-2 ml-3">
-						<button
-							onClick={() => setShowFilters(!showFilters)}
-							className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-						>
-							<Filter className="w-4 h-4" />
-							ตัวกรอง
-						</button>
-						<button
+			<div className="flex flex-wrap gap-3 mb-6 items-center">
+				<div className="relative w-64">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+					<input
+						type="text"
+						placeholder="ค้นหาชื่อ / รหัส..."
+						value={searchTerm}
+						onChange={(event) => {
+							setSearchTerm(event.target.value);
+							setCurrentPage(1);
+						}}
+						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+					/>
+				</div>
+
+				<div className="relative" data-filter-category>
+					<button
+						type="button"
+						onClick={() => {
+							setIsCategoryOpen(!isCategoryOpen);
+							setIsWarehouseOpen(false);
+							setIsUnitOpen(false);
+							setIsStatusOpen(false);
+						}}
+						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+					>
+						<span className="text-slate-800 font-medium">{selectedCategory}</span>
+						<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
+					</button>
+					{isCategoryOpen && (
+						<div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+							<ul className="py-1">
+								{filterCategories.map((category) => (
+									<li key={category}>
+										<button
+											type="button"
+											onClick={() => {
+											setSelectedCategory(category);
+											setIsCategoryOpen(false);
+											setCurrentPage(1);
+										}}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === category ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										>
+											{category}
+										</button>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</div>
+
+				<div className="relative" data-filter-warehouse>
+					<button
+						type="button"
+						onClick={() => {
+							setIsWarehouseOpen(!isWarehouseOpen);
+							setIsCategoryOpen(false);
+							setIsUnitOpen(false);
+							setIsStatusOpen(false);
+						}}
+						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+					>
+						<span className="text-slate-800 font-medium">{selectedWarehouse}</span>
+						<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isWarehouseOpen ? "rotate-180" : ""}`} />
+					</button>
+					{isWarehouseOpen && (
+						<div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+							<ul className="py-1">
+								{filterWarehouses.map((warehouse) => (
+									<li key={warehouse}>
+										<button
+											type="button"
+											onClick={() => {
+											setSelectedWarehouse(warehouse);
+											setIsWarehouseOpen(false);
+											setCurrentPage(1);
+										}}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedWarehouse === warehouse ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										>
+											{warehouse}
+										</button>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</div>
+
+				<div className="relative" data-filter-unit>
+					<button
+						type="button"
+						onClick={() => {
+							setIsUnitOpen(!isUnitOpen);
+							setIsCategoryOpen(false);
+							setIsWarehouseOpen(false);
+							setIsStatusOpen(false);
+						}}
+						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+					>
+						<span className="text-slate-800 font-medium">{selectedUnit}</span>
+						<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUnitOpen ? "rotate-180" : ""}`} />
+					</button>
+					{isUnitOpen && (
+						<div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+							<ul className="py-1">
+								{filterUnits.map((unit) => (
+									<li key={unit}>
+										<button
+											type="button"
+											onClick={() => {
+											setSelectedUnit(unit);
+											setIsUnitOpen(false);
+											setCurrentPage(1);
+										}}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === unit ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										>
+											{unit}
+										</button>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</div>
+
+				<div className="relative" data-filter-status>
+					<button
+						type="button"
+						onClick={() => {
+							setIsStatusOpen(!isStatusOpen);
+							setIsCategoryOpen(false);
+							setIsWarehouseOpen(false);
+							setIsUnitOpen(false);
+						}}
+						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+					>
+						<span className="text-slate-800 font-medium">{selectedStatus}</span>
+						<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
+					</button>
+					{isStatusOpen && (
+						<div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+							<ul className="py-1">
+								{[
+									{ value: "สถานะทั้งหมด", label: "สถานะทั้งหมด" },
+									{ value: "ACTIVE", label: "เปิดใช้งาน" },
+									{ value: "INACTIVE", label: "ระงับ" },
+								].map((status) => (
+									<li key={status.value}>
+										<button
+											type="button"
+											onClick={() => {
+											setSelectedStatus(status.value);
+											setIsStatusOpen(false);
+											setCurrentPage(1);
+										}}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === status.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										>
+											{status.label}
+										</button>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</div>
+
+				<button
+							type="button"
 							onClick={() => {
-								// Simple CSV export
-								const csv = [
+								const csvRows = [
 									["รหัส", "ชื่อสินค้า", "หมวดหมู่", "คลัง", "หน่วย", "คงเหลือ", "Min Stock"].join(","),
-									...filteredItems.map((i) =>
-										[i.code, i.name, i.category, i.location, i.unit, i.stock, i.minStock].join(",")
-									),
+									...filteredItems.map((item) => [item.code, item.name, item.category, item.location, item.unit, item.stock, item.minStock].join(",")),
 								].join("\n");
-								const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+								const blob = new Blob(["\uFEFF" + csvRows], { type: "text/csv;charset=utf-8;" });
 								const url = URL.createObjectURL(blob);
-								const a = document.createElement("a");
-								a.href = url;
-								a.download = `รายงานสินค้าทั้งหมด_${new Date().toISOString().slice(0, 10)}.csv`;
-								a.click();
+								const anchor = document.createElement("a");
+								anchor.href = url;
+								anchor.download = `รายงานสินค้าทั้งหมด_${new Date().toISOString().slice(0, 10)}.csv`;
+								anchor.click();
 								URL.revokeObjectURL(url);
 							}}
-							className="flex items-center gap-1.5 px-3 py-2 bg-hospital text-white rounded-lg hover:bg-hospital-dark transition-colors text-sm"
+							className="ml-auto flex items-center gap-2 px-4 py-2 bg-hospital text-white rounded-lg hover:bg-hospital-dark transition-colors text-sm font-medium shadow-sm shrink-0"
 						>
 							<Download className="w-4 h-4" />
 							Export CSV
 						</button>
 					</div>
-				</div>
 
-				{showFilters && (
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3 mt-3">
-						<div>
-							<label className="block text-xs font-medium text-gray-700 mb-1">
-								หมวดหมู่
-							</label>
-							<select
-								value={categoryFilter}
-								onChange={(e) => setCategoryFilter(e.target.value)}
-								className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-hospital focus:border-transparent"
-							>
-								<option value="all">ทั้งหมด</option>
-								{categories.map((c) => (
-									<option key={c} value={c}>
-										{c}
-									</option>
-								))}
-							</select>
-						</div>
-						<div>
-							<label className="block text-xs font-medium text-gray-700 mb-1">
-								คลังสินค้า
-							</label>
-							<select
-								value={warehouseFilter}
-								onChange={(e) => setWarehouseFilter(e.target.value)}
-								className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-hospital focus:border-transparent"
-							>
-								<option value="all">ทั้งหมด</option>
-								{warehouses.map((w) => (
-									<option key={w} value={w}>
-										{w}
-									</option>
-								))}
-							</select>
-						</div>
-					</div>
-				)}
-			</div>
-
-			{/* Table */}
-			<div className="bg-white rounded-xl shadow-sm overflow-hidden">
-				<div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-					<h2 className="text-sm font-semibold text-gray-900">
-						รายการสินค้า ({filteredItems.length.toLocaleString()})
-					</h2>
-				</div>
-
-				<div className="overflow-x-auto">
-					<table className="w-full text-sm">
+			<div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+				<div
+					className="flex-1"
+					style={{
+						overflowX: "auto",
+						overflowY: "auto",
+						scrollbarWidth: "auto",
+						msOverflowStyle: "auto",
+					}}
+				>
+					<style>{`
+						div::-webkit-scrollbar {
+							width: 0;
+							height: 8px;
+						}
+						div::-webkit-scrollbar-track {
+							background: #f1f5f9;
+						}
+						div::-webkit-scrollbar-thumb {
+							background: #cbd5e1;
+							border-radius: 4px;
+						}
+						div::-webkit-scrollbar-thumb:hover {
+							background: #94a3b8;
+						}
+					`}</style>
+					<table className="w-full text-sm text-left table-fixed">
 						<thead>
-							<tr className="bg-gray-50 text-left">
-								<th className="px-4 py-3 font-medium text-gray-600 w-8">#</th>
-								<th
-									className="px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:text-hospital"
-									onClick={() => handleSort("code")}
-								>
-									<span className="flex items-center gap-1">
-										รหัส <SortIcon field="code" />
-									</span>
-								</th>
-								<th
-									className="px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:text-hospital"
-									onClick={() => handleSort("name")}
-								>
-									<span className="flex items-center gap-1">
-										ชื่อสินค้า <SortIcon field="name" />
-									</span>
-								</th>
-								<th
-									className="px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:text-hospital"
-									onClick={() => handleSort("category")}
-								>
-									<span className="flex items-center gap-1">
-										หมวดหมู่ <SortIcon field="category" />
-									</span>
-								</th>
-								<th
-									className="px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:text-hospital"
-									onClick={() => handleSort("location")}
-								>
-									<span className="flex items-center gap-1">
-										คลัง <SortIcon field="location" />
-									</span>
-								</th>
-								<th className="px-4 py-3 font-medium text-gray-600">หน่วย</th>
-								<th
-									className="px-4 py-3 font-medium text-gray-600 text-right cursor-pointer select-none hover:text-hospital"
-									onClick={() => handleSort("stock")}
-								>
-									<span className="flex items-center justify-end gap-1">
-										คงเหลือ <SortIcon field="stock" />
-									</span>
-								</th>
-								<th className="px-4 py-3 font-medium text-gray-600 text-right">
-									Min Stock
-								</th>
-								<th className="px-4 py-3 font-medium text-gray-600">สถานะ</th>
+							<tr className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+								<th className="px-6 py-4 w-[50px] text-center">#</th>
+								<th className="px-6 py-4 w-[150px]">รหัส</th>
+								<th className="px-6 py-4 w-[300px]">ชื่อสินค้า</th>
+								<th className="px-6 py-4 w-[200px]">หมวดหมู่</th>
+								<th className="px-6 py-4 w-[150px]">คลัง</th>
+								<th className="px-6 py-4 w-[150px]">หน่วย</th>
+								<th className="px-6 py-4 w-[150px] text-right">คงเหลือ</th>
+								<th className="px-6 py-4 w-[150px] text-right">MIN STOCK</th>
+								<th className="px-6 py-4 w-[100px]">สถานะ</th>
 							</tr>
 						</thead>
-						<tbody className="divide-y divide-gray-100">
-							{filteredItems.length > 0 ? (
-								filteredItems.map((item, idx) => (
-									<tr
-										key={item.id}
-										className="hover:bg-gray-50 transition-colors"
-									>
-										<td className="px-4 py-3 text-gray-400 text-xs">
-											{idx + 1}
-										</td>
-										<td className="px-4 py-3 font-mono text-xs text-gray-700">
-											{item.code}
-										</td>
-										<td className="px-4 py-3 font-medium text-gray-900">
-											{item.name}
-										</td>
-										<td className="px-4 py-3 text-gray-600">
-											{item.category}
-										</td>
-										<td className="px-4 py-3 text-gray-600">
-											{item.location}
-										</td>
-										<td className="px-4 py-3 text-gray-600">
-											{item.unit}
-										</td>
-										<td className="px-4 py-3 text-right font-semibold text-gray-900">
-											{item.stock.toLocaleString()}
-										</td>
-										<td className="px-4 py-3 text-right text-gray-500">
-											{item.minStock > 0 ? item.minStock.toLocaleString() : "-"}
-										</td>
-										<td className="px-4 py-3">{getStockBadge(item)}</td>
+						<tbody className="divide-y divide-slate-100 text-slate-700">
+							{paginatedItems.length > 0 ? (
+								paginatedItems.map((item, index) => (
+									<tr key={item.id} className="hover:bg-slate-50 transition-colors">
+										<td className="px-6 py-4 text-slate-500 text-xs w-[50px]">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+										<td className="px-6 py-4 font-mono text-xs text-slate-700 w-[150px]">{item.code}</td>
+										<td className="px-6 py-4 font-medium text-slate-900 w-[300px]">{item.name}</td>
+										<td className="px-6 py-4 text-slate-600 w-[200px]">{item.category}</td>
+										<td className="px-6 py-4 text-slate-600 w-[150px]">{item.location}</td>
+										<td className="px-6 py-4 text-slate-600 w-[150px]">{item.unit}</td>
+										<td className="px-6 py-4 text-right font-semibold text-slate-900 w-[150px]">{item.stock.toLocaleString()}</td>
+										<td className="px-6 py-4 text-right text-slate-500 w-[150px]">{item.minStock > 0 ? item.minStock.toLocaleString() : "-"}</td>
+										<td className="px-6 py-4 w-[100px]">{getStockBadge(item)}</td>
 									</tr>
 								))
 							) : (
 								<tr>
 									<td colSpan={9} className="text-center py-12">
-										<Package className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-										<p className="text-sm text-gray-500">ไม่พบรายการสินค้า</p>
+										<Package className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+										<p className="text-sm text-slate-500">ไม่พบรายการสินค้า</p>
 									</td>
 								</tr>
 							)}
 						</tbody>
 					</table>
+				</div>
+			</div>
+
+			<div className="flex items-center justify-between mt-6">
+				<p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {filteredItems.length} รายการ</p>
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						disabled={currentPage === 1}
+						onClick={() => setCurrentPage((page) => page - 1)}
+						className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
+					>
+						<ChevronLeft className="w-4 h-4" />
+					</button>
+					<span className="text-sm font-medium">หน้า {currentPage} / {totalPages}</span>
+					<button
+						type="button"
+						disabled={currentPage >= totalPages}
+						onClick={() => setCurrentPage((page) => page + 1)}
+						className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
+					>
+						<ChevronRight className="w-4 h-4" />
+					</button>
 				</div>
 			</div>
 		</div>

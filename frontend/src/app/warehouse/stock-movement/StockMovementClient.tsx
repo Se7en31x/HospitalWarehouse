@@ -227,14 +227,12 @@ const StockMovementClient = () => {
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
-                <th className="px-4 py-4 w-[60px]">รูป</th>
                 <th className="px-4 py-4 w-[100px]">รหัสสินค้า</th>
                 <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
                 <th className="px-6 py-4 w-[100px]">จำนวน</th>
                 <th className="px-6 py-4 w-[120px]">ผู้ดำเนินการ</th>
                 <th className="px-6 py-4 w-[150px]">วันที่และเวลา</th>
-                <th className="px-6 py-4 w-[100px]">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -242,54 +240,32 @@ const StockMovementClient = () => {
                 const isOut = ["OUT", "RECEIVE_CANCEL", "ADJUST_OUT"].includes(mv.type);
                 return (
                   <tr key={mv.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-slate-700 text-xs">
+                    <td className="px-6 py-5 text-slate-700">
                       {(currentPage - 1) * itemsPerPage + idx + 1}
                     </td>
-                    <td className="px-4 py-4">
-                      {mv.item?.image_url ? (
-                        <img
-                          src={mv.item.image_url}
-                          alt={mv.item.name}
-                          className="w-9 h-9 rounded-lg object-cover border"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
-                          <Package className="w-4 h-4 text-slate-400" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-xs text-slate-500 font-mono">
+                    <td className="px-4 py-5 text-slate-500 font-mono">
                       {mv.item?.code ?? "-"}
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-800">
+                    <td className="px-6 py-5 text-slate-800">
                       {mv.item?.name ?? "ไม่ระบุ"}
                     </td>
-                    <td className="px-6 py-4">
-                      <TypeBadge type={mv.type} />
+                    <td className="px-6 py-5 text-slate-700">
+                      {typeOptions.find(t => t.v === mv.type)?.l || mv.type}
                     </td>
-                    <td className="px-6 py-4 font-bold">
+                    <td className="px-6 py-5 font-bold">
                       <span className={isOut ? "text-rose-600" : "text-emerald-600"}>
                         {isOut ? "-" : "+"}
                         {mv.quantity} {mv.item?.unit ?? ""}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className="px-6 py-5 text-slate-600">
                       {mv.created_by ?? "-"}
                     </td>
-                    <td className="px-6 py-4 text-slate-500 text-xs">
+                    <td className="px-6 py-5 text-slate-500">
                       {new Date(mv.created_at).toLocaleString("th-TH", {
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
-                    </td>
-                    <td className="px-6 py-4 justify-center">
-                      <button
-                        onClick={() => setSelectedMovement(mv)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="ดูรายละเอียด"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
                     </td>
                   </tr>
                 );

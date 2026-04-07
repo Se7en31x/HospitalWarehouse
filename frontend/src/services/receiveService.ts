@@ -117,6 +117,22 @@ export async function getAllReceives(params: GetReceivesParams = {}): Promise<Re
     return requestList<ReceiveListResponse>(`/v1/receives?${query.toString()}`);
 }
 
+export async function getAllReceivesPages(params: GetReceivesParams = {}): Promise<ReceiveHeader[]> {
+    const firstPage = await getAllReceives({ ...params, page: 1, limit: params.limit || 100 });
+    const items = [...firstPage.items];
+
+    for (let page = 2; page <= Math.max(1, firstPage.totalPages || 1); page += 1) {
+        const nextPage = await getAllReceives({
+            ...params,
+            page,
+            limit: firstPage.limit || params.limit || 100,
+        });
+        items.push(...nextPage.items);
+    }
+
+    return items;
+}
+
 export async function getReceiveById(id: number): Promise<ReceiveHeader> {
     return request<ReceiveHeader>(`/v1/receives/${id}`);
 }

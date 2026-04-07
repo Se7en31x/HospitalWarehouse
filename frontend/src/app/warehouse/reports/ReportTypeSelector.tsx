@@ -1,21 +1,16 @@
 "use client";
 
 import React from "react";
-import {
-	FileText,
-	Package,
-	ClipboardList,
-	ArrowDownToLine,
-	TrendingDown,
-	AlertTriangle,
-	BarChart3,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 export type ReportPage =
 	| "all"
 	| "all-items"
 	| "requisition"
 	| "stockin"
+	| "stockout"
+	| "stock-balance"
+	| "expired-lots"
 	| "low-stock"
 	| "near-expiry";
 
@@ -26,6 +21,9 @@ interface ReportTypeSelectorProps {
 		totalItems?: number;
 		totalRequisitions?: number;
 		totalReceives?: number;
+		totalStockOuts?: number;
+		totalStockBalance?: number;
+		totalExpiredLots?: number;
 		lowStockCount?: number;
 		nearExpiryCount?: number;
 	};
@@ -35,80 +33,82 @@ const reportTypeOptions: {
 	id: ReportPage;
 	label: string;
 	description: string;
-	icon: React.ElementType;
-	color: string;
-	bgColor: string;
-	textColor: string;
+	countBg: string;
+	countText: string;
 	ringColor: string;
 	countKey?: keyof NonNullable<ReportTypeSelectorProps["counts"]>;
-	badgeColor?: string;
 }[] = [
-	{
-		id: "all",
-		label: "รายงานทั้งหมด",
-		description: "ดูภาพรวมรายงานทุกประเภทในระบบ",
-		icon: BarChart3,
-		color: "from-slate-500 to-slate-700",
-		bgColor: "bg-slate-100",
-		textColor: "text-slate-700",
-		ringColor: "ring-slate-400",
-	},
 	{
 		id: "all-items",
 		label: "รายงานสินค้าทั้งหมด",
-		description: "รายงานสินค้าและพัสดุทั้งหมดในคลัง",
-		icon: Package,
-		color: "from-blue-500 to-blue-700",
-		bgColor: "bg-blue-100",
-		textColor: "text-blue-700",
-		ringColor: "ring-blue-400",
+		description: "ดูรายการสินค้าทั้งหมดพร้อมตัวกรองหมวดหมู่และคลัง",
+		countBg: "bg-indigo-50",
+		countText: "text-indigo-700",
+		ringColor: "ring-indigo-300",
 		countKey: "totalItems",
 	},
 	{
 		id: "requisition",
 		label: "รายงานคำขอเบิก/ยืม",
-		description: "รายงานการเบิก ยืม คืนพัสดุ",
-		icon: ClipboardList,
-		color: "from-indigo-500 to-indigo-700",
-		bgColor: "bg-indigo-100",
-		textColor: "text-indigo-700",
-		ringColor: "ring-indigo-400",
+		description: "แยกดูคำขอเบิกและยืมตามฟิลเตอร์สถานะ",
+		countBg: "bg-violet-50",
+		countText: "text-violet-700",
+		ringColor: "ring-violet-300",
 		countKey: "totalRequisitions",
 	},
 	{
 		id: "stockin",
 		label: "รายงานรับเข้า",
-		description: "รายงานการรับพัสดุเข้าคลัง",
-		icon: ArrowDownToLine,
-		color: "from-emerald-500 to-emerald-700",
-		bgColor: "bg-emerald-100",
-		textColor: "text-emerald-700",
-		ringColor: "ring-emerald-400",
+		description: "ตรวจสอบรายการรับเข้าและค้นหาตามช่วงเวลา",
+		countBg: "bg-emerald-50",
+		countText: "text-emerald-700",
+		ringColor: "ring-emerald-300",
 		countKey: "totalReceives",
 	},
 	{
+		id: "stockout",
+		label: "รายงานจ่ายออก",
+		description: "ดูรายการจ่ายออกพร้อมตรวจสอบสถานะย้อนหลัง",
+		countBg: "bg-rose-50",
+		countText: "text-rose-700",
+		ringColor: "ring-rose-300",
+		countKey: "totalStockOuts",
+	},
+	{
+		id: "stock-balance",
+		label: "รายงานคงคลัง",
+		description: "ตรวจสอบรายการคงเหลือและระดับสต็อกปัจจุบัน",
+		countBg: "bg-cyan-50",
+		countText: "text-cyan-700",
+		ringColor: "ring-cyan-300",
+		countKey: "totalStockBalance",
+	},
+	{
+		id: "expired-lots",
+		label: "รายงานล็อตหมดอายุ",
+		description: "ติดตามล็อตที่หมดอายุหรือใกล้หมดอายุ",
+		countBg: "bg-orange-50",
+		countText: "text-orange-700",
+		ringColor: "ring-orange-300",
+		countKey: "totalExpiredLots",
+	},
+	{
 		id: "low-stock",
-		label: "รายงานสินค้าต่ำกว่าจุดต่ำสุด",
-		description: "สินค้าที่มีจำนวนคงเหลือต่ำกว่า Min Stock",
-		icon: TrendingDown,
-		color: "from-amber-500 to-amber-700",
-		bgColor: "bg-amber-100",
-		textColor: "text-amber-700",
-		ringColor: "ring-amber-400",
+		label: "รายงานสต็อกต่ำ",
+		description: "ดูสินค้าที่ต่ำกว่า Min Stock พร้อมเรียงตามความเสี่ยง",
+		countBg: "bg-amber-50",
+		countText: "text-amber-700",
+		ringColor: "ring-amber-300",
 		countKey: "lowStockCount",
-		badgeColor: "bg-amber-500",
 	},
 	{
 		id: "near-expiry",
-		label: "รายงานสินค้าใกล้หมดอายุ",
-		description: "ล็อตพัสดุที่ใกล้ถึงหรือเลยวันหมดอายุ",
-		icon: AlertTriangle,
-		color: "from-red-500 to-red-700",
-		bgColor: "bg-red-100",
-		textColor: "text-red-700",
-		ringColor: "ring-red-400",
+		label: "รายงานใกล้หมดอายุ",
+		description: "ตรวจสอบล็อตที่ใกล้ถึงกำหนดหมดอายุตามช่วงเวลา",
+		countBg: "bg-red-50",
+		countText: "text-red-700",
+		ringColor: "ring-red-300",
 		countKey: "nearExpiryCount",
-		badgeColor: "bg-red-500",
 	},
 ];
 
@@ -118,28 +118,15 @@ const ReportTypeSelector: React.FC<ReportTypeSelectorProps> = ({
 	counts,
 }) => {
 	return (
-		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
-			{/* Header */}
-			<div className="mb-8">
-				<div className="flex items-center gap-3 mb-1">
-					<div className="p-2.5 bg-hospital/10 rounded-xl">
-						<FileText className="w-7 h-7 text-hospital" />
-					</div>
-					<div>
-						<h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-							ศูนย์รายงาน
-						</h1>
-						<p className="text-gray-500 text-sm mt-0.5">
-							เลือกประเภทรายงานที่ต้องการเรียกดู
-						</p>
-					</div>
+		<div className="min-h-screen bg-white p-4 sm:p-6 lg:p-8">
+			<div className="flex items-center justify-between mb-6">
+				<div className="flex items-center gap-4">
+					<h2 className="text-3xl font-bold text-gray-800">รายงาน</h2>
 				</div>
 			</div>
 
-			{/* Report Type Grid */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
 				{reportTypeOptions.map((option) => {
-					const Icon = option.icon;
 					const isSelected = selectedType === option.id;
 					const count =
 						counts && option.countKey ? counts[option.countKey] : undefined;
@@ -148,63 +135,35 @@ const ReportTypeSelector: React.FC<ReportTypeSelectorProps> = ({
 						<button
 							key={option.id}
 							onClick={() => onSelectType(option.id)}
-							className={`group relative overflow-hidden rounded-2xl p-5 sm:p-6 text-left transition-all duration-200 hover:-translate-y-1 ${
-								isSelected
-									? `bg-white shadow-lg ${option.ringColor} ring-2`
-									: "bg-white shadow-sm border border-gray-200 hover:shadow-md"
-							}`}
+							aria-pressed={isSelected}
+							className={`group relative min-h-[184px] overflow-hidden rounded-[24px] border border-slate-200 bg-white p-5 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_16px_36px_rgba(15,23,42,0.08)]`}
 						>
-							{/* Background gradient on hover */}
-							<div
-								className={`absolute inset-0 bg-gradient-to-br ${option.color} opacity-0 group-hover:opacity-[0.03] transition-opacity`}
-							/>
+							<div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
 							<div className="relative z-10">
-								{/* Icon + Badge row */}
-								<div className="flex items-start justify-between mb-4">
-									<div className={`p-3 rounded-xl ${option.bgColor}`}>
-										<Icon className={`w-6 h-6 ${option.textColor}`} />
-									</div>
-									{count !== undefined && count > 0 && option.badgeColor && (
+								<div className="flex items-start justify-between gap-3 mb-5">
+									<div
+										className={`min-w-[52px] rounded-2xl px-3 py-2.5 text-center shadow-sm ${option.countBg}`}
+									>
 										<span
-											className={`${option.badgeColor} text-white text-xs font-bold px-2.5 py-1 rounded-full min-w-[28px] text-center`}
+											className={`block text-[22px] leading-none font-semibold ${option.countText}`}
 										>
-											{count}
+											{count !== undefined ? count.toLocaleString() : "0"}
 										</span>
-									)}
-									{count !== undefined && count > 0 && !option.badgeColor && (
-										<span className="bg-gray-100 text-gray-600 text-xs font-semibold px-2.5 py-1 rounded-full">
-											{count.toLocaleString()}
-										</span>
-									)}
+									</div>
+									<ChevronRight className="mt-1 h-5 w-5 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-slate-400" />
 								</div>
 
-								{/* Title */}
-								<h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1.5">
+								<h3 className="text-[15px] sm:text-base font-semibold text-slate-900 leading-snug mb-2">
 									{option.label}
 								</h3>
-								{/* Description */}
-								<p className="text-sm text-gray-500 leading-relaxed">
+								<p className="text-sm leading-6 text-slate-500">
 									{option.description}
 								</p>
 							</div>
-
-							{/* Bottom accent bar */}
-							<div
-								className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${option.color} transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`}
-							/>
 						</button>
 					);
 				})}
-			</div>
-
-			{/* Info card */}
-			<div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-				<span className="text-lg">💡</span>
-				<p className="text-sm text-blue-800">
-					<span className="font-semibold">แนะนำ:</span> เลือกประเภทรายงานเพื่อดูข้อมูลเชิงลึก
-					หรือเลือก &quot;รายงานทั้งหมด&quot; เพื่อดูภาพรวมทุกประเภท
-				</p>
 			</div>
 		</div>
 	);
