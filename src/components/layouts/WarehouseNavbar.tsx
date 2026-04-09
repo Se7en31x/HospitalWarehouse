@@ -1,0 +1,90 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { ChevronDown, Settings, LogOut, User } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import NotificationBell from "./NotificationBell";
+
+export default function WarehouseNavbar() {
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const moduleTitle = "ระบบจัดการแผนกคลังหลักโรงพยาบาล";
+  const userName = "สมชาย ใจดี";
+  const userRole = "เจ้าหน้าที่คลังพัสดุ";
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005EB8&color=fff&rounded=true&size=128`;
+
+  return (
+    <header className="w-full bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-950 text-white shadow-xl relative z-[50]">
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <div className="absolute -top-10 -left-10 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-20 w-32 h-32 bg-blue-400 rounded-full blur-2xl"></div>
+      </div>
+      
+      <div className="relative z-10 border-b border-white/5">
+        <div className="flex items-center justify-between px-8 py-4">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-md overflow-hidden">
+              <Image
+                src="https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png"
+                alt="Logo"
+                width={56}
+                height={56}
+                className="object-contain"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <h1 className="text-base font-semibold tracking-wide text-white/95 leading-none">
+                โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
+              </h1>
+              <span className="text-sm font-medium text-white tracking-wide">
+                {moduleTitle}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <NotificationBell title="การแจ้งเตือนคลัง" viewAllHref="/warehouse/notifications" />
+
+            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+
+            <div className="relative self-stretch flex items-center" ref={profileRef}>
+              <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group">
+                <div className="flex flex-col items-end leading-none">
+                  <span className="text-sm font-semibold text-white">{userName}</span>
+                  <span className="text-[10px] text-blue-200/70 mt-1 uppercase tracking-tighter font-medium">{userRole}</span>
+                </div>
+                <div className="relative">
+                  <Image src={avatarUrl} alt="User" width={32} height={32} className="rounded-full ring-2 ring-white/20 group-hover:ring-white/50 transition-all" />
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-blue-900"></div>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showProfileMenu && (
+                <div className="absolute right-0 top-full w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-in fade-in zoom-in duration-200 origin-top-right overflow-hidden">
+                  <div className="p-1">
+                    <Link href="/warehouse/profile" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><User className="w-4 h-4 text-blue-600" /> โปรไฟล์</Link>
+                    <Link href="/warehouse/settings" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-colors"><Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ</Link>
+                    <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
+                    <button className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut className="w-4 h-4" /> ออกจากระบบ</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

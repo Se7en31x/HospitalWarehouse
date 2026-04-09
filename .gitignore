@@ -1,0 +1,60 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js build
+/.next/
+/out/
+/dist
+/.turbo
+
+# production
+/build
+
+# misc system files
+.DS_Store
+Thumbs.db
+
+# private keys / certs
+*.pem
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (never commit secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# vercel config
+.vercel
+
+# typescript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# uploads (user-uploaded files should not go to git)
+uploads/
+public/uploads/
+tmp/
+*.log
+
+# IDE/editor settings
+.vscode/
+.idea/
