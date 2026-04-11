@@ -89,7 +89,7 @@ export const SweetAlertUtils = {
       allowOutsideClick: false,
       allowEscapeKey: false,
       didOpen: () => {
-        Swal.showLoadingButton();
+        Swal.showLoading();
       },
     });
   },

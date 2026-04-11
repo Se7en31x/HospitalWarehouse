@@ -1,23 +1,5 @@
-import Cookies from "js-cookie";
+import { api } from "@/lib/apiClient";
 import { isNearExpiryDate } from "@/utils/nearExpiryUtils";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-const getHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${Cookies.get("user_token") || ""}`,
-});
-
-async function fetchJson<T>(path: string): Promise<T> {
-  if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: getHeaders(),
-    cache: "no-store",
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.message || `HTTP ${res.status}`);
-  return body;
-}
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -93,7 +75,7 @@ export interface DashboardAnalytics {
       min_stock: number;
       current_stock: number;
       deficit: number;
-    }>;
+     }>;
   };
   stockIn: {
     monthly: Array<{ month: string; total: number; byType: Record<string, number> }>;
@@ -102,33 +84,36 @@ export interface DashboardAnalytics {
   generatedAt: string;
 }
 
-// ─── Helpers: fetch count via meta from list endpoints ───────────
+// ─── Helpers ─────────────────────────────────────────────────────────
 
 async function fetchCount(endpoint: string): Promise<number> {
-  const body = await fetchJson<{ meta?: { total?: number }; data?: unknown[] }>(
-    `${endpoint}?page=1&limit=1&keyword=`
-  );
-  return body.meta?.total ?? (Array.isArray(body.data) ? body.data.length : 0);
+  const res = await api.list<any>(endpoint, { page: 1, limit: 1 });
+  return res.meta?.total ?? 0;
 }
 
 async function fetchOptionCount(endpoint: string): Promise<number> {
-  const body = await fetchJson<{ data?: unknown[] }>(endpoint);
-  return Array.isArray(body.data) ? body.data.length : 0;
+  const data = await api.get<any[]>(endpoint);
+  return Array.isArray(data) ? data.length : 0;
 }
 
-// ─── Public API ──────────────────────────────────────────────────
+// ─── Public API ──────────────────────────────────────────────────────
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const [totalItems, totalItemLots, totalDepartments, totalSuppliers, totalUsers] =
+  const [totalItems, totalItemLots, totalDepartments, totalSuppliers] =
     await Promise.all([
       fetchCount("/v1/items"),
       fetchCount("/v1/lots"),
       fetchCount("/v1/departments"),
       fetchOptionCount("/v1/suppliers/option"),
-      fetchCount("/v1/departments").then(() => 0), // users count not available via existing endpoint
     ]);
 
-  return { totalItems, totalItemLots, totalDepartments, totalSuppliers, totalUsers };
+  return { 
+    totalItems, 
+    totalItemLots, 
+    totalDepartments, 
+    totalSuppliers, 
+    totalUsers: 0 // ดึงข้อมูลไม่ได้จาก endpoint ปัจจุบัน
+  };
 }
 
 export async function getDashboardAnalytics(params?: {
@@ -138,18 +123,7 @@ export async function getDashboardAnalytics(params?: {
   topItems?: number;
   expiringLimit?: number;
 }): Promise<DashboardAnalytics> {
-  const query = new URLSearchParams();
-  if (params?.expiryDays != null) query.set("expiryDays", String(params.expiryDays));
-  if (params?.weeks != null) query.set("weeks", String(params.weeks));
-  if (params?.months != null) query.set("months", String(params.months));
-  if (params?.topItems != null) query.set("topItems", String(params.topItems));
-  if (params?.expiringLimit != null) query.set("expiringLimit", String(params.expiringLimit));
-
-  const qs = query.toString();
-  const body = await fetchJson<{ status: string; message?: string; data: DashboardAnalytics }>(
-    `/v1/analytics/dashboard${qs ? `?${qs}` : ""}`
-  );
-  return body.data;
+  return api.get<DashboardAnalytics>("/v1/analytics/dashboard", params as Record<string, unknown>);
 }
 
 async function getAllLotsRaw(): Promise<Array<Record<string, unknown>>> {
@@ -158,19 +132,11 @@ async function getAllLotsRaw(): Promise<Array<Record<string, unknown>>> {
   const allLots: Array<Record<string, unknown>> = [];
 
   while (true) {
-    const body = await fetchJson<{
-      data?: Array<Record<string, unknown>>;
-      meta?: { totalPages?: number; page?: number; limit?: number };
-    }>(`/v1/lots?page=${page}&limit=${limit}`);
-
-    const batch = body.data || [];
+    const res = await api.list<Record<string, unknown>>("/v1/lots", { page, limit });
+    const batch = res.data || [];
     allLots.push(...batch);
 
-    const totalPages = Math.max(1, body.meta?.totalPages || 1);
-    if (page >= totalPages || batch.length < limit) {
-      break;
-    }
-
+    if (page >= (res.meta?.totalPages || 1) || batch.length < limit) break;
     page += 1;
   }
 
@@ -179,82 +145,71 @@ async function getAllLotsRaw(): Promise<Array<Record<string, unknown>>> {
 
 export async function getExpiringLots(days = 90): Promise<ExpiringLot[]> {
   const rawLots = await getAllLotsRaw();
-
   const lots: ExpiringLot[] = [];
+
   for (const lot of rawLots) {
     const expiredAt = lot.expired_at ?? lot.expried_at;
     if (!expiredAt) continue;
-    if (isNearExpiryDate(String(expiredAt), days)) {
-      const items = lot.items as Record<string, unknown> | undefined;
-      const warehouses = lot.warehouses as Record<string, unknown> | undefined;
-      const itemName = lot.item_name ?? items?.name;
-      const itemCode = lot.item_code ?? items?.code;
-      const warehouseName = lot.warehouse_name ?? warehouses?.name;
 
+    if (isNearExpiryDate(String(expiredAt), days)) {
+      const items = lot.items as any;
+      const warehouses = lot.warehouses as any;
+      
       lots.push({
         id: String(lot.id),
         lot_code: String(lot.lot_code || ""),
         quantity: Number(lot.quantity || 0),
         expired_at: String(expiredAt),
-        item_name: String(itemName || "-"),
-        item_code: String(itemCode || "-"),
-        warehouse_name: String(warehouseName || "-"),
+        item_name: String(lot.item_name ?? items?.name ?? "-"),
+        item_code: String(lot.item_code ?? items?.code ?? "-"),
+        warehouse_name: String(lot.warehouse_name ?? warehouses?.name ?? "-"),
       });
     }
   }
 
-  return lots.sort(
-    (a, b) => new Date(a.expired_at!).getTime() - new Date(b.expired_at!).getTime()
-  );
+  return lots.sort((a, b) => new Date(a.expired_at!).getTime() - new Date(b.expired_at!).getTime());
 }
 
 export async function getExpiredLots(): Promise<ExpiringLot[]> {
   const rawLots = await getAllLotsRaw();
   const lots: ExpiringLot[] = [];
+  const now = new Date();
 
   for (const lot of rawLots) {
     const expiredAt = lot.expired_at ?? lot.expried_at;
-    if (!expiredAt) continue;
+    if (!expiredAt || new Date(String(expiredAt)) >= now) continue;
 
-    const expiryDate = new Date(String(expiredAt));
-    if (expiryDate >= new Date()) continue;
-
-    const items = lot.items as Record<string, unknown> | undefined;
-    const warehouses = lot.warehouses as Record<string, unknown> | undefined;
-    const itemName = lot.item_name ?? items?.name;
-    const itemCode = lot.item_code ?? items?.code;
-    const warehouseName = lot.warehouse_name ?? warehouses?.name;
+    const items = lot.items as any;
+    const warehouses = lot.warehouses as any;
 
     lots.push({
       id: String(lot.id),
       lot_code: String(lot.lot_code || ""),
       quantity: Number(lot.quantity || 0),
       expired_at: String(expiredAt),
-      item_name: String(itemName || "-"),
-      item_code: String(itemCode || "-"),
-      warehouse_name: String(warehouseName || "-"),
+      item_name: String(lot.item_name ?? items?.name ?? "-"),
+      item_code: String(lot.item_code ?? items?.code ?? "-"),
+      warehouse_name: String(lot.warehouse_name ?? warehouses?.name ?? "-"),
     });
   }
 
-  return lots.sort(
-    (a, b) => new Date(b.expired_at!).getTime() - new Date(a.expired_at!).getTime()
-  );
+  return lots.sort((a, b) => new Date(b.expired_at!).getTime() - new Date(a.expired_at!).getTime());
 }
 
 export async function getWeeklyRequisitions(): Promise<WeeklyRequisition[]> {
   const now = new Date();
   const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
-  const dateFrom = fourWeeksAgo.toISOString().split("T")[0];
-  const dateTo = now.toISOString().split("T")[0];
-
-  const body = await fetchJson<{ data?: Array<Record<string, unknown>> }>(
-    `/v1/requisition?dateFrom=${dateFrom}&dateTo=${dateTo}`
-  );
+  
+  const data = await api.get<any[]>("/v1/requisition", {
+    dateFrom: fourWeeksAgo.toISOString().split("T")[0],
+    dateTo: now.toISOString().split("T")[0]
+  });
 
   const weeks: Record<string, WeeklyRequisition> = {};
-  for (const req of body.data || []) {
+  for (const req of data || []) {
     const dateStr = (req.request_date || req.created_at) as string;
     if (!dateStr) continue;
+    
     const date = new Date(dateStr);
     const day = date.getDay();
     const diff = day === 0 ? 6 : day - 1;
@@ -266,8 +221,8 @@ export async function getWeeklyRequisitions(): Promise<WeeklyRequisition[]> {
     if (!weeks[key]) {
       weeks[key] = { weekStart: key, withdraw: 0, borrow: 0, total: 0 };
     }
-    const type = String(req.type || "").toUpperCase();
-    if (type === "BORROW") {
+    
+    if (String(req.type || "").toUpperCase() === "BORROW") {
       weeks[key].borrow += 1;
     } else {
       weeks[key].withdraw += 1;
@@ -281,17 +236,15 @@ export async function getWeeklyRequisitions(): Promise<WeeklyRequisition[]> {
 export async function getMonthlyRequisitions(months = 6): Promise<MonthlyRequisition[]> {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-  const dateFrom = startDate.toISOString().split("T")[0];
-  const dateTo = now.toISOString().split("T")[0];
-
-  const body = await fetchJson<{ data?: Array<Record<string, unknown>> }>(
-    `/v1/requisition?dateFrom=${dateFrom}&dateTo=${dateTo}`
-  );
+  
+  const data = await api.get<any[]>("/v1/requisition", {
+    dateFrom: startDate.toISOString().split("T")[0],
+    dateTo: now.toISOString().split("T")[0]
+  });
 
   const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
   const buckets: Record<string, MonthlyRequisition> = {};
 
-  // Pre-fill all months
   for (let i = 0; i < months; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - (months - 1) + i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -299,15 +252,14 @@ export async function getMonthlyRequisitions(months = 6): Promise<MonthlyRequisi
     buckets[key] = { month: key, label: `${monthNames[d.getMonth()]} ${thaiYear}`, withdraw: 0, borrow: 0, total: 0 };
   }
 
-  for (const req of body.data || []) {
+  for (const req of data || []) {
     const dateStr = (req.request_date || req.created_at) as string;
     if (!dateStr) continue;
     const date = new Date(dateStr);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     if (!buckets[key]) continue;
 
-    const type = String(req.type || "").toUpperCase();
-    if (type === "BORROW") {
+    if (String(req.type || "").toUpperCase() === "BORROW") {
       buckets[key].borrow += 1;
     } else {
       buckets[key].withdraw += 1;
@@ -319,29 +271,24 @@ export async function getMonthlyRequisitions(months = 6): Promise<MonthlyRequisi
 }
 
 export async function getLotStats(expiryDays = 90): Promise<LotStats> {
-  const [lotsBody, itemsBody] = await Promise.all([
-    fetchJson<{ meta?: { total?: number }; data?: Array<Record<string, unknown>> }>(
-      `/v1/lots?page=1&limit=1000`
-    ),
-    fetchJson<{ data?: Array<Record<string, unknown>> }>(
-      `/v1/items?page=1&limit=1000`
-    ),
+  const [lotsRes, itemsRes] = await Promise.all([
+    api.list<any>("/v1/lots", { page: 1, limit: 1000 }),
+    api.list<any>("/v1/items", { page: 1, limit: 1000 })
   ]);
 
-  const lots = lotsBody.data || [];
-  const items = itemsBody.data || [];
-  const total = lotsBody.meta?.total ?? lots.length;
-
-  // Build map: item id → min_stock
+  const lots = lotsRes.data || [];
+  const items = itemsRes.data || [];
+  
   const minStockMap = new Map<string, number>();
   for (const item of items) {
     minStockMap.set(String(item.id), Number(item.min_stock) || 0);
   }
+
   let belowMinimum = 0;
   let nearExpiry = 0;
 
   for (const lot of lots) {
-    const itemId = String(lot.item_id ?? (lot.items as Record<string, unknown>)?.id ?? "");
+    const itemId = String(lot.item_id ?? lot.items?.id ?? "");
     const minStock = minStockMap.get(itemId) || 0;
     const quantity = Number(lot.quantity || 0);
     const expiredAt = (lot.expired_at ?? lot.expried_at) as string | null;
@@ -350,5 +297,5 @@ export async function getLotStats(expiryDays = 90): Promise<LotStats> {
     if (expiredAt && isNearExpiryDate(expiredAt, expiryDays)) nearExpiry++;
   }
 
-  return { total, belowMinimum, nearExpiry };
+  return { total: lotsRes.meta?.total ?? lots.length, belowMinimum, nearExpiry };
 }

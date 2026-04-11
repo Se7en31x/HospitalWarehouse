@@ -21,6 +21,8 @@ export interface StockMovement {
   quantity: number;
   note?: string | null;
   created_by?: string | null;
+  created_by_id?: string | null;
+  operator_name?: string | null;   // Thai full name resolved from profiles table
   created_at: string;
   item: StockMovementItem | null;
 }

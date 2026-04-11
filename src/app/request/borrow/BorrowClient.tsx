@@ -6,7 +6,7 @@ import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, Che
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import BorrowCartModal from "./BorrowCartModal";
 import ItemDetailModal from "./ItemDetailModal";
 
@@ -39,7 +39,7 @@ const mapBorrowableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => {
 export default function BorrowClient({ initialItems }: Props) {
 
   const { departments, isLoading: isAuthLoaded } = useAuth();
-  const [selectedDeptId, setSelectedDeptId] = useState<string>("");
+  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
   
   // ✅ State สำหรับรายการ Items
   const [items, setItems] = useState<Item.UiItem[]>(mapBorrowableStock(initialItems || []));
@@ -96,10 +96,10 @@ export default function BorrowClient({ initialItems }: Props) {
     }
   }, []);
 
-  // --- [Auto-select first department from mock useAuth] ---
+  // --- [Initialize department from auth token metadata] ---
   useEffect(() => {
-    if (departments.length > 0 && !selectedDeptId) {
-      setSelectedDeptId(String(departments[0].id));
+    if (departments.length > 0 && selectedDeptId === null) {
+      setSelectedDeptId(departments[0].id);
     }
   }, [departments, selectedDeptId]);
 

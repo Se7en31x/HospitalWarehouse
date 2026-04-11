@@ -259,7 +259,12 @@ const StockMovementClient = () => {
                       </span>
                     </td>
                     <td className="px-6 py-5 text-slate-600">
-                      {mv.created_by ?? "-"}
+                      {mv.operator_name
+                        ? mv.operator_name
+                        : mv.created_by
+                          ? <span className="text-slate-400 text-xs font-mono">{mv.created_by}</span>
+                          : <span className="text-slate-400">ระบบอัตโนมัติ</span>
+                      }
                     </td>
                     <td className="px-6 py-5 text-slate-500">
                       {new Date(mv.created_at).toLocaleString("th-TH", {

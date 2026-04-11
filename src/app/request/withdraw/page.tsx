@@ -8,12 +8,17 @@ export const metadata = {
 };
 
 export default async function WithdrawPage() {
-  // 1. ดึงข้อมูลสินค้าทั้งหมดจาก Server Side
-  const items = await getInventoryItems({ allowed_req: true }); 
+  let items = [];
+  try {
+    // 1. ลองดึงข้อมูล ถ้าพัง (เพราะไม่มี Token) มันจะเข้า catch
+    items = await getInventoryItems({ allowed_req: true }); 
+  } catch (error) {
+    console.warn("⚠️ Server Fetch failed, switching to client-side fetch.");
+    items = []; // ส่ง Array ว่างไปก่อน เดี๋ยว WithdrawClient จะไปดึงเองที่หน้าบ้าน
+  }
 
   return (
     <main>
-        {/* 2. ส่งข้อมูลไปให้ Client Component */}
         <WithdrawClient initialItems={items} />
     </main>
   );

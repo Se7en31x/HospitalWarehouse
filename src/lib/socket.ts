@@ -1,35 +1,22 @@
 import { io } from "socket.io-client";
-import Cookies from "js-cookie";
+import { createClient } from "@/lib/supabase/client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 console.log("🔌 Socket initializing connection to:", SOCKET_URL);
 
-const parseJwtPayload = (token: string) => {
-    try {
-        const base64 = token.split(".")[1];
-        if (!base64) return null;
-        const payload = JSON.parse(atob(base64));
-        return payload;
-    } catch {
-        return null;
-    }
-};
-
-const resolveSocketIdentity = () => {
-    const token = Cookies.get("user_token") || "";
-    const payload = token ? parseJwtPayload(token) : null;
-
-    const userId =
-        payload?.user_id ||
-        payload?.id ||
-        payload?.sub ||
-        "";
-
-    const role = payload?.role ? String(payload.role) : "";
+/**
+ * ดึงข้อมูล Identity จาก Supabase Session
+ */
+const getSocketIdentity = async () => {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) return null;
 
     return {
-        userId: userId ? String(userId) : "",
-        roles: role ? [role] : [],
+        userId: session.user.id,
+        // ดึง role จาก user_metadata หรือ app_metadata ตามที่คุณตั้งค่าไว้ใน Supabase
+        roles: session.user.app_metadata?.role ? [session.user.app_metadata.role] : ["user"],
     };
 };
 
@@ -37,14 +24,15 @@ export const socket = io(SOCKET_URL, {
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay:1000,
-
+    reconnectionDelay: 1000,
     transports: ["websocket"],
 });
 
-socket.on("connect", () => {
-    const identity = resolveSocketIdentity();
-    if (identity.userId) {
+// เปลี่ยน connect handler ให้เป็น async เพื่อรอข้อมูลจาก Supabase
+socket.on("connect", async () => {
+    const identity = await getSocketIdentity();
+    if (identity?.userId) {
+        console.log("📡 Registering notification channel for:", identity.userId);
         socket.emit("REGISTER_NOTIFICATION_CHANNEL", identity);
     }
 });

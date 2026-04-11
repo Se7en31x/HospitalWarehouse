@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, use } from "react";
+import React, { useState, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, PackageCheck, Building2, User, Loader2, Minus, Plus, ScanLine, Trash2, ArrowRight, X, Search
@@ -14,7 +14,6 @@ import {
   completeRequisitionDelivery
 } from "../../../../services/requisitionService";
 import { RequisitionHeader, RequisitionItem, RequisitionItemLots, RequisitionItemUnits } from "../../../../types/requisition_type";
-import { useAuth } from "@/lib/useAuth"; 
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 
 export interface ItemAllocation {
@@ -28,7 +27,6 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
   const unwrappedParams = use(params);
   const reqId = parseInt(unwrappedParams.id, 10);
   
-  const { departments } = useAuth();
   const [requisition, setRequisition] = useState<RequisitionHeader | null>(null);
   const [isFetching, setIsFetching] = useState(true);
 
@@ -83,12 +81,6 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
     }
   };
 
-  const displayDeptName = useCallback((req: RequisitionHeader): string => {
-    const deptInAuth = departments?.find(d => d.id === req.department_id);
-    if (deptInAuth) return deptInAuth.name;
-    return req.department_id ? `แผนก (${req.department_id})` : "ไม่ระบุแผนก";
-  }, [departments]);
-  
   const displayRequesterName = (req: RequisitionHeader): string => {
     return req.requester || req.requester_id || "ไม่ระบุผู้ทำรายการ";
   };
@@ -368,7 +360,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
   if (isFetching) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white gap-4">
-        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
         <p className="text-slate-500 font-medium animate-pulse">กำลังโหลดข้อมูลใบเบิก...</p>
       </div>
     );
@@ -381,13 +373,22 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
       <Toaster position="top-right" />
       
       {/* Header Bar */}
-      <div className="bg-white px-8 py-6 flex items-center justify-between shrink-0 shadow-sm z-10 w-full">
+      <div className="bg-white px-8 py-5 flex items-center justify-between shrink-0 shadow-sm z-10 w-full">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">{requisition.doc_no}</h2>
+          <h2 className="text-2xl font-bold text-slate-800">{requisition.doc_no}</h2>
+          {requisition.department_name && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-sm font-medium border border-slate-200">
+              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+              {requisition.department_name}
+            </span>
+          )}
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(requisition.status)}`}>
+            {getStatusLabel(requisition.status)}
+          </span>
         </div>
         <button
           onClick={() => router.push("/warehouse/requests")}
-          className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
+          className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 text-sm font-medium transition-colors"
         >
           ย้อนกลับ
         </button>
@@ -396,7 +397,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
       {/* Details Bar */}
       <section className="rounded-lg bg-white border border-slate-300 mx-8 my-4 p-6">
         <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-          <FileText className="h-5 w-5 text-indigo-600" />
+          <FileText className="h-5 w-5 text-emerald-600" />
           <h2 className="text-lg font-semibold">ข้อมูลการ{requisition.type === 'BORROW' ? 'ยืม' : 'เบิก'}</h2>
         </div>
 
@@ -423,13 +424,13 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
             {requisition.type === 'WITHDRAW' ? (
               <>
                 <p className="text-xs text-slate-500 mb-1">แผนก</p>
-                <p className="text-base text-slate-800">{displayDeptName(requisition)}</p>
+                <p className="text-base font-medium text-slate-800">{requisition.department_name ?? '-'}</p>
               </>
             ) : (
               <div className="space-y-3">
                 <div>
                   <p className="text-xs text-slate-500 mb-1">แผนก</p>
-                  <p className="text-base text-slate-800">{displayDeptName(requisition)}</p>
+                  <p className="text-base font-medium text-slate-800">{requisition.department_name ?? '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 mb-1">ที่อยู่</p>
@@ -460,7 +461,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
           
           <div className="flex-1 overflow-y-auto">
             <table className="w-full table-fixed text-sm">
-              <thead className="bg-white sticky top-0 shadow-[0_1px_2px_rgba(0,0,0,0.05)] z-10">
+              <thead className="bg-slate-50 sticky top-0 shadow-[0_1px_2px_rgba(0,0,0,0.05)] z-10 border-b border-slate-200">
                 <tr className="uppercase text-xs font-semibold text-slate-500 tracking-wider">
                   <th className="px-6 py-4 text-left" style={{ width: "80px" }}>รูป</th>
                   <th className="px-6 py-4 text-left" style={{ width: "360px" }}>รายละเอียดสินค้า</th>
@@ -751,7 +752,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
                 <button
                   onClick={handleApprove}
                   disabled={isLoading}
-                  className="px-8 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  className="px-8 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <PackageCheck size={18} />}
                   ยืนยันการอนุมัติ

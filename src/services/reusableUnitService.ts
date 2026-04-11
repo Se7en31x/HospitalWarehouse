@@ -1,55 +1,11 @@
-import Cookies from "js-cookie";
+import { api, PaginatedResponse } from "@/lib/apiClient";
 import { resolveBarcode, type BarcodeResolveResult } from "./barcodeService";
 
 // Re-export สำหรับ backward-compat (WithdrawClient ยังใช้ชื่อเดิม)
 export type { BarcodeResolveResult };
 export type ResolvedReusableBarcode = BarcodeResolveResult;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-const getHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${Cookies.get("user_token") || ""}`,
-});
-
-async function requestList<T>(path: string): Promise<T> {
-  if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: getHeaders(),
-    cache: "no-store",
-  });
-
-  let body;
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    body = await res.json();
-  } else {
-    throw new Error(`Unexpected response type: ${contentType}. Status: ${res.status}`);
-  }
-
-  if (!res.ok) throw new Error(body?.error || body?.message || `HTTP ${res.status}`);
-  return { items: body.data ?? [], ...(body.meta ?? {}) } as T;
-}
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { ...getHeaders(), ...(options?.headers || {}) },
-    cache: "no-store",
-  });
-
-  let body;
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    body = await res.json();
-  } else {
-    throw new Error(`Unexpected response type: ${contentType}. Status: ${res.status}`);
-  }
-
-  if (!res.ok) throw new Error(body?.error || body?.message || `HTTP ${res.status}`);
-  return body.data as T;
-}
+// ============ Types ============
 
 export interface ReusableUnit {
   id: string;
@@ -61,7 +17,7 @@ export interface ReusableUnit {
   receive_item_id: number | null;
   receive_doc_no: string | null;
   serial_no: string | null;
-  department_id: number | null;
+  department_id: string | null;
   department_name: string | null;
   status: "AVAILABLE" | "IN_USE" | "REPAIR" | "DISPOSED" | string;
   condition: "GOOD" | "DAMAGED" | "LOST" | "BROKEN" | string;
@@ -87,6 +43,7 @@ export interface GetReusableUnitsParams {
   department_id?: string;
   status?: string;
   item_id?: string;
+  [key: string]: any;
 }
 
 export interface ReturnableSummaryItem {
@@ -97,7 +54,7 @@ export interface ReturnableSummaryItem {
 }
 
 export interface ReturnableSummaryResponse {
-  department_id: number;
+  department_id: string;
   items: ReturnableSummaryItem[];
 }
 
@@ -124,7 +81,7 @@ export interface ReusableReturnRequestItem {
 export interface ReusableReturnRequest {
   id: number;
   doc_no: string;
-  department_id: number;
+  department_id: string;
   department_name: string | null;
   preferred_pickup_at: string | null;
   contact_name: string | null;
@@ -146,62 +103,52 @@ export interface ReusableReturnRequestListResponse {
   prevPage: number | null;
 }
 
-// ResolvedReusableBarcode ถูก re-export จาก barcodeService (บรรทัด 6) แล้ว — ไม่ต้องประกาศซ้ำ
+// ============ API Functions ============
 
 export async function getReusableUnits(params: GetReusableUnitsParams = {}): Promise<ReusableUnitListResponse> {
-  const query = new URLSearchParams();
-  if (params.page) query.set("page", String(params.page));
-  if (params.limit) query.set("limit", String(params.limit));
-  if (params.keyword) query.set("keyword", params.keyword);
-  if (params.department_id) query.set("department_id", params.department_id);
-  if (params.status) query.set("status", params.status);
-  if (params.item_id) query.set("item_id", params.item_id);
-
-  return requestList<ReusableUnitListResponse>(`/v1/reusable-items?${query.toString()}`);
+  const res = await api.list<ReusableUnit>(`/v1/reusable-items`, params as Record<string, unknown>);
+  return {
+    items: res.data || [],
+    total: res.meta?.total || 0,
+    page: res.meta?.page || 1,
+    limit: res.meta?.limit || 20,
+    totalPages: res.meta?.totalPages || 1,
+    nextPage: res.meta?.nextPage ?? null,
+    prevPage: res.meta?.prevPage ?? null,
+  };
 }
 
 export async function updateReusableUnit(
   id: string,
   payload: Partial<Pick<ReusableUnit, "serial_no" | "department_id" | "status" | "condition" | "note">>
 ): Promise<ReusableUnit> {
-  return request<ReusableUnit>(`/v1/reusable-items/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
+  return api.patch<ReusableUnit>(`/v1/reusable-items/${id}`, payload);
 }
 
 export async function deleteReusableUnit(id: string): Promise<void> {
-  return request<void>(`/v1/reusable-items/${id}`, {
-    method: "DELETE",
-  });
+  await api.delete(`/v1/reusable-items/${id}`);
 }
 
 export async function returnReusableFromWithdraw(
   id: string,
   payload: { condition?: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE"; note?: string } = {}
 ): Promise<ReusableUnit> {
-  return request<ReusableUnit>(`/v1/reusable-items/${id}/return-from-withdraw`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<ReusableUnit>(`/v1/reusable-items/${id}/return-from-withdraw`, payload);
 }
 
 export async function getReturnableWithdrawSummary(departmentId: string | number): Promise<ReturnableSummaryResponse> {
-  return request<ReturnableSummaryResponse>(`/v1/reusable-items/returnable-summary?department_id=${departmentId}`);
+  return api.get<ReturnableSummaryResponse>(`/v1/reusable-items/returnable-summary`, { department_id: departmentId });
 }
 
 export async function createReusableReturnRequest(payload: {
-  department_id: number;
+  department_id: string;
   preferred_pickup_at?: string;
   contact_name?: string;
   contact_phone?: string;
   note?: string;
   items: Array<{ item_id: string; requested_qty: number; note?: string }>;
 }): Promise<ReusableReturnRequest> {
-  return request<ReusableReturnRequest>(`/v1/reusable-items/return-requests`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<ReusableReturnRequest>(`/v1/reusable-items/return-requests`, payload);
 }
 
 export async function getReusableReturnRequests(params: {
@@ -210,19 +157,22 @@ export async function getReusableReturnRequests(params: {
   keyword?: string;
   department_id?: string;
   status?: string;
+  [key: string]: any;
 } = {}): Promise<ReusableReturnRequestListResponse> {
-  const query = new URLSearchParams();
-  if (params.page) query.set("page", String(params.page));
-  if (params.limit) query.set("limit", String(params.limit));
-  if (params.keyword) query.set("keyword", params.keyword);
-  if (params.department_id) query.set("department_id", params.department_id);
-  if (params.status) query.set("status", params.status);
-
-  return requestList<ReusableReturnRequestListResponse>(`/v1/reusable-items/return-requests?${query.toString()}`);
+  const res = await api.list<ReusableReturnRequest>(`/v1/reusable-items/return-requests`, params as Record<string, unknown>);
+  return {
+    items: res.data || [],
+    total: res.meta?.total || 0,
+    page: res.meta?.page || 1,
+    limit: res.meta?.limit || 20,
+    totalPages: res.meta?.totalPages || 1,
+    nextPage: res.meta?.nextPage ?? null,
+    prevPage: res.meta?.prevPage ?? null,
+  };
 }
 
 export async function getReusableReturnRequestById(id: number | string): Promise<ReusableReturnRequest> {
-  return request<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}`);
+  return api.get<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}`);
 }
 
 export async function processReusableReturnRequest(
@@ -234,21 +184,15 @@ export async function processReusableReturnRequest(
     note?: string;
   }
 ): Promise<ReusableReturnRequest> {
-  return request<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}/process`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}/process`, payload);
 }
 
 export async function deleteReusableReturnRequest(id: number | string): Promise<ReusableReturnRequest> {
-  return request<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}`, {
-    method: "DELETE",
-  });
+  return api.delete<ReusableReturnRequest>(`/v1/reusable-items/return-requests/${id}`);
 }
 
 /**
  * resolveReusableBarcode — delegate ไปที่ barcodeService กลาง
- * เรียก /v1/barcodes/resolve เพียง endpoint เดียว
  */
 export async function resolveReusableBarcode(
   value: string,

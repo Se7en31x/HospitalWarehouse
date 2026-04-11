@@ -140,7 +140,7 @@ export const MovementDetailModal = ({
             <div className="bg-slate-50 rounded-lg p-3">
               <p className="text-xs text-slate-400 mb-1">ผู้ดำเนินการ</p>
               <p className="font-medium text-slate-700">
-                {movement.created_by ?? "-"}
+                {movement.operator_name ?? movement.created_by ?? "ระบบอัตโนมัติ"}
               </p>
             </div>
             <div className="bg-slate-50 rounded-lg p-3">

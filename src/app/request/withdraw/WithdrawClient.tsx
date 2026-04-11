@@ -5,7 +5,7 @@ import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, Che
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth } from "@/hooks/useAuth"; 
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import CartModal from "./CartModal";
@@ -33,7 +33,8 @@ const mapRequestableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => {
 };
 
 export default function WithdrawClient({ initialItems }: Props) {
-  const { departments, isLoading: isAuthLoaded } = useAuth();
+  // ดึงข้อมูลแผนกและสถานะการโหลดจาก useAuth ที่แกะจาก Token จริง
+  const { departments, isLoading: isAuthLoading } = useAuth();
 
   // ✅ State สำหรับรายการ Items
   const [items, setItems] = useState<Item.UiItem[]>(mapRequestableStock(initialItems || []));
@@ -44,8 +45,7 @@ export default function WithdrawClient({ initialItems }: Props) {
 
   // ✅ State สำหรับ Cart และ Shopping
   const [selectedItems, setSelectedItems] = useState<CartItem[]>([]);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [selectedDeptId, setSelectedDeptId] = useState<string>("");
+  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
 
   // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
@@ -166,23 +166,29 @@ export default function WithdrawClient({ initialItems }: Props) {
     }
   }, [initialItems, refreshData]);
 
-  // --- [Initialize Department Selection] ---
+  // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
-    if (isAuthLoaded && departments.length > 0 && !selectedDeptId) {
+    if (!isAuthLoading && departments.length > 0) {
       const savedDept = localStorage.getItem("withdraw_dept");
-      if (savedDept && departments.some((d) => d.code === savedDept)) {
-        setSelectedDeptId(savedDept);
-      } else if (departments.length === 1) {
-        setSelectedDeptId(departments[0].code);
+      const savedDeptId = savedDept ? Number(savedDept) : null;
+      const isValid = savedDeptId !== null && departments.some((d) => d.id === savedDeptId);
+
+      if (isValid && savedDeptId !== null) {
+        setSelectedDeptId(savedDeptId);
+      } else {
+        // Default เป็นแผนกแรกที่ได้รับสิทธิ์
+        setSelectedDeptId(departments[0].id);
       }
     }
-  }, [isAuthLoaded, departments, selectedDeptId]);
+  }, [isAuthLoading, departments]);
 
   // --- [Persist Cart & Department to LocalStorage] ---
   useEffect(() => {
     if (isMounted) {
       localStorage.setItem("withdraw_cart", JSON.stringify(selectedItems));
-      localStorage.setItem("withdraw_dept", selectedDeptId);
+      if (selectedDeptId !== null) {
+        localStorage.setItem("withdraw_dept", String(selectedDeptId));
+      }
     }
   }, [selectedItems, selectedDeptId, isMounted]);
 
@@ -301,11 +307,19 @@ export default function WithdrawClient({ initialItems }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-gray-800">เบิกพัสดุ</h2>
+          <div className="flex flex-col">
+             <span className="text-xs text-slate-500 font-medium">แผนกที่เลือกเบิก:</span>
+             <span className="text-sm font-bold text-blue-600">
+               {isAuthLoading
+                 ? "กำลังโหลดข้อมูล..."
+                 : (departments.find((d) => d.id === selectedDeptId)?.name || "โปรดเลือกแผนกในตะกร้า")}
+             </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCartModal(true)}
-            className={`px-4 py-2 rounded-lg   bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
+            className={`px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
               isCartBouncing ? "animate-bounce-custom" : ""
             }`}
           >
@@ -338,7 +352,6 @@ export default function WithdrawClient({ initialItems }: Props) {
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Category Dropdown Menu */}
           {isCategoryDropdownOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
@@ -376,7 +389,6 @@ export default function WithdrawClient({ initialItems }: Props) {
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUnitDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Unit Dropdown Menu */}
           {isUnitDropdownOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
@@ -414,7 +426,6 @@ export default function WithdrawClient({ initialItems }: Props) {
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Location Dropdown Menu */}
           {isLocationDropdownOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
@@ -453,30 +464,9 @@ export default function WithdrawClient({ initialItems }: Props) {
           </div>
         )}
         <div 
-          className="flex-1" 
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
+          className="flex-1 overflow-x-auto overflow-y-auto"
+          style={{ scrollbarWidth: 'auto', msOverflowStyle: 'auto' }}
         >
-          <style>{`
-            div::-webkit-scrollbar {
-              width: 0;
-              height: 8px;
-            }
-            div::-webkit-scrollbar-track {
-              background: #f1f5f9;
-            }
-            div::-webkit-scrollbar-thumb {
-              background: #cbd5e1;
-              border-radius: 4px;
-            }
-            div::-webkit-scrollbar-thumb:hover {
-              background: #94a3b8;
-            }
-          `}</style>
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>
@@ -493,10 +483,8 @@ export default function WithdrawClient({ initialItems }: Props) {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {displayItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[50px]">
-                    {(currentPage - 1) * itemsPerPage + idx + 1}
-                  </td>
-                  <td className="px-6 py-4 w-[100px]">
+                  <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-4">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <button
@@ -510,18 +498,16 @@ export default function WithdrawClient({ initialItems }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 w-[120px]">
-                    {item.code}
+                  <td className="px-6 py-4">{item.code}</td>
+                  <td className="px-6 py-4 truncate" title={item.name}>{item.name}</td>
+                  <td className="px-6 py-4 text-slate-600">{item.category}</td>
+                  <td className="px-6 py-4">{item.location}</td>
+                  <td className="px-6 py-4">
+                    <span className={`font-bold ${item.stock <= 5 ? 'text-red-500' : 'text-slate-700'}`}>
+                       {item.stock}
+                    </span> {item.unit}
                   </td>
-                  <td className="px-6 py-4 w-[300px]">
-                    {item.name}
-                  </td>
-                  <td className="px-6 py-4 w-[140px] text-slate-600">{item.category}</td>
-                  <td className="px-6 py-4 w-[150px]">{item.location}</td>
-                  <td className="px-6 py-4 w-[150px]">
-                    {item.stock} {item.unit}
-                  </td>
-                  <td className="px-6 py-4 text-right w-[100px]">
+                  <td className="px-6 py-4 text-right">
                     <button
                       onClick={() => openItemDetail(item)}
                       disabled={item.stock <= 0}
@@ -537,10 +523,8 @@ export default function WithdrawClient({ initialItems }: Props) {
                 <tr>
                   <td colSpan={8}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
-                      </svg>
-                      <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      <Search className="w-12 h-12 text-slate-300" />
+                      <p className="text-sm font-medium">ไม่พบข้อมูลพัสดุ</p>
                     </div>
                   </td>
                 </tr>
@@ -604,7 +588,7 @@ export default function WithdrawClient({ initialItems }: Props) {
           onClick={() => setLightboxImage(null)}
         >
           <div
-            className="relative bg-white rounded-lg shadow-2xl p-2"
+            className="relative bg-white rounded-lg shadow-2xl p-2 max-w-[90vw] max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -616,9 +600,9 @@ export default function WithdrawClient({ initialItems }: Props) {
             <img
               src={lightboxImage.url}
               alt={lightboxImage.name}
-              className="w-[350px] h-[280px] object-contain rounded-lg"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />
-            <p className="text-center text-sm text-slate-600 mt-2 pb-1">{lightboxImage.name}</p>
+            <p className="text-center text-sm font-bold text-slate-800 mt-2 pb-1">{lightboxImage.name}</p>
           </div>
         </div>
       )}

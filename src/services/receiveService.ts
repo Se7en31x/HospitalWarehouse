@@ -1,53 +1,4 @@
-import Cookies from "js-cookie";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-const getHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${Cookies.get("user_token") || ""}`,
-});
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-    if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-    const res = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers: { ...getHeaders(), ...(options?.headers || {}) },
-        cache: "no-store",
-    });
-    
-    let body;
-    const contentType = res.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-        body = await res.json();
-    } else {
-        const text = await res.text();
-        throw new Error(`Unexpected response type: ${contentType}. Status: ${res.status}`);
-    }
-
-    if (!res.ok) throw new Error(body?.error || body?.message || `HTTP ${res.status}`);
-    return body.data as T;
-}
-
-// sendListResponse returns { data: items[], meta: { total, page, ... } }
-async function requestList<T>(path: string): Promise<T & { items: unknown[] }> {
-    if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-    const res = await fetch(`${API_URL}${path}`, {
-        headers: getHeaders(),
-        cache: "no-store",
-    });
-
-    let body;
-    const contentType = res.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-        body = await res.json();
-    } else {
-        const text = await res.text();
-        throw new Error(`Unexpected response type: ${contentType}. Status: ${res.status}`);
-    }
-
-    if (!res.ok) throw new Error(body?.error || body?.message || `HTTP ${res.status}`);
-    return { items: body.data ?? [], ...(body.meta ?? {}) } as T & { items: unknown[] };
-}
+import { api, PaginatedResponse } from "@/lib/apiClient";
 
 // ============ Types ============
 
@@ -101,20 +52,23 @@ export interface GetReceivesParams {
     status?: string;
     start_date?: string;
     end_date?: string;
+    [key: string]: any;
 }
 
 // ============ API Functions ============
 
 export async function getAllReceives(params: GetReceivesParams = {}): Promise<ReceiveListResponse> {
-    const query = new URLSearchParams();
-    if (params.page) query.set("page", String(params.page));
-    if (params.limit) query.set("limit", String(params.limit));
-    if (params.keyword) query.set("keyword", params.keyword);
-    if (params.type) query.set("type", params.type);
-    if (params.status) query.set("status", params.status);
-    if (params.start_date) query.set("start_date", params.start_date);
-    if (params.end_date) query.set("end_date", params.end_date);
-    return requestList<ReceiveListResponse>(`/v1/receives?${query.toString()}`);
+    const res = await api.list<ReceiveHeader>(`/v1/receives`, params as Record<string, unknown>);
+    
+    return {
+        items: res.data || [],
+        total: res.meta?.total || 0,
+        page: res.meta?.page || 1,
+        limit: res.meta?.limit || 20,
+        totalPages: res.meta?.totalPages || 1,
+        nextPage: res.meta?.nextPage ?? null,
+        prevPage: res.meta?.prevPage ?? null,
+    };
 }
 
 export async function getAllReceivesPages(params: GetReceivesParams = {}): Promise<ReceiveHeader[]> {
@@ -125,7 +79,7 @@ export async function getAllReceivesPages(params: GetReceivesParams = {}): Promi
         const nextPage = await getAllReceives({
             ...params,
             page,
-            limit: firstPage.limit || params.limit || 100,
+            limit: firstPage.limit || 100,
         });
         items.push(...nextPage.items);
     }
@@ -134,7 +88,7 @@ export async function getAllReceivesPages(params: GetReceivesParams = {}): Promi
 }
 
 export async function getReceiveById(id: number): Promise<ReceiveHeader> {
-    return request<ReceiveHeader>(`/v1/receives/${id}`);
+    return api.get<ReceiveHeader>(`/v1/receives/${id}`);
 }
 
 export async function createReceive(payload: {
@@ -155,10 +109,7 @@ export async function createReceive(payload: {
         warehouse_id?: string | null;
     }>;
 }): Promise<ReceiveHeader> {
-    return request<ReceiveHeader>("/v1/receives", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    return api.post<ReceiveHeader>("/v1/receives", payload);
 }
 
 export async function confirmReceive(
@@ -169,35 +120,28 @@ export async function confirmReceive(
         lot_code?: string;
         expired_at?: string;
         warehouse_id?: string;
-        // สำหรับ PURCHASE_ASSET
         assets?: Array<{
             serial_no?: string;
-            department_id?: number;
+            department_id?: string;
             note?: string;
         }>;
     }>
 ): Promise<ReceiveHeader> {
-    return request<ReceiveHeader>(`/v1/receives/${headerId}/confirm`, {
-        method: "PATCH",
-        body: JSON.stringify({ items }),
-    });
+    return api.patch<ReceiveHeader>(`/v1/receives/${headerId}/confirm`, { items });
 }
 
 export async function cancelReceive(headerId: number, reason?: string): Promise<ReceiveHeader> {
-    return request<ReceiveHeader>(`/v1/receives/${headerId}/cancel`, {
-        method: "PATCH",
-        body: JSON.stringify({ reason: reason || "" }),
-    });
+    return api.patch<ReceiveHeader>(`/v1/receives/${headerId}/cancel`, { reason: reason || "" });
 }
 
 export async function getSuppliers(): Promise<Array<{ id: string; name: string }>> {
-    return request<Array<{ id: string; name: string }>>("/v1/suppliers/option");
+    return api.get<Array<{ id: string; name: string }>>("/v1/suppliers/option");
 }
 
 export interface ReusableUnitInput {
     unit_code?: string;
     serial_no?: string;
-    department_id?: number | null;
+    department_id?: string | null;
     status?: "AVAILABLE" | "IN_USE" | "REPAIR" | "DISPOSED";
     condition?: "GOOD" | "DAMAGED" | "LOST" | "BROKEN";
     note?: string;
@@ -223,8 +167,5 @@ export async function createReusableReceive(payload: ReusableReceivePayload): Pr
     total_items: number;
     total_units: number;
 }> {
-    return request("/v1/reusable-items/receive", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    return api.post("/v1/reusable-items/receive", payload);
 }

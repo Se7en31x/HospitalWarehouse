@@ -2,15 +2,13 @@
 
 import React, { useState } from "react";
 import ReportTypeSelector, { type ReportPage } from "./ReportTypeSelector";
-import ReportsClient from "./ReportsClient";
 import RequisitionReportClient from "./RequisitionReportClient";
-import StockInReportClient from "./StockInReportClient";
-import StockOutReportClient from "./StockOutReportClient";
 import StockBalanceReportClient from "./StockBalanceReportClient";
-import ExpiredLotsReportClient from "./ExpiredLotsReportClient";
 import ItemsReportClient from "./ItemsReportClient";
 import LowStockReportClient from "./LowStockReportClient";
-import NearExpiryReportClient from "./NearExpiryReportClient";
+import AssetReportClient from "./AssetReportClient";
+import ReusableItemsReportClient from "./ReusableItemsReportClient";
+import InventoryBalanceReportClient from "./InventoryBalanceReportClient";
 import { type Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
@@ -31,8 +29,8 @@ interface ReportsWrapperProps {
 		nearExpiryCount: number;
 	};
 }
+
 const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
-	initialReports,
 	initialItems,
 	initialLowStockItems,
 	initialExpiringLots,
@@ -51,64 +49,36 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
 	};
 
 	const renderReportContent = () => {
-		if (selectedType === "all-items") {
-			return <ItemsReportClient initialItems={initialItems} onBack={handleBackToSelector} />;
-		}
+		switch (selectedType) {
+			case "all-items":
+				return <ItemsReportClient initialItems={initialItems} onBack={handleBackToSelector} />;
 
-		if (selectedType === "low-stock") {
-			return (
-				<LowStockReportClient
-					initialItems={initialLowStockItems}
-					onBack={handleBackToSelector}
-				/>
-			);
-		}
+			case "low-stock":
+				return (
+					<LowStockReportClient
+						initialItems={initialLowStockItems}
+						onBack={handleBackToSelector}
+					/>
+				);
 
-		if (selectedType === "near-expiry") {
-			return (
-				<NearExpiryReportClient
-					initialLots={initialExpiringLots}
-					onBack={handleBackToSelector}
-				/>
-			);
-		}
+			case "requisition":
+				return <RequisitionReportClient onBack={handleBackToSelector} />;
 
-		if (selectedType === "requisition") {
-			return <RequisitionReportClient onBack={handleBackToSelector} />;
-		}
+			case "stock-balance":
+				return <StockBalanceReportClient onBack={handleBackToSelector} />;
 
-		if (selectedType === "stockin") {
-			return <StockInReportClient onBack={handleBackToSelector} />;
-		}
+			case "inventory-balance":
+				return <InventoryBalanceReportClient onBack={handleBackToSelector} />;
 
-		if (selectedType === "stockout") {
-			return <StockOutReportClient onBack={handleBackToSelector} />;
-		}
+			case "assets":
+				return <AssetReportClient onBack={handleBackToSelector} />;
 
-		if (selectedType === "stock-balance") {
-			return (
-				<StockBalanceReportClient
-					initialItems={initialItems}
-					onBack={handleBackToSelector}
-				/>
-			);
-		}
+			case "reusable-items":
+				return <ReusableItemsReportClient onBack={handleBackToSelector} />;
 
-		if (selectedType === "expired-lots") {
-			return (
-				<ExpiredLotsReportClient
-					initialLots={initialExpiringLots}
-					onBack={handleBackToSelector}
-				/>
-			);
+			default:
+				return null;
 		}
-
-		return (
-			<ReportsClient
-				initialReports={initialReports}
-				selectedType="all"
-			/>
-		);
 	};
 
 	if (showSelector) {
@@ -121,12 +91,7 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
 		);
 	}
 
-	return (
-		<div>
-			{/* Report content */}
-			{renderReportContent()}
-		</div>
-	);
+	return <div>{renderReportContent()}</div>;
 };
 
 export default ReportsWrapper;

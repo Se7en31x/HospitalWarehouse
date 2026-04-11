@@ -1,4 +1,4 @@
-import Cookies from "js-cookie";
+import { api, PaginatedResponse } from "@/lib/apiClient";
 import type {
     ApiResponse,
     Category,
@@ -12,76 +12,21 @@ import type {
     SystemSettingsMap,
 } from "@/types/settings_type";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const SETTINGS_BASE = "/v1";
 
-const getHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${Cookies.get("user_token") || ""}`,
-});
+// ============ Helper Functions ============
 
-async function parseResponse<T>(res: Response): Promise<ApiResponse<T>> {
-    const contentType = res.headers.get("content-type") || "";
-
-    // Defensive parse: backend errors can come back as HTML and break JSON parsing.
-    if (!contentType.includes("application/json")) {
-        const text = await res.text();
-        const preview = text.slice(0, 120).replace(/\s+/g, " ").trim();
-        throw new Error(`Invalid response format (${res.status}): ${preview || "non-JSON response"}`);
-    }
-
-    const body = (await res.json()) as ApiResponse<T> | { error?: string; message?: string };
-
-    if (!res.ok) {
-        const message = "error" in body ? body.error : body.message;
-        throw new Error(message || "Request failed");
-    }
-
-    return body as ApiResponse<T>;
-}
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-    if (!API_URL) {
-        throw new Error("NEXT_PUBLIC_API_URL is not configured");
-    }
-
-    const res = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers: {
-            ...getHeaders(),
-            ...(options?.headers || {}),
-        },
-        cache: "no-store",
-    });
-
-    const json = await parseResponse<T>(res);
-    return json.data;
-}
-
-async function requestEnvelope<T>(path: string, options?: RequestInit): Promise<ApiResponse<T>> {
-    if (!API_URL) {
-        throw new Error("NEXT_PUBLIC_API_URL is not configured");
-    }
-
-    const res = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers: {
-            ...getHeaders(),
-            ...(options?.headers || {}),
-        },
-        cache: "no-store",
-    });
-
-    return parseResponse<T>(res);
-}
-
+/**
+ * ดึงข้อมูลทุกหน้ามาต่อกันเป็น Array เดียว (ใช้สำหรับพวก Master Data ใน Settings)
+ */
 async function fetchAllPages<T>(basePath: string): Promise<T[]> {
     const all: T[] = [];
     let page = 1;
     const limit = 100;
 
     while (true) {
-        const res = await requestEnvelope<T[]>(`${basePath}?page=${page}&limit=${limit}&keyword=`);
+        // ใช้ api.list เพื่อเข้าถึงข้อมูลทั้ง data และ meta
+        const res = await api.list<T>(basePath, { page, limit, keyword: "" });
         all.push(...(res.data || []));
 
         if (!res.meta?.nextPage) break;
@@ -91,100 +36,62 @@ async function fetchAllPages<T>(basePath: string): Promise<T[]> {
     return all;
 }
 
-export const getCategories = async () => {
-    return fetchAllPages<Category>(`${SETTINGS_BASE}/categories`);
-};
+// ============ API Functions ============
 
-export const getCategoryById = (id: string) => request<Category>(`${SETTINGS_BASE}/categories/${id}`);
+// --- Categories ---
+export const getCategories = () => fetchAllPages<Category>(`${SETTINGS_BASE}/categories`);
+
+export const getCategoryById = (id: string) => 
+    api.get<Category>(`${SETTINGS_BASE}/categories/${id}`);
 
 export const createCategory = (payload: CategoryPayload) =>
-    request<Category>(`${SETTINGS_BASE}/categories`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    api.post<Category>(`${SETTINGS_BASE}/categories`, payload);
 
 export const updateCategory = (id: string, payload: Partial<CategoryPayload>) =>
-    request<Category>(`${SETTINGS_BASE}/categories/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-    });
+    api.patch<Category>(`${SETTINGS_BASE}/categories/${id}`, payload);
 
 export const deleteCategory = (id: string) =>
-    request<Category>(`${SETTINGS_BASE}/categories/${id}`, {
-        method: "DELETE",
-    });
+    api.delete(`${SETTINGS_BASE}/categories/${id}`);
 
-// Units
-export const getUnits = async () => {
-    return fetchAllPages<Unit>(`${SETTINGS_BASE}/units`);
-};
+// --- Units ---
+export const getUnits = () => fetchAllPages<Unit>(`${SETTINGS_BASE}/units`);
 
 export const createUnit = (payload: UnitPayload) =>
-    request<Unit>(`${SETTINGS_BASE}/units`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    api.post<Unit>(`${SETTINGS_BASE}/units`, payload);
 
 export const updateUnit = (id: string, payload: Partial<UnitPayload>) =>
-    request<Unit>(`${SETTINGS_BASE}/units/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-    });
+    api.patch<Unit>(`${SETTINGS_BASE}/units/${id}`, payload);
 
 export const deleteUnit = (id: string) =>
-    request<Unit>(`${SETTINGS_BASE}/units/${id}`, {
-        method: "DELETE",
-    });
+    api.delete(`${SETTINGS_BASE}/units/${id}`);
 
-// Warehouses  
-export const getWarehouses = async () => {
-    return fetchAllPages<Warehouse>(`${SETTINGS_BASE}/warehouses`);
-};
+// --- Warehouses ---
+export const getWarehouses = () => fetchAllPages<Warehouse>(`${SETTINGS_BASE}/warehouses`);
 
 export const createWarehouse = (payload: WarehousePayload) =>
-    request<Warehouse>(`${SETTINGS_BASE}/warehouses`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    api.post<Warehouse>(`${SETTINGS_BASE}/warehouses`, payload);
 
 export const updateWarehouse = (id: string, payload: Partial<WarehousePayload>) =>
-    request<Warehouse>(`${SETTINGS_BASE}/warehouses/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-    });
+    api.patch<Warehouse>(`${SETTINGS_BASE}/warehouses/${id}`, payload);
 
 export const deleteWarehouse = (id: string) =>
-    request<Warehouse>(`${SETTINGS_BASE}/warehouses/${id}`, {
-        method: "DELETE",
-    });
+    api.delete(`${SETTINGS_BASE}/warehouses/${id}`);
 
-// Suppliers
-export const getSuppliers = async () => {
-    return fetchAllPages<Supplier>(`${SETTINGS_BASE}/suppliers`);
-};
+// --- Suppliers ---
+export const getSuppliers = () => fetchAllPages<Supplier>(`${SETTINGS_BASE}/suppliers`);
 
 export const createSupplier = (payload: SupplierPayload) =>
-    request<Supplier>(`${SETTINGS_BASE}/suppliers`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    api.post<Supplier>(`${SETTINGS_BASE}/suppliers`, payload);
 
 export const updateSupplier = (id: string, payload: Partial<SupplierPayload>) =>
-    request<Supplier>(`${SETTINGS_BASE}/suppliers/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-    });
+    api.patch<Supplier>(`${SETTINGS_BASE}/suppliers/${id}`, payload);
 
 export const deleteSupplier = (id: string) =>
-    request<Supplier>(`${SETTINGS_BASE}/suppliers/${id}`, {
-        method: "DELETE",
-    });
+    api.delete(`${SETTINGS_BASE}/suppliers/${id}`);
 
-// System settings (notifications/schedules)
-export const getSystemSettings = () => request<SystemSettingsMap>(`${SETTINGS_BASE}/settings`);
+// --- System Settings (Notifications/Schedules) ---
+export const getSystemSettings = () => 
+    api.get<SystemSettingsMap>(`${SETTINGS_BASE}/settings`);
 
 export const updateSystemSettings = (payload: Record<string, string | number | boolean>) =>
-    request<SystemSettingsMap>(`${SETTINGS_BASE}/settings`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-    });
+    api.put<SystemSettingsMap>(`${SETTINGS_BASE}/settings`, payload);

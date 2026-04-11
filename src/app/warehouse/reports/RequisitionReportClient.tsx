@@ -8,8 +8,6 @@ import {
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
-	Calendar,
-	RefreshCw,
 } from "lucide-react";
 import { getAllRequisitionsPages } from "@/services/requisitionService";
 import { getDepartmentOptions } from "@/services/departmentService";
@@ -27,8 +25,8 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const TYPE_BADGE: Record<string, string> = {
-	WITHDRAW: "bg-indigo-100 text-indigo-700",
-	BORROW: "bg-emerald-100 text-emerald-700",
+	WITHDRAW: "bg-blue-50 text-blue-700 border-blue-100",
+	BORROW:   "bg-emerald-50 text-emerald-700 border-emerald-100",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -46,7 +44,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 	const [isLoading, setIsLoading] = useState(true);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [selectedType, setSelectedType] = useState("ประเภททั้งหมด");
-	const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
+	const [selectedStatus, setSelectedStatus] = useState("");
 	const [selectedDepartment, setSelectedDepartment] = useState("แผนกทั้งหมด");
 	const [dateFrom, setDateFrom] = useState("");
 	const [dateTo, setDateTo] = useState("");
@@ -91,9 +89,14 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 
 	const typeOptions = useMemo(() => ["ประเภททั้งหมด", "เบิก", "ยืม"], []);
 
+	// unique raw status codes from data
 	const statusOptions = useMemo(() => {
-		const values = Array.from(new Set(records.map((record) => String(record.status)).filter(Boolean)));
-		return ["สถานะทั้งหมด", ...values];
+		const rawValues = Array.from(new Set(records.map((r) => String(r.status)).filter(Boolean)));
+		// return objects { value: rawCode, label: thaiLabel }
+		return [
+			{ value: "", label: "สถานะทั้งหมด" },
+			...rawValues.map((v) => ({ value: v, label: STATUS_LABEL[v] ?? v })),
+		];
 	}, [records]);
 
 	const departmentOptions = useMemo(() => {
@@ -133,7 +136,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 			data = data.filter((record) => TYPE_LABEL[record.type] === selectedType);
 		}
 
-		if (selectedStatus !== "สถานะทั้งหมด") {
+		if (selectedStatus) {
 			data = data.filter((record) => String(record.status) === selectedStatus);
 		}
 
@@ -193,17 +196,21 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 		return dateTime.time ? `${dateTime.date} ${dateTime.time}` : dateTime.date;
 	};
 
-	const getStatusBadge = (status: string) => {
-		return (
-			<span className="text-slate-700">
-				{STATUS_LABEL[status] ?? status}
-			</span>
-		);
+	const STATUS_BADGE_CLASS: Record<string, string> = {
+		COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-100",
+		APPROVED:  "bg-blue-50 text-blue-700 border-blue-100",
+		BORROWING: "bg-blue-50 text-blue-700 border-blue-100",
+		REJECTED:  "bg-rose-50 text-rose-700 border-rose-100",
+		PENDING:   "bg-amber-50 text-amber-700 border-amber-100",
+		DRAFT:     "bg-slate-100 text-slate-500 border-slate-200",
+		CANCELLED: "bg-slate-100 text-slate-400 border-slate-200",
 	};
 
-	const handleRefresh = async () => {
-		await loadData();
-	};
+	const getStatusBadge = (status: string) => (
+		<span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${STATUS_BADGE_CLASS[status] ?? "bg-slate-50 text-slate-500 border-slate-200"}`}>
+			{STATUS_LABEL[status] ?? status}
+		</span>
+	);
 
 	const handleExportCsv = () => {
 		const rows = [
@@ -240,7 +247,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 						<button
 							type="button"
 							onClick={onBack}
-							className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-semibold transition-colors"
+							className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 text-sm font-semibold transition-colors"
 						>
 							ย้อนกลับ
 						</button>
@@ -256,7 +263,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 						placeholder="ค้นหาเลขที่เอกสาร / ผู้ทำรายการ / แผนก / รายการ..."
 						value={searchTerm}
 						onChange={(event) => setSearchTerm(event.target.value)}
-						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
 					/>
 				</div>
 
@@ -285,7 +292,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 												setIsTypeOpen(false);
 												setCurrentPage(1);
 											}}
-											className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedType === type ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+											className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedType === type ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{type}
 										</button>
@@ -306,24 +313,26 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 						}}
 						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
 					>
-						<span className="text-slate-800 font-medium">{selectedStatus}</span>
+						<span className="text-slate-800 font-medium">
+							{statusOptions.find((s) => s.value === selectedStatus)?.label ?? "สถานะทั้งหมด"}
+						</span>
 						<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
 					</button>
 					{isStatusOpen && (
 						<div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
 							<ul className="py-1">
-								{statusOptions.map((status) => (
-									<li key={status}>
+								{statusOptions.map((s) => (
+									<li key={s.value}>
 										<button
 											type="button"
 											onClick={() => {
-												setSelectedStatus(status);
+												setSelectedStatus(s.value);
 												setIsStatusOpen(false);
 												setCurrentPage(1);
 											}}
-											className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === status ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+											className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
-											{status}
+											{s.label}
 										</button>
 									</li>
 								))}
@@ -357,7 +366,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 												setIsDepartmentOpen(false);
 												setCurrentPage(1);
 											}}
-											className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedDepartment === department ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+											className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedDepartment === department ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{department}
 										</button>
@@ -374,7 +383,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 						type="date"
 						value={dateFrom}
 						onChange={(e) => setDateFrom(e.target.value)}
-						className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+						className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
 					/>
 				</div>
 				<div className="flex items-center gap-2">
@@ -383,14 +392,14 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 						type="date"
 						value={dateTo}
 						onChange={(e) => setDateTo(e.target.value)}
-						className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+						className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
 					/>
 				</div>
 
 				<button
 					type="button"
 					onClick={handleExportCsv}
-					className="ml-auto flex items-center gap-2 px-4 py-2 bg-hospital text-white rounded-lg hover:bg-hospital-dark transition-colors text-sm font-medium shadow-sm"
+					className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm"
 				>
 					<Download className="w-4 h-4" />
 					Export CSV
@@ -400,7 +409,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 			<div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
 				{isLoading && (
 					<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
-						<div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+						<div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
 					</div>
 				)}
 				<div
@@ -456,7 +465,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 										</td>
 										<td className="px-6 py-4 text-slate-600 w-[220px]">{record.department_name || "ไม่ระบุแผนก"}</td>
 										<td className="px-6 py-4 w-[120px]">
-										<span className="text-slate-700">
+											<span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${TYPE_BADGE[record.type] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}>
 												{TYPE_LABEL[record.type] ?? record.type}
 											</span>
 										</td>

@@ -79,9 +79,9 @@ interface BorrowCartModalProps {
   history: BorrowHistory[];
   setHistory: (history: BorrowHistory[]) => void;
   // ✅ Props สำหรับแผนก
-  selectedDeptId: string;
+  selectedDeptId: number | null;
   departments: Department[];
-  onDeptChange: (deptId: string) => void;
+  onDeptChange: (deptId: number) => void;
 }
 
 const initialExternalForm: ExternalPersonForm = {
@@ -116,7 +116,7 @@ export default function BorrowCartModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ✅ แผนกของผู้ดำเนินการ (EXTERNAL tab)
-  const [externalOperatorDeptId, setExternalOperatorDeptId] = useState("");
+  const [externalOperatorDeptId, setExternalOperatorDeptId] = useState<number | null>(null);
   const [isDeptOpen, setIsDeptOpen] = useState(false);
 
   // ✅ External Person Form State
@@ -261,20 +261,18 @@ export default function BorrowCartModal({
     setIsSubmitting(true);
 
     try {
-      // ✅ จัดเตรียม Payload สำหรับ API (เปลี่ยน type เป็น BORROW)
       const payload: RequisitionPayload = {
         type: "BORROW",
-        department_id: selectedDeptId,
+        department_id: selectedDeptId as number,
         due_date: globalReturnDate,
         items: selectedItems.map((i) => ({
           item_id: i.id,
           qty: i.quantity,
           note: "",
         })),
-        note: globalNotes || "ยืมออนไลน์ผ่านระบบ",
+        note: "ยืมออนไลน์ผ่านระบบ",
       };
 
-      // ✅ ยิง API
       const res = await RequisitionSvc.createRequisition(payload);
 
       if (res.success) {
@@ -286,7 +284,6 @@ export default function BorrowCartModal({
           showConfirmButton: false,
         });
 
-        // ล้างข้อมูลและปิด Modal
         setSelectedItems([]);
         setGlobalReturnDate("");
         localStorage.removeItem("borrow_cart");
@@ -310,7 +307,7 @@ export default function BorrowCartModal({
   const submitExternalBorrow = async () => {
     const { fullName, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
 
-    if (!externalOperatorDeptId) {
+    if (externalOperatorDeptId === null) {
       MySwal.fire({
         title: "แจ้งเตือน",
         text: "กรุณาระบุแผนกของผู้ดำเนินการ",
@@ -354,7 +351,7 @@ export default function BorrowCartModal({
     try {
       const payload: RequisitionPayload = {
         type: "BORROW",
-        department_id: externalOperatorDeptId,
+        department_id: externalOperatorDeptId as number,
         due_date: returnDate,
         items: selectedItems.map((i) => ({
           item_id: i.id,
@@ -385,7 +382,7 @@ export default function BorrowCartModal({
         showConfirmButton: false,
       });
       setExternalForm(initialExternalForm);
-      setExternalOperatorDeptId("");
+      setExternalOperatorDeptId(null);
       setSelectedItems([]);
       localStorage.removeItem("borrow_cart");
       localStorage.removeItem("borrow_return_date");
@@ -598,8 +595,8 @@ export default function BorrowCartModal({
                         className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm disabled:opacity-50"
                       >
                         <span className="text-slate-800 font-medium">
-                          {externalOperatorDeptId 
-                            ? departments.find((d) => String(d.id) === externalOperatorDeptId)?.name || "-- เลือกแผนกที่ดำเนินการ --"
+                          {externalOperatorDeptId !== null
+                            ? departments.find((d) => d.id === externalOperatorDeptId)?.name || "-- เลือกแผนกที่ดำเนินการ --"
                             : "-- เลือกแผนกที่ดำเนินการ --"}
                         </span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
@@ -613,16 +610,16 @@ export default function BorrowCartModal({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setExternalOperatorDeptId(String(d.id));
+                                    setExternalOperatorDeptId(d.id);
                                     setIsDeptOpen(false);
                                   }}
                                   className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                                    String(d.id) === externalOperatorDeptId
+                                    d.id === externalOperatorDeptId
                                       ? "bg-blue-50 text-blue-700 font-medium"
                                       : "text-slate-700 hover:bg-slate-50"
                                   }`}
                                 >
-                                  {d.name} ({d.code})
+                                  {d.name}
                                 </button>
                               </li>
                             ))}

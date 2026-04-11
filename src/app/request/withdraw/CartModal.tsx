@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 // ✅ ใช้ Path Alias และชื่อไฟล์ตัวเล็กตามที่ตกลงกัน
 import * as RequisitionSvc from "@/services/requisitionService";
-import { Department } from "@/lib/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { RequisitionPayload } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
@@ -28,9 +28,9 @@ interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedItems: CartItem[];
-  selectedDeptId: string; // รับมาจาก State ภายนอก (มักเป็น string จาก select)
-  departments: Department[];
-  onDeptChange: (deptId: string) => void;
+  selectedDeptId: number | null;
+  departments: ReturnType<typeof useAuth>["departments"];
+  onDeptChange: (deptId: number) => void;
   onRemoveItem: (id: string) => void;
   onUpdateQty: (id: string, delta: number) => void;
   onSuccess: () => void;
@@ -57,7 +57,7 @@ export default function CartModal({
   // ตัวจัดการ click-outside สำหรับปิด dropdown
   React.useEffect(() => {
     if (!isDeptOpen) return;
-    
+
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest("[data-dept-dropdown]")) {
@@ -76,7 +76,7 @@ export default function CartModal({
     }
   }, [isOpen]);
 
-  const selectedDeptName = departments.find((d) => String(d.id) === selectedDeptId)?.name || "-- กรุณาเลือกแผนก --";
+  const selectedDeptName = departments.find((d) => d.id === selectedDeptId)?.name || "-- กรุณาเลือกแผนก --";
 
   const handleSubmit = async (): Promise<void> => {
     if (!selectedDeptId || selectedItems.length === 0) {
@@ -89,7 +89,7 @@ export default function CartModal({
     }
 
     // ✅ ดึงชื่อแผนกมาโชว์ใน Confirm Dialog เฉยๆ (เพื่อให้ User มั่นใจก่อนกด)
-    const currentDept = departments.find((d) => String(d.id) === selectedDeptId);
+    const currentDept = departments.find((d) => d.id === selectedDeptId);
     const deptDisplayName = currentDept ? currentDept.name : "แผนกที่เลือก";
 
     onClose();
@@ -111,7 +111,7 @@ export default function CartModal({
     try {
       const payload: RequisitionPayload = {
         type: "WITHDRAW",
-        department_id: selectedDeptId,
+        department_id: selectedDeptId as number,
         items: selectedItems.map((i) => ({
           item_id: i.id,
           qty: Number(i.quantity),
@@ -121,7 +121,7 @@ export default function CartModal({
 
       const res = await RequisitionSvc.createRequisition(payload);
 
-      if (res.status === "ok" || res.success) {
+      if (res.success) {
         await MySwal.fire({
           icon: "success",
           title: "สำเร็จ",
@@ -172,38 +172,37 @@ export default function CartModal({
                 ระบุแผนกที่เบิก
               </label>
               <button
-              type="button"
-              onClick={() => setIsDeptOpen(!isDeptOpen)}
-              className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm"
-            >
-              <span className="text-slate-800 font-medium">{selectedDeptName}</span>
-              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
-            </button>
-            
-            {isDeptOpen && (
-              <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
-                <ul className="py-1">
-                  {departments.map((d) => (
-                    <li key={d.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onDeptChange(String(d.id));
-                          setIsDeptOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                          String(d.id) === selectedDeptId
-                            ? "bg-indigo-50 text-indigo-700 font-medium"
-                            : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        {d.name} ({d.code})
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}            </div>          </div>
+                type="button"
+                onClick={() => setIsDeptOpen(!isDeptOpen)}
+                className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm"
+              >
+                <span className="text-slate-800 font-medium">{selectedDeptName}</span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isDeptOpen && (
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
+                  <ul className="py-1">
+                    {departments.map((d) => (
+                      <li key={d.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onDeptChange(d.id); 
+                            setIsDeptOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-l-4 ${d.id === selectedDeptId
+                              ? "bg-indigo-50 border-indigo-600 text-indigo-700 font-bold"
+                              : "border-transparent text-slate-700 hover:bg-slate-50"
+                            }`}
+                        >
+                          {d.name} 
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}            </div>          </div>
 
           {/* Table */}
           <div className="border border-slate-200 rounded-lg overflow-hidden">

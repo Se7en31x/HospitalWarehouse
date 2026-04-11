@@ -2,13 +2,7 @@
 
 import WarehouseNavbar from "@/components/layouts/WarehouseNavbar";
 import WarehouseSidebar from "@/components/layouts/WarehouseSidebar";
-import MainContentWrapper from "@/components/layouts/MainContentWrapper"; // ← เพิ่มบรรทัดนี้
-
-// import { useEffect, useState } from 'react';
-// import { useRouter } from 'next/navigation';
-// import Cookies from 'js-cookie';
-// import { jwtDecode } from 'jwt-decode';
-
+import MainContentWrapper from "@/components/layouts/MainContentWrapper"; 
 
 export default function WarehouseLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,41 +19,3 @@ export default function WarehouseLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
-
-
-// interface DecodedToken {
-//   role: string;
-// }
-
-// export default function WarehouseLayout({ children }: { children: React.ReactNode }) {
-//   const router = useRouter();
-//   const [isAllowed, setIsAllowed] = useState(false);
-
-//   useEffect(() => {
-//     const token = Cookies.get('user_token');
-    
-//     if (!token) {
-//       router.push('/auth');
-//       return;
-//     }
-
-//     try {
-//       // ระบุ Type ให้กับ jwtDecode
-//       const decoded = jwtDecode<DecodedToken>(token);
-//       const allowedRoles = ['admin', 'warehouse_manager', 'warehouse_staff'];
-      
-//       if (allowedRoles.includes(decoded.role)) {
-//         setIsAllowed(true);
-//       } else {
-//         router.push('/unauthorized'); // Role ไม่ตรง ดีดออก
-//       }
-//     } catch (e) {
-//       router.push('/auth');
-//     }
-//   }, [router]);
-
-//   // ถ้ายังเช็คไม่เสร็จ จะไม่เรนเดอร์ children (ป้องกันข้อมูลหลุดแวบๆ)
-//   if (!isAllowed) return <div className="p-10 text-center">Checking Permission...</div>;
-
-//   return <>{children}</>;
-// }

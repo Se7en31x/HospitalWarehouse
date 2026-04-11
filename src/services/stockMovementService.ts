@@ -3,46 +3,45 @@ import {
   StockMovementFilters,
   StockMovementListResponse,
 } from "@/types/stockmovement_type";
+import { api } from "@/lib/apiClient";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
+/**
+ * ดึงรายการการเคลื่อนไหวพัสดุพร้อมตัวกรอง (Pagination)
+ */
 export const getStockMovements = async (
   filters?: StockMovementFilters
 ): Promise<StockMovementListResponse> => {
-  const params = new URLSearchParams();
-  if (filters) {
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        params.append(key, String(value));
-      }
-    });
-  }
+  try {
+    const params: Record<string, unknown> = {};
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          params[key] = value;
+        }
+      });
+    }
 
-  const res = await fetch(
-    `${API_BASE_URL}/v1/stock-movements?${params.toString()}`,
-    { headers: { "Content-Type": "application/json" } }
-  );
+    // ใช้ api.list เพื่อดึงทั้ง data และ meta มาจัดการต่อ
+    const res = await api.list<StockMovement>(`/v1/stock-movements`, params);
 
-  const result = await res.json();
-
-  if (!res.ok) {
+    return {
+      success: true,
+      data: res.data || [],
+      meta: res.meta ?? { total: 0, page: 1, limit: 10, totalPages: 1, nextPage: null, prevPage: null },
+    };
+  } catch (err: any) {
     return {
       success: false,
-      message: result.message || "ไม่สามารถดึงข้อมูลได้",
+      message: err?.message || "ไม่สามารถดึงข้อมูลได้",
       data: [],
       meta: { total: 0, page: 1, limit: 10, totalPages: 1, nextPage: null, prevPage: null },
     };
   }
-
-  return {
-    success: true,
-    message: result.message,
-    data: Array.isArray(result.data) ? result.data : [],
-    meta: result.meta ?? { total: 0, page: 1, limit: 10, totalPages: 1, nextPage: null, prevPage: null },
-  };
 };
 
+/**
+ * ดึงข้อมูลการเคลื่อนไหวพัสดุทุกหน้ามาต่อกันเป็น Array เดียว
+ */
 export const getAllStockMovements = async (
   filters?: StockMovementFilters
 ): Promise<StockMovement[]> => {
@@ -53,7 +52,7 @@ export const getAllStockMovements = async (
   }
 
   const allMovements = [...firstPage.data];
-  const totalPages = Math.max(1, firstPage.meta.totalPages || 1);
+  const totalPages = firstPage.meta.totalPages || 1;
 
   for (let page = 2; page <= totalPages; page += 1) {
     const nextPage = await getStockMovements({
@@ -70,18 +69,16 @@ export const getAllStockMovements = async (
   return allMovements;
 };
 
+/**
+ * ดึงข้อมูลการเคลื่อนไหวพัสดุตาม ID
+ */
 export const getStockMovementById = async (
   id: number
 ): Promise<{ success: boolean; data: StockMovement | null; message?: string }> => {
-  const res = await fetch(`${API_BASE_URL}/v1/stock-movements/${id}`, {
-    headers: { "Content-Type": "application/json" },
-  });
-
-  const result = await res.json();
-
-  if (!res.ok) {
-    return { success: false, data: null, message: result.message || "ไม่พบข้อมูล" };
+  try {
+    const data = await api.get<StockMovement>(`/v1/stock-movements/${id}`);
+    return { success: true, data: data ?? null };
+  } catch (err: any) {
+    return { success: false, data: null, message: err?.message || "ไม่พบข้อมูล" };
   }
-
-  return { success: true, data: result.data ?? null, message: result.message };
 };

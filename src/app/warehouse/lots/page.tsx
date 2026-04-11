@@ -4,6 +4,8 @@ import LotClient from "./ItemLotClient";
 import { getLots, getMasterSuppliers } from "@/services/lotservice";
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
 
+export const dynamic = "force-dynamic";
+
 export default async function LotsPage() {
   // Fetch all data in parallel with error handling
   const [lots, items, warehouses, suppliers] = await Promise.all([

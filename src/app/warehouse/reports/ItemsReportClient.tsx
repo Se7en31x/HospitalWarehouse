@@ -5,12 +5,14 @@ import {
 	Package,
 	Search,
 	Download,
+	FileText,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";
 import * as ItemSvc from "@/services/itemsService";
 import type { UiItem } from "@/services/itemsService";
+import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
 
 interface ItemsReportClientProps {
 	initialItems: UiItem[];
@@ -128,6 +130,30 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 		}
 	}, [isCategoryOpen, isWarehouseOpen, isUnitOpen, isStatusOpen]);
 
+	const handleExportPdf = () => {
+		const columns: PdfColumn[] = [
+			{ header: "#",           key: "_no",      align: "center" },
+			{ header: "รหัส",        key: "code" },
+			{ header: "ชื่อสินค้า",  key: "name" },
+			{ header: "หมวดหมู่",    key: "category" },
+			{ header: "คลัง",        key: "location" },
+			{ header: "หน่วย",       key: "unit" },
+			{ header: "คงเหลือ",     key: "stock",    align: "right" },
+			{ header: "Min Stock",   key: "minStock",  align: "right" },
+		];
+		const pdfRows = filteredItems.map((item, i) => ({
+			_no:      String(i + 1),
+			code:     item.code,
+			name:     item.name,
+			category: item.category,
+			location: item.location,
+			unit:     item.unit,
+			stock:    item.stock.toLocaleString(),
+			minStock: item.minStock > 0 ? item.minStock.toLocaleString() : "-",
+		}));
+		printAsPdf("รายงานสินค้าทั้งหมด", `ค้นหา: "${searchTerm || "ทั้งหมด"}" | ${selectedCategory} | ${selectedWarehouse}`, columns, pdfRows);
+	};
+
 	const getStockBadge = (item: UiItem) => {
 		if (item.minStock > 0 && item.stock <= item.minStock) {
 			return (
@@ -149,7 +175,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 					<button
 						type="button"
 						onClick={onBack}
-						className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-semibold transition-colors flex items-center gap-1.5"
+						className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 text-sm font-semibold transition-colors flex items-center gap-1.5"
 					>
 						ย้อนกลับ
 					</button>
@@ -167,7 +193,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							setSearchTerm(event.target.value);
 							setCurrentPage(1);
 						}}
-						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
 					/>
 				</div>
 
@@ -197,7 +223,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsCategoryOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === category ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === category ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{category}
 										</button>
@@ -234,7 +260,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsWarehouseOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedWarehouse === warehouse ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedWarehouse === warehouse ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{warehouse}
 										</button>
@@ -271,7 +297,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsUnitOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === unit ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === unit ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{unit}
 										</button>
@@ -312,7 +338,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsStatusOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === status.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === status.value ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{status.label}
 										</button>
@@ -338,10 +364,18 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 								anchor.click();
 								URL.revokeObjectURL(url);
 							}}
-							className="ml-auto flex items-center gap-2 px-4 py-2 bg-hospital text-white rounded-lg hover:bg-hospital-dark transition-colors text-sm font-medium shadow-sm shrink-0"
+							className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm shrink-0"
 						>
 							<Download className="w-4 h-4" />
 							Export CSV
+						</button>
+						<button
+							type="button"
+							onClick={handleExportPdf}
+							className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm shrink-0"
+						>
+							<FileText className="w-4 h-4" />
+							Export PDF
 						</button>
 					</div>
 

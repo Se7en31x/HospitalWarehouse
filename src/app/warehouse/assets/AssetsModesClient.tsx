@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import AssetClient from "./AssetClient";
 import ReusableUnitClient from "./reusable-unit-client";
+import { UiItem } from "@/services/itemsService";
 
 type Mode = "med-asset" | "reusable";
 
@@ -18,9 +19,15 @@ export default function AssetsModesClient() {
     }
   }, [searchParams]);
 
+  const emptyItems: UiItem[] = [];
+
   return (
     <div>
-      {mode === "med-asset" ? <AssetClient /> : <ReusableUnitClient />}
+      {mode === "med-asset" ? (
+        <AssetClient initialItems={emptyItems} />
+      ) : (
+        <ReusableUnitClient />
+      )}
     </div>
   );
 }

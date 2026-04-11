@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 
 import React from "react";
 import ReportsWrapper from "./ReportsWrapper";
-// ✅ ตรวจสอบชื่อไฟล์ให้ตรง (ไม่มี s และใช้ .service หรือ Service ตามที่คุณตั้งชื่อไฟล์)
 import { getAllReports } from "@/services/reportService"; 
 import { getAllInventoryItems } from "@/services/itemsService";
 import { getExpiredLots, getExpiringLots } from "@/services/dashboardService";
@@ -10,7 +9,6 @@ import { getAllRequisitionsPages } from "@/services/requisitionService";
 import { getAllStockMovements } from "@/services/stockMovementService";
 import { isBelowMinStock } from "./lowStockReportUtils";
 
-// ✅ ใช้ Type ตัวใหม่ที่เราเพิ่งทำ (ไม่มี s)
 import type { Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
@@ -25,7 +23,6 @@ export default async function WarehouseReportsPage() {
   let stockOutCount = 0;
 
   try {
-    // ดึงข้อมูลแบบขนานเพื่อความเร็ว
     const [reports, items, lots, expiredLots, requisitions, stockIns, stockOuts] = await Promise.all([
       getAllReports().catch(() => {
         console.error("🚫 Failed to fetch reports");

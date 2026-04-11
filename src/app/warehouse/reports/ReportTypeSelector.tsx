@@ -7,12 +7,11 @@ export type ReportPage =
 	| "all"
 	| "all-items"
 	| "requisition"
-	| "stockin"
-	| "stockout"
 	| "stock-balance"
-	| "expired-lots"
+	| "inventory-balance"
 	| "low-stock"
-	| "near-expiry";
+	| "assets"
+	| "reusable-items";
 
 interface ReportTypeSelectorProps {
 	onSelectType: (type: ReportPage) => void;
@@ -57,58 +56,45 @@ const reportTypeOptions: {
 		countKey: "totalRequisitions",
 	},
 	{
-		id: "stockin",
-		label: "รายงานรับเข้า",
-		description: "ตรวจสอบรายการรับเข้าและค้นหาตามช่วงเวลา",
-		countBg: "bg-emerald-50",
-		countText: "text-emerald-700",
-		ringColor: "ring-emerald-300",
-		countKey: "totalReceives",
-	},
-	{
-		id: "stockout",
-		label: "รายงานจ่ายออก",
-		description: "ดูรายการจ่ายออกพร้อมตรวจสอบสถานะย้อนหลัง",
-		countBg: "bg-rose-50",
-		countText: "text-rose-700",
-		ringColor: "ring-rose-300",
-		countKey: "totalStockOuts",
-	},
-	{
 		id: "stock-balance",
-		label: "รายงานคงคลัง",
-		description: "ตรวจสอบรายการคงเหลือและระดับสต็อกปัจจุบัน",
+		label: "รายงานความเคลื่อนไหวสต็อก",
+		description: "ติดตามการเคลื่อนไหวสต็อกทั้งหมด รับเข้า จ่ายออก และปรับปรุง",
 		countBg: "bg-cyan-50",
 		countText: "text-cyan-700",
 		ringColor: "ring-cyan-300",
-		countKey: "totalStockBalance",
 	},
 	{
-		id: "expired-lots",
-		label: "รายงานล็อตหมดอายุ",
-		description: "ติดตามล็อตที่หมดอายุหรือใกล้หมดอายุ",
-		countBg: "bg-orange-50",
-		countText: "text-orange-700",
-		ringColor: "ring-orange-300",
-		countKey: "totalExpiredLots",
+		id: "inventory-balance",
+		label: "รายงานคงคลังรายคลัง",
+		description: "สรุปสต็อกแยกตามคลัง พร้อมดูรายละเอียดสินค้าแต่ละคลัง",
+		countBg: "bg-teal-50",
+		countText: "text-teal-700",
+		ringColor: "ring-teal-300",
 	},
 	{
 		id: "low-stock",
-		label: "รายงานสต็อกต่ำ",
-		description: "ดูสินค้าที่ต่ำกว่า Min Stock พร้อมเรียงตามความเสี่ยง",
+		label: "รายงานสต็อกต่ำ & ใกล้หมดอายุ",
+		description: "ดูสินค้าที่ต่ำกว่า Min Stock และล็อตที่ใกล้หมดอายุในหน้าเดียว",
 		countBg: "bg-amber-50",
 		countText: "text-amber-700",
 		ringColor: "ring-amber-300",
 		countKey: "lowStockCount",
 	},
 	{
-		id: "near-expiry",
-		label: "รายงานใกล้หมดอายุ",
-		description: "ตรวจสอบล็อตที่ใกล้ถึงกำหนดหมดอายุตามช่วงเวลา",
-		countBg: "bg-red-50",
-		countText: "text-red-700",
-		ringColor: "ring-red-300",
-		countKey: "nearExpiryCount",
+		id: "assets",
+		label: "รายงานครุภัณฑ์",
+		description: "ตรวจสอบสถานะและที่ตั้งของครุภัณฑ์แยกตามแผนก",
+		countBg: "bg-purple-50",
+		countText: "text-purple-700",
+		ringColor: "ring-purple-300",
+	},
+	{
+		id: "reusable-items",
+		label: "รายงานของใช้ซ้ำรายชิ้น",
+		description: "ดูสถานะและสภาพของสินค้าประเภทใช้ซ้ำแยกตามแผนก",
+		countBg: "bg-teal-50",
+		countText: "text-teal-700",
+		ringColor: "ring-teal-300",
 	},
 ];
 

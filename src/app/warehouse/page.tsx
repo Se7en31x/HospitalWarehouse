@@ -29,10 +29,14 @@ export default function WarehouseDashboard() {
   const [lotStats, setLotStats] = useState<LotStats | null>(null);
   const [chartMode, setChartMode] = useState<"week" | "month">("week");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null); // เพิ่ม state สำหรับเก็บ error message
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
+        setError(null);
+
         const analytics = await getDashboardAnalytics({
           expiryDays: 90,
           weeks: 4,
@@ -41,21 +45,24 @@ export default function WarehouseDashboard() {
           expiringLimit: 20,
         });
 
+        // ตรวจสอบว่ามีข้อมูลกลับมาจริงหรือไม่
+        if (!analytics) throw new Error("ไม่ได้รับข้อมูลจากเซิร์ฟเวอร์");
+
         setSummary({
-          totalItems: analytics.summary.totalItems,
-          totalItemLots: analytics.summary.totalLots,
-          totalDepartments: analytics.summary.totalDepartments,
-          totalSuppliers: analytics.summary.totalSuppliers,
-          totalUsers: analytics.summary.totalUsers,
+          totalItems: analytics.summary?.totalItems ?? 0,
+          totalItemLots: analytics.summary?.totalLots ?? 0,
+          totalDepartments: analytics.summary?.totalDepartments ?? 0,
+          totalSuppliers: analytics.summary?.totalSuppliers ?? 0,
+          totalUsers: analytics.summary?.totalUsers ?? 0,
         });
 
         setLotStats({
-          total: analytics.lotHealth.totalLots,
-          belowMinimum: analytics.lotHealth.belowMinimumLots,
-          nearExpiry: analytics.lotHealth.nearExpiryLots,
+          total: analytics.lotHealth?.totalLots ?? 0,
+          belowMinimum: analytics.lotHealth?.belowMinimumLots ?? 0,
+          nearExpiry: analytics.lotHealth?.nearExpiryLots ?? 0,
         });
 
-        setNearExpiryCount(analytics.lotHealth.nearExpiryLots);
+        setNearExpiryCount(analytics.lotHealth?.nearExpiryLots ?? 0);
         setExpiredCount(analytics.expiry?.expiredLots ?? 0);
         setLowStockCount(analytics.lowStock?.lowStockItems ?? 0);
         setStockInThisMonth(analytics.stockIn?.thisMonth?.total ?? 0);
@@ -69,14 +76,36 @@ export default function WarehouseDashboard() {
           return { ...m, label: `${monthNames[monthIndex]} ${thaiYear}` };
         });
         setMonthlyData(monthlyWithLabels);
-      } catch (err) {
-        console.error("Failed to load dashboard:", err);
+      } catch (err: any) {
+        // ปรับปรุงการแสดง Error ให้ละเอียดขึ้น
+        const msg = err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+        console.error("Dashboard Error:", msg);
+        setError(msg);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
   }, []);
+
+  // --- UI สำหรับกรณี Error ---
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] p-6">
+        <div className="bg-red-50 border border-red-200 p-6 rounded-2xl max-w-md text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-red-800 mb-2">โหลดข้อมูลไม่สำเร็จ</h3>
+          <p className="text-sm text-red-600 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const chartData = chartMode === "week" ? weeklyData : monthlyData;
   const maxChartTotal = Math.max(...chartData.map((d) => d.total), 1);
@@ -122,12 +151,12 @@ export default function WarehouseDashboard() {
   let lotOffset = 0;
   const lotArcs = lotTotal > 0
     ? lotSegments.map((seg) => {
-        const pct = seg.value / lotTotal;
-        const dashLength = pct * lotCircumference;
-        const arc = { ...seg, pct, dashLength, dashOffset: lotOffset };
-        lotOffset += dashLength;
-        return arc;
-      })
+      const pct = seg.value / lotTotal;
+      const dashLength = pct * lotCircumference;
+      const arc = { ...seg, pct, dashLength, dashOffset: lotOffset };
+      lotOffset += dashLength;
+      return arc;
+    })
     : [];
 
   return (
@@ -292,17 +321,15 @@ export default function WarehouseDashboard() {
             <div className="flex bg-slate-100 rounded-lg p-0.5">
               <button
                 onClick={() => setChartMode("week")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                  chartMode === "week" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "week" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 รายสัปดาห์
               </button>
               <button
                 onClick={() => setChartMode("month")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                  chartMode === "month" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "month" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 รายเดือน
               </button>

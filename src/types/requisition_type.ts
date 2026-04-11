@@ -21,12 +21,15 @@ export interface BorrowerDetails {
 }
 
 export interface RequisitionFilters {
-  department_codes?: string[];
-  status?: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED";
+  // แก้ไข: เปลี่ยนจาก department_codes (string[]) เป็น IDs (number[]) หรือเดี่ยว
+  department_id?: number; 
+  status?: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED" | "BORROWING";
   type?: "WITHDRAW" | "BORROW";
   page?: number;
   limit?: number;
-  keyword?: string; // เพิ่มเพื่อรองรับการ Search
+  keyword?: string; 
+  start_date?: string; // เพิ่มรองรับการกรองวันที่ตาม Service
+  end_date?: string;
   [key: string]: unknown;
 }
 
@@ -63,7 +66,7 @@ export interface RequisitionItem {
 
 export interface RequisitionPayload {
   type: "WITHDRAW" | "BORROW";
-  department_id: string; 
+  department_id: number; 
   items: Array<{ item_id: string; qty: number; note?: string }>; 
   due_date?: string;
   note?: string;
@@ -77,8 +80,8 @@ export interface RequisitionHeader {
   doc_no: string;
   request_date: string;
   due_date?: string | null;
-  department_id: number;
-  department_name?: string;
+  department_id: number; 
+  department_name?: string; 
   requester_id: string;
   requester?: string;
   item_count?: number;

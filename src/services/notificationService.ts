@@ -1,30 +1,6 @@
-import Cookies from "js-cookie";
+import { api, PaginatedResponse } from "@/lib/apiClient";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
-const parseJwtPayload = (token: string) => {
-  try {
-    const base64 = token.split(".")[1];
-    if (!base64) return null;
-    return JSON.parse(atob(base64));
-  } catch {
-    return null;
-  }
-};
-
-const resolveRecipientId = (): string => {
-  const token = Cookies.get("user_token") || "";
-  const payload = token ? parseJwtPayload(token) : null;
-  return String(payload?.user_id || payload?.id || payload?.sub || "");
-};
-
-const getHeaders = () => {
-  const token = Cookies.get("user_token") || "";
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-};
+// ─── Types ───────────────────────────────────────────────────────────
 
 export interface NotificationItem {
   id: number;
@@ -54,75 +30,48 @@ export interface NotificationListResult {
   prevPage: number | null;
 }
 
-export const getNotifications = async (params: { page?: number; limit?: number; unread?: boolean } = {}): Promise<NotificationListResult> => {
-  const query = new URLSearchParams();
-  query.set("recipient_id", resolveRecipientId());
-  if (params.page) query.set("page", String(params.page));
-  if (params.limit) query.set("limit", String(params.limit));
-  if (params.unread !== undefined) query.set("unread", String(params.unread));
+// ─── API Calls ───────────────────────────────────────────────────────
 
-  const response = await fetch(`${API_BASE_URL}/v1/notifications?${query.toString()}`, {
-    method: "GET",
-    headers: getHeaders(),
-    cache: "no-store",
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result?.message || "ไม่สามารถดึงข้อมูลแจ้งเตือนได้");
-  }
-
+/**
+ * ดึงรายการแจ้งเตือน
+ * ไม่ต้องส่ง recipient_id ไปแล้ว เพราะ Middleware หลังบ้านจะดึงจาก Token ให้เอง
+ */
+export const getNotifications = async (
+  params: { page?: number; limit?: number; unread?: boolean } = {}
+): Promise<NotificationListResult> => {
+  const res = await api.list<NotificationItem>("/v1/notifications", params as Record<string, unknown>);
+  
   return {
-    items: result?.data || [],
-    total: result?.meta?.total || 0,
-    page: result?.meta?.page || 1,
-    limit: result?.meta?.limit || 20,
-    totalPages: result?.meta?.totalPages || 1,
-    nextPage: result?.meta?.nextPage ?? null,
-    prevPage: result?.meta?.prevPage ?? null,
+    items: res.data || [],
+    total: res.meta?.total || 0,
+    page: res.meta?.page || 1,
+    limit: res.meta?.limit || 20,
+    totalPages: res.meta?.totalPages || 1,
+    nextPage: res.meta?.nextPage ?? null,
+    prevPage: res.meta?.prevPage ?? null,
   };
 };
 
+/**
+ * ดึงจำนวนแจ้งเตือนที่ยังไม่อ่าน
+ */
 export const getUnreadCount = async (): Promise<number> => {
-  const recipientId = resolveRecipientId();
-  const response = await fetch(`${API_BASE_URL}/v1/notifications/unread-count?recipient_id=${encodeURIComponent(recipientId)}`, {
-    method: "GET",
-    headers: getHeaders(),
-    cache: "no-store",
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result?.message || "ไม่สามารถดึงจำนวนแจ้งเตือนที่ยังไม่อ่านได้");
-  }
-
-  return Number(result?.data?.unread || 0);
+  // api.get จะทำการ unwrap body.data ให้โดยอัตโนมัติ
+  const data = await api.get<{ unread: number }>("/v1/notifications/unread-count");
+  return Number(data?.unread || 0);
 };
 
+/**
+ * ทำเครื่องหมายแจ้งเตือนว่าอ่านแล้ว
+ */
 export const markNotificationRead = async (id: number): Promise<void> => {
-  const recipientId = resolveRecipientId();
-  const response = await fetch(`${API_BASE_URL}/v1/notifications/${id}/read`, {
-    method: "PATCH",
-    headers: getHeaders(),
-    body: JSON.stringify({ recipient_id: recipientId }),
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result?.message || "ไม่สามารถอัปเดตสถานะอ่านแล้วได้");
-  }
+  // ไม่ต้องส่ง recipient_id ใน body เพราะหลังบ้านใช้จาก JWT sub
+  await api.patch(`/v1/notifications/${id}/read`, {});
 };
 
+/**
+ * ทำเครื่องหมายแจ้งเตือนทั้งหมดว่าอ่านแล้ว
+ */
 export const markAllNotificationsRead = async (): Promise<void> => {
-  const recipientId = resolveRecipientId();
-  const response = await fetch(`${API_BASE_URL}/v1/notifications/read-all`, {
-    method: "PATCH",
-    headers: getHeaders(),
-    body: JSON.stringify({ recipient_id: recipientId }),
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result?.message || "ไม่สามารถอ่านทั้งหมดได้");
-  }
+  await api.patch("/v1/notifications/read-all", {});
 };

@@ -1,14 +1,7 @@
-// ดึงข้อมูล item หลายตัวด้วย id
-export async function getItemsByIds(ids: (string | number)[]): Promise<ApiItem[]> {
-	if (!ids || ids.length === 0) return [];
-	const query = ids.map((id) => `ids=${id}`).join("&");
-	// สมมติ backend รองรับ /v1/items/batch?ids=1&ids=2
-	const data = await request<ApiItem[]>(`/v1/items/batch?${query}`);
-	return data || [];
-}
-import Cookies from "js-cookie";
+import { api } from "@/lib/apiClient";
 import * as Item from "@/types/items_type";
 
+// Re-export types เพื่อให้ภายนอกเรียกใช้จากไฟล์นี้ได้เลย
 export type UiItem = Item.UiItem;
 export type ApiItem = Item.ApiItem;
 export type Option = Item.Option;
@@ -20,9 +13,9 @@ export type UpdatePayload = Item.UpdatePayload;
 export type DeleteResponse = Item.DeleteResponse;
 
 export interface ItemOptions {
-	category: Item.categoryOptions;
-	warehouse: Item.warehouseOptions;
-	unit: Item.unitOptions;
+    category: Item.categoryOptions;
+    warehouse: Item.warehouseOptions;
+    unit: Item.unitOptions;
 }
 
 export interface GetItemsFilters {
@@ -34,189 +27,111 @@ export interface GetItemsFilters {
     limit?: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-const getHeaders = () => {
-	let token = "";
-	try {
-		// Only works in browser context
-		if (typeof window !== "undefined") {
-			token = Cookies.get("user_token") || "";
-		}
-	} catch {
-		// Silently fail if cookies are not available (server-side rendering)
-	}
-	
-	return {
-		"Content-Type": "application/json",
-		...(token && { Authorization: `Bearer ${token}` }),
-	};
-};
-
-async function parseJson<T>(res: Response): Promise<T> {
-	const contentType = res.headers.get("content-type") || "";
-	if (!contentType.includes("application/json")) {
-		const raw = await res.text();
-		throw new Error(raw.slice(0, 120) || "Invalid response");
-	}
-	return (await res.json()) as T;
-}
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-
-	const res = await fetch(`${API_URL}${path}`, {
-		...options,
-		headers: {
-			...getHeaders(),
-			...(options?.headers || {}),
-		},
-		cache: "no-store",
-	});
-
-	const body = await parseJson<{ data: T; message?: string; error?: string }>(res);
-	if (!res.ok) {
-		throw new Error(body.error || body.message || "Request failed");
-	}
-
-	return body.data;
-}
-
+// Mapper: แปลงข้อมูลจาก API (Snake Case) เป็น UI (Camel Case)
 export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
-	id: String(item.id),
-	code: item.code || "-",
-	name: item.name || "ไม่ระบุชื่อ",
-	categoryId: item.category_id || "",
-	category: item.category_name || item.categories?.name || item.category?.name || "-",
-	unitId: item.unit_id || "",
-	unit: item.unit_name || item.unit?.name || "ชิ้น",
-	warehouseId: item.warehouse_id || "",
-	location: item.warehouse_name || item.warehouses?.name || item.warehouse?.name || "-",
-	stock: item.current_stock || 0,
-	availableStock: item.available_stock === null || item.available_stock === undefined ? undefined : Number(item.available_stock),
-	description: item.description || "",
-	minStock: item.min_stock || 0,
-	price: 0,
-	status: item.status || "ACTIVE",
-	imageUrl: item.image_url || "",
-	type: item.type || "CONSUMABLE",
-	allowed_req: item.allowed_req ?? true,
-	allowed_borrow: item.allowed_borrow ?? false,
+    id: String(item.id),
+    code: item.code || "-",
+    name: item.name || "ไม่ระบุชื่อ",
+    categoryId: item.category_id || "",
+    category: item.category_name || item.categories?.name || item.category?.name || "-",
+    unitId: item.unit_id || "",
+    unit: item.unit_name || item.unit?.name || "ชิ้น",
+    warehouseId: item.warehouse_id || "",
+    location: item.warehouse_name || item.warehouses?.name || item.warehouse?.name || "-",
+    stock: item.current_stock || 0,
+    availableStock: item.available_stock === null || item.available_stock === undefined ? undefined : Number(item.available_stock),
+    description: item.description || "",
+    minStock: item.min_stock || 0,
+    price: 0,
+    status: item.status || "ACTIVE",
+    imageUrl: item.image_url || "",
+    type: item.type || "CONSUMABLE",
+    allowed_req: item.allowed_req ?? true,
+    allowed_borrow: item.allowed_borrow ?? false,
 });
 
+/** ---------------------------------------------------------
+ * API CALLS
+ * --------------------------------------------------------- */
+
+// ดึงรายการพัสดุพร้อมตัวกรอง
 export async function getInventoryItems(filters: GetItemsFilters = {}): Promise<Item.UiItem[]> {
-	const query = new URLSearchParams();
-	if (filters.allowed_req !== undefined) query.append("allowed_req", String(filters.allowed_req));
-	if (filters.allowed_borrow !== undefined) query.append("allowed_borrow", String(filters.allowed_borrow));
-	if (filters.keyword) query.append("keyword", filters.keyword);
-	if (filters.type) query.append("type", filters.type);
-	if (filters.page) query.append("page", String(filters.page));
-	if (filters.limit) query.append("limit", String(filters.limit));
-
-	const data = await request<Item.ApiItem[]>(`/v1/items?${query.toString()}`);
-	return (data || []).map(mapApiToUi);
+    // ใส่ "as Record<string, unknown>" เข้าไปตรงนี้ครับ
+    const data = await api.get<Item.ApiItem[]>(`/v1/items`, filters as Record<string, unknown>);
+    return (data || []).map(mapApiToUi);
 }
 
+// ดึงข้อมูลทั้งหมด (ทำ Pagination วนลูปจนครบ)
 export async function getAllInventoryItems(filters: Omit<GetItemsFilters, "page" | "limit"> = {}): Promise<Item.UiItem[]> {
-	const allItems: Item.UiItem[] = [];
-	const limit = 100;
-	let page = 1;
+    const allItems: Item.UiItem[] = [];
+    const limit = 100;
+    let page = 1;
 
-	while (true) {
-		const batch = await getInventoryItems({ ...filters, page, limit });
-		allItems.push(...batch);
+    while (true) {
+        const batch = await getInventoryItems({ ...filters, page, limit });
+        allItems.push(...batch);
+        if (batch.length < limit) break;
+        page += 1;
+    }
 
-		if (batch.length < limit) {
-			break;
-		}
-
-		page += 1;
-	}
-
-	return allItems;
+    return allItems;
 }
 
+// ดึงพัสดุหลายรายการด้วย Array ของ ID
+export async function getItemsByIds(ids: (string | number)[]): Promise<ApiItem[]> {
+    if (!ids || ids.length === 0) return [];
+    // สำหรับเคส query string พิเศษ สามารถส่งเป็น string ต่อท้ายได้
+    const query = ids.map((id) => `ids=${id}`).join("&");
+    return api.get<ApiItem[]>(`/v1/items/batch?${query}`);
+}
+
+// ดึง Options สำหรับ Dropdown ต่างๆ
 export async function getcategoriesOptions(): Promise<Item.categoryOptions> {
-	const data = await request<Item.Option[]>(`/v1/categories/option`);
-	return data || [];
+    return api.get<Item.Option[]>(`/v1/categories/option`);
 }
 
 export async function getWarehousesOptions(): Promise<Item.warehouseOptions> {
-	const data = await request<Item.Option[]>(`/v1/warehouses/option`);
-	return data || [];
+    return api.get<Item.Option[]>(`/v1/warehouses/option`);
 }
 
 export async function getUnitsOptions(): Promise<Item.unitOptions> {
-	const data = await request<Item.Option[]>(`/v1/units/option`);
-	return data || [];
+    return api.get<Item.Option[]>(`/v1/units/option`);
 }
 
+// ดึง Options ทั้งหมดพร้อมกัน
 export async function getItemOptions(): Promise<ItemOptions> {
-	const [categories, warehouses, units] = await Promise.all([
-		getcategoriesOptions(),
-		getWarehousesOptions(),
-		getUnitsOptions(),
-	]);
-	return {
-		category: categories,
-		warehouse: warehouses,
-		unit: units,
-	};
+    const [category, warehouse, unit] = await Promise.all([
+        getcategoriesOptions(),
+        getWarehousesOptions(),
+        getUnitsOptions(),
+    ]);
+    return { category, warehouse, unit };
 }
 
-export async function createInventoryItem(payload: FormData) {
-	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-	let token = "";
-	if (typeof window !== "undefined") {
-		token = Cookies.get("user_token") || "";
-	}
-	const res = await fetch(`${API_URL}/v1/items`, {
-		method: "POST",
-		headers: token ? { Authorization: `Bearer ${token}` } : {},
-		body: payload,
-		cache: "no-store",
-	});
-	const body = await parseJson<{ data: Item.ApiItem; message?: string; error?: string }>(res);
-	if (!res.ok) throw new Error(body.error || body.message || "Request failed");
-	return body.data;
+// สร้างพัสดุใหม่ (รองรับรูปภาพผ่าน FormData)
+export async function createInventoryItem(payload: FormData): Promise<Item.ApiItem> {
+    return api.upload<Item.ApiItem>(`/v1/items`, payload, "POST");
 }
 
-export async function updateInventoryItem(id: string, payload: Item.UpdatePayload) {
-	if (!id) {
-		throw new Error("Item ID is required for update");
-	}
-	console.log(`Updating item - ID: ${id}, URL: /v1/items/${id}`, payload);
-	return request<Item.ApiItem>(`/v1/items/${id}`, {
-		method: "PATCH",
-		body: JSON.stringify(payload),
-	});
+// อัปเดตข้อมูลพัสดุ
+export async function updateInventoryItem(id: string, payload: Item.UpdatePayload): Promise<Item.ApiItem> {
+    if (!id) throw new Error("Item ID is required for update");
+    return api.patch<Item.ApiItem>(`/v1/items/${id}`, payload);
 }
 
-export async function updateItemImage(id: string, file: File) {
-	if (!API_URL) throw new Error("NEXT_PUBLIC_API_URL is not configured");
-	let token = "";
-	if (typeof window !== "undefined") {
-		token = Cookies.get("user_token") || "";
-	}
-	const fd = new FormData();
-	fd.append("image", file);
-	const res = await fetch(`${API_URL}/v1/files/items/${id}/image`, {
-		method: "PATCH",
-		headers: token ? { Authorization: `Bearer ${token}` } : {},
-		body: fd,
-		cache: "no-store",
-	});
-	const body = await parseJson<{ message?: string; error?: string }>(res);
-	if (!res.ok) throw new Error(body.error || body.message || "Request failed");
+// อัปเดต/เปลี่ยนรูปภาพพัสดุ
+export async function updateItemImage(id: string, file: File): Promise<void> {
+    const fd = new FormData();
+    fd.append("image", file);
+    await api.upload(`/v1/files/items/${id}/image`, fd, "PATCH");
 }
 
-export async function removeItemImage(id: string) {
-	return request(`/v1/files/items/${id}/image`, { method: "DELETE" });
+// ลบรูปภาพ
+export async function removeItemImage(id: string): Promise<void> {
+    await api.delete(`/v1/files/items/${id}/image`);
 }
 
-
+// ลบพัสดุ
 export async function deleteInventoryItem(id: string): Promise<Item.DeleteResponse> {
-	return request<Item.DeleteResponse>(`/v1/items/${id}`, {
-		method: "DELETE",
-	});
+    return api.delete<Item.DeleteResponse>(`/v1/items/${id}`);
 }
