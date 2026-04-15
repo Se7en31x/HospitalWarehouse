@@ -174,20 +174,18 @@ export default function ReusableUnitClient() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">จัดการของใช้ซ้ำรายชิ้น</h2>
-        </div>
-        <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden">
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold text-gray-800 mb-4">จัดการของใช้ซ้ำรายชิ้น</h2>
+        <div className="flex border-b border-slate-200">
           <button
             onClick={() => router.push('/warehouse/assets?mode=reusable')}
-            className="px-4 py-2 text-sm font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700"
+            className="px-5 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-700 transition-colors"
           >
             ของใช้ซ้ำรายชิ้น (Reusable)
           </button>
           <button
             onClick={() => router.push('/warehouse/assets?mode=med-asset')}
-            className="px-4 py-2 text-sm font-semibold transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200"
+            className="px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
           >
             ครุภัณฑ์ภายในองค์กร (Med Asset)
           </button>
@@ -318,7 +316,7 @@ export default function ReusableUnitClient() {
         */}
       </div>
 
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "60vh" }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -351,7 +349,7 @@ export default function ReusableUnitClient() {
             }
           `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[60px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
@@ -360,15 +358,16 @@ export default function ReusableUnitClient() {
                 <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[130px]">คงเหลือ</th>
                 <th className="px-6 py-4 w-[130px]">พร้อมใช้งาน</th>
+                <th className="px-6 py-4 w-[120px]">หน่วย</th>
                 <th className="px-6 py-4 w-[130px]">สถานะ</th>
                 <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4">
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                  <td className="px-6 py-3">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-3">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
@@ -377,15 +376,16 @@ export default function ReusableUnitClient() {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">{item.code}</td>
-                  <td className="px-6 py-4">{item.name}</td>
-                  <td className="px-6 py-4">{item.category}</td>
-                  <td className="px-6 py-4">{item.stock} {item.unit}</td>
-                  <td className="px-6 py-4 text-emerald-700 font-semibold">
-                    {(item.availableStock ?? 0)} {item.unit}
+                  <td className="px-6 py-3">{item.code}</td>
+                  <td className="px-6 py-3">{item.name}</td>
+                  <td className="px-6 py-3">{item.category}</td>
+                  <td className="px-6 py-3">{item.stock}</td>
+                  <td className="px-6 py-3 text-emerald-700 font-semibold">
+                    {(item.availableStock ?? 0)}
                   </td>
-                  <td className="px-6 py-4"><Badge status={item.status} /></td>
-                  <td className="px-6 py-4 w-[100px] text-center">
+                  <td className="px-6 py-3">{item.unit}</td>
+                  <td className="px-6 py-3"><Badge status={item.status} /></td>
+                  <td className="px-6 py-3 w-[100px] text-center">
                     <div className="flex justify-center gap-1">
                       <button
                         onClick={() => goToRegistry(item.id)}
@@ -399,7 +399,7 @@ export default function ReusableUnitClient() {
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <p className="text-sm font-medium">ไม่พบรายการของใช้ซ้ำ</p>
                     </div>

@@ -1,28 +1,64 @@
 import { createClient } from "@/lib/supabase/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_SECRET_KEY = process.env.NEXT_PUBLIC_API_SECRET_KEY || process.env.API_SECRET_KEY || "";
 
 // src/lib/apiClient.ts
 const getHeaders = async () => {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  // Server-side: use API secret key if available
+  if (typeof window === "undefined") {
+    if (API_SECRET_KEY) {
+      return {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_SECRET_KEY}`,
+      };
+    }
+    // If no secret key, return just content type
+    return {
+      "Content-Type": "application/json",
+    };
+  }
 
-  // DEBUG: ก๊อปปี้ค่าที่ขึ้นใน Console ไปเช็คใน jwt.io
-  console.log("🔍 [Frontend] Sending Token:", token); 
+  // Client-side: use Supabase session
+  try {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
 
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+    // DEBUG: ก๊อปปี้ค่าที่ขึ้นใน Console ไปเช็คใน jwt.io
+    console.log("🔍 [Frontend] Sending Token:", token);
+
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  } catch (error) {
+    // Fallback to no auth if auth fails
+    return {
+      "Content-Type": "application/json",
+    };
+  }
 };
         
 const getAuthHeader = async (): Promise<Record<string, string>> => {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {};
+  // Server-side: use API secret key if available
+  if (typeof window === "undefined") {
+    if (API_SECRET_KEY) {
+      return { Authorization: `Bearer ${API_SECRET_KEY}` };
+    }
+    return {};
+  }
+
+  // Client-side: use Supabase session
+  try {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {};
+  } catch (error) {
+    return {};
+  }
 };
 
 const handleResponse = async <T>(response: Response): Promise<{ data: T; status: number }> => {
@@ -124,16 +160,35 @@ export const api = {
       }
       queryString = "?" + new URLSearchParams(cleanParams).toString();
     }
-    const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
-      method: "GET",
-      headers: await getHeaders(),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({})) as Record<string, unknown>;
-      throw { status: response.status, message: err?.message ?? `HTTP ${response.status}` };
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
+        method: "GET",
+        headers: await getHeaders(),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const errorMessage = typeof err?.message === 'string' 
+          ? err.message 
+          : `HTTP ${response.status}`;
+        throw { 
+          status: response.status, 
+          message: errorMessage,
+          url: url
+        };
+      }
+      const body = await response.json() as { data?: T };
+      return (body.data ?? body) as T;
+    } catch (err: any) {
+      // Ensure error has proper structure
+      if (err?.status !== undefined) {
+        throw err;
+      }
+      throw {
+        status: 0,
+        message: err?.message || `Failed to fetch ${url}`,
+        url: url
+      };
     }
-    const body = await response.json() as { data?: T };
-    return (body.data ?? body) as T;
   },
 
   /** GET — returns full paginated envelope `{ data: T[], meta }` */

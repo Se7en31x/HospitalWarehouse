@@ -160,15 +160,8 @@ const RequestClient = () => {
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
-    const styles: Record<string, string> = {
-      COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-100",
-      APPROVED:  "bg-blue-50 text-blue-700 border-blue-100",
-      REJECTED:  "bg-rose-50 text-rose-700 border-rose-100",
-      PENDING:   "bg-amber-50 text-amber-700 border-amber-100",
-      CANCELLED: "bg-slate-100 text-slate-400 border-slate-200",
-    };
     return (
-      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${styles[status] || "bg-slate-50 text-slate-500"}`}>
+      <span className="text-sm text-slate-600">
         {statusLabels[status] || status}
       </span>
     );
@@ -262,64 +255,59 @@ const RequestClient = () => {
       </div>
 
       {/* Table Section */}
-      <div className="rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden flex flex-col relative" style={{ height: '65vh' }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col relative" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center backdrop-blur-[1px]">
-            <div className="w-10 h-10 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div>
+            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
           </div>
         )}
 
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[140px]">เลขที่เอกสาร</th>
                 <th className="px-6 py-4 w-[160px]">วันที่/เวลา</th>
-                <th className="px-6 py-4 w-[180px]">ชื่อผู้ทำรายการ</th>
+                <th className="px-6 py-4 w-[180px]">ผู้ทำรายการ</th>
                 <th className="px-6 py-4 w-[140px]">แผนก</th>
                 <th className="px-6 py-4 w-[80px]">ประเภท</th>
                 <th className="px-6 py-4 w-[120px]">สถานะ</th>
                 <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-600">
               {paginatedItems.map((req, idx) => (
-                <tr key={req.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-6 py-4 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 font-bold text-slate-700">{req.doc_no}</td>
-                  <td className="px-6 py-4 text-slate-500 text-xs">
+                <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-2.5">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-2.5 font-mono text-slate-600">{req.doc_no}</td>
+                  <td className="px-6 py-2.5 whitespace-nowrap text-slate-600">
                     {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
                   </td>
-                  <td className="px-6 py-4 truncate text-slate-700" title={displayRequesterName(req)}>
+                  <td className="px-6 py-2.5 truncate text-slate-600" title={displayRequesterName(req)}>
                     {displayRequesterName(req)}
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="py-0.5 text-[11px] font-medium text-slate-600">
-                      {req.department_name ?? (req.department ? `แผนก ${req.department}` : "-")}
-                    </span>
+                  <td className="px-6 py-2.5 text-slate-600">
+                    {req.department_name ?? (req.department ? `แผนก ${req.department}` : "-")}
                   </td>
-                  <td className="px-6 py-4">
-                    {req.type === "WITHDRAW"
-                      ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">เบิก</span>
-                      : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">ยืม</span>
-                    }
+                  <td className="px-6 py-2.5 text-slate-600 text-sm">
+                    {req.type === "WITHDRAW" ? "เบิก" : "ยืม"}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-2.5">
                     <StatusBadge status={req.status} />
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-2.5 text-center">
                     {/* ปรับแก้: ลบ opacity-0 ออกเพื่อให้ปุ่มแสดงตลอดเวลา และใส่สีพื้นหลัง/ตัวอักษรให้ชัดเจน */}
-                    <div className="flex items-center justify-center gap-2 transition-opacity">
+                    <div className="flex items-center justify-between w-[72px] mx-auto transition-opacity">
                       <button
                         onClick={() => router.push(`/warehouse/requests/${req.id}`)}
-                        className="p-2 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white rounded-lg transition-all shadow-sm"
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         title="ดูรายละเอียด"
                       >
                         <Eye size={18} />
                       </button>
 
-                      {req.status === "PENDING" && (
+                      {req.status === "PENDING" ? (
                         <button
                           onClick={async () => {
                             const confirm = await Swal.fire({
@@ -349,7 +337,7 @@ const RequestClient = () => {
                             }
                           }}
                           disabled={isCancelLoading === req.id}
-                          className="p-2 text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white rounded-lg transition-all disabled:opacity-30 shadow-sm"
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30"
                           title="ยกเลิกใบเบิก"
                         >
                           {isCancelLoading === req.id ? (
@@ -358,6 +346,8 @@ const RequestClient = () => {
                             <Trash2 size={18} />
                           )}
                         </button>
+                      ) : (
+                        <div className="w-[34px]" />
                       )}
                     </div>
                   </td>
@@ -365,10 +355,12 @@ const RequestClient = () => {
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8} className="py-20 text-center text-slate-400">
-                    <div className="flex flex-col items-center gap-2">
-                       <Search size={40} className="text-slate-200" />
-                       <p>ไม่พบรายการที่ตรงกับเงื่อนไข</p>
+                  <td colSpan={8}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                      </svg>
+                      <p className="text-sm font-medium">ไม่พบรายการที่ตรงกับเงื่อนไข</p>
                     </div>
                   </td>
                 </tr>
@@ -380,28 +372,22 @@ const RequestClient = () => {
 
       {/* Pagination Control */}
       <div className="flex items-center justify-between mt-6">
-        <p className="text-xs text-slate-500 font-medium">
-          Showing {paginatedItems.length} of {filteredRequests.length} results
-        </p>
-        <div className="flex items-center gap-1">
+        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {filteredRequests.length} รายการ</p>
+        <div className="flex items-center gap-2">
           <button
-            disabled={currentPage === 1}
+            disabled={currentPage <= 1}
             onClick={() => setCurrentPage(p => p - 1)}
-            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-20 transition-colors"
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1 px-4">
-             <span className="text-sm font-bold text-slate-700">{currentPage}</span>
-             <span className="text-sm text-slate-400">/</span>
-             <span className="text-sm text-slate-400">{totalPages || 1}</span>
-          </div>
+          <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
           <button
             disabled={currentPage >= totalPages}
             onClick={() => setCurrentPage(p => p + 1)}
-            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-20 transition-colors"
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
           >
-            <ChevronRight size={20} />
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>

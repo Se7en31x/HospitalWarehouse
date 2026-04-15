@@ -116,12 +116,13 @@ export default function AssetRegistryClient() {
                 item_id: itemId
             });
 
-            setRecords(response.items);
+            const fetchedItems = response.items || [];
+            setRecords(fetchedItems);
 
-            if (response.items.length > 0) {
+            if (fetchedItems.length > 0) {
                 setMasterItem({
-                    name: response.items[0].item_name,
-                    code: response.items[0].item_code
+                    name: fetchedItems[0].item_name,
+                    code: fetchedItems[0].item_code
                 });
             }
         } catch (err) {
@@ -204,7 +205,7 @@ export default function AssetRegistryClient() {
     ];
 
     // Filter data
-    const filteredRecords = records.filter((record) => {
+    const filteredRecords = (records || []).filter((record) => {
         const term = searchTerm.toLowerCase();
         const matchesSearch =
             (record.asset_code || "").toLowerCase().includes(term) ||
@@ -323,7 +324,7 @@ export default function AssetRegistryClient() {
             </div>
 
             {/* Table Content */}
-            <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
                 {isFetching && (
                     <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
                         <div className="animate-spin">
@@ -357,7 +358,7 @@ export default function AssetRegistryClient() {
                     }
                   `}</style>
                     <table className="w-full text-sm text-left table-fixed">
-                        <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+                        <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                             <tr>
                                 <th className="px-6 py-4 w-[50px]">#</th>
                                 <th className="px-6 py-4 w-[150px]">รหัสครุภัณฑ์</th>
@@ -369,17 +370,17 @@ export default function AssetRegistryClient() {
                                 <th className="px-6 py-4 w-[80px] text-center">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                        <tbody className="text-slate-600">
                             {paginatedRecords.map((rec, idx) => {
                                 const isExpired = rec.warranty_expire && new Date(rec.warranty_expire) < new Date();
                                 return (
-                                    <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                                        <td className="px-6 py-4">{rec.asset_code}</td>
-                                        <td className="px-6 py-4 font-mono text-slate-600">{rec.serial_no || <span className="text-slate-300 italic text-xs">N/A</span>}</td>
-                                        <td className="px-6 py-4 text-slate-700">{rec.department_name || "ส่วนกลาง"}</td>
-                                        <td className="px-6 py-4 text-slate-700 text-xs">{rec.receive_doc_no || "---"}</td>
-                                        <td className="px-6 py-4">
+                                    <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                                        <td className="px-6 py-2.5 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                                        <td className="px-6 py-2.5">{rec.asset_code}</td>
+                                        <td className="px-6 py-2.5 font-mono text-slate-600">{rec.serial_no || <span className="text-slate-300 italic text-xs">N/A</span>}</td>
+                                        <td className="px-6 py-2.5 text-slate-600">{rec.department_name || "ส่วนกลาง"}</td>
+                                        <td className="px-6 py-2.5 text-slate-600 text-xs">{rec.receive_doc_no || "---"}</td>
+                                        <td className="px-6 py-2.5">
                                             <div className="flex flex-col gap-1">
                                                 <div className={`text-sm ${isExpired ? 'text-rose-500 font-medium' : 'text-slate-600'}`}>
                                                     {rec.warranty_expire ? new Date(rec.warranty_expire).toLocaleDateString('th-TH') : "ไม่มีประกัน"}
@@ -391,10 +392,10 @@ export default function AssetRegistryClient() {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-2.5">
                                             <StatusBadge status={rec.status} />
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-6 py-2.5 text-center">
                                             <div className="flex justify-between gap-1">
                                                 <button
                                                     onClick={() => openEditModal(rec)}

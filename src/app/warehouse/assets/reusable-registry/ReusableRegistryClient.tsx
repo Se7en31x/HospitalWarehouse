@@ -327,7 +327,7 @@ export default function ReusableRegistryClient() {
       </div>
 
       {/* Table Content */}
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "65vh" }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -362,7 +362,7 @@ export default function ReusableRegistryClient() {
             }
           `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[140px]">Unit Code</th>
@@ -375,18 +375,18 @@ export default function ReusableRegistryClient() {
                 <th className="px-6 py-4 w-[80px] text-center">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-600">
               {paginatedRecords.map((rec, idx) => (
-                <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 w-[140px] font-mono">{rec.unit_code}</td>
-                  <td className="px-6 py-4 w-[140px] truncate">{rec.serial_no || "-"}</td>
-                  <td className="px-6 py-4 w-[140px] truncate">{rec.department_name || "ส่วนกลาง"}</td>
-                  <td className="px-6 py-4 w-[140px]">{getStatusLabel(rec)}</td>
-                  <td className="px-6 py-4 w-[100px]">{CONDITION_LABEL[rec.condition] || rec.condition}</td>
-                  <td className="px-6 py-4 w-[150px] text-xs truncate">{rec.receive_doc_no || "-"}</td>
-                  <td className="px-6 py-4 w-[120px] truncate">{rec.note || "-"}</td>
-                  <td className="px-6 py-4 w-[80px] text-center">
+                <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                  <td className="px-6 py-2.5 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-2.5 w-[140px] font-mono">{rec.unit_code}</td>
+                  <td className="px-6 py-2.5 w-[140px] truncate">{rec.serial_no || "-"}</td>
+                  <td className="px-6 py-2.5 w-[140px] truncate">{rec.department_name || "ส่วนกลาง"}</td>
+                  <td className="px-6 py-2.5 w-[140px]">{getStatusLabel(rec)}</td>
+                  <td className="px-6 py-2.5 w-[100px]">{CONDITION_LABEL[rec.condition] || rec.condition}</td>
+                  <td className="px-6 py-2.5 w-[150px] text-xs truncate">{rec.receive_doc_no || "-"}</td>
+                  <td className="px-6 py-2.5 w-[120px] truncate">{rec.note || "-"}</td>
+                  <td className="px-6 py-2.5 w-[80px] text-center">
                     <div className="flex justify-center gap-1">
                       <button
                         onClick={() => openEditModal(rec)}

@@ -65,7 +65,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
   const getStatusBadgeClass = (status?: RequisitionHeader['status']): string => {
     switch (status) {
       case 'COMPLETED':
-        return 'bg-emerald-50 text-emerald-700';
+        return 'text-slate-700';
       case 'APPROVED':
       case 'BORROWING':
         return 'bg-blue-50 text-blue-700';
@@ -360,8 +360,8 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
   if (isFetching) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white gap-4">
-        <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-medium animate-pulse">กำลังโหลดข้อมูลใบเบิก...</p>
+        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p className="text-indigo-600 font-medium animate-pulse">กำลังโหลดข้อมูลใบเบิก...</p>
       </div>
     );
   }
@@ -373,18 +373,9 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
       <Toaster position="top-right" />
       
       {/* Header Bar */}
-      <div className="bg-white px-8 py-5 flex items-center justify-between shrink-0 shadow-sm z-10 w-full">
+      <div className="bg-white px-8 py-5 flex items-center justify-between shrink-0 z-10 w-full">
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-bold text-slate-800">{requisition.doc_no}</h2>
-          {requisition.department_name && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-sm font-medium border border-slate-200">
-              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-              {requisition.department_name}
-            </span>
-          )}
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(requisition.status)}`}>
-            {getStatusLabel(requisition.status)}
-          </span>
         </div>
         <button
           onClick={() => router.push("/warehouse/requests")}
@@ -395,50 +386,42 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
       </div>
 
       {/* Details Bar */}
-      <section className="rounded-lg bg-white border border-slate-300 mx-8 my-4 p-6">
+      <section className="rounded-lg bg-white border border-slate-200 mx-8 my-4 p-6">
         <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-          <FileText className="h-5 w-5 text-emerald-600" />
+          <FileText className="h-5 w-5 text-indigo-600" />
           <h2 className="text-lg font-semibold">ข้อมูลการ{requisition.type === 'BORROW' ? 'ยืม' : 'เบิก'}</h2>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <div>
-            <p className="text-xs text-slate-500 mb-1">หมายเลขเอกสาร</p>
-            <p className="font-mono text-base font-semibold text-slate-800">{requisition.doc_no}</p>
+            <p className="text-sm font-bold text-slate-700 mb-2">หมายเลขเอกสาร</p>
+            <p className="font-mono text-sm text-slate-600">{requisition.doc_no}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">ประเภท</p>
-            <p className="text-base font-medium text-slate-800">{requisition.type === 'BORROW' ? 'ยืมครุภัณฑ์' : 'เบิกของสิ้นเปลือง'}</p>
+            <p className="text-sm font-bold text-slate-700 mb-2">ประเภท</p>
+            <p className="text-sm text-slate-600">{requisition.type === 'BORROW' ? 'ยืมครุภัณฑ์' : 'เบิกของสิ้นเปลือง'}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">สถานะ</p>
-            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold items-center ${getStatusBadgeClass(requisition.status)}`}>
+            <p className="text-sm font-bold text-slate-700 mb-2">สถานะ</p>
+            <p className={`text-sm items-center ${getStatusBadgeClass(requisition.status)}`}>
               {getStatusLabel(requisition.status)}
-            </span>
+            </p>
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">วันที่ทำรายการ</p>
-            <p className="text-base text-slate-800">{new Date(requisition.request_date).toLocaleDateString('th-TH')}</p>
+            <p className="text-sm font-bold text-slate-700 mb-2">วันที่ทำรายการ</p>
+            <p className="text-sm text-slate-600">{new Date(requisition.request_date).toLocaleDateString('th-TH')}</p>
           </div>
           <div>
             {requisition.type === 'WITHDRAW' ? (
               <>
-                <p className="text-xs text-slate-500 mb-1">แผนก</p>
-                <p className="text-base font-medium text-slate-800">{requisition.department_name ?? '-'}</p>
+                <p className="text-sm font-bold text-slate-700 mb-2">แผนก</p>
+                <p className="text-sm text-slate-600">{requisition.department_name ?? '-'}</p>
               </>
             ) : (
-              <div className="space-y-3">
+              <div>
                 <div>
-                  <p className="text-xs text-slate-500 mb-1">แผนก</p>
-                  <p className="text-base font-medium text-slate-800">{requisition.department_name ?? '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">ที่อยู่</p>
-                  <p className="text-base text-slate-800">
-                    {requisition.borrower_details?.address 
-                      ? `${requisition.borrower_details.address} ${requisition.borrower_details.subdistrict || ''} ${requisition.borrower_details.district || ''} ${requisition.borrower_details.province || ''} ${requisition.borrower_details.zipcode || ''}`.trim()
-                      : '-'}
-                  </p>
+                  <p className="text-sm font-bold text-slate-700 mb-2">แผนก</p>
+                  <p className="text-sm text-slate-600">{requisition.department_name ?? '-'}</p>
                 </div>
               </div>
             )}
@@ -447,11 +430,11 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
       </section>
 
       {/* Main Split Layout */}
-      <div className="rounded-lg bg-white border border-slate-300 mx-8 my-4 p-6" style={{ height: "calc(100vh - 64px - 200px - 64px)" }}>
+      <div className="rounded-lg bg-white border border-slate-200 mx-8 my-4 p-6" style={{ height: "calc(100vh - 64px - 200px - 64px)" }}>
         <div className="flex h-full overflow-hidden gap-4">
           
           {/* Left Side (60%) - Big Table */}
-          <div className="flex-[3_1_0%] min-w-0 bg-white flex flex-col rounded-lg overflow-hidden shadow-sm border border-slate-300">
+          <div className="flex-[3_1_0%] min-w-0 bg-white flex flex-col rounded-lg overflow-hidden shadow-sm border border-slate-200">
           <div className="px-6 py-4 border-b bg-slate-50/50 flex justify-between items-center shrink-0">
              <h3 className="font-bold text-slate-700 flex items-center gap-2">
                รายการที่ต้องเบิกจ่าย <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs">{requisition.items?.length || 0}</span>
@@ -491,7 +474,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
                       <td className="px-6 py-3" style={{ width: "80px" }}>
                         <div className="flex items-stretch gap-3">
                           <div className={`w-1.5 rounded-full transition-opacity ${isSelected ? 'bg-indigo-600 opacity-100' : 'bg-transparent opacity-0'}`} />
-                          <div className="w-12 h-12 rounded-lg bg-white border shadow-sm overflow-hidden flex items-center justify-center relative shrink-0">
+                          <div className="w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center relative shrink-0">
                           {item.image_url ? 
                             <img src={item.image_url} className="w-full h-full object-cover" alt="" 
                                  onClick={(e) => { e.stopPropagation(); setPreviewImage({ url: item.image_url!, name: item.name }); }} /> :
@@ -515,11 +498,11 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
                       </td>
                        <td className="px-6 py-3 text-right" style={{ width: "140px" }}>
                          {isPending ? (
-                            <span className={`font-black text-xl ${isComplete ? 'text-emerald-600' : isOver ? 'text-rose-600' : alloc.qty > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                            <span className={`font-black text-xl ${isComplete ? 'text-indigo-600' : isOver ? 'text-rose-600' : alloc.qty > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
                               {alloc.qty}
                             </span>
                          ) : (
-                            <span className="font-black text-lg text-emerald-600">{item.issued}</span>
+                            <span className="font-black text-lg text-indigo-600">{item.issued}</span>
                          )}
                       </td>
                        <td className="px-4 py-3 text-center" style={{ width: "48px" }}>
@@ -542,7 +525,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
                const isReusable = selectedItem.itemType === 'REUSABLE';
 
                return (
-            <div className="flex-1 flex flex-col bg-white rounded-lg overflow-hidden shadow-sm border border-slate-300">
+            <div className="flex-1 flex flex-col bg-white rounded-lg overflow-hidden shadow-sm border border-slate-200">
                    {/* Info Header */}
                    <div className="p-5 border-b bg-white">
                       <p className="text-xs font-bold text-indigo-400 tracking-wider uppercase mb-1">กำลังจัดการ</p>
@@ -731,7 +714,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
       </div>
 
       {/* Global Actions Footer Bar */}
-      <div className="h-16 bg-white flex justify-between items-center px-6 shrink-0 z-20 mx-8 mt-4 mb-8 rounded-b-lg shadow-sm border-t">
+      <div className="h-16 bg-white flex justify-between items-center px-6 shrink-0 z-20 mx-8 mt-4 mb-8 rounded-b-lg border-t">
          <div className="text-xs text-slate-500">
            {isPending ? (
               <p>ระบบจะบันทึกการตัดคลังแบบอัตโนมัติ กรุณาแน่ใจก่อนกดอนุมัติ</p>
@@ -752,7 +735,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
                 <button
                   onClick={handleApprove}
                   disabled={isLoading}
-                  className="px-8 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  className="px-8 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <PackageCheck size={18} />}
                   ยืนยันการอนุมัติ
@@ -763,7 +746,7 @@ export default function RequisitionDetailsPage({ params }: { params: Promise<{ i
              <button
                onClick={handleCompleteDelivery}
                disabled={isLoading}
-               className="px-8 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+               className="px-8 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
              >
                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <PackageCheck size={18} />}
                ปิดงานนำส่งเรียบร้อย

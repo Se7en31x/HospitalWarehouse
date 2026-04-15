@@ -27,36 +27,42 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 	const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
 	const [selectedWarehouse, setSelectedWarehouse] = useState("คลังทั้งหมด");
 	const [selectedUnit, setSelectedUnit] = useState("หน่วยทั้งหมด");
-	const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [isCategoryOpen, setIsCategoryOpen] = useState(false);
 	const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
 	const [isUnitOpen, setIsUnitOpen] = useState(false);
-	const [isStatusOpen, setIsStatusOpen] = useState(false);
 	const [categories, setCategories] = useState<{ name: string }[]>([]);
 	const [warehouses, setWarehouses] = useState<{ name: string }[]>([]);
 	const [units, setUnits] = useState<{ name: string }[]>([]);
+	const [items, setItems] = useState<UiItem[]>(initialItems);
+	const [isLoadingItems, setIsLoadingItems] = useState(false);
 	const itemsPerPage = 10;
 
 	useEffect(() => {
-		const loadOptions = async () => {
+		const loadData = async () => {
 			try {
-				const [categoryOptions, warehouseOptions, unitOptions] = await Promise.all([
+				setIsLoadingItems(true);
+				const [categoryOptions, warehouseOptions, unitOptions, itemsData] = await Promise.all([
 					ItemSvc.getcategoriesOptions(),
 					ItemSvc.getWarehousesOptions(),
 					ItemSvc.getUnitsOptions(),
+					ItemSvc.getAllInventoryItems(),
 				]);
 
 				setCategories(categoryOptions || []);
 				setWarehouses(warehouseOptions || []);
 				setUnits(unitOptions || []);
+				setItems(itemsData || initialItems);
 			} catch (error) {
-				console.error("Load report filters failed", error);
+				console.error("Load report data failed", error);
+				setItems(initialItems);
+			} finally {
+				setIsLoadingItems(false);
 			}
 		};
 
-		loadOptions();
-	}, []);
+		loadData();
+	}, [initialItems]);
 
 	const filterCategories = useMemo(
 		() => ["หมวดหมู่ทั้งหมด", ...categories.map((category) => category.name)],
@@ -70,17 +76,14 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 		() => ["หน่วยทั้งหมด", ...units.map((unit) => unit.name)],
 		[units]
 	);
-	const filterStatuses = useMemo(
-		() => ["สถานะทั้งหมด", ...Array.from(new Set(initialItems.map((item) => String(item.status)).filter(Boolean)))],
-		[initialItems]
-	);
+
 
 	const filteredItems = useMemo(() => {
-		let items = [...initialItems];
+		let filtered = [...items];
 
 		if (searchTerm) {
 			const normalizedSearch = searchTerm.toLowerCase();
-			items = items.filter(
+			filtered = filtered.filter(
 				(item) =>
 					item.code.toLowerCase().includes(normalizedSearch) ||
 					item.name.toLowerCase().includes(normalizedSearch) ||
@@ -89,20 +92,18 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 		}
 
 		if (selectedCategory !== "หมวดหมู่ทั้งหมด") {
-			items = items.filter((item) => item.category === selectedCategory);
+			filtered = filtered.filter((item) => item.category === selectedCategory);
 		}
 		if (selectedWarehouse !== "คลังทั้งหมด") {
-			items = items.filter((item) => item.location === selectedWarehouse);
+			filtered = filtered.filter((item) => item.location === selectedWarehouse);
 		}
 		if (selectedUnit !== "หน่วยทั้งหมด") {
-			items = items.filter((item) => item.unit === selectedUnit);
-		}
-		if (selectedStatus !== "สถานะทั้งหมด") {
-			items = items.filter((item) => String(item.status) === selectedStatus);
+			filtered = filtered.filter((item) => item.unit === selectedUnit);
 		}
 
-		return items;
-	}, [initialItems, searchTerm, selectedCategory, selectedWarehouse, selectedUnit, selectedStatus]);
+
+		return filtered;
+	}, [items, searchTerm, selectedCategory, selectedWarehouse, selectedUnit]);
 
 	const totalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
 
@@ -113,7 +114,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [searchTerm, selectedCategory, selectedWarehouse, selectedUnit, selectedStatus]);
+	}, [searchTerm, selectedCategory, selectedWarehouse, selectedUnit]);
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -121,14 +122,13 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 			if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
 			if (!target.closest("[data-filter-warehouse]")) setIsWarehouseOpen(false);
 			if (!target.closest("[data-filter-unit]")) setIsUnitOpen(false);
-			if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
 		};
 
-		if (isCategoryOpen || isWarehouseOpen || isUnitOpen || isStatusOpen) {
+		if (isCategoryOpen || isWarehouseOpen || isUnitOpen) {
 			document.addEventListener("mousedown", handleClickOutside);
 			return () => document.removeEventListener("mousedown", handleClickOutside);
 		}
-	}, [isCategoryOpen, isWarehouseOpen, isUnitOpen, isStatusOpen]);
+	}, [isCategoryOpen, isWarehouseOpen, isUnitOpen]);
 
 	const handleExportPdf = () => {
 		const columns: PdfColumn[] = [
@@ -137,9 +137,8 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 			{ header: "ชื่อสินค้า",  key: "name" },
 			{ header: "หมวดหมู่",    key: "category" },
 			{ header: "คลัง",        key: "location" },
-			{ header: "หน่วย",       key: "unit" },
 			{ header: "คงเหลือ",     key: "stock",    align: "right" },
-			{ header: "Min Stock",   key: "minStock",  align: "right" },
+			{ header: "หน่วยนับ",    key: "unit" },
 		];
 		const pdfRows = filteredItems.map((item, i) => ({
 			_no:      String(i + 1),
@@ -147,22 +146,10 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 			name:     item.name,
 			category: item.category,
 			location: item.location,
-			unit:     item.unit,
 			stock:    item.stock.toLocaleString(),
-			minStock: item.minStock > 0 ? item.minStock.toLocaleString() : "-",
+			unit:     item.unit,
 		}));
 		printAsPdf("รายงานสินค้าทั้งหมด", `ค้นหา: "${searchTerm || "ทั้งหมด"}" | ${selectedCategory} | ${selectedWarehouse}`, columns, pdfRows);
-	};
-
-	const getStockBadge = (item: UiItem) => {
-		if (item.minStock > 0 && item.stock <= item.minStock) {
-			return (
-				<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-					ต่ำกว่า Min
-				</span>
-			);
-		}
-		return null;
 	};
 
 	return (
@@ -175,7 +162,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 					<button
 						type="button"
 						onClick={onBack}
-						className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 text-sm font-semibold transition-colors flex items-center gap-1.5"
+						className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 text-sm font-semibold transition-colors flex items-center gap-1.5"
 					>
 						ย้อนกลับ
 					</button>
@@ -193,7 +180,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							setSearchTerm(event.target.value);
 							setCurrentPage(1);
 						}}
-						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
+					className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
 					/>
 				</div>
 
@@ -204,7 +191,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							setIsCategoryOpen(!isCategoryOpen);
 							setIsWarehouseOpen(false);
 							setIsUnitOpen(false);
-							setIsStatusOpen(false);
+
 						}}
 						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
 					>
@@ -223,7 +210,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsCategoryOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === category ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === category ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{category}
 										</button>
@@ -241,7 +228,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							setIsWarehouseOpen(!isWarehouseOpen);
 							setIsCategoryOpen(false);
 							setIsUnitOpen(false);
-							setIsStatusOpen(false);
+
 						}}
 						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
 					>
@@ -260,7 +247,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsWarehouseOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedWarehouse === warehouse ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedWarehouse === warehouse ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{warehouse}
 										</button>
@@ -278,7 +265,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							setIsUnitOpen(!isUnitOpen);
 							setIsCategoryOpen(false);
 							setIsWarehouseOpen(false);
-							setIsStatusOpen(false);
+
 						}}
 						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
 					>
@@ -297,7 +284,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 											setIsUnitOpen(false);
 											setCurrentPage(1);
 										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === unit ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
+										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedUnit === unit ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
 										>
 											{unit}
 										</button>
@@ -308,53 +295,12 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 					)}
 				</div>
 
-				<div className="relative" data-filter-status>
-					<button
-						type="button"
-						onClick={() => {
-							setIsStatusOpen(!isStatusOpen);
-							setIsCategoryOpen(false);
-							setIsWarehouseOpen(false);
-							setIsUnitOpen(false);
-						}}
-						className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
-					>
-						<span className="text-slate-800 font-medium">{selectedStatus}</span>
-						<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
-					</button>
-					{isStatusOpen && (
-						<div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
-							<ul className="py-1">
-								{[
-									{ value: "สถานะทั้งหมด", label: "สถานะทั้งหมด" },
-									{ value: "ACTIVE", label: "เปิดใช้งาน" },
-									{ value: "INACTIVE", label: "ระงับ" },
-								].map((status) => (
-									<li key={status.value}>
-										<button
-											type="button"
-											onClick={() => {
-											setSelectedStatus(status.value);
-											setIsStatusOpen(false);
-											setCurrentPage(1);
-										}}
-										className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === status.value ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"}`}
-										>
-											{status.label}
-										</button>
-									</li>
-								))}
-							</ul>
-						</div>
-					)}
-				</div>
-
-				<button
+						<button
 							type="button"
 							onClick={() => {
 								const csvRows = [
-									["รหัส", "ชื่อสินค้า", "หมวดหมู่", "คลัง", "หน่วย", "คงเหลือ", "Min Stock"].join(","),
-									...filteredItems.map((item) => [item.code, item.name, item.category, item.location, item.unit, item.stock, item.minStock].join(",")),
+									["รหัส", "ชื่อสินค้า", "หมวดหมู่", "คลัง", "คงเหลือ", "หน่วยนับ"].join(","),
+									...filteredItems.map((item) => [item.code, item.name, item.category, item.location, item.stock, item.unit].join(",")),
 								].join("\n");
 								const blob = new Blob(["\uFEFF" + csvRows], { type: "text/csv;charset=utf-8;" });
 								const url = URL.createObjectURL(blob);
@@ -364,7 +310,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 								anchor.click();
 								URL.revokeObjectURL(url);
 							}}
-							className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm shrink-0"
+							className="ml-auto flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold shadow-sm shrink-0"
 						>
 							<Download className="w-4 h-4" />
 							Export CSV
@@ -372,14 +318,22 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 						<button
 							type="button"
 							onClick={handleExportPdf}
-							className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm shrink-0"
+							className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold shadow-sm shrink-0"
 						>
 							<FileText className="w-4 h-4" />
 							Export PDF
 						</button>
 					</div>
 
-			<div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+			<div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "63vh" }}>
+				{isLoadingItems && (
+					<div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center z-20 rounded-lg">
+						<div className="text-center">
+							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700 mx-auto mb-2"></div>
+							<p className="text-sm text-slate-600">กำลังดึงข้อมูลสินค้า...</p>
+						</div>
+					</div>
+				)}
 				<div
 					className="flex-1"
 					style={{
@@ -406,39 +360,36 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 						}
 					`}</style>
 					<table className="w-full text-sm text-left table-fixed">
-						<thead>
-							<tr className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
-								<th className="px-6 py-4 w-[50px] text-center">#</th>
+						<thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+							<tr>
+								<th className="px-6 py-4 w-[50px]">#</th>
 								<th className="px-6 py-4 w-[150px]">รหัส</th>
 								<th className="px-6 py-4 w-[300px]">ชื่อสินค้า</th>
 								<th className="px-6 py-4 w-[200px]">หมวดหมู่</th>
 								<th className="px-6 py-4 w-[150px]">คลัง</th>
-								<th className="px-6 py-4 w-[150px]">หน่วย</th>
-								<th className="px-6 py-4 w-[150px] text-right">คงเหลือ</th>
-								<th className="px-6 py-4 w-[150px] text-right">MIN STOCK</th>
-								<th className="px-6 py-4 w-[100px]">สถานะ</th>
+								<th className="px-6 py-4 w-[120px]">คงเหลือ</th>
+								<th className="px-6 py-4 w-[100px]">หน่วย</th>
 							</tr>
 						</thead>
-						<tbody className="divide-y divide-slate-100 text-slate-700">
-							{paginatedItems.length > 0 ? (
-								paginatedItems.map((item, index) => (
-									<tr key={item.id} className="hover:bg-slate-50 transition-colors">
-										<td className="px-6 py-4 text-slate-500 text-xs w-[50px]">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-										<td className="px-6 py-4 font-mono text-xs text-slate-700 w-[150px]">{item.code}</td>
-										<td className="px-6 py-4 font-medium text-slate-900 w-[300px]">{item.name}</td>
-										<td className="px-6 py-4 text-slate-600 w-[200px]">{item.category}</td>
-										<td className="px-6 py-4 text-slate-600 w-[150px]">{item.location}</td>
-										<td className="px-6 py-4 text-slate-600 w-[150px]">{item.unit}</td>
-										<td className="px-6 py-4 text-right font-semibold text-slate-900 w-[150px]">{item.stock.toLocaleString()}</td>
-										<td className="px-6 py-4 text-right text-slate-500 w-[150px]">{item.minStock > 0 ? item.minStock.toLocaleString() : "-"}</td>
-										<td className="px-6 py-4 w-[100px]">{getStockBadge(item)}</td>
-									</tr>
-								))
-							) : (
+						<tbody className="text-slate-600">
+							{paginatedItems.map((item, idx) => (
+								<tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+									<td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+									<td className="px-6 py-4">{item.code}</td>
+									<td className="px-6 py-4">{item.name}</td>
+									<td className="px-6 py-4 text-slate-600">{item.category}</td>
+									<td className="px-6 py-4 text-slate-600">{item.location}</td>
+									<td className="px-6 py-4 text-slate-600">{item.stock.toLocaleString()}</td>
+									<td className="px-6 py-4 text-slate-600">{item.unit}</td>
+								</tr>
+							))}
+							{paginatedItems.length === 0 && !isLoadingItems && (
 								<tr>
-									<td colSpan={9} className="text-center py-12">
-										<Package className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-										<p className="text-sm text-slate-500">ไม่พบรายการสินค้า</p>
+									<td colSpan={7}>
+										<div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+											<Package className="w-12 h-12 text-slate-300" />
+											<p className="text-sm font-medium">ไม่พบข้อมูล</p>
+										</div>
 									</td>
 								</tr>
 							)}

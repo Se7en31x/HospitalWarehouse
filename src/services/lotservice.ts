@@ -124,7 +124,14 @@ export async function getMasterSuppliers(): Promise<Lot.MasterSupplier[]> {
         const data = await api.get<Lot.MasterSupplier[]>(`/v1/suppliers/option`);
         return data || [];
     } catch (error: any) {
-        console.error("Failed to fetch suppliers:", error);
+        console.error(
+            "Failed to fetch suppliers:",
+            {
+                status: error?.status,
+                message: error?.message,
+                fullError: error
+            }
+        );
         return [];
     }
 }

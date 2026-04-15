@@ -51,7 +51,7 @@ import {
 type TabType = "categories" | "units" | "warehouses" | "suppliers" | "notifications";
 type FormMode = "create" | "edit";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 6;
 
 const cronDailyToTime = (cron: string): string | null => {
   const normalized = (cron || "").trim().replace(/\s+/g, " ");
@@ -474,7 +474,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Table Container */}
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col mb-6" style={{ height: '50vh' }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col mb-6" style={{ height: '50vh' }}>
         {isLoading && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -509,7 +509,7 @@ export default function SettingsPage() {
           `}</style>
           {activeTab === "categories" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
                   <th className="px-6 py-4 w-[200px]">ชื่อประเภท</th>
@@ -521,7 +521,7 @@ export default function SettingsPage() {
                   <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tbody className="divide-y divide-slate-100 text-slate-500">
                 {pagedCategories.length > 0 ? (
                   pagedCategories.map((cat, idx) => (
                     <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
@@ -590,7 +590,7 @@ export default function SettingsPage() {
 
           {activeTab === "units" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
                   <th className="px-6 py-4 w-[250px]">ชื่อหน่วยนับ</th>
@@ -600,7 +600,7 @@ export default function SettingsPage() {
                   <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tbody className="divide-y divide-slate-100 text-slate-500">
                 {pagedUnits.length > 0 ? (
                   pagedUnits.map((unit, idx) => (
                     <tr key={unit.id} className="hover:bg-slate-50 transition-colors">
@@ -659,7 +659,7 @@ export default function SettingsPage() {
 
           {activeTab === "warehouses" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
                   <th className="px-6 py-4 w-[180px]">ชื่อคลังสินค้า</th>
@@ -670,7 +670,7 @@ export default function SettingsPage() {
                   <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tbody className="divide-y divide-slate-100 text-slate-500">
                 {pagedWarehouses.length > 0 ? (
                   pagedWarehouses.map((wh, idx) => (
                     <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
@@ -731,7 +731,7 @@ export default function SettingsPage() {
 
           {activeTab === "suppliers" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
                   <th className="px-6 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
@@ -743,7 +743,7 @@ export default function SettingsPage() {
                   <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tbody className="divide-y divide-slate-100 text-slate-500">
                 {pagedSuppliers.length > 0 ? (
                   pagedSuppliers.map((sup, idx) => (
                     <tr key={sup.id} className="hover:bg-slate-50 transition-colors">

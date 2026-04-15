@@ -70,8 +70,10 @@ const StockMovementClient = () => {
           SweetAlertUtils.error(result.message || "ไม่สามารถดึงข้อมูลได้");
           setMovements([]);
         }
-      } catch {
-        SweetAlertUtils.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
+      } catch (error: any) {
+        const errorMessage = error?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+        console.error("Failed to fetch stock movements:", error);
+        SweetAlertUtils.error(errorMessage);
         setMovements([]);
       } finally {
         setIsFetching(false);
@@ -167,7 +169,7 @@ const StockMovementClient = () => {
 
         {/* Date range */}
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+          <label className="text-sm text-slate-600 font-medium">ตั้งแต่</label>
           <input
             type="date"
             value={startDate}
@@ -176,7 +178,7 @@ const StockMovementClient = () => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+          <label className="text-sm text-slate-600 font-medium">ถึง</label>
           <input
             type="date"
             value={endDate}
@@ -188,13 +190,13 @@ const StockMovementClient = () => {
 
       {/* Table */}
       <div
-        className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col"
+        className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col"
         style={{ height: "65vh" }}
       >
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full" />
+              <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full" />
             </div>
           </div>
         )}
@@ -224,41 +226,49 @@ const StockMovementClient = () => {
             }
           `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[50px]">#</th>
-                <th className="px-4 py-4 w-[100px]">รหัสสินค้า</th>
+                <th className="px-6 py-4  w-[50px]">#</th>
+                <th className="px-6 py-4 w-[150px]">รหัสสินค้า</th>
                 <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
+                <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
+                <th className="px-6 py-4 w-[120px]">หน่วยนับ</th>
+                <th className="px-6 py-4 w-[130px]">จำนวน</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
-                <th className="px-6 py-4 w-[100px]">จำนวน</th>
-                <th className="px-6 py-4 w-[120px]">ผู้ดำเนินการ</th>
-                <th className="px-6 py-4 w-[150px]">วันที่และเวลา</th>
+                <th className="px-6 py-4 w-[200px]">ผู้ดำเนินการ</th>
+                <th className="px-6 py-4 w-[160px]">วันที่และเวลา</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="">
               {movements.map((mv, idx) => {
                 const isOut = ["OUT", "RECEIVE_CANCEL", "ADJUST_OUT"].includes(mv.type);
                 return (
-                  <tr key={mv.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-5 text-slate-700">
+                  <tr key={mv.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                    <td className="px-6 py-[18px] text-slate-500 text-center">
                       {(currentPage - 1) * itemsPerPage + idx + 1}
                     </td>
-                    <td className="px-4 py-5 text-slate-500 font-mono">
+                    <td className="px-6 py-[18px] text-slate-500 font-mono">
                       {mv.item?.code ?? "-"}
                     </td>
-                    <td className="px-6 py-5 text-slate-800">
+                    <td className="px-6 py-[18px] text-slate-500">
                       {mv.item?.name ?? "ไม่ระบุ"}
                     </td>
-                    <td className="px-6 py-5 text-slate-700">
-                      {typeOptions.find(t => t.v === mv.type)?.l || mv.type}
+                    <td className="px-6 py-[18px] text-slate-500">
+                      {mv.item?.category ?? "-"}
                     </td>
-                    <td className="px-6 py-5 font-bold">
+                    <td className="px-6 py-[18px] text-slate-500">
+                      {mv.item?.unit?.name ?? mv.item?.unit ?? "-"}
+                    </td>
+                    <td className="px-6 py-[18px] font-bold">
                       <span className={isOut ? "text-rose-600" : "text-emerald-600"}>
                         {isOut ? "-" : "+"}
-                        {mv.quantity} {mv.item?.unit ?? ""}
+                        {mv.quantity}
                       </span>
                     </td>
-                    <td className="px-6 py-5 text-slate-600">
+                    <td className="px-6 py-[18px] text-slate-500">
+                      {typeOptions.find(t => t.v === mv.type)?.l || mv.type}
+                    </td>
+                    <td className="px-6 py-[18px] text-slate-500">
                       {mv.operator_name
                         ? mv.operator_name
                         : mv.created_by
@@ -266,7 +276,7 @@ const StockMovementClient = () => {
                           : <span className="text-slate-400">ระบบอัตโนมัติ</span>
                       }
                     </td>
-                    <td className="px-6 py-5 text-slate-500">
+                    <td className="px-6 py-[18px] text-slate-500">
                       {new Date(mv.created_at).toLocaleString("th-TH", {
                         dateStyle: "medium",
                         timeStyle: "short",

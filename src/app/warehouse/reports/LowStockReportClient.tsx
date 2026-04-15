@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+	Package,
 	AlertTriangle,
 	ChevronDown,
 	ChevronLeft,
@@ -9,9 +10,7 @@ import {
 	Clock,
 	Download,
 	FileText,
-	RefreshCcw,
 	Search,
-	XCircle,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -65,7 +64,7 @@ interface NearExpiryApiResponse {
 	totalPages: number;
 }
 
-const ITEMS_PER_PAGE = 12;
+const ITEMS_PER_PAGE = 10;
 
 // ── Helpers ─────────────────────────────────────────────────
 const fmtDate = (v?: string | null) => {
@@ -83,8 +82,8 @@ const getStockColor = (item: LowStockItem) => {
 
 const getStockBadge = (item: LowStockItem) => {
 	if (item.availableStock === 0)
-		return "bg-red-50 text-red-700 border-red-200";
-	return "bg-orange-50 text-orange-700 border-orange-200";
+		return "";
+	return "";
 };
 
 const getStockLabel = (item: LowStockItem) => {
@@ -94,10 +93,10 @@ const getStockLabel = (item: LowStockItem) => {
 
 // Near Expiry urgency
 const getUrgencyBadge = (daysLeft: number | null) => {
-	if (daysLeft === null) return "bg-slate-100 text-slate-500 border-slate-200";
-	if (daysLeft <= 30) return "bg-rose-50 text-rose-700 border-rose-100";
-	if (daysLeft <= 60) return "bg-amber-50 text-amber-700 border-amber-100";
-	return "bg-yellow-50 text-yellow-700 border-yellow-100";
+	if (daysLeft === null) return "";
+	if (daysLeft <= 30) return "";
+	if (daysLeft <= 60) return "";
+	return "";
 };
 
 const getUrgencyLabel = (daysLeft: number | null) =>
@@ -112,8 +111,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	const [lsRows, setLsRows] = useState<LowStockItem[]>([]);
 	const [lsFetching, setLsFetching] = useState(true);
 	const [lsSearch, setLsSearch] = useState("");
-	const [lsCategory, setLsCategory] = useState("");
-	const [lsWarehouse, setLsWarehouse] = useState("");
+	const [lsCategory, setLsCategory] = useState("หมวดหมู่ทั้งหมด");
+	const [lsWarehouse, setLsWarehouse] = useState("ทุกคลัง");
 	const [lsPage, setLsPage] = useState(1);
 	const [isCatOpen, setIsCatOpen] = useState(false);
 	const [isWhOpen, setIsWhOpen] = useState(false);
@@ -134,11 +133,11 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	useEffect(() => { loadLowStock(); }, [loadLowStock]);
 
 	const lsCategoryOptions = useMemo(() =>
-		["", ...Array.from(new Set(lsRows.map((i) => i.category).filter(Boolean)))],
+		["หมวดหมู่ทั้งหมด", ...Array.from(new Set(lsRows.map((i) => i.category).filter(Boolean)))],
 		[lsRows],
 	);
 	const lsWarehouseOptions = useMemo(() =>
-		["", ...Array.from(new Set(lsRows.map((i) => i.warehouse).filter(Boolean)))],
+		["ทุกคลัง", ...Array.from(new Set(lsRows.map((i) => i.warehouse).filter(Boolean)))],
 		[lsRows],
 	);
 
@@ -146,8 +145,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		const kw = lsSearch.trim().toLowerCase();
 		return lsRows.filter((item) => {
 			const matchKw = !kw || item.code.toLowerCase().includes(kw) || item.name.toLowerCase().includes(kw) || item.category.toLowerCase().includes(kw);
-			const matchCat = !lsCategory || item.category === lsCategory;
-			const matchWh  = !lsWarehouse || item.warehouse === lsWarehouse;
+			const matchCat = lsCategory === "หมวดหมู่ทั้งหมด" || item.category === lsCategory;
+			const matchWh  = lsWarehouse === "ทุกคลัง" || item.warehouse === lsWarehouse;
 			return matchKw && matchCat && matchWh;
 		});
 	}, [lsRows, lsSearch, lsCategory, lsWarehouse]);
@@ -166,7 +165,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	const [neFetched, setNeFetched] = useState(false);
 	const [neSearch, setNeSearch] = useState("");
 	const [neDays, setNeDays] = useState<"90" | "60" | "30">("60");
-	const [neWarehouse, setNeWarehouse] = useState("");
+	const [neWarehouse, setNeWarehouse] = useState("ทุกคลัง");
 	const [nePage, setNePage] = useState(1);
 	const [isDaysOpen, setIsDaysOpen] = useState(false);
 	const [isNeWhOpen, setIsNeWhOpen] = useState(false);
@@ -197,7 +196,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	}, [neDays]);
 
 	const neWarehouseOptions = useMemo(() =>
-		["", ...Array.from(new Set(neRows.map((r) => r.warehouse).filter(Boolean)))],
+		["ทุกคลัง", ...Array.from(new Set(neRows.map((r) => r.warehouse).filter(Boolean)))],
 		[neRows],
 	);
 
@@ -205,7 +204,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		const kw = neSearch.trim().toLowerCase();
 		return neRows.filter((r) => {
 			const matchKw = !kw || r.lotCode.toLowerCase().includes(kw) || r.itemCode.toLowerCase().includes(kw) || r.itemName.toLowerCase().includes(kw);
-			const matchWh = !neWarehouse || r.warehouse === neWarehouse;
+			const matchWh = neWarehouse === "ทุกคลัง" || r.warehouse === neWarehouse;
 			return matchKw && matchWh;
 		});
 	}, [neRows, neSearch, neWarehouse]);
@@ -300,56 +299,30 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 
 	// Close all dropdowns on outside click
 	useEffect(() => {
-		const close = () => { setIsCatOpen(false); setIsWhOpen(false); setIsDaysOpen(false); setIsNeWhOpen(false); };
-		document.addEventListener("click", close);
-		return () => document.removeEventListener("click", close);
+		const handleClickOutside = (event: MouseEvent) => {
+			const target = event.target as HTMLElement;
+			if (!target.closest("[data-filter-ls-cat]")) setIsCatOpen(false);
+			if (!target.closest("[data-filter-ls-wh]")) setIsWhOpen(false);
+			if (!target.closest("[data-filter-ne-days]")) setIsDaysOpen(false);
+			if (!target.closest("[data-filter-ne-wh]")) setIsNeWhOpen(false);
+		};
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
 	}, []);
-
-	const outOfStockCount = lsRows.filter((i) => i.availableStock === 0).length;
-	const belowMinCount   = lsRows.filter((i) => i.availableStock > 0).length;
 
 	return (
 		<div className="flex flex-col min-h-screen bg-white p-8">
 			{/* Header */}
 			<div className="flex items-center justify-between mb-6">
 				<h2 className="text-3xl font-bold text-gray-800">รายงานแจ้งเตือนสต็อก</h2>
-				<div className="flex items-center gap-3">
+				{onBack && (
 					<button
 						type="button"
-						onClick={loadLowStock}
-						disabled={lsFetching}
-						className="p-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40"
-						title="โหลดใหม่"
+						onClick={onBack}
+						className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 text-sm font-semibold transition-colors"
 					>
-						<RefreshCcw className={`w-4 h-4 text-slate-500 ${lsFetching ? "animate-spin" : ""}`} />
+						ย้อนกลับ
 					</button>
-					{onBack && (
-						<button
-							type="button"
-							onClick={onBack}
-							className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 text-sm font-semibold transition-colors"
-						>
-							ย้อนกลับ
-						</button>
-					)}
-				</div>
-			</div>
-
-			{/* Summary badges */}
-			<div className="flex flex-wrap gap-3 mb-6">
-				<div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 border border-red-100">
-					<XCircle className="w-4 h-4 text-red-600" />
-					<span className="text-sm font-semibold text-red-700">หมดสต็อก: {outOfStockCount} รายการ</span>
-				</div>
-				<div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-50 border border-orange-100">
-					<AlertTriangle className="w-4 h-4 text-orange-600" />
-					<span className="text-sm font-semibold text-orange-700">ต่ำกว่า Min: {belowMinCount} รายการ</span>
-				</div>
-				{neFetched && (
-					<div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 border border-rose-100">
-						<Clock className="w-4 h-4 text-rose-600" />
-						<span className="text-sm font-semibold text-rose-700">ใกล้หมดอายุ: {neRows.length} รายการ</span>
-					</div>
 				)}
 			</div>
 
@@ -362,7 +335,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						onClick={() => setActiveTab(tab)}
 						className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
 							activeTab === tab
-								? "border-emerald-600 text-emerald-700"
+								? "border-blue-600 text-blue-700"
 								: "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
 						}`}
 					>
@@ -384,28 +357,28 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								placeholder="ค้นหารหัส / ชื่อสินค้า..."
 								value={lsSearch}
 								onChange={(e) => setLsSearch(e.target.value)}
-								className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
+								className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
 							/>
 						</div>
 
 						{/* Category */}
-						<div className="relative" onClick={(e) => e.stopPropagation()}>
+						<div className="relative" data-filter-ls-cat>
 							<button
 								type="button"
 								onClick={() => { setIsCatOpen((o) => !o); setIsWhOpen(false); }}
 								className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white shadow-sm hover:bg-slate-50 min-w-[170px]"
 							>
-								<span className="flex-1 text-left">{lsCategory || "หมวดหมู่ทั้งหมด"}</span>
-								<ChevronDown className="w-4 h-4 text-slate-400" />
+								<span className="flex-1 text-left">{lsCategory}</span>
+								<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCatOpen ? "rotate-180" : ""}`} />
 							</button>
 							{isCatOpen && (
-								<div className="absolute top-full mt-1 left-0 z-30 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[180px] max-h-56 overflow-y-auto">
+								<div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[180px] max-h-56 overflow-y-auto">
 									{lsCategoryOptions.map((c) => (
 										<button key={c} type="button"
 											onClick={() => { setLsCategory(c); setIsCatOpen(false); }}
-											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${lsCategory === c ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700"}`}
+											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${lsCategory === c ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
 										>
-											{c || "หมวดหมู่ทั้งหมด"}
+											{c}
 										</button>
 									))}
 								</div>
@@ -413,23 +386,23 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</div>
 
 						{/* Warehouse */}
-						<div className="relative" onClick={(e) => e.stopPropagation()}>
+						<div className="relative" data-filter-ls-wh>
 							<button
 								type="button"
 								onClick={() => { setIsWhOpen((o) => !o); setIsCatOpen(false); }}
 								className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white shadow-sm hover:bg-slate-50 min-w-[150px]"
 							>
-								<span className="flex-1 text-left">{lsWarehouse || "ทุกคลัง"}</span>
-								<ChevronDown className="w-4 h-4 text-slate-400" />
+								<span className="flex-1 text-left">{lsWarehouse}</span>
+								<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isWhOpen ? "rotate-180" : ""}`} />
 							</button>
 							{isWhOpen && (
-								<div className="absolute top-full mt-1 left-0 z-30 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[160px] max-h-56 overflow-y-auto">
+								<div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[160px] max-h-56 overflow-y-auto">
 									{lsWarehouseOptions.map((w) => (
 										<button key={w} type="button"
 											onClick={() => { setLsWarehouse(w); setIsWhOpen(false); }}
-											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${lsWarehouse === w ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700"}`}
+											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${lsWarehouse === w ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
 										>
-											{w || "ทุกคลัง"}
+											{w}
 										</button>
 									))}
 								</div>
@@ -437,67 +410,75 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</div>
 
 						<div className="ml-auto flex items-center gap-2">
-							<button type="button" onClick={handleLsExportPdf}
-								className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-sm font-semibold shadow-sm">
-								<FileText className="w-4 h-4" /> Export PDF
-							</button>
 							<button type="button" onClick={handleLsExportCsv}
-								className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-sm font-semibold shadow-sm">
-								<Download className="w-4 h-4" /> Export CSV
+							className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm font-semibold shadow-sm transition-colors shrink-0">
+							<Download className="w-4 h-4" /> Export CSV
+						</button>
+						<button type="button" onClick={handleLsExportPdf}
+							className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm font-semibold shadow-sm transition-colors shrink-0">
+							<FileText className="w-4 h-4" /> Export PDF
 							</button>
 						</div>
 					</div>
 
-					<div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "55vh" }}>
+					<div className="rounded-lg bg-white shadow-sm border border-slate-200 overflow-hidden relative flex flex-col" style={{ height: "55vh" }}>
 						{lsFetching && (
 							<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
-								<div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+								<div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
 						<div className="flex-1 overflow-auto">
-							<table className="w-full text-sm text-left table-fixed min-w-[900px]">
-								<thead>
-									<tr className="bg-slate-50 text-slate-700 text-[12px] font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
-										<th className="px-5 py-4 w-[46px] text-center">#</th>
-										<th className="px-5 py-4 w-[110px]">รหัสสินค้า</th>
-										<th className="px-5 py-4 w-[220px]">ชื่อสินค้า</th>
-										<th className="px-5 py-4 w-[140px]">หมวดหมู่</th>
-										<th className="px-5 py-4 w-[130px]">คลัง</th>
-										<th className="px-5 py-4 w-[110px] text-right">สต็อกที่ใช้ได้</th>
-										<th className="px-5 py-4 w-[100px] text-right">Min Stock</th>
-										<th className="px-5 py-4 w-[80px] text-right">ขาด</th>
-										<th className="px-5 py-4 w-[120px] text-center">สถานะ</th>
-									</tr>
-								</thead>
-								<tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
-									{lsPageItems.length > 0 ? lsPageItems.map((item, idx) => (
-										<tr key={item.id} className="hover:bg-slate-50 transition-colors">
-											<td className="px-5 py-4 text-center text-slate-400">{(lsPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-											<td className="px-5 py-4 font-mono text-slate-600">{item.code}</td>
-											<td className="px-5 py-4">
-												<div className="font-semibold text-slate-800 truncate">{item.name}</div>
-												<div className="text-xs text-slate-400">{item.unit}{item.hasLots && <span className="ml-1 text-blue-400">[LOT]</span>}</div>
-											</td>
-											<td className="px-5 py-4 text-slate-600">{item.category}</td>
-											<td className="px-5 py-4 text-slate-600">{item.warehouse}</td>
-											<td className={`px-5 py-4 text-right tabular-nums ${getStockColor(item)}`}>
-												{item.availableStock.toLocaleString()}
-											</td>
-											<td className="px-5 py-4 text-right text-slate-600 tabular-nums">{item.minStock.toLocaleString()}</td>
-											<td className="px-5 py-4 text-right font-bold text-rose-700 tabular-nums">{item.shortfall.toLocaleString()}</td>
-											<td className="px-5 py-4 text-center">
-												<span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getStockBadge(item)}`}>
-													{getStockLabel(item)}
-												</span>
-											</td>
-										</tr>
-									)) : (
-										<tr>
-											<td colSpan={9} className="text-center py-16">
-												<XCircle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-												<p className="text-sm text-slate-500">ไม่พบสินค้าต่ำกว่า Min Stock</p>
-											</td>
-										</tr>
+					<style>{`
+						div::-webkit-scrollbar {
+							width: 0;
+							height: 8px;
+						}
+						div::-webkit-scrollbar-track {
+							background: #f1f5f9;
+						}
+						div::-webkit-scrollbar-thumb {
+							background: #cbd5e1;
+							border-radius: 4px;
+						}
+						div::-webkit-scrollbar-thumb:hover {
+							background: #94a3b8;
+						}
+					`}</style>
+					<table className="w-full text-sm text-left table-fixed min-w-[900px]">
+						<thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+							<tr>
+								<th className="px-6 py-4 w-[46px] text-center">#</th>
+								<th className="px-6 py-4 w-[110px]">รหัสสินค้า</th>
+								<th className="px-6 py-4 w-[220px]">ชื่อสินค้า</th>
+								<th className="px-6 py-4 w-[140px]">หมวดหมู่</th>
+								<th className="px-6 py-4 w-[130px]">คลัง</th>
+								<th className="px-6 py-4 w-[110px]">สต็อกที่ใช้ได้</th>
+								<th className="px-6 py-4 w-[100px]">Min Stock</th>
+								<th className="px-6 py-4 w-[80px]">ขาด</th>
+								<th className="px-6 py-4 w-[100px]">หน่วย</th>
+								<th className="px-6 py-4 w-[120px]">สถานะ</th>
+							</tr>
+						</thead>
+						<tbody className="text-slate-600">
+							{lsPageItems.length > 0 ? lsPageItems.map((item, idx) => (
+								<tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+									<td className="px-6 py-3 w-[46px] text-center text-slate-400">{(lsPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+									<td className="px-6 py-3 w-[110px] font-mono text-slate-600">{item.code}</td>
+									<td className="px-6 py-3 w-[220px] font-mono text-slate-600 truncate">{item.name}</td>
+									<td className="px-6 py-3 w-[140px] font-mono text-slate-600">{item.category}</td>
+									<td className="px-6 py-3 w-[130px] font-mono text-slate-600">{item.warehouse}</td>
+									<td className="px-6 py-3 w-[110px] text-left font-mono text-slate-600 tabular-nums">{item.availableStock.toLocaleString()}</td>
+									<td className="px-6 py-3 w-[100px] text-left font-mono text-slate-600 tabular-nums">{item.minStock.toLocaleString()}</td>
+									<td className="px-6 py-3 w-[80px] text-left font-mono text-slate-600 tabular-nums">{item.shortfall.toLocaleString()}</td>
+									<td className="px-6 py-3 w-[100px] font-mono text-slate-600">{item.unit}</td>
+									<td className="px-6 py-3 w-[120px] text-left font-mono text-slate-600">{getStockLabel(item)}</td>
+								</tr>
+							)) : (
+								<tr>
+									<td colSpan={10} className="text-center py-16">
+										<p className="text-sm text-slate-500">ไม่พบสินค้าต่ำกว่า Min Stock</p>
+									</td>
+								</tr>
 									)}
 								</tbody>
 							</table>
@@ -507,16 +488,11 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 					<div className="flex items-center justify-between mt-4">
 						<p className="text-sm text-slate-500">
 							แสดง {lsPageItems.length} จาก {lsFiltered.length} รายการ
-							{lsRows.length > 0 && (
-								<span className="ml-3 text-xs text-slate-400">
-									(หมดสต็อก <span className="text-red-600 font-semibold">{outOfStockCount}</span> | ต่ำกว่า Min <span className="text-orange-500 font-semibold">{belowMinCount}</span>)
-								</span>
-							)}
 						</p>
 						<div className="flex items-center gap-2">
-							<button type="button" disabled={lsPage === 1} onClick={() => setLsPage((p) => p - 1)} className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronLeft className="w-4 h-4" /></button>
+							<button type="button" disabled={lsPage === 1} onClick={() => setLsPage((p) => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronLeft className="w-4 h-4" /></button>
 							<span className="text-sm font-medium px-1">หน้า {lsPage} / {lsTotalPages}</span>
-							<button type="button" disabled={lsPage >= lsTotalPages} onClick={() => setLsPage((p) => p + 1)} className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronRight className="w-4 h-4" /></button>
+							<button type="button" disabled={lsPage >= lsTotalPages} onClick={() => setLsPage((p) => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronRight className="w-4 h-4" /></button>
 						</div>
 					</div>
 				</>
@@ -533,12 +509,12 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								placeholder="ค้นหา LOT / รหัส / ชื่อสินค้า..."
 								value={neSearch}
 								onChange={(e) => setNeSearch(e.target.value)}
-								className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
+								className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
 							/>
 						</div>
 
 						{/* Days filter */}
-						<div className="relative" onClick={(e) => e.stopPropagation()}>
+						<div className="relative" data-filter-ne-days>
 							<button
 								type="button"
 								onClick={() => { setIsDaysOpen((o) => !o); setIsNeWhOpen(false); }}
@@ -546,14 +522,14 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 							>
 								<Clock className="w-4 h-4 text-slate-400" />
 								<span className="flex-1 text-left">ภายใน {neDays} วัน</span>
-								<ChevronDown className="w-4 h-4 text-slate-400" />
+								<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDaysOpen ? "rotate-180" : ""}`} />
 							</button>
 							{isDaysOpen && (
-								<div className="absolute top-full mt-1 left-0 z-30 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[150px]">
+								<div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[150px]">
 									{(["30", "60", "90"] as const).map((d) => (
 										<button key={d} type="button"
 											onClick={() => { setNeDays(d); setIsDaysOpen(false); }}
-											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${neDays === d ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700"}`}
+											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${neDays === d ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
 										>
 											ภายใน {d} วัน
 										</button>
@@ -563,23 +539,23 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</div>
 
 						{/* Warehouse filter */}
-						<div className="relative" onClick={(e) => e.stopPropagation()}>
+						<div className="relative" data-filter-ne-wh>
 							<button
 								type="button"
 								onClick={() => { setIsNeWhOpen((o) => !o); setIsDaysOpen(false); }}
 								className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white shadow-sm hover:bg-slate-50 min-w-[150px]"
 							>
-								<span className="flex-1 text-left">{neWarehouse || "ทุกคลัง"}</span>
-								<ChevronDown className="w-4 h-4 text-slate-400" />
+								<span className="flex-1 text-left">{neWarehouse}</span>
+								<ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isNeWhOpen ? "rotate-180" : ""}`} />
 							</button>
 							{isNeWhOpen && (
-								<div className="absolute top-full mt-1 left-0 z-30 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[160px] max-h-56 overflow-y-auto">
+								<div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[160px] max-h-56 overflow-y-auto">
 									{neWarehouseOptions.map((w) => (
 										<button key={w} type="button"
 											onClick={() => { setNeWarehouse(w); setIsNeWhOpen(false); }}
-											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${neWarehouse === w ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700"}`}
+											className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${neWarehouse === w ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
 										>
-											{w || "ทุกคลัง"}
+											{w}
 										</button>
 									))}
 								</div>
@@ -587,58 +563,70 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</div>
 
 						<div className="ml-auto flex items-center gap-2">
-							<button type="button" onClick={handleNeExportPdf}
-								className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-sm font-semibold shadow-sm">
-								<FileText className="w-4 h-4" /> Export PDF
-							</button>
 							<button type="button" onClick={handleNeExportCsv}
-								className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-sm font-semibold shadow-sm">
-								<Download className="w-4 h-4" /> Export CSV
+							className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm font-semibold shadow-sm transition-colors shrink-0">
+							<Download className="w-4 h-4" /> Export CSV
+						</button>
+						<button type="button" onClick={handleNeExportPdf}
+							className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm font-semibold shadow-sm transition-colors shrink-0">
+							<FileText className="w-4 h-4" /> Export PDF
 							</button>
 						</div>
 					</div>
 
-					<div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "55vh" }}>
+					<div className="rounded-lg bg-white shadow-sm border border-slate-200 overflow-hidden relative flex flex-col" style={{ height: "55vh" }}>
 						{neFetching && (
 							<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
-								<div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+								<div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
 						<div className="flex-1 overflow-auto">
-							<table className="w-full text-sm text-left table-fixed">
-								<thead>
-									<tr className="bg-slate-50 text-slate-700 text-[12px] font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
-										<th className="px-5 py-4 w-[46px] text-center">#</th>
-										<th className="px-5 py-4 w-[120px]">รหัส LOT</th>
-										<th className="px-5 py-4 w-[120px]">รหัสสินค้า</th>
-										<th className="px-5 py-4 w-[230px]">ชื่อสินค้า</th>
-										<th className="px-5 py-4 w-[150px]">คลัง</th>
-										<th className="px-5 py-4 w-[90px] text-right">จำนวน</th>
-										<th className="px-5 py-4 w-[120px]">วันหมดอายุ</th>
-										<th className="px-5 py-4 w-[120px]">คงเหลือ</th>
+							<style>{`
+								div::-webkit-scrollbar {
+									width: 0;
+									height: 8px;
+								}
+								div::-webkit-scrollbar-track {
+									background: #f1f5f9;
+								}
+								div::-webkit-scrollbar-thumb {
+									background: #cbd5e1;
+									border-radius: 4px;
+								}
+								div::-webkit-scrollbar-thumb:hover {
+									background: #94a3b8;
+								}
+							`}</style>
+							<table className="w-full text-sm text-left table-fixed min-w-[900px]">
+								<thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+									<tr>
+										<th className="px-6 py-4 w-[46px] text-center">#</th>
+										<th className="px-6 py-4 w-[120px]">รหัส LOT</th>
+										<th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
+										<th className="px-6 py-4 w-[230px]">ชื่อสินค้า</th>
+										<th className="px-6 py-4 w-[150px]">คลัง</th>
+										<th className="px-6 py-4 w-[90px]">จำนวน</th>
+										<th className="px-6 py-4 w-[90px]">หน่วย</th>
+										<th className="px-6 py-4 w-[120px]">วันหมดอายุ</th>
+										<th className="px-6 py-4 w-[120px]">คงเหลือ</th>
 									</tr>
 								</thead>
-								<tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
+								<tbody className="text-slate-600">
 									{nePageItems.length > 0 ? nePageItems.map((r, idx) => (
-										<tr key={r.id} className="hover:bg-slate-50 transition-colors">
-											<td className="px-5 py-4 text-center text-slate-400">{(nePage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-											<td className="px-5 py-4 font-mono text-slate-600">{r.lotCode}</td>
-											<td className="px-5 py-4 font-mono text-slate-600">{r.itemCode}</td>
-											<td className="px-5 py-4 font-medium text-slate-900">{r.itemName}</td>
-											<td className="px-5 py-4 text-slate-600">{r.warehouse}</td>
-											<td className="px-5 py-4 text-right font-semibold tabular-nums text-slate-800">
-												{r.quantity.toLocaleString()} <span className="text-slate-400 font-normal text-[11px]">{r.unit}</span>
-											</td>
-											<td className="px-5 py-4 text-slate-700 whitespace-nowrap">{fmtDate(r.expiredAt)}</td>
-											<td className="px-5 py-4">
-												<span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getUrgencyBadge(r.daysLeft)}`}>
-													{getUrgencyLabel(r.daysLeft)}
-												</span>
-											</td>
+										<tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+											<td className="px-6 py-3 w-[46px] text-center text-slate-400">{(nePage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+											<td className="px-6 py-3 w-[120px] font-mono text-slate-600">{r.lotCode}</td>
+											<td className="px-6 py-3 w-[120px] font-mono text-slate-600">{r.itemCode}</td>
+											<td className="px-6 py-3 w-[230px] font-mono text-slate-600">{r.itemName}</td>
+											<td className="px-6 py-3 w-[150px] font-mono text-slate-600">{r.warehouse}</td>
+											<td className="px-6 py-3 w-[90px] text-left font-mono text-slate-600 tabular-nums">{r.quantity.toLocaleString()}</td>
+											<td className="px-6 py-3 w-[90px] font-mono text-slate-600">{r.unit}</td>
+											<td className="px-6 py-3 w-[120px] font-mono text-slate-600 whitespace-nowrap">{fmtDate(r.expiredAt)}</td>
+											<td className="px-6 py-3 w-[120px] text-left font-mono text-slate-600">{getUrgencyLabel(r.daysLeft)}</td>
 										</tr>
 									)) : (
 										<tr>
-											<td colSpan={8} className="text-center py-16">
+											<td colSpan={9} className="text-center py-16">
 												<AlertTriangle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
 												<p className="text-sm text-slate-500">ไม่พบสินค้าใกล้หมดอายุภายใน {neDays} วัน</p>
 											</td>
@@ -652,9 +640,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 					<div className="flex items-center justify-between mt-4">
 						<p className="text-sm text-slate-500">แสดง {nePageItems.length} จาก {neFiltered.length} รายการ</p>
 						<div className="flex items-center gap-2">
-							<button type="button" disabled={nePage === 1} onClick={() => setNePage((p) => p - 1)} className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronLeft className="w-4 h-4" /></button>
+							<button type="button" disabled={nePage === 1} onClick={() => setNePage((p) => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronLeft className="w-4 h-4" /></button>
 							<span className="text-sm font-medium px-1">หน้า {nePage} / {neTotalPages}</span>
-							<button type="button" disabled={nePage >= neTotalPages} onClick={() => setNePage((p) => p + 1)} className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronRight className="w-4 h-4" /></button>
+							<button type="button" disabled={nePage >= neTotalPages} onClick={() => setNePage((p) => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white hover:bg-slate-50"><ChevronRight className="w-4 h-4" /></button>
 						</div>
 					</div>
 				</>

@@ -318,17 +318,52 @@ export default function LotClient({
   const fetchAllData = async () => {
     setLoading(true);
     try {
+      // Fetch with proper error handling
       const [lotsData, itemsData, warehousesData] = await Promise.all([
-        getLots(1, 10000),
-        getInventoryItems(),
-        getWarehousesOptions(),
+        getLots(1, 10000).catch(err => {
+          console.error("Failed to fetch lots:", err);
+          throw { endpoint: '/v1/lots', ...err };
+        }),
+        getInventoryItems().catch(err => {
+          console.error("Failed to fetch items:", err);
+          throw { endpoint: '/v1/items', ...err };
+        }),
+        getWarehousesOptions().catch(err => {
+          console.error("Failed to fetch warehouses:", err);
+          throw { endpoint: '/v1/warehouses/option', ...err };
+        }),
       ]);
 
       setLots(lotsData);
       if (itemsData && itemsData.length > 0) setItemsMaster(itemsData);
       if (warehousesData && warehousesData.length > 0) setWarehousesMaster(warehousesData);
-    } catch (error) {
-      console.error("Failed to fetch data", error);
+    } catch (error: any) {
+      const status = error?.status;
+      const endpoint = error?.endpoint;
+      const baseMessage = error?.message || 'ไม่ทราบข้อผิดพลาด';
+      
+      let userMessage = baseMessage;
+      
+      // Provide helpful error messages based on status code
+      if (status === 401 || status === 403) {
+        userMessage = 'กรุณาเข้าสู่ระบบก่อน หรือ session หมดอายุ กรุณา Refresh หน้าเว็บ';
+      } else if (status === 500) {
+        userMessage = 'เซิร์ฟเวอร์มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
+      } else if (status === 0 || !status) {
+        userMessage = 'ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบการเชื่อมต่อ';
+      }
+      
+      console.error("Failed to fetch data:", {
+        endpoint,
+        status,
+        message: baseMessage,
+        fullError: error
+      });
+      
+      SweetAlertUtils.error(
+        'ไม่สามารถโหลดข้อมูลได้',
+        userMessage
+      );
     } finally {
       setLoading(false);
     }
@@ -619,7 +654,7 @@ export default function LotClient({
       {/* Content - Main Lot Management Table */}
       <div className="space-y-6">
         <div 
-          className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col"
+          className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col"
           style={{ height: '65vh' }}
         >
           {loading && (
@@ -655,7 +690,7 @@ export default function LotClient({
               }
             `}</style>
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[60px] text-center">#</th>
                   <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
@@ -663,33 +698,35 @@ export default function LotClient({
                   <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
                   <th className="px-6 py-4 w-[150px]">หมวดหมู่</th>
                   <th className="px-6 py-4 w-[120px]">คงเหลือ</th>
+                   <th className="px-6 py-4 w-[120px]">หน่วย</th>
                   <th className="px-6 py-4 w-[120px]">วันหมดอายุ</th>
                   <th className="px-6 py-4 w-[120px]">สถานะ</th>
                   <th className="px-6 py-4 text-center w-[120px]">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tbody className="text-slate-600">
                 {currentItems.map((lot, idx) => {
                   const currentStatus = calculateStatus(lot.expiryDate);
                   const enrichedData = getEnrichedLotData(lot);
                   const rowNumber = startIndex + idx + 1;
                   return (
-                    <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-center font-medium text-slate-600">{rowNumber}</td>
-                      <td className="px-6 py-4 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
-                      <td className="px-6 py-4 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-800 line-clamp-2" title={enrichedData.itemName}>{enrichedData.itemName}</div>
+                    <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                      <td className="px-6 py-2.5 text-center font-medium text-slate-600">{rowNumber}</td>
+                      <td className="px-6 py-2.5 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
+                      <td className="px-6 py-2.5 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={enrichedData.itemName}>{enrichedData.itemName}</div>
                       </td>
-                      <td className="px-6 py-4 text-slate-600">{enrichedData.category}</td>
-                      <td className="px-6 py-4">{lot.quantity.toLocaleString()} {enrichedData.unit}</td>
-                      <td className={`px-6 py-4 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-2.5 text-slate-600">{enrichedData.category}</td>
+                      <td className="px-6 py-2.5 text-slate-600">{lot.quantity.toLocaleString()}</td>
+                      <td className="px-6 py-2.5 text-slate-600">{enrichedData.unit}</td>
+                      <td className={`px-6 py-2.5 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
+                      <td className="px-6 py-2.5">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${lot.status !== 'ACTIVE' ? 'bg-red-100 text-red-800' : currentStatus === 'ปกติ' ? 'bg-green-100 text-green-800' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
                           {lot.status !== 'ACTIVE' ? 'ระงับการใช้งาน' : (currentStatus === 'ปกติ' ? 'ใช้งานได้' : currentStatus)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-2.5 text-center">
                         <div className="flex justify-center gap-1">
                           <button onClick={() => handleToggleStatus(lot)} className={`p-2 rounded-lg transition-colors ${lot.status === 'ACTIVE' ? 'text-green-500 hover:bg-green-50' : 'text-red-400 hover:bg-red-50'}`} title={lot.status === 'ACTIVE' ? 'กดเพื่อระงับการใช้งาน' : 'กดเพื่อเปิดใช้งาน'}>
                             {lot.status === 'ACTIVE' ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
@@ -703,7 +740,7 @@ export default function LotClient({
                 })}
                 {currentItems.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

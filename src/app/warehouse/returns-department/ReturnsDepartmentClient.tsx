@@ -30,15 +30,9 @@ const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number =
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    "รอคลังรับงาน": "bg-amber-50 text-amber-700 border-amber-200",
-    "กำลังตรวจรับ": "bg-blue-50 text-blue-700 border-blue-200",
-    "ปิดงานแล้ว": "bg-green-50 text-green-700 border-green-200",
-  };
-
   const displayStatus = RETURN_REQUEST_STATUS_LABEL[status] || status;
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${styles[displayStatus] || "bg-gray-50"}`}>
+    <span className="text-sm text-slate-600">
       {displayStatus}
     </span>
   );
@@ -447,7 +441,7 @@ export default function ReturnsDepartmentClient() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+          <label className="text-sm text-slate-600 font-medium">ตั้งแต่</label>
           <input
             type="date"
             value={startDate}
@@ -456,7 +450,7 @@ export default function ReturnsDepartmentClient() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+          <label className="text-sm text-slate-600 font-medium">ถึง</label>
           <input
             type="date"
             value={endDate}
@@ -467,7 +461,7 @@ export default function ReturnsDepartmentClient() {
       </div>
 
       {/* Table Container */}
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "65vh" }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -501,7 +495,7 @@ export default function ReturnsDepartmentClient() {
             }
           `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[140px]">เลขที่คำขอ</th>
@@ -516,16 +510,16 @@ export default function ReturnsDepartmentClient() {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredRecords.map((rec, idx) => (
                 <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-slate-700 text-xs">{idx + 1}</td>
-                  <td className="px-6 py-4 font-mono text-sm text-black">{rec.doc_no}</td>
-                  <td className="px-6 py-4 text-slate-700 text-sm">{rec.department_name || "-"}</td>
-                  <td className="px-6 py-4 text-slate-700 text-sm">{rec.contact_name || "-"}</td>
-                  <td className="px-6 py-4 text-slate-700 text-sm text-left">{fmtDateTime(rec.preferred_pickup_at)}</td>
-                  <td className="px-6 py-4 text-slate-700 text-sm text-left">{getTotalItems(rec.items)}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-2.5 text-slate-700 text-xs">{idx + 1}</td>
+                  <td className="px-6 py-2.5 font-mono text-sm text-black">{rec.doc_no}</td>
+                  <td className="px-6 py-2.5 text-slate-700 text-sm">{rec.department_name || "-"}</td>
+                  <td className="px-6 py-2.5 text-slate-700 text-sm">{rec.contact_name || "-"}</td>
+                  <td className="px-6 py-2.5 text-slate-700 text-sm text-left">{fmtDateTime(rec.preferred_pickup_at)}</td>
+                  <td className="px-6 py-2.5 text-slate-700 text-sm text-left">{getTotalItems(rec.items)}</td>
+                  <td className="px-6 py-2.5">
                     <StatusBadge status={rec.status} />
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-2.5">
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={() => openProcessModal(rec)}

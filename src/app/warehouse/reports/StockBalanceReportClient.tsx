@@ -41,7 +41,7 @@ interface ApiResponse {
 	totalPages: number;
 }
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 10;
 
 const TYPE_LABEL: Record<string, string> = {
 	RECEIVE_IN:     "รับเข้า",
@@ -206,19 +206,10 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 			{/* Header */}
 			<div className="flex items-center justify-between mb-6">
 				<div className="flex items-center gap-3">
-					<ArrowDownUp className="w-7 h-7 text-emerald-600" />
 					<h2 className="text-3xl font-bold text-gray-800">รายงานความเคลื่อนไหวสต็อก</h2>
 				</div>
 				<div className="flex items-center gap-3">
-					<button
-						type="button"
-						onClick={loadData}
-						disabled={isFetching}
-						className="p-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40"
-						title="โหลดข้อมูลใหม่"
-					>
-						<RefreshCcw className={`w-4 h-4 text-slate-500 ${isFetching ? "animate-spin" : ""}`} />
-					</button>
+
 					{onBack && (
 						<button
 							type="button"
@@ -264,7 +255,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 									key={o.value}
 									type="button"
 									onClick={() => { setSelectedType(o.value); setIsTypeOpen(false); }}
-									className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${selectedType === o.value ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700"}`}
+									className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${selectedType === o.value ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
 								>
 									{o.label}
 								</button>
@@ -290,7 +281,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 									key={o.value}
 									type="button"
 									onClick={() => { setWarehouseFilter(o.value); setIsWarehouseOpen(false); }}
-									className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${warehouseFilter === o.value ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700"}`}
+									className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${warehouseFilter === o.value ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
 								>
 									{o.label}
 								</button>
@@ -306,14 +297,14 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 						type="date"
 						value={startDate}
 						onChange={(e) => setStartDate(e.target.value)}
-						className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
+					className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
 					/>
 					<label className="text-xs font-medium text-slate-500">ถึง</label>
 					<input
 						type="date"
 						value={endDate}
 						onChange={(e) => setEndDate(e.target.value)}
-						className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
+					className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
 					/>
 				</div>
 
@@ -322,7 +313,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 					<button
 						type="button"
 						onClick={handleExportPdf}
-						className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm"
+						className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold shadow-sm"
 					>
 						<FileText className="w-4 h-4" />
 						Export PDF
@@ -330,7 +321,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 					<button
 						type="button"
 						onClick={handleExportCsv}
-						className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors text-sm font-semibold shadow-sm"
+						className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold shadow-sm"
 					>
 						<Download className="w-4 h-4" />
 						Export CSV
@@ -340,19 +331,19 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 
 			{/* Table */}
 			<div
-				className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col"
-				style={{ height: "65vh" }}
+				className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col"
+				style={{ height: "63vh" }}
 				onClick={() => { setIsTypeOpen(false); setIsWarehouseOpen(false); }}
 			>
 				{isFetching && (
 					<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
-						<div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+						<div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
 					</div>
 				)}
 				<div className="flex-1 overflow-auto">
-					<table className="w-full text-sm text-left table-fixed min-w-[900px]">
-						<thead>
-							<tr className="bg-slate-50 text-slate-700 text-[12px] font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+					<table className="w-full text-sm text-left table-fixed">
+						<thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+							<tr className="text-[12px]">
 								<th className="px-4 py-4 w-[46px] text-center">#</th>
 								<th className="px-4 py-4 w-[150px]">วันที่/เวลา</th>
 								<th className="px-4 py-4 w-[110px]">ประเภท</th>
@@ -362,42 +353,39 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 								<th className="px-4 py-4 w-[90px] text-right">จำนวน</th>
 								<th className="px-4 py-4 w-[150px]">ผู้ดำเนินการ</th>
 								<th className="px-4 py-4 w-[130px]">แผนก</th>
-								<th className="px-4 py-4 w-[150px]">หมายเหตุ</th>
+
 							</tr>
 						</thead>
-						<tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
+						<tbody className="text-slate-600 text-sm">
 							{paginated.length > 0 ? (
 								paginated.map((r, idx) => {
 									const isIn = IN_TYPES.has(r.type);
 									return (
-										<tr key={r.id} className="hover:bg-slate-50 transition-colors">
-											<td className="px-4 py-4 text-center text-slate-400">
+										<tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+											<td className="px-4 py-4 text-center text-slate-600">
 												{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}
 											</td>
-											<td className="px-4 py-4 text-slate-500 whitespace-nowrap text-xs">
+											<td className="px-4 py-4 text-slate-600 whitespace-nowrap text-xs">
 												{fmtDateTime(r.date)}
 											</td>
 											<td className="px-4 py-4">
-												<span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${TYPE_BADGE[r.type] ?? "bg-slate-50 text-slate-500 border-slate-200"}`}>
-													{TYPE_LABEL[r.type] ?? r.type}
-												</span>
+											{TYPE_LABEL[r.type] ?? r.type}
 											</td>
-											<td className="px-4 py-4 font-mono text-slate-600">{r.itemCode}</td>
-											<td className="px-4 py-4 font-medium text-slate-900">{r.itemName}</td>
+											<td className="px-4 py-4 text-slate-600">{r.itemCode}</td>
+											<td className="px-4 py-4 text-slate-600">{r.itemName}</td>
 											<td className="px-4 py-4 text-slate-600">{r.warehouse}</td>
 											<td className={`px-4 py-4 text-right font-semibold tabular-nums ${isIn ? "text-emerald-600" : "text-rose-600"}`}>
 												{isIn ? "+" : "-"}{r.quantity.toLocaleString()}
-												<span className="text-slate-400 font-normal ml-1 text-[11px]">{r.unit}</span>
+												<span className="text-slate-500 font-normal ml-1 text-[11px]">{r.unit}</span>
 											</td>
-											<td className="px-4 py-4 text-slate-700">{r.operatorName || "-"}</td>
+											<td className="px-4 py-4 text-slate-600">{r.operatorName || "-"}</td>
 											<td className="px-4 py-4 text-slate-600">{r.departmentName || "-"}</td>
-											<td className="px-4 py-4 text-slate-400 truncate max-w-[150px]" title={r.note}>{r.note || "-"}</td>
 										</tr>
 									);
 								})
 							) : (
 								<tr>
-									<td colSpan={10} className="text-center py-16">
+									<td colSpan={9} className="text-center py-16">
 										<ArrowDownUp className="w-10 h-10 text-slate-300 mx-auto mb-2" />
 										<p className="text-sm text-slate-500">ไม่พบรายการความเคลื่อนไหวสต็อก</p>
 									</td>

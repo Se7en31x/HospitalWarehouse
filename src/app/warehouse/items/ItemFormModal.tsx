@@ -379,7 +379,7 @@ export default function ItemFormModal({
           {/* Content */}
           <div className="p-8 space-y-6">
             {/* Form Section */}
-            <div className="bg-white rounded-lg p-6 border border-slate-300 shadow-sm">
+            <div className="">
               <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
                 <Package className="w-5 h-5 text-slate-500" />
                 ข้อมูลพัสดุ
@@ -808,7 +808,7 @@ export default function ItemFormModal({
                 {/* Min Stock */}
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-700">
-                    จำนวนขั้นต่ำ (Min Stock)
+                    จำนวนขั้นต่ำ
                   </label>
                   <input
                     type="number"

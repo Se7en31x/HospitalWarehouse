@@ -302,7 +302,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
         </div> */}
       </div>
 
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -336,7 +336,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
             }
           `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
@@ -344,15 +344,16 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4 w-[300px]">ชื่อพัสดุ</th>
                 <th className="px-6 py-4 w-[200px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[150px]">คงเหลือ</th>
+                <th className="px-6 py-4 w-[120px]">หน่วย</th>
                 <th className="px-6 py-4 w-[150px]">สถานะ</th>
                 <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4 w-[100px]">
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                  <td className="px-6 py-3 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-3 w-[100px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <button
@@ -366,14 +367,15 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">{item.code}</td>
-                  <td className="px-6 py-4">{item.name}</td>
-                  <td className="px-6 py-4 text-slate-600">
+                  <td className="px-6 py-3">{item.code}</td>
+                  <td className="px-6 py-3">{item.name}</td>
+                  <td className="px-6 py-3 text-slate-600">
                     {item.category}
                   </td>
-                  <td className="px-6 py-4">{item.stock} {item.unit}</td>
-                  <td className="px-6 py-4 w-[150px]"><Badge status={item.status} /></td>
-                  <td className="px-6 py-4 w-[100px] text-center">
+                  <td className="px-6 py-3">{item.stock}</td>
+                   <td className="px-6 py-3">{item.unit}</td>
+                  <td className="px-6 py-3 w-[150px]"><Badge status={item.status} /></td>
+                  <td className="px-6 py-3 w-[100px] text-center">
                     <div className="flex justify-between gap-1">
                       <button onClick={() => openEditModal(item)} className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"><Edit className="w-5 h-5"/></button>
                       <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-5 h-5"/></button>
@@ -383,7 +385,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

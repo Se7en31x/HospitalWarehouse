@@ -111,45 +111,51 @@ const ReportTypeSelector: React.FC<ReportTypeSelectorProps> = ({
 				</div>
 			</div>
 
-			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
-				{reportTypeOptions.map((option) => {
-					const isSelected = selectedType === option.id;
-					const count =
-						counts && option.countKey ? counts[option.countKey] : undefined;
+			<div className="rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
+				<div className="overflow-x-auto">
+					<table className="w-full text-left text-sm text-slate-600">
+						<thead className="bg-slate-50 text-slate-900 border-b border-slate-200">
+							<tr>
+								<th className="px-6 py-4 font-bold whitespace-nowrap">ชื่อรายงาน</th>
+								<th className="px-6 py-4 font-bold">รายละเอียด</th>
+								<th className="px-6 py-4 font-bold text-center whitespace-nowrap w-32"></th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-slate-100">
+							{reportTypeOptions.map((option) => {
+								const isSelected = selectedType === option.id;
+								const count =
+									counts && option.countKey ? counts[option.countKey] : undefined;
 
-					return (
-						<button
-							key={option.id}
-							onClick={() => onSelectType(option.id)}
-							aria-pressed={isSelected}
-							className={`group relative min-h-[184px] overflow-hidden rounded-[24px] border border-slate-200 bg-white p-5 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_16px_36px_rgba(15,23,42,0.08)]`}
-						>
-							<div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-
-							<div className="relative z-10">
-								<div className="flex items-start justify-between gap-3 mb-5">
-									<div
-										className={`min-w-[52px] rounded-2xl px-3 py-2.5 text-center shadow-sm ${option.countBg}`}
+								return (
+									<tr
+										key={option.id}
+										onClick={() => onSelectType(option.id)}
+										className="group transition-colors duration-150 cursor-pointer bg-white hover:bg-slate-50"
+										aria-selected={isSelected}
 									>
-										<span
-											className={`block text-[22px] leading-none font-semibold ${option.countText}`}
-										>
-											{count !== undefined ? count.toLocaleString() : "0"}
-										</span>
-									</div>
-									<ChevronRight className="mt-1 h-5 w-5 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-slate-400" />
-								</div>
-
-								<h3 className="text-[15px] sm:text-base font-semibold text-slate-900 leading-snug mb-2">
-									{option.label}
-								</h3>
-								<p className="text-sm leading-6 text-slate-500">
-									{option.description}
-								</p>
-							</div>
-						</button>
-					);
-				})}
+										<td className="px-6 py-4 whitespace-nowrap">
+											<span className="font-medium text-slate-900 group-hover:text-indigo-600 transition-colors duration-150">
+												{option.label}
+											</span>
+										</td>
+										<td className="px-6 py-4">
+											<span className="text-slate-500 group-hover:text-slate-700 transition-colors duration-150">
+												{option.description}
+											</span>
+										</td>
+										<td className="px-6 py-4 text-center whitespace-nowrap w-32">
+											<div className="inline-flex items-center justify-center gap-1 text-slate-500 font-medium group-hover:text-indigo-600 transition-colors duration-150">
+												<span className="text-sm">เปิดดู</span>
+												<ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+											</div>
+										</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
+				</div>
 			</div>
 		</div>
 	);

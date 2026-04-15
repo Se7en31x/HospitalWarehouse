@@ -12,7 +12,13 @@ export default async function WarehouseItemsPage() {
   try {
     items = await getInventoryItems();
   } catch (error) {
-    console.error("Failed to fetch items during server rendering:", error);
+    const errorInfo = {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      status: (error as any)?.status,
+      originalError: error,
+    };
+    console.error("Failed to fetch items during server rendering:", errorInfo);
     // Return empty array - client will fetch data when component mounts
     items = [];
   }

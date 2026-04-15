@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -259,7 +259,7 @@ export default function ReturnsClient() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+          <label className="text-sm text-slate-600 font-medium">ตั้งแต่</label>
           <input
             type="date"
             value={startDate}
@@ -268,7 +268,7 @@ export default function ReturnsClient() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+          <label className="text-sm text-slate-600 font-medium">ถึง</label>
           <input
             type="date"
             value={endDate}
@@ -279,7 +279,7 @@ export default function ReturnsClient() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: "65vh" }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "65vh" }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
@@ -289,7 +289,7 @@ export default function ReturnsClient() {
         )}
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
@@ -302,7 +302,7 @@ export default function ReturnsClient() {
                 <th className="px-6 py-4 text-center w-[110px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-700">
               {displayRecords.map((r, idx) => {
                 const uiStatus = mapUiStatus(r);
                 const overdue = getDaysOverdue(r);
@@ -310,38 +310,33 @@ export default function ReturnsClient() {
                 const ext = isExternal(r);
 
                 return (
-                  <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-slate-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                    <td className="px-6 py-4 font-mono text-sm text-black">{r.doc_no}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${ext ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
-                        {ext ? <User className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
-                        {ext ? "ภายนอก" : "ภายใน"}
-                      </span>
+                  <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                    <td className="px-6 py-2.5 text-slate-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                    <td className="px-6 py-2.5 font-mono text-sm text-black">{r.doc_no}</td>
+                    <td className="px-6 py-2.5 text-slate-600 text-sm">
+                      {ext ? "ภายนอก" : "ภายใน"}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-2.5">
                       <div className="text-gray-800 text-sm truncate">{r.requester || "-"}</div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-2.5">
                       <div className="text-gray-800 text-sm truncate">{getBorrowerDisplay(r)}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">{r.item_count ?? 0}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-2.5 text-slate-600">{r.item_count ?? 0}</td>
+                    <td className="px-6 py-2.5">
                       <div className="text-sm text-slate-700">{fmtDate(r.due_date)}</div>
                       {overdue > 0 && (
                         <div className="text-xs text-red-600 font-bold">ค้าง {overdue} วัน</div>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${getStatusBadgeColor(uiStatus)}`}>
-                        {uiStatus}
-                      </span>
+                    <td className="px-6 py-2.5 text-slate-600 text-sm">
+                      {uiStatus}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-2.5">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => openDetail(r.id)}
-                          className="p-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition"
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                           title="ดูรายละเอียดและรับคืน"
                         >
                           <Eye className="w-5 h-5" />

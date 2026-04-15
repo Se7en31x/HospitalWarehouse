@@ -34,10 +34,9 @@ const STATUS_CONFIG: Record<ReceiveStatus, { color: string; label: string; dot: 
 };
 
 const StatusBadge = ({ status }: { status: string }) => {
-    const cfg = STATUS_CONFIG[status as ReceiveStatus] ?? { color: "bg-gray-100 text-gray-700", label: status, dot: "bg-gray-400" };
+    const cfg = STATUS_CONFIG[status as ReceiveStatus] ?? { color: "", label: status, dot: "" };
     return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${cfg.color}`}>
-            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${cfg.dot}`} />
+        <span className="text-sm text-slate-600">
             {cfg.label}
         </span>
     );
@@ -252,7 +251,7 @@ export default function ReceiveClient() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600 font-medium">วันที่เริ่มต้น</label>
+                    <label className="text-sm text-slate-600 font-medium">ตั้งแต่</label>
                     <input
                         type="date"
                         value={startDate}
@@ -261,7 +260,7 @@ export default function ReceiveClient() {
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600 font-medium">วันที่สิ้นสุด</label>
+                    <label className="text-sm text-slate-600 font-medium">ถึง</label>
                     <input
                         type="date"
                         value={endDate}
@@ -272,7 +271,7 @@ export default function ReceiveClient() {
             </div>
 
             {/* Table */}
-            <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
                 {isFetching && (
                     <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
                         <div className="animate-spin">
@@ -306,7 +305,7 @@ export default function ReceiveClient() {
                     }
                   `}</style>
                     <table className="w-full text-sm text-left table-fixed">
-                        <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+                        <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                             <tr>
                                 <th className="px-6 py-4 w-[50px]">#</th>
                                 <th className="px-6 py-4 w-[200px]">เลขที่เอกสาร</th>
@@ -318,31 +317,31 @@ export default function ReceiveClient() {
                                 <th className="px-6 py-4 w-[80px] text-center">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                        <tbody className="text-slate-600">
                             {records.map((rec, idx) => (
-                                <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 w-[50px]">{(page - 1) * limit + idx + 1}</td>
-                                    <td className="px-6 py-4 font-mono font-medium text-blue-900 whitespace-nowrap">
+                                <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                                    <td className="px-6 py-2.5 w-[50px]">{(page - 1) * limit + idx + 1}</td>
+                                    <td className="px-6 py-2.5 font-mono text-slate-600 whitespace-nowrap">
                                         {rec.doc_no}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
+                                    <td className="px-6 py-2.5 whitespace-nowrap">
                                         {formatDate(rec.receive_date)}
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600">
+                                    <td className="px-6 py-2.5 text-slate-600">
                                         {TYPE_LABEL[rec.type as ReceiveType] ?? rec.type}
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-2.5">
                                         <div className="line-clamp-1" title={rec.supplier_name || rec.donor_name || undefined}>
                                             {rec.supplier_name || rec.donor_name || "-"}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-center font-semibold">
+                                    <td className="px-6 py-2.5 text-center">
                                         {rec.receive_item?.length ?? 0}
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-2.5">
                                         <StatusBadge status={rec.status} />
                                     </td>
-                                    <td className="px-6 py-4 text-center">
+                                    <td className="px-6 py-2.5 text-center">
                                         <button
                                             onClick={() => {
                                                 const idNum = Number(rec.id);
