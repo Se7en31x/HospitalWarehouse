@@ -143,7 +143,7 @@ export default function ReturnsClient() {
   const fetchRecords = useCallback(async () => {
     setIsFetching(true);
     try {
-      const result = await getAllRequisitions({ type: "BORROW", limit: 500 });
+      const result = await getAllRequisitions({ type: "BORROW", limit: 10 });
       if (result && result.success !== false) {
         let data: RequisitionHeader[] = [];
         if (Array.isArray(result.data)) {

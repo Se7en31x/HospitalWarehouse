@@ -882,8 +882,8 @@ export default function ItemFormModal({
                         disabled={key === "allowed_borrow" && !isReusableType}
                         className="flex items-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 relative border ${formData[key] ? "bg-indigo-500 border-indigo-500" : "bg-slate-200 border-slate-300"}`}>
-                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${formData[key] ? "translate-x-5" : "translate-x-0"}`} />
+                        <div className={`w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 relative ${formData[key] ? "bg-[#0055FF]" : "bg-gray-200"}`}>
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.25)] transition-transform duration-200 ${formData[key] ? "translate-x-5" : "translate-x-0"}`} />
                         </div>
                         <div className="text-left">
                           <p className="text-sm font-medium text-slate-700">{label}</p>
@@ -902,14 +902,14 @@ export default function ItemFormModal({
           <div className="sticky bottom-0 py-3 px-8 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-lg">
             <button
               onClick={onCloseAction}
-              className="px-6 py-2.5 font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              className="px-6 py-2.5 font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               ยกเลิก
             </button>
             <button
               disabled={isLoading}
               onClick={handleSubmit}
-              className="px-8 py-2.5 font-semibold text-white bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-300 rounded-lg shadow-lg flex items-center gap-2 transition-colors"
+              className="px-8 py-2.5 font-semibold text-white bg-[#0055FF] hover:bg-[#0044DD] disabled:bg-gray-300 rounded-lg shadow-md flex items-center gap-2 transition-colors"
             >
               {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
               <Save className="w-4 h-4" />

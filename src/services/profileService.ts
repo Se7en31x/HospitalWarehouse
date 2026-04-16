@@ -42,5 +42,10 @@ export interface UserProfile {
   created_at:   string | null;
 }
 
-export const getProfile = async (): Promise<UserProfile> =>
-  api.get<UserProfile>('/v1/user/profile');
+/**
+ * Fetch the current user's profile.
+ * Pass `token` from a Server Component to authenticate the SSR request.
+ * Omit it for client-side calls — the browser session is used automatically.
+ */
+export const getProfile = async (token?: string): Promise<UserProfile> =>
+  api.get<UserProfile>('/v1/user/profile', undefined, token);

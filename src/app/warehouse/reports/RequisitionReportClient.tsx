@@ -58,7 +58,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 		setIsLoading(true);
 		try {
 			const [recordsData, departmentOptions] = await Promise.all([
-				getAllRequisitionsPages({ limit: 100 }),
+				getAllRequisitionsPages({ limit: 10 }),
 				getDepartmentOptions().catch(() => []),
 			]);
 			const lookup: Record<string, string> = {};

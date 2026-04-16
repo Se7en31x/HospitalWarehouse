@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import {
   Plus,
   Minus,
@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
+  Search,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -26,6 +27,8 @@ import withReactContent from "sweetalert2-react-content";
 // ✅ Import Services และ Types
 import * as ItemSvc from "@/services/itemsService";
 import * as RequisitionSvc from "@/services/requisitionService";
+import * as LookupSvc from "@/services/lookupService";
+import type { ProvinceOption, DistrictOption, SubdistrictOption } from "@/services/lookupService";
 import { RequisitionPayload } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
@@ -55,6 +58,18 @@ interface Department {
   code: string;
   name: string;
 }
+// Map English system names → Thai display names
+const DEPT_TH: Record<string, string> = {
+  "Emergency":       "แผนกฉุกเฉิน",
+  "Dental":          "แผนกทันตกรรม",
+  "Palliative":      "ศูนย์ชีวาภิบาล",
+  "OPD":             "แผนกผู้ป่วยนอก",
+  "IPD":             "แผนกผู้ป่วยใน",
+  "MedicalRecords":  "แผนกเวชระเบียน",
+  "Pharmacy":        "ห้องจ่ายยา",
+  "Warehouse":       "คลังหลัก",
+};
+const deptDisplayName = (name: string): string => DEPT_TH[name] ?? name;
 
 interface ExternalPersonForm {
   fullName: string;
@@ -62,6 +77,10 @@ interface ExternalPersonForm {
   subdistrict: string;
   district: string;
   province: string;
+  // IDs are used for chained API calls only — names above go into the submission
+  provinceId: string;
+  districtId: string;
+  subdistrictId: string;
   postalCode: string;
   phone: string;
   returnDate: string;
@@ -90,6 +109,9 @@ const initialExternalForm: ExternalPersonForm = {
   subdistrict: "",
   district: "",
   province: "",
+  provinceId: "",
+  districtId: "",
+  subdistrictId: "",
   postalCode: "",
   phone: "",
   returnDate: "",
@@ -125,6 +147,25 @@ export default function BorrowCartModal({
   const [fileError, setFileError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Address lookup state ─────────────────────────────────────────────────
+  const [provinces, setProvinces]             = useState<ProvinceOption[]>([]);
+  const [districts, setDistricts]             = useState<DistrictOption[]>([]);
+  const [subdistricts, setSubdistricts]       = useState<SubdistrictOption[]>([]);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingSubs, setLoadingSubs]           = useState(false);
+
+  // Guards against stale async responses when the user changes province/district
+  // before the previous fetch completes (classic race condition).
+  const expectedProvinceRef = useRef<string>("");
+  const expectedDistrictRef = useRef<string>("");
+
+  // ── Tabbed address picker state ──────────────────────────────────────────
+  const [isAddressOpen, setIsAddressOpen]       = useState(false);
+  const [addressTab, setAddressTab]             = useState<'province' | 'district' | 'subdistrict'>('province');
+  const [addressSearch, setAddressSearch]       = useState("");
+  const addressPickerRef                        = useRef<HTMLDivElement>(null);
+
   // ✅ Handle click-outside to close dropdown
   React.useEffect(() => {
     if (!isDeptOpen) return;
@@ -144,8 +185,22 @@ export default function BorrowCartModal({
   React.useEffect(() => {
     if (!showCartModal) {
       setIsDeptOpen(false);
+      setIsAddressOpen(false);
     }
   }, [showCartModal]);
+
+  // ✅ Close address picker on outside click
+  React.useEffect(() => {
+    if (!isAddressOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (addressPickerRef.current && !addressPickerRef.current.contains(e.target as Node)) {
+        setIsAddressOpen(false);
+        setAddressSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isAddressOpen]);
 
   // --- [Helper Actions] ---
   const removeFromCart = useCallback(
@@ -179,22 +234,126 @@ export default function BorrowCartModal({
     setExternalForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  // ── Load provinces once when modal opens ────────────────────────────────
+  React.useEffect(() => {
+    if (!showCartModal || provinces.length > 0) return;
+    setLoadingProvinces(true);
+    LookupSvc.getProvinces()
+      .then(setProvinces)
+      .catch(() => {})
+      .finally(() => setLoadingProvinces(false));
+  }, [showCartModal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Chained pickers (called directly, not via <select> onChange) ─────────
+
+  const pickProvince = async (id: string) => {
+    const name = provinces.find((p) => p.id === id)?.name ?? "";
+    expectedProvinceRef.current = id;
+    setExternalForm((prev) => ({
+      ...prev,
+      provinceId: id, province: name,
+      districtId: "", district: "",
+      subdistrictId: "", subdistrict: "",
+      postalCode: "",                    // clear zip on province change
+    }));
+    setDistricts([]);
+    setSubdistricts([]);
+    setAddressSearch("");
+    setAddressTab("district");
+    setLoadingDistricts(true);
+    try {
+      const data = await LookupSvc.getDistricts(id);
+      if (expectedProvinceRef.current === id) setDistricts(data);
+    } catch { /* ignore */ } finally {
+      if (expectedProvinceRef.current === id) setLoadingDistricts(false);
+    }
+  };
+
+  const pickDistrict = async (id: string) => {
+    const found = districts.find((d) => d.id === id);
+    const name  = found?.name ?? "";
+    expectedDistrictRef.current = id;
+    setExternalForm((prev) => ({
+      ...prev,
+      districtId: id, district: name,
+      subdistrictId: "", subdistrict: "",
+      postalCode: "",                    // clear zip on district change; fills only on subdistrict pick
+    }));
+    setSubdistricts([]);
+    setAddressSearch("");
+    setAddressTab("subdistrict");
+    setLoadingSubs(true);
+    try {
+      const data = await LookupSvc.getSubdistricts(id);
+      if (expectedDistrictRef.current === id) setSubdistricts(data);
+    } catch { /* ignore */ } finally {
+      if (expectedDistrictRef.current === id) setLoadingSubs(false);
+    }
+  };
+
+  const pickSubdistrict = (id: string) => {
+    const found   = subdistricts.find((s) => s.id === id);
+    const name    = found?.name    ?? "";
+    const zipCode = found?.zip_code ?? "";   // zip from subdistrict row
+    setExternalForm((prev) => ({
+      ...prev,
+      subdistrictId: id,
+      subdistrict: name,
+      postalCode: zipCode || prev.postalCode,
+    }));
+    setAddressSearch("");
+    setIsAddressOpen(false);
+  };
+
+  // ── Filtered lists for current tab+search ────────────────────────────────
+  const filteredProvinces = useMemo(() => {
+    const q = addressSearch.trim().toLowerCase();
+    return q ? provinces.filter((p) => p.name.toLowerCase().includes(q)) : provinces;
+  }, [provinces, addressSearch]);
+
+  const filteredDistricts = useMemo(() => {
+    const q = addressSearch.trim().toLowerCase();
+    return q ? districts.filter((d) => d.name.toLowerCase().includes(q)) : districts;
+  }, [districts, addressSearch]);
+
+  const filteredSubdistricts = useMemo(() => {
+    const q = addressSearch.trim().toLowerCase();
+    return q ? subdistricts.filter((s) => s.name.toLowerCase().includes(q)) : subdistricts;
+  }, [subdistricts, addressSearch]);
+
+  // ── Address summary pill label ────────────────────────────────────────────
+  const addressSummary = useMemo(() => {
+    const parts = [
+      externalForm.province,
+      externalForm.district,
+      externalForm.subdistrict,
+    ].filter(Boolean);
+    return parts.join(", ") || null;
+  }, [externalForm.province, externalForm.district, externalForm.subdistrict]);
+
   // ✅ Handle File Upload
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setFileError("");
     if (!file) return;
 
-    const allowedTypes = ["application/pdf", "image/png", "image/jpeg"];
+    const allowedTypes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+    ];
     if (!allowedTypes.includes(file.type)) {
-      setFileError("รองรับเฉพาะไฟล์ PDF, PNG, JPG เท่านั้น");
+      setFileError("รองรับ PDF, JPG, PNG, WEBP, HEIC/HEIF เท่านั้น");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024; // 5 MB
+    const maxSize = 10 * 1024 * 1024; // 10 MB
     if (file.size > maxSize) {
-      setFileError("ขนาดไฟล์ต้องไม่เกิน 5 MB");
+      setFileError("ขนาดไฟล์ต้องไม่เกิน 10 MB");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -373,6 +532,19 @@ export default function BorrowCartModal({
 
       const res = await RequisitionSvc.createRequisition(payload);
       if (!res.success) throw new Error(res.message || "เกิดข้อผิดพลาดในการสร้างใบยืม");
+
+      // Upload document to borrowers folder if one was attached
+      const borrowerId = res.data?.borrower_details?.id;
+      if (externalForm.document && borrowerId) {
+        try {
+          const fd = new FormData();
+          fd.append("document", externalForm.document);
+          await RequisitionSvc.uploadBorrowerDocument(borrowerId, fd);
+        } catch {
+          // Non-fatal: requisition already created, just warn
+          console.warn("Document upload failed — requisition was still created");
+        }
+      }
 
       await MySwal.fire({
         title: "สำเร็จ",
@@ -583,46 +755,57 @@ export default function BorrowCartModal({
                   </div>
 
                   {/* Operator Department Section */}
-                  <div className="border border-slate-300 rounded-lg p-4">
-                    <div className="relative" data-dept-dropdown>
-                      <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">
+                  <div className="border border-slate-200 rounded-xl bg-white shadow-sm" data-dept-dropdown>
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
+                      <User className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-bold text-slate-700">
                         แผนกของผู้ดำเนินการ <span className="text-red-500">*</span>
-                      </label>
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      {/* Trigger button */}
                       <button
                         type="button"
                         onClick={() => setIsDeptOpen(!isDeptOpen)}
                         disabled={isSubmitting}
-                        className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm disabled:opacity-50"
+                        className={`flex items-center justify-between gap-2 w-full border rounded-lg px-4 py-2.5 text-sm bg-white transition-colors disabled:opacity-50 ${
+                          isDeptOpen
+                            ? "border-blue-500 ring-2 ring-blue-200"
+                            : "border-slate-200 hover:border-blue-400"
+                        }`}
                       >
-                        <span className="text-slate-800 font-medium">
+                        <span className={externalOperatorDeptId !== null ? "text-slate-800 font-medium" : "text-gray-400"}>
                           {externalOperatorDeptId !== null
-                            ? departments.find((d) => d.id === externalOperatorDeptId)?.name || "-- เลือกแผนกที่ดำเนินการ --"
-                            : "-- เลือกแผนกที่ดำเนินการ --"}
+                            ? deptDisplayName(departments.find((d) => d.id === externalOperatorDeptId)?.name ?? "")
+                            : "-- เลือกแผนก --"}
                         </span>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+                        <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
                       </button>
-                      
+
+                      {/* Inline panel — no absolute, no clipping */}
                       {isDeptOpen && (
-                        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
-                          <ul className="py-1">
-                            {(departments || []).map((d) => (
-                              <li key={d.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setExternalOperatorDeptId(d.id);
-                                    setIsDeptOpen(false);
-                                  }}
-                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                                    d.id === externalOperatorDeptId
-                                      ? "bg-blue-50 text-blue-700 font-medium"
-                                      : "text-slate-700 hover:bg-slate-50"
-                                  }`}
-                                >
-                                  {d.name}
-                                </button>
-                              </li>
-                            ))}
+                        <div className="mt-2 border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm">
+                          <ul className="overflow-y-auto" style={{ maxHeight: "220px" }}>
+                            {(departments || [])
+                              .filter((d) => d.name !== "Administration")   // hide Admin from borrower form
+                              .map((d) => (
+                                <li key={d.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExternalOperatorDeptId(d.id);
+                                      setIsDeptOpen(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                      d.id === externalOperatorDeptId
+                                        ? "bg-blue-50 text-blue-700 font-semibold"
+                                        : "text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {deptDisplayName(d.name)}
+                                  </button>
+                                </li>
+                              ))}
                           </ul>
                         </div>
                       )}
@@ -653,8 +836,8 @@ export default function BorrowCartModal({
                   </div>
 
                   {/* Address Section */}
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
                       <MapPin className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">ที่อยู่</span>
                     </div>
@@ -663,72 +846,238 @@ export default function BorrowCartModal({
                         <label className={labelClass}>
                           ที่อยู่ <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="text"
+                        <textarea
+                          rows={2}
                           placeholder="บ้านเลขที่ / หมู่ / ถนน / ซอย"
                           value={externalForm.address}
                           onChange={(e) => handleExternalFormChange("address", e.target.value)}
                           disabled={isSubmitting}
-                          className={inputClass}
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-400 outline-none transition-all placeholder:text-gray-400 disabled:bg-slate-100 resize-none"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className={labelClass}>
-                            ตำบล <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="ตำบล / แขวง"
-                            value={externalForm.subdistrict}
-                            onChange={(e) => handleExternalFormChange("subdistrict", e.target.value)}
-                            disabled={isSubmitting}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>
-                            อำเภอ <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="อำเภอ / เขต"
-                            value={externalForm.district}
-                            onChange={(e) => handleExternalFormChange("district", e.target.value)}
-                            disabled={isSubmitting}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>
-                            จังหวัด <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="จังหวัด"
-                            value={externalForm.province}
-                            onChange={(e) => handleExternalFormChange("province", e.target.value)}
-                            disabled={isSubmitting}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>
-                            รหัสไปรษณีย์ <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="00000"
-                            maxLength={5}
-                            value={externalForm.postalCode}
-                            onChange={(e) =>
-                              handleExternalFormChange("postalCode", e.target.value.replace(/\D/g, ""))
+
+                      {/* ── Tabbed Address Picker (inline — no absolute, no clipping) ── */}
+                      <div ref={addressPickerRef}>
+                        <label className={labelClass}>
+                          จังหวัด, เขต/อำเภอ, แขวง/ตำบล <span className="text-red-500">*</span>
+                        </label>
+
+                        {/* Trigger button */}
+                        <button
+                          type="button"
+                          disabled={isSubmitting || loadingProvinces}
+                          onClick={() => {
+                            setIsAddressOpen((o) => !o);
+                            if (!isAddressOpen) {
+                              if (!externalForm.provinceId) setAddressTab('province');
+                              else if (!externalForm.districtId) setAddressTab('district');
+                              else setAddressTab('subdistrict');
+                              setAddressSearch('');
                             }
-                            disabled={isSubmitting}
-                            className={inputClass}
-                          />
-                        </div>
+                          }}
+                          className={`flex items-center justify-between w-full border rounded-lg px-3 py-2.5 text-sm bg-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                            isAddressOpen
+                              ? 'border-blue-500 ring-2 ring-blue-200'
+                              : 'border-slate-200 hover:border-blue-400'
+                          }`}
+                        >
+                          <span className={addressSummary ? 'text-gray-800 font-medium truncate mr-2' : 'text-gray-400'}>
+                            {loadingProvinces
+                              ? 'กำลังโหลด...'
+                              : addressSummary || '-- เลือกจังหวัด / อำเภอ / ตำบล --'}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {loadingProvinces && (
+                              <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+                            )}
+                            {externalForm.postalCode && !loadingProvinces && (
+                              <span className="text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                {externalForm.postalCode}
+                              </span>
+                            )}
+                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isAddressOpen ? 'rotate-180' : ''}`} />
+                          </div>
+                        </button>
+
+                        {/* Inline picker panel — flows in document, never clipped */}
+                        {isAddressOpen && (
+                          <div className="mt-2 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+
+                            {/* Breadcrumb chips */}
+                            <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-0 flex-wrap">
+                              {externalForm.province && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                                  {externalForm.province}
+                                </span>
+                              )}
+                              {externalForm.district && (
+                                <>
+                                  <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                    {externalForm.district}
+                                    {externalForm.postalCode && (
+                                      <span className="text-blue-500">{externalForm.postalCode}</span>
+                                    )}
+                                  </span>
+                                </>
+                              )}
+                              {externalForm.subdistrict && (
+                                <>
+                                  <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                    {externalForm.subdistrict}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex border-b border-slate-100 mt-2">
+                              {(['province', 'district', 'subdistrict'] as const).map((tab) => {
+                                const labels  = { province: 'จังหวัด', district: 'เขต/อำเภอ', subdistrict: 'แขวง/ตำบล' };
+                                const loading = tab === 'district' ? loadingDistricts : tab === 'subdistrict' ? loadingSubs : loadingProvinces;
+                                const disabled = tab === 'district' ? !externalForm.provinceId : tab === 'subdistrict' ? !externalForm.districtId : false;
+                                return (
+                                  <button
+                                    key={tab}
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => { setAddressTab(tab); setAddressSearch(''); }}
+                                    className={`flex-1 py-2 text-xs font-bold transition-colors border-b-2 flex items-center justify-center gap-1 ${
+                                      addressTab === tab
+                                        ? 'border-blue-500 text-blue-600'
+                                        : disabled
+                                        ? 'border-transparent text-gray-300 cursor-not-allowed'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`}
+                                  >
+                                    {labels[tab]}
+                                    {loading && addressTab === tab && (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Search */}
+                            <div className="px-3 pt-2 pb-1">
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                <input
+                                  type="text"
+                                  placeholder="ค้นหา..."
+                                  value={addressSearch}
+                                  onChange={(e) => setAddressSearch(e.target.value)}
+                                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
+                                  autoFocus
+                                />
+                              </div>
+                            </div>
+
+                            {/* List — fixed height with scroll, never clips */}
+                            <div className="overflow-y-auto" style={{ maxHeight: '200px' }}>
+
+                              {/* Province list */}
+                              {addressTab === 'province' && (
+                                loadingProvinces ? (
+                                  <div className="py-6 flex items-center justify-center gap-2 text-sm text-gray-400">
+                                    <Loader2 className="w-4 h-4 animate-spin" /> กำลังโหลดจังหวัด...
+                                  </div>
+                                ) : filteredProvinces.length === 0 ? (
+                                  <div className="py-6 text-center text-sm text-gray-400">ไม่พบจังหวัด</div>
+                                ) : filteredProvinces.map((p) => (
+                                  <button key={p.id} type="button" onClick={() => pickProvince(p.id)}
+                                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                                      externalForm.provinceId === p.id
+                                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                                        : 'text-gray-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    {p.name}
+                                  </button>
+                                ))
+                              )}
+
+                              {/* District list — name only, zip is on subdistrict */}
+                              {addressTab === 'district' && (
+                                loadingDistricts ? (
+                                  <div className="py-6 flex items-center justify-center gap-2 text-sm text-gray-400">
+                                    <Loader2 className="w-4 h-4 animate-spin" /> กำลังโหลดอำเภอ...
+                                  </div>
+                                ) : filteredDistricts.length === 0 ? (
+                                  <div className="py-6 text-center text-sm text-gray-400">
+                                    {externalForm.provinceId ? 'ไม่พบอำเภอ' : 'กรุณาเลือกจังหวัดก่อน'}
+                                  </div>
+                                ) : filteredDistricts.map((d) => (
+                                  <button key={d.id} type="button" onClick={() => pickDistrict(d.id)}
+                                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                                      externalForm.districtId === d.id
+                                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                                        : 'text-gray-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    {d.name}
+                                  </button>
+                                ))
+                              )}
+
+                              {/* Subdistrict list — shows zip_code alongside name */}
+                              {addressTab === 'subdistrict' && (
+                                loadingSubs ? (
+                                  <div className="py-6 flex items-center justify-center gap-2 text-sm text-gray-400">
+                                    <Loader2 className="w-4 h-4 animate-spin" /> กำลังโหลดตำบล...
+                                  </div>
+                                ) : filteredSubdistricts.length === 0 ? (
+                                  <div className="py-6 text-center text-sm text-gray-400">
+                                    {externalForm.districtId ? 'ไม่พบตำบล' : 'กรุณาเลือกอำเภอก่อน'}
+                                  </div>
+                                ) : filteredSubdistricts.map((s) => (
+                                  <button key={s.id} type="button" onClick={() => pickSubdistrict(s.id)}
+                                    className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between ${
+                                      externalForm.subdistrictId === s.id
+                                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                                        : 'text-gray-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <span>{s.name}</span>
+                                    {s.zip_code && (
+                                      <span className="text-[11px] text-gray-400 font-mono ml-2 flex-shrink-0">
+                                        {s.zip_code}
+                                      </span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+
+                            {/* Close button */}
+                            <div className="px-3 py-2 border-t border-slate-100 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => { setIsAddressOpen(false); setAddressSearch(''); }}
+                                className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1 rounded-lg hover:bg-slate-50 transition-colors"
+                              >
+                                ปิด
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Summary chip — shown after full address picked */}
+                        {!isAddressOpen && externalForm.postalCode && (
+                          <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+                            <MapPin className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                            <span className="text-xs text-blue-700 flex-1 truncate">
+                              {[externalForm.subdistrict, externalForm.district, externalForm.province].filter(Boolean).join(' › ')}
+                            </span>
+                            <span className="text-xs font-bold text-blue-800 bg-blue-200 px-2 py-0.5 rounded-full flex-shrink-0">
+                              {externalForm.postalCode}
+                            </span>
+                          </div>
+                        )}
                       </div>
+
                     </div>
                   </div>
 
@@ -766,24 +1115,34 @@ export default function BorrowCartModal({
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
                       <FileText className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสารสำเนาบัตรประชาชน</span>
-                      <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / PNG / JPG · ไม่เกิน 5 MB</span>
+                      <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB</span>
                     </div>
                     <div className="p-4">
                       {externalForm.document ? (
                         <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            {externalForm.document.type === "application/pdf" ? (
-                              <FileText className="w-5 h-5 text-blue-600" />
-                            ) : (
-                              <CheckCircle className="w-5 h-5 text-blue-600" />
-                            )}
-                          </div>
+                          {/* Smart preview: thumbnail for images, icon for PDF */}
+                          {externalForm.document.type === "application/pdf" ? (
+                            <div className="w-12 h-12 bg-red-50 border border-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-6 h-6 text-red-500" />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-blue-100">
+                              <img
+                                src={URL.createObjectURL(externalForm.document)}
+                                alt="preview"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">
                               {externalForm.document.name}
                             </p>
                             <p className="text-xs text-gray-500 mt-0.5">
                               {formatFileSize(externalForm.document.size)}
+                              {externalForm.document.type === "application/pdf" && (
+                                <span className="ml-2 text-red-500 font-medium">PDF</span>
+                              )}
                             </p>
                           </div>
                           <button
@@ -805,7 +1164,7 @@ export default function BorrowCartModal({
                           <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".pdf,.png,.jpg,.jpeg"
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
                             onChange={handleFileChange}
                             disabled={isSubmitting}
                             className="sr-only"
@@ -821,7 +1180,7 @@ export default function BorrowCartModal({
                             <p className={`text-sm font-semibold ${fileError ? "text-red-600" : "text-gray-700"}`}>
                               {fileError || "คลิกเพื่อเลือกไฟล์"}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">PDF, PNG, JPG · สูงสุด 5 MB</p>
+                            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, WEBP, HEIC · สูงสุด 10 MB</p>
                           </div>
                         </label>
                       )}

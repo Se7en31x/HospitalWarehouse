@@ -124,7 +124,7 @@ export default function HistoryClient() {
   const fetchData = useCallback(async () => {
     setIsFetching(true);
     try {
-      const result = await getAllRequisitions({ limit: 500 });
+      const result = await getAllRequisitions({ limit: 10 });
       let data: RequisitionHeader[] = [];
       if (Array.isArray(result.data)) {
         data = result.data;

@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Package, FileText, CheckCircle, Clock, XCircle, AlertCircle } from "lucide-react";
+import { X, Package, FileText, CheckCircle, Clock, XCircle, AlertCircle, ExternalLink } from "lucide-react";
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -186,6 +186,21 @@ export function DetailModal({
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+                {borrower.id_card_url && (
+                  <div className="md:col-span-2 mt-2 pt-4 border-t border-slate-100">
+                    <p className="text-xs text-slate-500 mb-2">เอกสารแนบ</p>
+                    <a
+                      href={borrower.id_card_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      ดูเอกสารแนบ
+                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                    </a>
                   </div>
                 )}
               </div>

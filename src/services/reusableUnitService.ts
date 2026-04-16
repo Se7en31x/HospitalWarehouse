@@ -105,8 +105,16 @@ export interface ReusableReturnRequestListResponse {
 
 // ============ API Functions ============
 
-export async function getReusableUnits(params: GetReusableUnitsParams = {}): Promise<ReusableUnitListResponse> {
-  const res = await api.list<ReusableUnit>(`/v1/reusable-items`, params as Record<string, unknown>);
+/**
+ * Fetch a single reusable unit by its ID.
+ * Pass `token` from a Server Component for SSR requests.
+ */
+export async function getReusableUnitById(id: string, token?: string): Promise<ReusableUnit> {
+  return api.get<ReusableUnit>(`/v1/reusable-items/${id}`, undefined, token);
+}
+
+export async function getReusableUnits(params: GetReusableUnitsParams = {}, token?: string): Promise<ReusableUnitListResponse> {
+  const res = await api.list<ReusableUnit>(`/v1/reusable-items`, params as Record<string, unknown>, token);
   return {
     items: res.data || [],
     total: res.meta?.total || 0,

@@ -86,7 +86,7 @@ export default function NotificationCenterClient({ title }: NotificationCenterCl
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await getNotifications({ page: 1, limit: 100 });
+      const result = await getNotifications({ page: 1, limit: 10 });
       setItems(result.items || []);
     } catch {
       setItems([]);

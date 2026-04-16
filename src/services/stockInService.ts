@@ -122,7 +122,7 @@ export async function updateLotQuantity(lotId: string, quantityReceived: number)
  */
 export async function getAllStockIn(): Promise<any[]> {
     try {
-        const data = await api.get<any[]>("/v1/lots", { limit: 100 });
+        const data = await api.get<any[]>("/v1/lots", { limit: 10 });
         
         if (!Array.isArray(data)) return [];
 

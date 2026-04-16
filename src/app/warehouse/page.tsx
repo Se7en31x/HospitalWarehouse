@@ -122,10 +122,61 @@ export default function WarehouseDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-          <span className="text-sm text-slate-500">กำลังโหลดข้อมูล...</span>
+      <div className="space-y-6 p-6 bg-white min-h-screen animate-pulse">
+        {/* Header skeleton */}
+        <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200">
+          <div className="space-y-2">
+            <div className="h-6 w-48 bg-slate-200 rounded-lg" />
+            <div className="h-4 w-72 bg-slate-100 rounded-lg" />
+          </div>
+          <div className="h-9 w-36 bg-slate-100 rounded-lg" />
+        </div>
+
+        {/* Stat cards skeleton — matches the 5-column grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200">
+              <div className="w-8 h-8 bg-slate-100 rounded-lg mb-3" />
+              <div className="h-7 w-16 bg-slate-200 rounded mb-1.5" />
+              <div className="h-3 w-24 bg-slate-100 rounded" />
+            </div>
+          ))}
+        </div>
+
+        {/* Charts row skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+          <div className="lg:col-span-3 bg-white p-6 rounded-2xl border border-slate-200 flex flex-col gap-4">
+            <div className="h-5 w-36 bg-slate-200 rounded" />
+            <div className="mx-auto w-40 h-40 bg-slate-100 rounded-full" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i}>
+                  <div className="flex justify-between mb-1">
+                    <div className="h-3 w-24 bg-slate-100 rounded" />
+                    <div className="h-3 w-12 bg-slate-100 rounded" />
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="flex justify-between mb-6">
+              <div className="h-5 w-40 bg-slate-200 rounded" />
+              <div className="h-8 w-32 bg-slate-100 rounded-lg" />
+            </div>
+            <div className="h-[280px] flex items-end gap-2 px-2">
+              {[60, 85, 45, 70, 55, 90, 65].map((pct, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-2 justify-end h-full">
+                  <div
+                    className="w-full bg-slate-100 rounded-t-md"
+                    style={{ height: `${pct}%` }}
+                  />
+                  <div className="h-2 w-8 bg-slate-100 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

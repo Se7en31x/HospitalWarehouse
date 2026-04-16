@@ -2,40 +2,56 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Search, X } from "lucide-react";
-
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Search } from "lucide-react";
 import * as ItemSvc from "@/services/itemsService";
-import * as Item from "@/types/items_type";
+import type * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+
+const STATUS_OPTIONS = [
+  { value: "ทั้งหมด",  label: "สถานะทั้งหมด" },
+  { value: "ACTIVE",   label: "พร้อมใช้งาน"   },
+  { value: "INACTIVE", label: "ระงับ"           },
+] as const;
+
+const REUSABLE_PAGE_LIMIT = 10;
 
 export default function ReusableUnitClient() {
   const router = useRouter();
 
   const [items, setItems] = useState<Item.UiItem[]>([]);
   const [isFetching, setIsFetching] = useState(false);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
+
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
+  const pageRef = useRef(1);
+  const keywordRef = useRef("");
+  const keywordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
-  // const [selectedLocation, setSelectedLocation] = useState("ที่ตั้งทั้งหมด");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
-  // const [isLocationOpen, setIsLocationOpen] = useState(false);
 
-  const refreshData = useCallback(async () => {
+  const fetchPage = useCallback(async (page: number, keyword: string) => {
     setIsFetching(true);
     try {
-      const data = await ItemSvc.getInventoryItems({ limit: 1000 });
-      const reusableOnly = (data || []).filter((i) => i.type === "REUSABLE");
-      setItems(reusableOnly);
+      const result = await ItemSvc.getInventoryItemsPage({
+        type: "REUSABLE",
+        page,
+        limit: REUSABLE_PAGE_LIMIT,
+        ...(keyword ? { keyword } : {}),
+      });
+      setItems(result.items || []);
+      setServerTotal(result.meta.total);
+      setServerTotalPages(result.meta.totalPages);
     } catch (error) {
       console.error("Fetch error:", error);
       SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลของใช้ซ้ำไม่สำเร็จ");
@@ -43,6 +59,10 @@ export default function ReusableUnitClient() {
       setIsFetching(false);
     }
   }, []);
+
+  const refreshData = useCallback(async () => {
+    fetchPage(pageRef.current, keywordRef.current);
+  }, [fetchPage]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -56,19 +76,11 @@ export default function ReusableUnitClient() {
 
     const scheduleRefresh = () => {
       if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
-
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
-
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(async () => {
         isRefreshingRef.current = true;
-        try {
-          await refreshData();
-        } finally {
-          isRefreshingRef.current = false;
-          refreshTimerRef.current = null;
-        }
+        try { await refreshData(); }
+        finally { isRefreshingRef.current = false; refreshTimerRef.current = null; }
       }, 220);
     };
 
@@ -78,35 +90,24 @@ export default function ReusableUnitClient() {
 
     socket.on("REFRESH_DATA", handleRefreshSignal);
     return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      if (refreshTimerRef.current) { clearTimeout(refreshTimerRef.current); refreshTimerRef.current = null; }
       document.removeEventListener("visibilitychange", onVisibilityChange);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
   }, [refreshData, isFetching]);
 
   useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        const categoryData = await ItemSvc.getcategoriesOptions();
-        setCategories(categoryData || []);
-      } catch (err) {
-        console.error("Load categories options failed", err);
-      }
-    };
-
-    fetchOptions();
-    refreshData();
-  }, [refreshData]);
+    ItemSvc.getcategoriesOptions()
+      .then(d => setCategories(d || []))
+      .catch(err => console.error("Load categories options failed", err));
+    fetchPage(1, "");
+  }, [fetchPage]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
       if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
-      // if (!target.closest("[data-filter-location]")) setIsLocationOpen(false);
     };
     if (isCategoryOpen || isStatusOpen) {
       document.addEventListener("mousedown", handleClickOutside);
@@ -114,31 +115,37 @@ export default function ReusableUnitClient() {
     }
   }, [isCategoryOpen, isStatusOpen]);
 
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    keywordRef.current = value;
+    if (keywordTimerRef.current) clearTimeout(keywordTimerRef.current);
+    keywordTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      pageRef.current = 1;
+      fetchPage(1, value);
+    }, 300);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    pageRef.current = newPage;
+    fetchPage(newPage, keywordRef.current);
+  };
+
   const filterCategories = ["หมวดหมู่ทั้งหมด", ...categories.map((c) => c.name)];
-  // const filterLocations = ["ที่ตั้งทั้งหมด", ...Array.from(new Set(items.map((i) => i.location).filter(Boolean)))];
 
+  // Client-side secondary filters on current page's items
   const filteredItems = items.filter((item) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      (item.code || "").toLowerCase().includes(term) ||
-      (item.name || "").toLowerCase().includes(term) ||
-      (item.category || "").toLowerCase().includes(term);
-
     const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "ทั้งหมด" || item.status === selectedStatus;
-    // const matchesLocation = selectedLocation === "ที่ตั้งทั้งหมด" || item.location === selectedLocation;
-
-    return matchesSearch && matchesCat && matchesStatus; // && matchesLocation;
+    return matchesCat && matchesStatus;
   });
-
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedItems = filteredItems;
 
   const goToRegistry = (itemId: string) => {
     router.push(`/warehouse/assets/reusable-registry?itemId=${itemId}`);
   };
 
-  // --- [Status Translation] ---
   const translateStatus = (status: string): string => {
     const statusMap: Record<string, string> = {
       "ACTIVE": "พร้อมใช้งาน",
@@ -147,15 +154,10 @@ export default function ReusableUnitClient() {
       "OUT_OF_STOCK": "หมด",
       "SUSPEND": "ระงับ",
       "SUSPENDED": "ระงับ",
-      "พร้อมใช้งาน": "พร้อมใช้งาน",
-      "ต่ำ": "ต่ำ",
-      "หมด": "หมด",
-      "ระงับ": "ระงับ",
     };
     return statusMap[status] || status;
   };
 
-  // --- [UI Components] ---
   const Badge = ({ status }: { status: string }) => {
     const thaiStatus = translateStatus(status);
     const styles: Record<string, string> = {
@@ -164,7 +166,6 @@ export default function ReusableUnitClient() {
       "หมด": "bg-red-100 text-red-800",
       "ระงับ": "bg-gray-200 text-gray-500",
     };
-
     return (
       <span className={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-medium ${styles[thaiStatus] || "bg-gray-100"}`}>
         {thaiStatus}
@@ -199,10 +200,7 @@ export default function ReusableUnitClient() {
             type="text"
             placeholder="ค้นหาชื่อ / รหัส..."
             value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
@@ -210,10 +208,7 @@ export default function ReusableUnitClient() {
         <div className="relative" data-filter-category>
           <button
             type="button"
-            onClick={() => {
-              setIsCategoryOpen(!isCategoryOpen);
-              setIsStatusOpen(false);
-            }}
+            onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedCategory}</span>
@@ -224,17 +219,9 @@ export default function ReusableUnitClient() {
               <ul className="py-1">
                 {filterCategories.map((c) => (
                   <li key={c}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategory(c);
-                        setIsCategoryOpen(false);
-                        setCurrentPage(1);
-                      }}
+                    <button type="button" onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
-                    >
-                      {c}
-                    </button>
+                    >{c}</button>
                   </li>
                 ))}
               </ul>
@@ -245,30 +232,30 @@ export default function ReusableUnitClient() {
         <div className="relative" data-filter-status>
           <button
             type="button"
-            onClick={() => {
-              setIsStatusOpen(!isStatusOpen);
-              setIsCategoryOpen(false);
-            }}
+            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{selectedStatus === "ทั้งหมด" ? "สถานะทั้งหมด" : selectedStatus}</span>
+            <span className="text-slate-800 font-medium">
+              {STATUS_OPTIONS.find(s => s.value === selectedStatus)?.label ?? "สถานะทั้งหมด"}
+            </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
           </button>
           {isStatusOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
-                {[{ value: "ทั้งหมด", label: "สถานะทั้งหมด" }, { value: "ACTIVE", label: "พร้อมใช้งาน" }, { value: "INACTIVE", label: "ระงับ" }].map((s) => (
+                {STATUS_OPTIONS.map((s) => (
                   <li key={s.value}>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedStatus(s.value);
-                        setIsStatusOpen(false);
-                        setCurrentPage(1);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
+                        selectedStatus === s.value
+                          ? "bg-blue-50 text-blue-700 font-medium"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
                     >
-                      {s.label}
+                      <span>{s.label}</span>
+                      {selectedStatus === s.value && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
                     </button>
                   </li>
                 ))}
@@ -276,44 +263,6 @@ export default function ReusableUnitClient() {
             </div>
           )}
         </div>
-
-        {/* Location Dropdown - Disabled
-        <div className="relative" data-filter-location>
-          <button
-            type="button"
-            onClick={() => {
-              setIsLocationOpen(!isLocationOpen);
-              setIsCategoryOpen(false);
-              setIsStatusOpen(false);
-            }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
-          >
-            <span className="text-slate-800 font-medium">{selectedLocation}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationOpen ? "rotate-180" : ""}`} />
-          </button>
-          {isLocationOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
-              <ul className="py-1">
-                {filterLocations.map((l) => (
-                  <li key={l}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedLocation(l);
-                        setIsLocationOpen(false);
-                        setCurrentPage(1);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedLocation === l ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
-                    >
-                      {l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-        */}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "60vh" }}>
@@ -323,31 +272,7 @@ export default function ReusableUnitClient() {
           </div>
         )}
 
-        <div 
-          className="flex-1" 
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
-        >
-          <style>{`
-            div::-webkit-scrollbar {
-              width: 0;
-              height: 8px;
-            }
-            div::-webkit-scrollbar-track {
-              background: #f1f5f9;
-            }
-            div::-webkit-scrollbar-thumb {
-              background: #cbd5e1;
-              border-radius: 4px;
-            }
-            div::-webkit-scrollbar-thumb:hover {
-              background: #94a3b8;
-            }
-          `}</style>
+        <div className="flex-1" style={{ overflowX: 'auto', overflowY: 'auto' } as React.CSSProperties}>
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
@@ -366,34 +291,25 @@ export default function ReusableUnitClient() {
             <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-3">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-3">{(currentPage - 1) * REUSABLE_PAGE_LIMIT + idx + 1}</td>
                   <td className="px-6 py-3">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
-                      {item.imageUrl ? (
-                        <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
-                      ) : (
-                        <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
-                      )}
+                      {item.imageUrl
+                        ? <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
+                        : <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />}
                     </div>
                   </td>
                   <td className="px-6 py-3">{item.code}</td>
                   <td className="px-6 py-3">{item.name}</td>
                   <td className="px-6 py-3">{item.category}</td>
                   <td className="px-6 py-3">{item.stock}</td>
-                  <td className="px-6 py-3 text-emerald-700 font-semibold">
-                    {(item.availableStock ?? 0)}
-                  </td>
+                  <td className="px-6 py-3 text-emerald-700 font-semibold">{item.availableStock ?? 0}</td>
                   <td className="px-6 py-3">{item.unit}</td>
                   <td className="px-6 py-3"><Badge status={item.status} /></td>
                   <td className="px-6 py-3 w-[100px] text-center">
-                    <div className="flex justify-center gap-1">
-                      <button
-                        onClick={() => goToRegistry(item.id)}
-                        className="text-slate-700 hover:text-blue-600 transition-colors p-1"
-                      >
-                        <ClipboardList className="w-6 h-6 stroke-[2]" />
-                      </button>
-                    </div>
+                    <button onClick={() => goToRegistry(item.id)} className="text-blue-700 hover:bg-blue-50 rounded-lg">
+                      <ClipboardList className="w-6 h-6 stroke-[2]" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -412,11 +328,33 @@ export default function ReusableUnitClient() {
       </div>
 
       <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {filteredItems.length} รายการ</p>
+        <p className="text-sm text-slate-500">
+          แสดง {paginatedItems.length} จาก {serverTotal} รายการ
+          {serverTotalPages > 1 && ` (หน้า ${currentPage} / ${serverTotalPages})`}
+        </p>
         <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-          <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-          <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
+          <button disabled={currentPage === 1 || isFetching} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          {Array.from({ length: serverTotalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === serverTotalPages || Math.abs(p - currentPage) <= 2)
+            .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+              if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, idx) =>
+              p === "..." ? (
+                <span key={`e-${idx}`} className="px-1 text-slate-400 text-sm">…</span>
+              ) : (
+                <button key={p} onClick={() => handlePageChange(p as number)} disabled={isFetching}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === p ? "bg-blue-600 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                >{p}</button>
+              )
+            )}
+          <button disabled={currentPage >= serverTotalPages || isFetching} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white">
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

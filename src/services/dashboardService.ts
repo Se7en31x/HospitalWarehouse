@@ -127,7 +127,7 @@ export async function getDashboardAnalytics(params?: {
 }
 
 async function getAllLotsRaw(): Promise<Array<Record<string, unknown>>> {
-  const limit = 100;
+  const limit = 10;
   let page = 1;
   const allLots: Array<Record<string, unknown>> = [];
 
@@ -272,8 +272,8 @@ export async function getMonthlyRequisitions(months = 6): Promise<MonthlyRequisi
 
 export async function getLotStats(expiryDays = 90): Promise<LotStats> {
   const [lotsRes, itemsRes] = await Promise.all([
-    api.list<any>("/v1/lots", { page: 1, limit: 1000 }),
-    api.list<any>("/v1/items", { page: 1, limit: 1000 })
+    api.list<any>("/v1/lots", { page: 1, limit: 10 }),
+    api.list<any>("/v1/items", { page: 1, limit: 10 })
   ]);
 
   const lots = lotsRes.data || [];

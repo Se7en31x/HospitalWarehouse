@@ -174,7 +174,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		setNeFetching(true);
 		try {
 			const res = await apiClient.get<NearExpiryApiResponse>("/v1/reports/near-expiry", {
-				params: { limit: 500, daysAhead: neDays },
+				params: { limit: 10, daysAhead: neDays },
 			});
 			setNeRows((res.data as NearExpiryApiResponse).items ?? []);
 			setNeFetched(true);

@@ -27,7 +27,7 @@ export const getDepartmentOptions = (): Promise<DepartmentOption[]> =>
 
 export const getDepartments = async (
     page = 1, 
-    limit = 20, 
+    limit = 10,
     keyword = ""
 ): Promise<DepartmentListResponse> => {
     const res = await api.list<Department>("/v1/departments", { 

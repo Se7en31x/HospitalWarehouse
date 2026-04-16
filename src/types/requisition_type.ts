@@ -18,6 +18,7 @@ export interface BorrowerDetails {
   province?: string;
   zipcode?: string;
   notes?: string;
+  id_card_url?: string | null;
 }
 
 export interface RequisitionFilters {

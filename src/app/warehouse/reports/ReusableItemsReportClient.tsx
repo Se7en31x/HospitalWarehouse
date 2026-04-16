@@ -94,7 +94,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 		try {
 			const [res, depts] = await Promise.all([
 				apiClient.get<ApiResponse>("/v1/reports/reusable-items", {
-					params: { limit: 500 },
+					params: { limit: 10 },
 				}),
 				getDepartmentOptions().catch(() => [] as DepartmentOption[]),
 			]);

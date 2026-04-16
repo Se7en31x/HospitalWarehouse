@@ -38,9 +38,9 @@ export type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const RETURN_REQUEST_STATUS_LABEL: Record<string, string> = {
-  REQUESTED: "รอคลังรับงาน",
+  REQUESTED: "รอดำเนินการ",
   PROCESSING: "กำลังตรวจรับ",
-  COMPLETED: "ปิดงานแล้ว",
+  COMPLETED: "เสร็จสิ้น",
 };
 
 export const CONDITION_LABEL: Record<string, string> = {

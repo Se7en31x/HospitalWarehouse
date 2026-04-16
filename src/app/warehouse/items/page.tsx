@@ -1,25 +1,30 @@
 // src/app/warehouse/items/page.tsx
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import StockClient from "./ItemsClient"; 
-import { getInventoryItems} from "@/services/itemsService";
+import StockClient from "./ItemsClient";
+import { getInventoryItems } from "@/services/itemsService";
+import { createClient } from "@/lib/supabase/server";
 import { UiItem } from "@/types/items_type";
 
 export default async function WarehouseItemsPage() {
   let items: UiItem[] = [];
 
-  // ดึงข้อมูลจาก API - ถ้าล้มเหลวให้ใช้ empty array
   try {
-    items = await getInventoryItems();
+    // Server Components can import @/lib/supabase/server directly — next/headers
+    // is always available here and never reaches the client bundle.
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    // Pass the token explicitly so the API call goes out with Authorization header.
+    items = await getInventoryItems({}, token);
   } catch (error) {
-    const errorInfo = {
+    console.error("Failed to fetch items during server rendering:", {
       name: error instanceof Error ? error.name : "Unknown",
       message: error instanceof Error ? error.message : String(error),
       status: (error as any)?.status,
-      originalError: error,
-    };
-    console.error("Failed to fetch items during server rendering:", errorInfo);
-    // Return empty array - client will fetch data when component mounts
+    });
+    // Client component will re-fetch on mount via its own auth flow.
     items = [];
   }
 

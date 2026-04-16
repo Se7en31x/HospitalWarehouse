@@ -6,9 +6,9 @@ import { Download, FileText, Search } from "lucide-react";
 import * as reusableSvc from "@/services/reusableUnitService";
 
 const STATUS_LABEL: Record<string, string> = {
-  REQUESTED: "รอคลังรับงาน",
+  REQUESTED: "รอดำเนินการ",
   PROCESSING: "กำลังตรวจรับ",
-  COMPLETED: "ปิดงานแล้ว",
+  COMPLETED: "เสร็จสิ้น",
 };
 
 export default function ReusableReturnRequestsReportPage() {
@@ -21,7 +21,7 @@ export default function ReusableReturnRequestsReportPage() {
     const fetchRows = async () => {
       setIsLoading(true);
       try {
-        const res = await reusableSvc.getReusableReturnRequests({ page: 1, limit: 200 });
+        const res = await reusableSvc.getReusableReturnRequests({ page: 1, limit: 10 });
         setRows(res.items || []);
       } finally {
         setIsLoading(false);
@@ -101,9 +101,9 @@ export default function ReusableReturnRequestsReportPage() {
             className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white transition-all duration-200 text-sm sm:text-base"
           >
             <option value="ทั้งหมด">ทั้งหมด</option>
-            <option value="REQUESTED">รอคลังรับงาน</option>
+            <option value="REQUESTED">รอดำเนินการ</option>
             <option value="PROCESSING">กำลังตรวจรับ</option>
-            <option value="COMPLETED">ปิดงานแล้ว</option>
+            <option value="COMPLETED">เสร็จสิ้น</option>
           </select>
         </div>
       </div>

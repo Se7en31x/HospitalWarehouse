@@ -27,6 +27,16 @@ export interface GetItemsFilters {
     limit?: number;
 }
 
+export interface PagedItems {
+  items: Item.UiItem[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 // Mapper: แปลงข้อมูลจาก API (Snake Case) เป็น UI (Camel Case)
 export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
     id: String(item.id),
@@ -48,23 +58,41 @@ export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
     type: item.type || "CONSUMABLE",
     allowed_req: item.allowed_req ?? true,
     allowed_borrow: item.allowed_borrow ?? false,
+    updatedAt: item.updated_at || null,
 });
 
 /** ---------------------------------------------------------
  * API CALLS
  * --------------------------------------------------------- */
 
+// ดึงรายการพัสดุตาม ID (สำหรับ SSR header pre-fetch)
+export async function getInventoryItemById(id: string, token?: string): Promise<Item.ApiItem> {
+    return api.get<Item.ApiItem>(`/v1/items/${id}`, undefined, token);
+}
+
 // ดึงรายการพัสดุพร้อมตัวกรอง
-export async function getInventoryItems(filters: GetItemsFilters = {}): Promise<Item.UiItem[]> {
-    // ใส่ "as Record<string, unknown>" เข้าไปตรงนี้ครับ
-    const data = await api.get<Item.ApiItem[]>(`/v1/items`, filters as Record<string, unknown>);
+// token — ส่งมาจาก Server Component เพื่อใช้ใน SSR (ไม่ต้องส่งตอนเรียกจาก Client)
+export async function getInventoryItems(filters: GetItemsFilters = {}, token?: string): Promise<Item.UiItem[]> {
+    const data = await api.get<Item.ApiItem[]>(`/v1/items`, filters as Record<string, unknown>, token);
     return (data || []).map(mapApiToUi);
+}
+
+// ดึงรายการพัสดุแบบ paginated — คืน items + meta สำหรับ server-side pagination
+export async function getInventoryItemsPage(
+    filters: GetItemsFilters = {},
+    token?: string
+): Promise<PagedItems> {
+    const res = await api.list<Item.ApiItem>(`/v1/items`, filters as Record<string, unknown>, token);
+    return {
+        items: (res.data || []).map(mapApiToUi),
+        meta: res.meta || { total: 0, page: 1, limit: 10, totalPages: 0 },
+    };
 }
 
 // ดึงข้อมูลทั้งหมด (ทำ Pagination วนลูปจนครบ)
 export async function getAllInventoryItems(filters: Omit<GetItemsFilters, "page" | "limit"> = {}): Promise<Item.UiItem[]> {
     const allItems: Item.UiItem[] = [];
-    const limit = 100;
+    const limit = 10;
     let page = 1;
 
     while (true) {
@@ -90,8 +118,8 @@ export async function getcategoriesOptions(): Promise<Item.categoryOptions> {
     return api.get<Item.Option[]>(`/v1/categories/option`);
 }
 
-export async function getWarehousesOptions(): Promise<Item.warehouseOptions> {
-    return api.get<Item.Option[]>(`/v1/warehouses/option`);
+export async function getWarehousesOptions(token?: string): Promise<Item.warehouseOptions> {
+    return api.get<Item.Option[]>(`/v1/warehouses/option`, undefined, token);
 }
 
 export async function getUnitsOptions(): Promise<Item.unitOptions> {

@@ -180,6 +180,20 @@ export const getBorrowActive = async (
   }
 };
 
+/**
+ * อัปโหลดเอกสารบัตรประชาชนของผู้ยืม (หลัง createRequisition สำเร็จ)
+ */
+export const uploadBorrowerDocument = async (
+  borrowerId: string,
+  formData: FormData
+): Promise<{ id_card_url: string } | null> => {
+  return api.upload<{ id_card_url: string }>(
+    `/v1/files/borrowers/${borrowerId}/document`,
+    formData,
+    "PATCH"
+  );
+};
+
 export interface ReturnItemPayload {
   req_item_id: number;
   qty_returned: number;

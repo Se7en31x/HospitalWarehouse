@@ -1,5 +1,15 @@
-import { api } from "@/lib/apiClient";
+import { api, PaginatedResponse } from "@/lib/apiClient";
 import type * as Lot from "@/types/lot_type";
+
+export interface PagedLots {
+    items: Lot.UiLot[];
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    };
+}
 
 const LOTS_BASE = "/v1/lots";
 
@@ -22,7 +32,8 @@ export const mapApiLotToUi = (lot: Lot.ApiLot): Lot.UiLot => ({
 // ============ API Functions ============
 
 /**
- * Get all lots with optional filters
+ * Get all lots with optional filters.
+ * Pass `token` from a Server Component to authenticate the SSR request.
  */
 export async function getLots(
     page: number = 1,
@@ -32,24 +43,24 @@ export async function getLots(
         warehouse?: string;
         category?: string;
         status?: string;
-    }
-): Promise<Lot.UiLot[]> {
-    const params = {
-        page,
-        limit,
-        ...filters
+    },
+    token?: string
+): Promise<PagedLots> {
+    const params = { page, limit, ...filters };
+    const res = await api.list<Lot.ApiLot>(LOTS_BASE, params as Record<string, unknown>, token);
+    return {
+        items: (res.data || []).map(mapApiLotToUi),
+        meta: res.meta || { total: 0, page: 1, limit: 10, totalPages: 0 },
     };
-
-    const data = await api.get<Lot.ApiLot[]>(LOTS_BASE, params as Record<string, unknown>);
-    return (data || []).map(mapApiLotToUi);
 }
 
 /**
- * Get a single lot by ID
+ * Get a single lot by ID.
+ * Pass `token` from a Server Component to authenticate the SSR request.
  */
-export async function getLotById(id: string): Promise<Lot.UiLot | null> {
+export async function getLotById(id: string, token?: string): Promise<Lot.UiLot | null> {
     try {
-        const data = await api.get<Lot.ApiLot>(`${LOTS_BASE}/${id}`);
+        const data = await api.get<Lot.ApiLot>(`${LOTS_BASE}/${id}`, undefined, token);
         return mapApiLotToUi(data);
     } catch (error) {
         console.error("Failed to fetch lot:", error);
@@ -94,7 +105,7 @@ export async function adjustLot(
     payload: Lot.AdjustLotPayload
 ): Promise<{ success: boolean; message: string; data?: Lot.UiLot }> {
     try {
-        const data = await api.put<Lot.ApiLot>(`${LOTS_BASE}/${lotId}/adjust`, payload);
+        const data = await api.patch<Lot.ApiLot>(`${LOTS_BASE}/${lotId}/adjust`, payload);
         return {
             success: true,
             message: "Adjust lot success",
@@ -117,21 +128,18 @@ export async function deleteLot(lotId: string): Promise<boolean> {
 }
 
 /**
- * Get master suppliers list
+ * Get master suppliers list.
+ * Pass `token` from a Server Component to authenticate the SSR request.
  */
-export async function getMasterSuppliers(): Promise<Lot.MasterSupplier[]> {
+export async function getMasterSuppliers(token?: string): Promise<Lot.MasterSupplier[]> {
     try {
-        const data = await api.get<Lot.MasterSupplier[]>(`/v1/suppliers/option`);
+        const data = await api.get<Lot.MasterSupplier[]>(`/v1/suppliers/option`, undefined, token);
         return data || [];
     } catch (error: any) {
-        console.error(
-            "Failed to fetch suppliers:",
-            {
-                status: error?.status,
-                message: error?.message,
-                fullError: error
-            }
-        );
+        console.error("Failed to fetch suppliers:", {
+            status: error?.status,
+            message: error?.message,
+        });
         return [];
     }
 }

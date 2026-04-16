@@ -32,13 +32,31 @@ export interface GetAssetsParams {
 }
 
 // ============ API ============
-export async function getAssets(params: GetAssetsParams = {}): Promise<AssetListResponse> {
-    // ใช้ api.list เพื่อรับข้อมูลแบบที่มี meta (total, page, totalPages)
-    return api.list<Asset>(`/v1/assets`, params);
+
+export async function getAssets(params: GetAssetsParams = {}, token?: string): Promise<AssetListResponse> {
+    return api.list<Asset>(`/v1/assets`, params, token);
 }
 
-export async function getAssetById(id: string): Promise<Asset> {
-    return api.get<Asset>(`/v1/assets/${id}`);
+/**
+ * Returns { [item_id]: registeredCount } for each requested item type UUID.
+ * Each medical_assets row = one physical unit, so this is the real "คงเหลือ"
+ * for asset-type items (items.current_stock is always 0 for assets).
+ */
+export async function getAssetCounts(itemIds: string[], token?: string): Promise<Record<string, number>> {
+    if (!itemIds.length) return {};
+    return api.get<Record<string, number>>(
+        `/v1/assets/counts`,
+        { item_ids: itemIds.join(',') },
+        token,
+    );
+}
+
+/**
+ * Fetch a single asset by its ID.
+ * Pass `token` from a Server Component for SSR requests.
+ */
+export async function getAssetById(id: string, token?: string): Promise<Asset> {
+    return api.get<Asset>(`/v1/assets/${id}`, undefined, token);
 }
 
 export async function updateAsset(id: string, data: Partial<Asset>): Promise<Asset> {

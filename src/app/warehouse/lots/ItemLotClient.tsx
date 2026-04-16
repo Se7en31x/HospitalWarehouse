@@ -1,19 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  Layers, Search, Download,
-  Wrench, Trash2, Copy,
-  ChevronLeft, ChevronRight, ChevronDown, Package,
-  MapPin, Tag, X, Save,
-  Calendar, ArrowRight,
-  TrendingUp, TrendingDown,
-  Loader2, Plus, AlertCircle, XCircle, BarChart3,
+   Search,
+  Wrench, Trash2,
+  ChevronLeft, ChevronRight, ChevronDown, 
   ToggleRight, ToggleLeft
 } from "lucide-react";
 
 import { socket } from "../../../lib/socket";
-import { getLots, getMasterSuppliers, deleteLot, toggleLotStatus, adjustLot } from "@/services/lotservice";
+import AdjustQuantityModal from "@/app/warehouse/lots/AdjustQuantityModal";
+import { getLots, deleteLot, toggleLotStatus, adjustLot } from "@/services/lotservice";
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
 import { saveLots } from "@/services/stockInService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -22,14 +19,6 @@ import type * as ItemInterface from "@/types/items_type";
 import type * as StockIn from "@/types/stockin_type";
 
 // --- [Types & Interfaces] ---
-interface AdjustModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (newQty: number, reason: string) => void;
-  lot: LotInterface.UiLot | null;
-  isAdjusting: boolean;
-}
-
 interface LotClientProps {
   initialLots: LotInterface.UiLot[];
   initialItems: ItemInterface.UiItem[];
@@ -98,172 +87,6 @@ const INITIAL_STOCKIN_FORM: StockinFormData = {
   remarks: ""
 };
 
-// --- [Modal Components] ---
-const AdjustLotModal = ({ isOpen, onClose, onConfirm, lot, isAdjusting }: AdjustModalProps) => {
-  const [newQty, setNewQty] = useState<number>(0);
-  const [reason, setReason] = useState<string>("");
-
-  useEffect(() => {
-    if (isOpen && lot) {
-      setNewQty(lot.quantity);
-      setReason("");
-    }
-  }, [isOpen, lot]);
-
-  if (!isOpen || !lot) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isAdjusting) return; // กันกดเบิ้ล
-    onConfirm(newQty, reason);
-  };
-
-  const diff = newQty - lot.quantity;
-
-  return (
-    <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
-        onClick={isAdjusting ? undefined : onClose}
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl pointer-events-auto flex flex-col overflow-hidden"
-        >
-          {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-6 flex items-center justify-between z-10 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <Wrench className="w-6 h-6 text-indigo-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">ปรับปรุงยอดคงเหลือ</h2>
-                <p className="text-sm text-slate-500 mt-1">อัปเดตยอดสินค้าตาม Stock จริง</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isAdjusting}
-              className="p-2 hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
-            >
-              <X className="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="p-6 space-y-6">
-            {/* Item Info Card */}
-            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <Package className="w-5 h-5 text-slate-500" />
-                ข้อมูลพัสดุ
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-slate-600">ชื่อสินค้า</label>
-                  <p className="text-base text-slate-900 font-medium">{lot.itemName || '-'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-slate-600">หมวดหมู่</label>
-                  <p className="text-base text-slate-900">{lot.category || '-'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-slate-600">ตำแหน่งเก็บ(คลัง)</label>
-                  <p className="text-base text-slate-900">{lot.warehouse || '-'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Adjust Quantities Card */}
-            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-slate-500" />
-                รายละเอียดการปรับยอด
-              </h3>
-
-              <div className="grid grid-cols-[1fr,auto,1fr] gap-6 items-center mb-6">
-                <div className="text-center p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-                  <span className="block text-sm font-medium text-slate-500 mb-2">ยอดเดิม</span>
-                  <span className="text-3xl font-bold text-slate-700">{lot.quantity.toLocaleString()}</span>
-                  <span className="text-sm text-slate-500 ml-2">{lot.unit}</span>
-                </div>
-                <ArrowRight className="w-6 h-6 text-slate-300" />
-                <div className="relative">
-                  <span className="absolute -top-3 left-4 bg-white px-2 text-xs font-semibold text-indigo-600 rounded-full border border-indigo-100 shadow-sm z-10">
-                    ระบุยอดใหม่
-                  </span>
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    value={newQty === 0 && newQty.toString() === "0" ? "" : newQty}
-                    onChange={(e) => setNewQty(e.target.value === "" ? 0 : Number(e.target.value))}
-                    className="w-full bg-white border-2 border-indigo-100 rounded-xl px-4 py-4 text-center text-3xl font-bold text-indigo-900 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm"
-                  />
-                </div>
-              </div>
-
-              {diff !== 0 ? (
-                <div className={`flex items-center justify-center gap-2 text-sm font-bold px-4 py-3 rounded-xl mb-6 ${diff > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                  }`}>
-                  {diff > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                  <span>ส่วนต่าง: {diff > 0 ? 'เพิ่มขึ้น' : 'ลดลง'} {Math.abs(diff).toLocaleString()} {lot.unit}</span>
-                </div>
-              ) : (
-                <div className="text-center text-sm font-medium text-slate-400 py-3 mb-6 bg-slate-100 rounded-xl border border-dashed border-slate-300">
-                  ไม่มีการเปลี่ยนแปลงยอด
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  สาเหตุการปรับปรุง <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="ระบุสาเหตุ เช่น นับสต็อกใหม่, สินค้าชำรุด, ตัดยอดผิดพลาด..."
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-shadow shadow-sm bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Actions Footer */}
-          <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-8 py-4 flex gap-3 justify-end shrink-0 z-10 rounded-b-2xl">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isAdjusting}
-              className="px-6 py-2 border border-slate-300 bg-white text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors disabled:opacity-50"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="submit"
-              disabled={isAdjusting}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-70 min-w-[140px]"
-            >
-              {isAdjusting ? (
-                <> <Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึก... </>
-              ) : (
-                <> <Save className="w-4 h-4" /> ยืนยันปรับยอด </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div >
-    </>
-  );
-};
-
 // =======================
 // 2. Main Client Component
 // =======================
@@ -275,6 +98,8 @@ export default function LotClient({
   const [itemsMaster, setItemsMaster] = useState<ItemInterface.UiItem[]>(initialItems);
   const [warehousesMaster, setWarehousesMaster] = useState<ItemInterface.Option[]>(initialWarehouses);
   const [loading, setLoading] = useState(false);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustingLot, setAdjustingLot] = useState<LotInterface.UiLot | null>(null);
@@ -296,7 +121,15 @@ export default function LotClient({
     remarks: ""
   });
   const [isSavingStockIn, setIsSavingStockIn] = useState(false);
-  const itemsPerPage = 10;
+  const LOT_PAGE_LIMIT = 10;
+
+  // Refs always hold current filter values for re-fetch
+  const pageRef = React.useRef(1);
+  const searchTermRef = React.useRef("");
+  const warehouseRef = React.useRef("ทั้งหมด");
+  const categoryRef = React.useRef("ทั้งหมด");
+  const statusRef = React.useRef("ALL");
+  const searchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Dropdown open states
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -315,15 +148,45 @@ export default function LotClient({
     }
   }, [isCategoryOpen, isStatusOpen]);
 
-  const fetchAllData = async () => {
+  const fetchLotsPage = async (
+    page: number,
+    search: string,
+    warehouse: string,
+    category: string,
+    status: string,
+  ) => {
     setLoading(true);
     try {
-      // Fetch with proper error handling
-      const [lotsData, itemsData, warehousesData] = await Promise.all([
-        getLots(1, 10000).catch(err => {
-          console.error("Failed to fetch lots:", err);
-          throw { endpoint: '/v1/lots', ...err };
-        }),
+      const result = await getLots(page, LOT_PAGE_LIMIT, {
+        search: search || undefined,
+        warehouse: warehouse !== "ทั้งหมด" ? warehouse : undefined,
+        category: category !== "ทั้งหมด" ? category : undefined,
+        status: status !== "ALL" ? status : undefined,
+      });
+      setLots(result.items);
+      setServerTotal(result.meta.total);
+      setServerTotalPages(result.meta.totalPages);
+    } catch (error: any) {
+      const status_code = error?.status;
+      let userMessage = error?.message || 'ไม่ทราบข้อผิดพลาด';
+      if (status_code === 401 || status_code === 403) {
+        userMessage = 'กรุณาเข้าสู่ระบบก่อน หรือ session หมดอายุ กรุณา Refresh หน้าเว็บ';
+      } else if (status_code === 500) {
+        userMessage = 'เซิร์ฟเวอร์มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
+      } else if (status_code === 0 || !status_code) {
+        userMessage = 'ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบการเชื่อมต่อ';
+      }
+      console.error("Failed to fetch lots:", error);
+      SweetAlertUtils.error('ไม่สามารถโหลดข้อมูลได้', userMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllData = async () => {
+    // Fetch items & warehouses reference data + first page of lots
+    try {
+      const [itemsData, warehousesData] = await Promise.all([
         getInventoryItems().catch(err => {
           console.error("Failed to fetch items:", err);
           throw { endpoint: '/v1/items', ...err };
@@ -333,51 +196,68 @@ export default function LotClient({
           throw { endpoint: '/v1/warehouses/option', ...err };
         }),
       ]);
-
-      setLots(lotsData);
       if (itemsData && itemsData.length > 0) setItemsMaster(itemsData);
       if (warehousesData && warehousesData.length > 0) setWarehousesMaster(warehousesData);
     } catch (error: any) {
       const status = error?.status;
-      const endpoint = error?.endpoint;
-      const baseMessage = error?.message || 'ไม่ทราบข้อผิดพลาด';
-      
-      let userMessage = baseMessage;
-      
-      // Provide helpful error messages based on status code
-      if (status === 401 || status === 403) {
-        userMessage = 'กรุณาเข้าสู่ระบบก่อน หรือ session หมดอายุ กรุณา Refresh หน้าเว็บ';
-      } else if (status === 500) {
-        userMessage = 'เซิร์ฟเวอร์มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
-      } else if (status === 0 || !status) {
-        userMessage = 'ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบการเชื่อมต่อ';
-      }
-      
-      console.error("Failed to fetch data:", {
-        endpoint,
-        status,
-        message: baseMessage,
-        fullError: error
-      });
-      
-      SweetAlertUtils.error(
-        'ไม่สามารถโหลดข้อมูลได้',
-        userMessage
-      );
-    } finally {
-      setLoading(false);
+      let userMessage = error?.message || 'ไม่ทราบข้อผิดพลาด';
+      if (status === 401 || status === 403) userMessage = 'กรุณาเข้าสู่ระบบก่อน หรือ session หมดอายุ กรุณา Refresh หน้าเว็บ';
+      else if (status === 500) userMessage = 'เซิร์ฟเวอร์มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
+      else if (status === 0 || !status) userMessage = 'ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบการเชื่อมต่อ';
+      console.error("Failed to fetch reference data:", error);
+      SweetAlertUtils.error('ไม่สามารถโหลดข้อมูลได้', userMessage);
     }
   };
 
   useEffect(() => {
     const isItemsMissing = !itemsMaster || itemsMaster.length === 0;
     const isWarehousesMissing = !warehousesMaster || warehousesMaster.length === 0;
-
-    if (isItemsMissing || isWarehousesMissing) {
-      console.log("Data missing, fetching...");
-      fetchAllData();
-    }
+    if (isItemsMissing || isWarehousesMissing) fetchAllData();
+    // Always fetch page 1 on mount to get server meta
+    fetchLotsPage(1, "", "ทั้งหมด", "ทั้งหมด", "ALL");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleLotsPageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    pageRef.current = newPage;
+    fetchLotsPage(newPage, searchTermRef.current, warehouseRef.current, categoryRef.current, statusRef.current);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    searchTermRef.current = value;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      pageRef.current = 1;
+      fetchLotsPage(1, value, warehouseRef.current, categoryRef.current, statusRef.current);
+    }, 300);
+  };
+
+  const handleWarehouseFilter = (value: string) => {
+    setSelectedWarehouse(value);
+    warehouseRef.current = value;
+    setCurrentPage(1);
+    pageRef.current = 1;
+    fetchLotsPage(1, searchTermRef.current, value, categoryRef.current, statusRef.current);
+  };
+
+  const handleCategoryFilter = (value: string) => {
+    setSelectedCategory(value);
+    categoryRef.current = value;
+    setCurrentPage(1);
+    pageRef.current = 1;
+    fetchLotsPage(1, searchTermRef.current, warehouseRef.current, value, statusRef.current);
+  };
+
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    statusRef.current = value;
+    setCurrentPage(1);
+    pageRef.current = 1;
+    fetchLotsPage(1, searchTermRef.current, warehouseRef.current, categoryRef.current, value);
+  };
 
   const openAdjustModal = (lot: LotInterface.UiLot) => {
     setAdjustingLot(lot);
@@ -398,7 +278,7 @@ export default function LotClient({
 
       if (result.success) {
         SweetAlertUtils.success('ปรับยอดสำเร็จ', 'ปรับยอดสินค้าเรียบร้อยแล้ว');
-        await fetchAllData();
+        await fetchLotsPage(pageRef.current, searchTermRef.current, warehouseRef.current, categoryRef.current, statusRef.current);
         setIsAdjustModalOpen(false);
         setAdjustingLot(null);
       } else {
@@ -458,27 +338,9 @@ export default function LotClient({
     return "ปกติ";
   };
 
-  const filteredData = lots.filter(lot => {
-    const currentStatus = calculateStatus(lot.expiryDate);
-    const enrichedData = getEnrichedLotData(lot);
-    const searchLower = searchTerm.toLowerCase();
-    const name = enrichedData.itemName || "";
-    const lotCode = lot.lotCode || "";
-    const code = enrichedData.itemCode || "";
-    const matchesSearch = name.toLowerCase().includes(searchLower) || lotCode.toLowerCase().includes(searchLower) || code.toLowerCase().includes(searchLower);
-    const matchesWarehouse = selectedWarehouse === "ทั้งหมด" || enrichedData.warehouse === selectedWarehouse;
-    const matchesCategory = selectedCategory === "ทั้งหมด" || enrichedData.category === selectedCategory;
-    let matchesStatus = true;
-    if (statusFilter === 'NEAR') matchesStatus = currentStatus === 'ใกล้หมด';
-    if (statusFilter === 'EXPIRED') matchesStatus = currentStatus === 'หมดอายุ';
-    if (statusFilter === 'ACTIVE') matchesStatus = lot.status === 'ACTIVE';
-    if (statusFilter === 'INACTIVE') matchesStatus = lot.status !== 'ACTIVE';
-    return matchesSearch && matchesWarehouse && matchesCategory && matchesStatus;
-  });
-
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = filteredData.slice(startIndex, startIndex + itemsPerPage);
+  // Server already filters; lots is the current page's data
+  const filteredData = lots;
+  const currentItems = filteredData;
 
   const handleStockinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -533,7 +395,7 @@ export default function LotClient({
         setStockinForm(INITIAL_STOCKIN_FORM);
 
         // รีโหลดข้อมูล
-        await fetchAllData();
+        await fetchLotsPage(pageRef.current, searchTermRef.current, warehouseRef.current, categoryRef.current, statusRef.current);
       } catch (error: any) {
         const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึก';
         SweetAlertUtils.error('บันทึกไม่สำเร็จ', errorMsg);
@@ -553,7 +415,7 @@ export default function LotClient({
   };
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
+    if (newPage >= 1 && newPage <= serverTotalPages) handleLotsPageChange(newPage);
   };
 
   const formatMoney = (val: number) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(val);
@@ -566,7 +428,7 @@ export default function LotClient({
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
 
-      <AdjustLotModal
+      <AdjustQuantityModal
         isOpen={isAdjustModalOpen}
         onClose={() => setIsAdjustModalOpen(false)}
         onConfirm={handleConfirmAdjust}
@@ -588,7 +450,7 @@ export default function LotClient({
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
+          <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
         </div>
         {/* Category Dropdown */}
         <div className="relative" data-filter-category>
@@ -607,7 +469,7 @@ export default function LotClient({
                   <li key={c}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); }}
+                      onClick={() => { handleCategoryFilter(c); setIsCategoryOpen(false); }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
@@ -637,7 +499,7 @@ export default function LotClient({
                   <li key={s.value}>
                     <button
                       type="button"
-                      onClick={() => { setStatusFilter(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                      onClick={() => { handleStatusFilter(s.value); setIsStatusOpen(false); }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${statusFilter === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
@@ -708,7 +570,7 @@ export default function LotClient({
                 {currentItems.map((lot, idx) => {
                   const currentStatus = calculateStatus(lot.expiryDate);
                   const enrichedData = getEnrichedLotData(lot);
-                  const rowNumber = startIndex + idx + 1;
+                  const rowNumber = (currentPage - 1) * LOT_PAGE_LIMIT + idx + 1;
                   return (
                     <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                       <td className="px-6 py-2.5 text-center font-medium text-slate-600">{rowNumber}</td>
@@ -757,11 +619,50 @@ export default function LotClient({
 
         {/* Pagination */}
         <div className="flex items-center justify-between mt-6">
-          <p className="text-sm text-slate-500">แสดง {currentItems.length} จาก {filteredData.length} รายการ</p>
+          <p className="text-sm text-slate-500">
+            แสดง {currentItems.length} จาก {serverTotal} รายการ
+            {serverTotalPages > 1 && ` (หน้า ${currentPage} / ${serverTotalPages})`}
+          </p>
           <div className="flex items-center gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-            <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-            <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
+            <button
+              disabled={currentPage === 1 || loading}
+              onClick={() => handlePageChange(currentPage - 1)}
+              className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: serverTotalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === serverTotalPages || Math.abs(p - currentPage) <= 2)
+              .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 text-sm">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => handlePageChange(p as number)}
+                    disabled={loading}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === p
+                        ? "bg-blue-600 text-white"
+                        : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              disabled={currentPage >= serverTotalPages || loading}
+              onClick={() => handlePageChange(currentPage + 1)}
+              className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>

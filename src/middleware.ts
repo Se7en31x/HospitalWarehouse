@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
+  let response = NextResponse.next({
     request: { headers: request.headers },
   });
 
@@ -15,6 +15,11 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
+          // ✅ อัปเดตคุกกี้ทั้งใน Request และ Response
+          request.cookies.set({ name, value, ...options }); // เพื่อให้ Page ใน Request นี้เห็นค่าใหม่
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          });
           response.cookies.set({
             name,
             value,
@@ -23,6 +28,11 @@ export async function middleware(request: NextRequest) {
           });
         },
         remove(name: string, options: CookieOptions) {
+          // ✅ ลบคุกกี้ทั้งใน Request และ Response
+          request.cookies.set({ name, value: "", ...options });
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          });
           response.cookies.set({
             name,
             value: "",
@@ -33,7 +43,6 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-
   // 1. ดึงข้อมูล User
   const { data: { user }, error } = await supabase.auth.getUser();
 

@@ -123,7 +123,7 @@ export default function ReturnRequestsClient() {
     try {
       const res = await reusableSvc.getReusableUnits({
         page: 1,
-        limit: 100,
+        limit: 10,
         department_id: departmentId,
         status: "IN_USE",
         item_id: item.item_id,

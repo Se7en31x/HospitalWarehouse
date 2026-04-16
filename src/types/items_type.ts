@@ -33,6 +33,7 @@ export interface ApiItem {
 	type?: string | null;
 	allowed_req?: boolean | null;
 	allowed_borrow?: boolean | null;
+	updated_at?: string | null;
 }
 
 export interface UiItem {
@@ -55,6 +56,7 @@ export interface UiItem {
 	type: string;
 	allowed_req: boolean;
 	allowed_borrow: boolean;
+	updatedAt?: string | null;
 }
 
 export interface Option {

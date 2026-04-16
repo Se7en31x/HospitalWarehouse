@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import {
     Search, ChevronLeft, ChevronRight, ChevronDown, Edit, X, Trash2,
@@ -39,18 +39,38 @@ const StatusBadge = ({ status }: { status: string }) => {
     );
 };
 
+// ============ Props ============
+
+interface AssetRegistryClientProps {
+    /** itemId is the item TYPE UUID — passed from the Server Component. */
+    itemId: string;
+    /** Item name pre-fetched on the server via GET /v1/items/:id */
+    initialItemName: string;
+    initialItemCode: string;
+    /** Asset list pre-fetched on the server via GET /v1/assets?item_id=... */
+    initialAssets: Asset[];
+}
+
 // ============ Main Component ============
 
-export default function AssetRegistryClient() {
-    const searchParams = useSearchParams();
+export default function AssetRegistryClient({
+    itemId,
+    initialItemName,
+    initialItemCode,
+    initialAssets,
+}: AssetRegistryClientProps) {
     const router = useRouter();
-    const itemId = searchParams.get("itemId");
 
-    const [records, setRecords] = useState<Asset[]>([]);
+    // Pre-populate records from server data — no loading flash.
+    const [records, setRecords] = useState<Asset[]>(initialAssets);
     const [departments, setDepartments] = useState<DepartmentOption[]>([]);
-    const [masterItem, setMasterItem] = useState<{ name: string; code: string } | null>(null);
+    const [masterItem, setMasterItem] = useState<{ name: string; code: string }>({
+        name: initialItemName,
+        code: initialItemCode,
+    });
 
     const [isFetching, setIsFetching] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState("");
@@ -103,42 +123,47 @@ export default function AssetRegistryClient() {
         }
     }, [isEditStatusOpen, isEditDeptOpen]);
 
-    const refreshData = useCallback(async () => {
+    // Fetch ALL asset instances for this item type.
+    // Uses GET /v1/assets?item_id=... (list endpoint) — NOT getAssetById, because
+    // itemId here is the ITEM TYPE UUID, not an individual asset UUID.
+    const loadAssets = useCallback(async () => {
         if (!itemId) return;
         setIsFetching(true);
+        setFetchError(null);
         try {
-            const response = await assetService.getAssets({
-                page: 1,
-                limit: 1000,
-                keyword: "",
-                department_id: selectedDepartment === "แผนกประจำการทั้งหมด" ? "" : selectedDepartment,
-                status: selectedStatus === "สถานะทั้งหมด" ? "" : selectedStatus,
-                item_id: itemId
-            });
-
-            const fetchedItems = response.items || [];
-            setRecords(fetchedItems);
-
-            if (fetchedItems.length > 0) {
+            const response = await assetService.getAssets({ item_id: itemId, limit: 10 });
+            const assets = response.data || [];
+            setRecords(assets);
+            if (assets.length > 0) {
                 setMasterItem({
-                    name: fetchedItems[0].item_name,
-                    code: fetchedItems[0].item_code
+                    name: assets[0].item_name || initialItemName,
+                    code: assets[0].item_code || initialItemCode,
                 });
             }
-        } catch (err) {
-            SweetAlertUtils.error("ข้อผิดพลาด", "ดึงข้อมูลทะเบียนไม่สำเร็จ");
+        } catch (err: any) {
+            setRecords([]);
+            setFetchError(err?.message || "ดึงข้อมูลทะเบียนครุภัณฑ์ไม่สำเร็จ");
         } finally {
             setIsFetching(false);
         }
-    }, [itemId, selectedDepartment, selectedStatus]);
+    }, [itemId, initialItemName, initialItemCode]);
 
     useEffect(() => {
         departmentService.getDepartmentOptions().then(setDepartments).catch(console.error);
     }, []);
 
+    // hasMounted prevents React Strict Mode's double-invoke from firing two requests,
+    // and lets the server-pre-fetched initialAssets skip the first client fetch entirely.
+    const hasMounted = useRef(false);
     useEffect(() => {
-        refreshData();
-    }, [refreshData]);
+        if (!itemId) return;
+        if (hasMounted.current) return;
+        hasMounted.current = true;
+        // Server already pre-fetched and populated records — skip client-side fetch.
+        if (initialAssets.length > 0) return;
+        loadAssets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [itemId]);
 
     const handleSaveEdit = async () => {
         if (!editingAsset) return;
@@ -154,7 +179,7 @@ export default function AssetRegistryClient() {
             SweetAlertUtils.success("สำเร็จ", "อัปเดตข้อมูลเรียบร้อย");
             setIsEditModalOpen(false);
             setEditingAsset(null);
-            refreshData();
+            loadAssets();
         } catch (err) {
             SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
         } finally {
@@ -168,7 +193,7 @@ export default function AssetRegistryClient() {
         try {
             await assetService.deleteAsset(id);
             SweetAlertUtils.success("สำเร็จ", "ลบรายการเรียบร้อย");
-            refreshData();
+            loadAssets();
         } catch (err) {
             SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
         }
@@ -224,18 +249,33 @@ export default function AssetRegistryClient() {
         currentPage * itemsPerPage
     );
 
-    if (!itemId) return <div className="p-20 text-center font-bold text-slate-300">ไม่พบข้อมูลรายการ</div>;
+    // Compute summary counts from loaded records — no extra API call needed.
+    const totalRegistered = records.length;
+    const readyCount    = records.filter(r => r.status === "READY").length;
+    const inUseCount    = records.filter(r => r.status === "IN_USE").length;
+    const repairCount   = records.filter(r => r.status === "REPAIR").length;
+    const disposedCount = records.filter(r => r.status === "DISPOSED").length;
+
+    // Per-department breakdown: { deptName → count }
+    const deptCounts = records.reduce<Record<string, number>>((acc, r) => {
+        const key = r.department_name || "ส่วนกลาง";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {});
 
     return (
         <div className="flex flex-col min-h-screen bg-white p-8">
             <Toaster position="top-right" />
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
                     <h2 className="text-3xl font-bold text-gray-800">
                         {masterItem?.name || "กำลังโหลด..."}
                     </h2>
+                    {masterItem?.code && (
+                        <span className="text-sm text-slate-400 font-mono">{masterItem.code}</span>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <button
@@ -417,12 +457,19 @@ export default function AssetRegistryClient() {
                             {paginatedRecords.length === 0 && !isFetching && (
                                 <tr>
                                     <td colSpan={8}>
-                                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
-                                            </svg>
-                                            <p className="text-sm font-medium">ไม่พบข้อมูล</p>
-                                        </div>
+                                        {fetchError ? (
+                                            <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
+                                                <AlertTriangle className="w-10 h-10 text-rose-300" />
+                                                <p className="text-sm font-medium">{fetchError}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                                                </svg>
+                                                <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             )}

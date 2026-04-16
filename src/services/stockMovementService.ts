@@ -45,7 +45,7 @@ export const getStockMovements = async (
 export const getAllStockMovements = async (
   filters?: StockMovementFilters
 ): Promise<StockMovement[]> => {
-  const firstPage = await getStockMovements({ ...filters, page: 1, limit: 100 });
+  const firstPage = await getStockMovements({ ...filters, page: 1, limit: 10 });
 
   if (!firstPage.success) {
     return [];
@@ -58,7 +58,7 @@ export const getAllStockMovements = async (
     const nextPage = await getStockMovements({
       ...filters,
       page,
-      limit: firstPage.meta.limit || 100,
+      limit: firstPage.meta.limit || 10,
     });
 
     if (nextPage.success) {

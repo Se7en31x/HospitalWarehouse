@@ -1,64 +1,65 @@
-import { createClient } from "@/lib/supabase/client";
+// TYPE-ONLY import — erased by the TypeScript compiler before webpack sees it.
+// Zero runtime cost; safe to reference in files used by Client Components.
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const API_SECRET_KEY = process.env.NEXT_PUBLIC_API_SECRET_KEY || process.env.API_SECRET_KEY || "";
 
-// src/lib/apiClient.ts
-const getHeaders = async () => {
-  // Server-side: use API secret key if available
+// ── Browser-side singleton ───────────────────────────────────────────────────
+// Created once on the first client-side call, reused for the page lifetime.
+// Always null on the server — the server never reaches this code path.
+let _browserClient: SupabaseClient | null = null;
+
+/**
+ * Resolves an auth token for the CURRENT environment.
+ *
+ * Server: returns API_SECRET_KEY (or null).
+ *   For authenticated SSR calls, callers pass the user token explicitly via
+ *   the `token` argument on each api.* method — no server Supabase import here.
+ *
+ * Client: reads the live Supabase session from the cached browser client.
+ */
+const resolveToken = async (): Promise<string | null> => {
+  // ── Server ────────────────────────────────────────────────────────────────
+  // Token is injected explicitly by Server Components; fall back to secret key.
   if (typeof window === "undefined") {
-    if (API_SECRET_KEY) {
-      return {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${API_SECRET_KEY}`,
-      };
-    }
-    // If no secret key, return just content type
-    return {
-      "Content-Type": "application/json",
-    };
+    return API_SECRET_KEY || null;
   }
 
-  // Client-side: use Supabase session
+  // ── Client ────────────────────────────────────────────────────────────────
   try {
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    // DEBUG: ก๊อปปี้ค่าที่ขึ้นใน Console ไปเช็คใน jwt.io
-    console.log("🔍 [Frontend] Sending Token:", token);
-
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  } catch (error) {
-    // Fallback to no auth if auth fails
-    return {
-      "Content-Type": "application/json",
-    };
+    if (!_browserClient) {
+      const { createClient } = await import("@/lib/supabase/client");
+      _browserClient = createClient();
+    }
+    const { data: { session } } = await _browserClient.auth.getSession();
+    return session?.access_token ?? null;
+  } catch {
+    _browserClient = null; // Reset so the next call re-initialises cleanly.
+    return null;
   }
 };
-        
-const getAuthHeader = async (): Promise<Record<string, string>> => {
-  // Server-side: use API secret key if available
-  if (typeof window === "undefined") {
-    if (API_SECRET_KEY) {
-      return { Authorization: `Bearer ${API_SECRET_KEY}` };
-    }
-    return {};
-  }
 
-  // Client-side: use Supabase session
-  try {
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : {};
-  } catch (error) {
-    return {};
-  }
+/**
+ * Builds the full JSON headers map.
+ * Pass `token` to inject an explicit Bearer value (used by SSR callers).
+ * Omit it to fall through to resolveToken() (used by client-side callers).
+ */
+const getHeaders = async (token?: string): Promise<Record<string, string>> => {
+  const resolved = token ?? (await resolveToken());
+  return {
+    "Content-Type": "application/json",
+    ...(resolved ? { Authorization: `Bearer ${resolved}` } : {}),
+  };
+};
+
+/**
+ * Builds an auth-only header map (no Content-Type — used for multipart uploads).
+ * Pass `token` to inject an explicit Bearer value.
+ */
+const getAuthHeader = async (token?: string): Promise<Record<string, string>> => {
+  const resolved = token ?? (await resolveToken());
+  return resolved ? { Authorization: `Bearer ${resolved}` } : {};
 };
 
 const handleResponse = async <T>(response: Response): Promise<{ data: T; status: number }> => {
@@ -150,8 +151,8 @@ export type PaginatedResponse<T> = {
  * Use this for all new service code.
  */
 export const api = {
-  /** GET — unwraps envelope `{ data: T }` */
-  async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
+  /** GET — unwraps envelope `{ data: T }`. Pass `token` for SSR calls. */
+  async get<T>(url: string, params?: Record<string, unknown>, token?: string): Promise<T> {
     let queryString = "";
     if (params) {
       const cleanParams: Record<string, string> = {};
@@ -163,36 +164,25 @@ export const api = {
     try {
       const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
         method: "GET",
-        headers: await getHeaders(),
+        headers: await getHeaders(token),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({})) as Record<string, unknown>;
-        const errorMessage = typeof err?.message === 'string' 
-          ? err.message 
+        const errorMessage = typeof err?.message === "string"
+          ? err.message
           : `HTTP ${response.status}`;
-        throw { 
-          status: response.status, 
-          message: errorMessage,
-          url: url
-        };
+        throw { status: response.status, message: errorMessage, url };
       }
       const body = await response.json() as { data?: T };
       return (body.data ?? body) as T;
     } catch (err: any) {
-      // Ensure error has proper structure
-      if (err?.status !== undefined) {
-        throw err;
-      }
-      throw {
-        status: 0,
-        message: err?.message || `Failed to fetch ${url}`,
-        url: url
-      };
+      if (err?.status !== undefined) throw err;
+      throw { status: 0, message: err?.message || `Failed to fetch ${url}`, url };
     }
   },
 
-  /** GET — returns full paginated envelope `{ data: T[], meta }` */
-  async list<T>(url: string, params?: Record<string, unknown>): Promise<PaginatedResponse<T>> {
+  /** GET — returns full paginated envelope `{ data: T[], meta }`. Pass `token` for SSR calls. */
+  async list<T>(url: string, params?: Record<string, unknown>, token?: string): Promise<PaginatedResponse<T>> {
     let queryString = "";
     if (params) {
       const cleanParams: Record<string, string> = {};
@@ -203,7 +193,7 @@ export const api = {
     }
     const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
       method: "GET",
-      headers: await getHeaders(),
+      headers: await getHeaders(token),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({})) as Record<string, unknown>;
@@ -212,11 +202,11 @@ export const api = {
     return response.json() as Promise<PaginatedResponse<T>>;
   },
 
-  /** POST — unwraps envelope `{ data: T }` */
-  async post<T>(url: string, body?: unknown): Promise<T> {
+  /** POST — unwraps envelope `{ data: T }`. Pass `token` for SSR calls. */
+  async post<T>(url: string, body?: unknown, token?: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: "POST",
-      headers: await getHeaders(),
+      headers: await getHeaders(token),
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
@@ -227,11 +217,11 @@ export const api = {
     return (result.data ?? result) as T;
   },
 
-  /** PUT — unwraps envelope `{ data: T }` */
-  async put<T>(url: string, body?: unknown): Promise<T> {
+  /** PUT — unwraps envelope `{ data: T }`. Pass `token` for SSR calls. */
+  async put<T>(url: string, body?: unknown, token?: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: "PUT",
-      headers: await getHeaders(),
+      headers: await getHeaders(token),
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
@@ -242,11 +232,11 @@ export const api = {
     return (result.data ?? result) as T;
   },
 
-  /** PATCH — unwraps envelope `{ data: T }` */
-  async patch<T>(url: string, body?: unknown): Promise<T> {
+  /** PATCH — unwraps envelope `{ data: T }`. Pass `token` for SSR calls. */
+  async patch<T>(url: string, body?: unknown, token?: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: "PATCH",
-      headers: await getHeaders(),
+      headers: await getHeaders(token),
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
@@ -257,11 +247,11 @@ export const api = {
     return (result.data ?? result) as T;
   },
 
-  /** DELETE — unwraps envelope `{ data: T }` */
-  async delete<T>(url: string): Promise<T> {
+  /** DELETE — unwraps envelope `{ data: T }`. Pass `token` for SSR calls. */
+  async delete<T>(url: string, token?: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method: "DELETE",
-      headers: await getHeaders(),
+      headers: await getHeaders(token),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({})) as Record<string, unknown>;
@@ -274,12 +264,12 @@ export const api = {
   /**
    * Upload FormData (multipart) — does NOT set Content-Type so the browser
    * sets the correct multipart boundary automatically.
+   * Pass `token` for SSR calls.
    */
-  async upload<T>(url: string, formData: FormData, method: "POST" | "PUT" | "PATCH" = "POST"): Promise<T> {
-    const authHeader = await getAuthHeader();
+  async upload<T>(url: string, formData: FormData, method: "POST" | "PUT" | "PATCH" = "POST", token?: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${url}`, {
       method,
-      headers: authHeader,
+      headers: await getAuthHeader(token),
       body: formData,
     });
     if (!response.ok) {

@@ -18,21 +18,45 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+const PAGE_LIMIT = 10;
+
+const formatThaiDateTime = (iso: string | null | undefined): { date: string; time: string } | null => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const date = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return { date, time };
+};
+
 export default function ItemsClient({ initialItems }: { initialItems: Item.UiItem[] }) {
   const [items, setItems] = useState<Item.UiItem[]>(initialItems || []);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
+
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
+  // Refs always hold current page/keyword so socket refresh can re-fetch correctly
+  const pageRef = useRef(1);
+  const keywordRef = useRef("");
+  const keywordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
 
-  const refreshData = useCallback(async () => {
+  const fetchPage = useCallback(async (page: number, keyword: string) => {
     setIsFetching(true);
     try {
-      const data = await ItemSvc.getInventoryItems({ limit: 1000 });
-      setItems(data || []);
+      const result = await ItemSvc.getInventoryItemsPage({
+        page,
+        limit: PAGE_LIMIT,
+        ...(keyword ? { keyword } : {}),
+      });
+      setItems(result.items || []);
+      setServerTotal(result.meta.total);
+      setServerTotalPages(result.meta.totalPages);
     } catch (error) {
       console.error("Fetch error:", error);
       SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลล้มเหลว");
@@ -40,6 +64,10 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       setIsFetching(false);
     }
   }, []);
+
+  const refreshData = useCallback(async () => {
+    fetchPage(pageRef.current, keywordRef.current);
+  }, [fetchPage]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -96,15 +124,31 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     };
 
     fetchOptions();
-    refreshData();
-  }, [refreshData]);
+    // Fetch page 1 on mount (SSR initialItems only covers page 1 without meta)
+    fetchPage(1, "");
+  }, [fetchPage]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
-  // const [selectedLocation, setSelectedLocation] = useState("ที่ตั้งทั้งหมด");
   const [currentPage, setCurrentPage] = useState(1);
- const itemsPerPage = 10;
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    keywordRef.current = value;
+    if (keywordTimerRef.current) clearTimeout(keywordTimerRef.current);
+    keywordTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      pageRef.current = 1;
+      fetchPage(1, value);
+    }, 300);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    pageRef.current = newPage;
+    fetchPage(newPage, keywordRef.current);
+  };
 
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
@@ -128,24 +172,15 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
 
   const filterCategories = ["หมวดหมู่ทั้งหมด", ...categories.map(c => c.name)];
-  // const filterLocations = ["ที่ตั้งทั้งหมด", ...Array.from(new Set(items.map(i => i.location).filter(Boolean)))];
 
+  // Client-side secondary filters (category/status) applied to current page's items
   const filteredItems = items.filter((item) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      (item.code || "").toLowerCase().includes(term) ||
-      (item.name || "").toLowerCase().includes(term) ||
-      (item.category || "").toLowerCase().includes(term);
-
     const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "สถานะทั้งหมด" || item.status === selectedStatus;
-    // const matchesLocation = selectedLocation === "ที่ตั้งทั้งหมด" || item.location === selectedLocation;
-
-    return matchesSearch && matchesCat && matchesStatus; // && matchesLocation;
+    return matchesCat && matchesStatus;
   });
-
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // paginatedItems = filteredItems (server already paged)
+  const paginatedItems = filteredItems;
 
   const handleDelete = async (id: string) => {
     const result = await SweetAlertUtils.delete("ลบพัสดุ", "คุณต้องการลบรายการนี้ใช่หรือไม่?");
@@ -210,7 +245,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input type="text" placeholder="ค้นหาชื่อ / รหัส..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
+          <input type="text" placeholder="ค้นหาชื่อ / รหัส..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
         </div>
 
         <div className="relative" data-filter-category>
@@ -346,13 +381,15 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4 w-[150px]">คงเหลือ</th>
                 <th className="px-6 py-4 w-[120px]">หน่วย</th>
                 <th className="px-6 py-4 w-[150px]">สถานะ</th>
+                <th className="px-6 py-4 w-[130px] text-center">จำนวนขั้นต่ำ</th>
+                <th className="px-6 py-4 w-[160px] hidden sm:table-cell">อัปเดตล่าสุด</th>
                 <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
               </tr>
             </thead>
             <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-3 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-3 w-[50px]">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
                   <td className="px-6 py-3 w-[100px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
@@ -375,6 +412,27 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                   <td className="px-6 py-3">{item.stock}</td>
                    <td className="px-6 py-3">{item.unit}</td>
                   <td className="px-6 py-3 w-[150px]"><Badge status={item.status} /></td>
+                  <td className="px-6 py-3 w-[130px] text-center">
+                    {item.minStock > 0 ? (
+                      <span className={item.stock <= item.minStock ? "text-red-600 font-bold" : "text-slate-700 font-semibold"}>
+                        {item.minStock}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-3 w-[160px] hidden sm:table-cell">
+                    {(() => {
+                      const dt = formatThaiDateTime(item.updatedAt);
+                      if (!dt) return <span className="text-slate-400 text-xs">-</span>;
+                      return (
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-slate-800 text-xs">{dt.date}</span>
+                          <span className="text-slate-400 text-xs">{dt.time}</span>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-6 py-3 w-[100px] text-center">
                     <div className="flex justify-between gap-1">
                       <button onClick={() => openEditModal(item)} className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"><Edit className="w-5 h-5"/></button>
@@ -385,7 +443,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={12}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
@@ -401,11 +459,50 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       </div>
 
       <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {filteredItems.length} รายการ</p>
+        <p className="text-sm text-slate-500">
+          แสดง {paginatedItems.length} จาก {serverTotal} รายการ
+          {serverTotalPages > 1 && ` (หน้า ${currentPage} / ${serverTotalPages})`}
+        </p>
         <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-          <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-          <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
+          <button
+            disabled={currentPage === 1 || isFetching}
+            onClick={() => handlePageChange(currentPage - 1)}
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          {Array.from({ length: serverTotalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === serverTotalPages || Math.abs(p - currentPage) <= 2)
+            .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+              if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, idx) =>
+              p === "..." ? (
+                <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 text-sm">…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => handlePageChange(p as number)}
+                  disabled={isFetching}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                    currentPage === p
+                      ? "bg-blue-600 text-white"
+                      : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+          <button
+            disabled={currentPage >= serverTotalPages || isFetching}
+            onClick={() => handlePageChange(currentPage + 1)}
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

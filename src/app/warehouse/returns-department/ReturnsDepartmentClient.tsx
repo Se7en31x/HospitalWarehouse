@@ -75,7 +75,7 @@ export default function ReturnsDepartmentClient() {
     try {
       const response = await reusableSvc.getReusableReturnRequests({
         page: 1,
-        limit: 50,
+        limit: 10,
         department_id: departmentFilter || undefined,
         status: "REQUESTED",
       });

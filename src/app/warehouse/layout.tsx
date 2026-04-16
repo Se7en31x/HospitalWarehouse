@@ -1,21 +1,47 @@
-'use client';
-
+import type { ReactNode } from "react";
+import { createClient } from "@/lib/supabase/server";
+import { getProfile, type UserProfile } from "@/services/profileService";
+import { UserProvider } from "@/context/UserContext";
 import WarehouseNavbar from "@/components/layouts/WarehouseNavbar";
 import WarehouseSidebar from "@/components/layouts/WarehouseSidebar";
-import MainContentWrapper from "@/components/layouts/MainContentWrapper"; 
+import MainContentWrapper from "@/components/layouts/MainContentWrapper";
 
-export default function WarehouseLayout({ children }: { children: React.ReactNode }) {
+/**
+ * Warehouse layout — async Server Component.
+ *
+ * Pre-fetches the user profile server-side so the navbar renders the user's
+ * name on the very first paint (no skeleton flash).  The profile is stored
+ * in UserProvider and shared by every navbar/component in this subtree —
+ * zero duplicate API calls.
+ *
+ * If the SSR fetch fails (e.g. expired session), UserProvider automatically
+ * falls back to a client-side fetch on mount.
+ */
+export default async function WarehouseLayout({ children }: { children: ReactNode }) {
+  let initialProfile: UserProfile | null = null;
+
+  try {
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      initialProfile = await getProfile(session.access_token);
+    }
+  } catch {
+    // Session unavailable or API error — client-side fetch is the fallback.
+  }
+
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
-      
-      <WarehouseNavbar />
-      
-      <div className="flex flex-1 overflow-hidden w-full">
-        <WarehouseSidebar />
-        
-         <MainContentWrapper>{children}</MainContentWrapper>
-      </div>
+    <UserProvider initialProfile={initialProfile}>
+      <div className="flex flex-col h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
 
-    </div>
+        <WarehouseNavbar />
+
+        <div className="flex flex-1 overflow-hidden w-full">
+          <WarehouseSidebar />
+          <MainContentWrapper>{children}</MainContentWrapper>
+        </div>
+
+      </div>
+    </UserProvider>
   );
 }

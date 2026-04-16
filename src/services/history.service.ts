@@ -12,7 +12,7 @@ import {
 export const fetchHistory = async (
   filters?: HistoryFilterParams,
   page = 1,
-  limit = 20
+  limit = 10
 ): Promise<HistoryResponse> => {
   const params = {
     page,
@@ -27,7 +27,7 @@ export const fetchHistory = async (
     items: res.data || [],
     total: res.meta?.total || 0,
     page: res.meta?.page || 1,
-    limit: res.meta?.limit || 20,
+    limit: res.meta?.limit || 10,
     totalPages: res.meta?.totalPages || 1
   } as unknown as HistoryResponse;
 };

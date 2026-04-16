@@ -64,7 +64,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const loadItems = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await getNotifications({ page: 1, limit: 12 });
+      const result = await getNotifications({ page: 1, limit: 10 });
       setItems(result.items || []);
     } catch {
       setItems([]);

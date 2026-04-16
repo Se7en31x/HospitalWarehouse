@@ -64,7 +64,7 @@ async function fetchAndProcessBorrows(): Promise<any[]> {
 
 export async function getBorrowedItems(
     page: number = 1,
-    limit: number = 100
+    limit: number = 10
 ): Promise<Returns.PagedResponse<Returns.UiReturn>> {
     try {
         const borrowedItems = await fetchAndProcessBorrows();
@@ -78,7 +78,7 @@ export async function getBorrowedItems(
         };
     } catch (error) {
         console.error("Failed to fetch borrowed items:", error);
-        return { data: [], total: 0, page: 1, limit: 100 };
+        return { data: [], total: 0, page: 1, limit: 10 };
     }
 }
 

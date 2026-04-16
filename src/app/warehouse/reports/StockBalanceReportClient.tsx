@@ -97,7 +97,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 		setIsFetching(true);
 		setWarehouseFilter("");
 		try {
-			const params: Record<string, unknown> = { limit: 500, page: 1 };
+			const params: Record<string, unknown> = { limit: 10, page: 1 };
 			if (selectedType) params.type = selectedType;
 			if (startDate)    params.dateFrom = startDate;
 			if (endDate)      params.dateTo   = endDate;

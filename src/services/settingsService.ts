@@ -22,7 +22,7 @@ const SETTINGS_BASE = "/v1";
 async function fetchAllPages<T>(basePath: string): Promise<T[]> {
     const all: T[] = [];
     let page = 1;
-    const limit = 100;
+    const limit = 10;
 
     while (true) {
         // ใช้ api.list เพื่อเข้าถึงข้อมูลทั้ง data และ meta

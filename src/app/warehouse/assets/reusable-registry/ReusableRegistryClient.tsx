@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, Edit, Search, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Edit, Search, Trash2, X } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
@@ -41,18 +41,38 @@ const getStatusLabel = (unit: reusableSvc.ReusableUnit) => {
 };
 
 
+// ============ Props ============
+
+interface ReusableRegistryClientProps {
+  /** itemId is the item TYPE UUID — passed from the Server Component. */
+  itemId: string;
+  /** Item name pre-fetched on the server via GET /v1/items/:id */
+  initialItemName: string;
+  initialItemCode: string;
+  /** Unit list pre-fetched on the server via GET /v1/reusable-items?item_id=... */
+  initialUnits: reusableSvc.ReusableUnit[];
+}
+
 // ============ Main Component ============
 
-export default function ReusableRegistryClient() {
+export default function ReusableRegistryClient({
+  itemId,
+  initialItemName,
+  initialItemCode,
+  initialUnits,
+}: ReusableRegistryClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const itemId = searchParams.get("itemId") || "";
 
-  const [records, setRecords] = useState<reusableSvc.ReusableUnit[]>([]);
+  // Pre-populate records from server data — no loading flash.
+  const [records, setRecords] = useState<reusableSvc.ReusableUnit[]>(initialUnits);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
-  const [masterItem, setMasterItem] = useState<{ name: string | null; code: string | null } | null>(null);
+  const [masterItem, setMasterItem] = useState<{ name: string; code: string }>({
+    name: initialItemName,
+    code: initialItemCode,
+  });
 
   const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -111,37 +131,43 @@ export default function ReusableRegistryClient() {
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
-  const refreshData = useCallback(async () => {
+  // Fetch ALL unit instances for this item type.
+  // Uses GET /v1/reusable-items?item_id=... (list endpoint) — NOT getReusableUnitById,
+  // because itemId here is the ITEM TYPE UUID, not an individual unit UUID.
+  const loadUnits = useCallback(async () => {
     if (!itemId) return;
     setIsFetching(true);
+    setFetchError(null);
     try {
-      const response = await reusableSvc.getReusableUnits({
-        page: 1,
-        limit: 1000,
-        keyword: "",
-        department_id: selectedDepartment === "แผนกประจำการทั้งหมด" ? "" : selectedDepartment,
-        status: selectedStatus === "สถานะทั้งหมด" ? "" : selectedStatus,
-        item_id: itemId,
-      });
-
-      setRecords(response.items || []);
-
-      if (response.items && response.items.length > 0) {
+      const response = await reusableSvc.getReusableUnits({ item_id: itemId, limit: 10 });
+      const units = response.items || [];
+      setRecords(units);
+      if (units.length > 0) {
         setMasterItem({
-          name: response.items[0].item_name,
-          code: response.items[0].item_code,
+          name: units[0].item_name || initialItemName,
+          code: units[0].item_code || initialItemCode,
         });
       }
-    } catch (err) {
-      SweetAlertUtils.error("ข้อผิดพลาด", "ดึงข้อมูลทะเบียนรายชิ้นไม่สำเร็จ");
+    } catch (err: any) {
+      setRecords([]);
+      setFetchError(err?.message || "ดึงข้อมูลทะเบียนรายชิ้นไม่สำเร็จ");
     } finally {
       setIsFetching(false);
     }
-  }, [itemId, selectedDepartment, selectedStatus]);
+  }, [itemId, initialItemName, initialItemCode]);
 
+  // hasMounted prevents React Strict Mode's double-invoke from firing two requests,
+  // and lets the server-pre-fetched initialUnits skip the first client fetch entirely.
+  const hasMounted = useRef(false);
   useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    if (!itemId) return;
+    if (hasMounted.current) return;
+    hasMounted.current = true;
+    // Server already pre-fetched and populated records — skip client-side fetch.
+    if (initialUnits.length > 0) return;
+    loadUnits();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
 
   const handleSaveEdit = async () => {
     if (!editingUnit) return;
@@ -157,7 +183,7 @@ export default function ReusableRegistryClient() {
       SweetAlertUtils.success("สำเร็จ", "อัปเดตข้อมูลเรียบร้อย");
       setIsEditModalOpen(false);
       setEditingUnit(null);
-      refreshData();
+      loadUnits();
     } catch (err) {
       SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
     } finally {
@@ -171,7 +197,7 @@ export default function ReusableRegistryClient() {
     try {
       await reusableSvc.deleteReusableUnit(id);
       SweetAlertUtils.success("สำเร็จ", "ลบรายการเรียบร้อย");
-      refreshData();
+      loadUnits();
     } catch (err) {
       SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
     }
@@ -226,10 +252,6 @@ export default function ReusableRegistryClient() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  if (!itemId) {
-    return <div className="p-20 text-center font-bold text-slate-300">ไม่พบรายการที่ต้องการ</div>;
-  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
@@ -407,9 +429,16 @@ export default function ReusableRegistryClient() {
               {paginatedRecords.length === 0 && !isFetching && (
                 <tr>
                   <td colSpan={9}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <p className="text-sm font-medium">ไม่พบข้อมูลทะเบียนรายชิ้น</p>
-                    </div>
+                    {fetchError ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
+                        <AlertTriangle className="w-10 h-10 text-rose-300" />
+                        <p className="text-sm font-medium">{fetchError}</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                        <p className="text-sm font-medium">ไม่พบข้อมูลทะเบียนรายชิ้น</p>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}
