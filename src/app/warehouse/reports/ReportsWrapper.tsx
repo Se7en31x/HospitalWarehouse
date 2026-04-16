@@ -205,7 +205,7 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
   if (showSelector) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="w-full px-6 py-8">
 
           {/* ── Page header ─────────────────────────────────────────────── */}
           <div className="flex items-center gap-4 mb-12">
@@ -244,9 +244,6 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
                         onClick={() => handleSelectType(report.id)}
                         className="group relative flex flex-col text-left bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-xl hover:border-[#0055FF] overflow-hidden transition-all duration-200 cursor-pointer"
                       >
-                        {/* Accent strip */}
-                        <span className="absolute bottom-0 left-0 w-full h-1 bg-[#0055FF] scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
-
                         {/* Top row: icon + ArrowUpRight */}
                         <div className="flex items-start justify-between mb-4">
                           <div className={`p-3 rounded-xl ${report.iconBg}`}>

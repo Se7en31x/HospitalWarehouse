@@ -460,10 +460,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">
-          แสดง {paginatedItems.length} จาก {serverTotal} รายการ
-          {serverTotalPages > 1 && ` (หน้า ${currentPage} / ${serverTotalPages})`}
-        </p>
+        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {serverTotal} รายการ</p>
         <div className="flex items-center gap-2">
           <button
             disabled={currentPage === 1 || isFetching}
@@ -472,31 +469,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          {Array.from({ length: serverTotalPages }, (_, i) => i + 1)
-            .filter(p => p === 1 || p === serverTotalPages || Math.abs(p - currentPage) <= 2)
-            .reduce<(number | "...")[]>((acc, p, idx, arr) => {
-              if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
-              acc.push(p);
-              return acc;
-            }, [])
-            .map((p, idx) =>
-              p === "..." ? (
-                <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 text-sm">…</span>
-              ) : (
-                <button
-                  key={p}
-                  onClick={() => handlePageChange(p as number)}
-                  disabled={isFetching}
-                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                    currentPage === p
-                      ? "bg-blue-600 text-white"
-                      : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {p}
-                </button>
-              )
-            )}
+          <span className="text-sm font-medium">หน้า {currentPage} / {serverTotalPages || 1}</span>
           <button
             disabled={currentPage >= serverTotalPages || isFetching}
             onClick={() => handlePageChange(currentPage + 1)}

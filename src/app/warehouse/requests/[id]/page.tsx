@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, PackageCheck, Building2, User, Loader2, Minus, Plus, ScanLine,
-  Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield,
+  Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
@@ -42,9 +42,9 @@ const formatBorrowerAddress = (bd: BorrowerDetails): string => {
   const parts = [
     bd.address,
     bd.subdistrict ? `ต.${bd.subdistrict}` : "",
-    bd.district   ? `อ.${bd.district}`     : "",
-    bd.province   ? `จ.${bd.province}`     : "",
-    bd.zipcode    ?? "",
+    bd.district ? `อ.${bd.district}` : "",
+    bd.province ? `จ.${bd.province}` : "",
+    bd.zipcode ?? "",
   ].filter(Boolean);
   return parts.join(" ") || "-";
 };
@@ -53,27 +53,27 @@ const formatBorrowerAddress = (bd: BorrowerDetails): string => {
 
 const getStatusLabel = (status?: RequisitionHeader["status"]): string => {
   switch (status) {
-    case "PENDING":    return "รออนุมัติ";
-    case "APPROVED":   return "รอนำส่ง";
-    case "COMPLETED":  return "เสร็จสิ้น";
-    case "BORROWING":  return "กำลังยืม";
-    case "REJECTED":   return "ปฏิเสธแล้ว";
-    case "DRAFT":      return "ร่าง";
-    case "CANCELLED":  return "ยกเลิก";
-    default:           return status || "-";
+    case "PENDING": return "รออนุมัติ";
+    case "APPROVED": return "รอนำส่ง";
+    case "COMPLETED": return "เสร็จสิ้น";
+    case "BORROWING": return "กำลังยืม";
+    case "REJECTED": return "ปฏิเสธแล้ว";
+    case "DRAFT": return "ร่าง";
+    case "CANCELLED": return "ยกเลิก";
+    default: return status || "-";
   }
 };
 
 const getStatusBadgeClass = (status?: RequisitionHeader["status"]): string => {
   switch (status) {
-    case "COMPLETED":  return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-    case "APPROVED":   return "bg-blue-50 text-blue-700 border border-blue-200";
-    case "BORROWING":  return "bg-sky-50 text-sky-700 border border-sky-200";
-    case "REJECTED":   return "bg-rose-50 text-rose-700 border border-rose-200";
-    case "PENDING":    return "bg-amber-50 text-amber-700 border border-amber-200";
+    case "COMPLETED": return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+    case "APPROVED": return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "BORROWING": return "bg-sky-50 text-sky-700 border border-sky-200";
+    case "REJECTED": return "bg-rose-50 text-rose-700 border border-rose-200";
+    case "PENDING": return "bg-amber-50 text-amber-700 border border-amber-200";
     case "DRAFT":
-    case "CANCELLED":  return "bg-slate-100 text-slate-500 border border-slate-200";
-    default:           return "bg-slate-100 text-slate-500 border border-slate-200";
+    case "CANCELLED": return "bg-slate-100 text-slate-500 border border-slate-200";
+    default: return "bg-slate-100 text-slate-500 border border-slate-200";
   }
 };
 
@@ -95,9 +95,10 @@ export default function RequisitionDetailsPage({
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [scanInput, setScanInput] = useState("");
   const [barcodeSearch, setBarcodeSearch] = useState("");
+  const [isBorrowerDetailsOpen, setIsBorrowerDetailsOpen] = useState(false);
 
-  const isPending         = requisition?.status === "PENDING";
-  const isApproved        = requisition?.status === "APPROVED";
+  const isPending = requisition?.status === "PENDING";
+  const isApproved = requisition?.status === "APPROVED";
   const canCompleteDelivery = isApproved && requisition?.type === "WITHDRAW";
 
   // ── Data fetching ───────────────────────────────────────────────────────────
@@ -337,35 +338,23 @@ export default function RequisitionDetailsPage({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
-      <Toaster position="top-right" />
-
-      {/* ── Page Header ─────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <FileText className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">{requisition.doc_no}</h2>
-            <p className="text-xs text-slate-500">
-              {isBorrow ? "ใบยืมครุภัณฑ์" : "ใบเบิกของสิ้นเปลือง"}
-            </p>
-          </div>
-          <span className={`ml-2 px-3 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(requisition.status)}`}>
-            {getStatusLabel(requisition.status)}
-          </span>
-        </div>
-        <button
-          onClick={() => router.push("/warehouse/requests")}
-          className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 text-sm font-medium transition-colors"
-        >
-          ย้อนกลับ
-        </button>
-      </div>
+    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
 
       {/* ── Scrollable body ──────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-8 py-4 gap-4">
+      <div className="flex-1 flex flex-col gap-6">
+
+        {/* ── Page Header ─────────────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-800">
+            {requisition.doc_no} — {isBorrow ? "รายการยืม" : "รายการเบิก"}
+          </h1>
+          <button
+            onClick={() => router.push("/warehouse/requests")}
+            className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 text-sm font-medium transition-colors"
+          >
+            ย้อนกลับ
+          </button>
+        </div>
 
         {/* ── Summary Bar ───────────────────────────────────────────────────── */}
         <section className="flex-shrink-0 rounded-xl bg-white border border-slate-200 shadow-sm p-5">
@@ -377,7 +366,7 @@ export default function RequisitionDetailsPage({
           </div>
           <div className={`grid grid-cols-2 gap-4 ${isBorrow ? "md:grid-cols-6" : "md:grid-cols-5"}`}>
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1">เลขเอกสาร</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">เลขเอกสาร</p>
               <p className="font-mono text-sm text-slate-700 font-semibold">{requisition.doc_no}</p>
             </div>
             <div>
@@ -415,131 +404,141 @@ export default function RequisitionDetailsPage({
 
         {/* ── Borrower Details — BORROW type only ───────────────────────────── */}
         {isBorrow && bd && (
-          <section className="flex-shrink-0 rounded-xl bg-white border border-slate-200 shadow-sm p-5">
-            <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
-              <User className="h-4 w-4 text-blue-600" />
-              <h3 className="text-sm font-bold text-slate-700">ข้อมูลผู้ยืม</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left — personal info */}
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">ชื่อ-นามสกุล</p>
-                    <p className="text-sm font-semibold text-slate-800 mt-0.5">{bd.fullname}</p>
-                  </div>
+          <section className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+            {/* Header with toggle */}
+            <button
+              onClick={() => setIsBorrowerDetailsOpen(!isBorrowerDetailsOpen)}
+              className="w-full flex items-center justify-between p-6 border-b border-slate-200 hover:bg-slate-100 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <User className="w-3.5 h-3.5 text-white" />
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">เบอร์โทรศัพท์</p>
-                    <p className="text-sm text-slate-700 mt-0.5 font-mono">{bd.phone || "-"}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">ที่อยู่</p>
-                    <p className="text-sm text-slate-700 mt-0.5 leading-relaxed">{formatBorrowerAddress(bd)}</p>
-                  </div>
-                </div>
-                {bd.notes && (
-                  <div className="ml-11 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wide mb-0.5">หมายเหตุ</p>
-                    <p className="text-xs text-amber-800">{bd.notes}</p>
-                  </div>
-                )}
+                <h3 className="text-sm font-bold text-slate-700">ข้อมูลผู้ยืม</h3>
               </div>
+              <ChevronDown
+                className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isBorrowerDetailsOpen ? "rotate-180" : ""
+                  }`}
+              />
+            </button>
 
-              {/* Right — evidence */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Shield className="w-4 h-4 text-blue-600" />
-                  <p className="text-sm font-bold text-slate-700">หลักฐานและเอกสาร</p>
+            {/* Content (collapsible) */}
+            {isBorrowerDetailsOpen && (
+              <div className="p-6 space-y-6 animate-in fade-in duration-300">
+                {/* ── Personal Information (3 columns) ──────────────────────────── */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Name */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">ชื่อ-นามสกุล</p>
+                    <p className="text-sm font-semibold text-slate-800">{bd.fullname}</p>
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">เบอร์โทรศัพท์</p>
+                    <p className="text-sm font-mono text-slate-700">{bd.phone || "-"}</p>
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">ที่อยู่</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{formatBorrowerAddress(bd)}</p>
+                  </div>
                 </div>
 
-                {bd.id_card_url ? (
-                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                    {isPdfUrl(bd.id_card_url) ? (
-                      /* PDF preview */
-                      <div className="flex items-center gap-4 p-4">
-                        <div className="w-16 h-16 rounded-xl bg-red-50 border border-red-100 flex flex-col items-center justify-center flex-shrink-0">
-                          <FileText className="w-7 h-7 text-red-500" />
-                          <span className="text-[9px] font-black text-red-400 mt-0.5 uppercase tracking-wide">PDF</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-800">ดูสำเนาเอกสาร</p>
-                          <p className="text-xs text-slate-500 mt-0.5">ไฟล์ PDF · สำเนาบัตรประชาชน</p>
-                          <a
-                            href={bd.id_card_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            เปิดดูไฟล์ต้นฉบับ
-                          </a>
-                        </div>
+                {/* ── Divider ──────────────────────────────────────────────────── */}
+                <div className="border-t border-slate-100" />
+
+                {/* ── ID Card / Evidence (left) & Notes (right) ─────────────────── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left: ID Card / Evidence */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700 mb-4">หลักฐานและเอกสาร</h4>
+
+                    {bd.id_card_url ? (
+                      <div className="rounded-xl border border-slate-300 overflow-hidden">
+                        {isPdfUrl(bd.id_card_url) ? (
+                          /* PDF preview */
+                          <div className="flex items-center justify-between gap-4 p-5">
+                            <div className="flex items-center gap-4 flex-1">
+                              <div className="w-16 h-16 rounded-lg bg-red-50 border border-red-200 flex flex-col items-center justify-center flex-shrink-0">
+                                <FileText className="w-7 h-7 text-red-600" />
+                                <span className="text-[9px] font-black text-red-600 mt-0.5 uppercase tracking-wide">PDF</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-900">ดูสำเนาเอกสาร</p>
+                                <p className="text-xs text-slate-500 mt-1">ไฟล์ PDF · สำเนาบัตรประชาชน</p>
+                              </div>
+                            </div>
+                            <a
+                              href={bd.id_card_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 flex items-center justify-center transition-colors"
+                            >
+                              <ExternalLink className="w-5 h-5" />
+                            </a>
+                          </div>
+                        ) : (
+                          /* Image preview */
+                          <div>
+                            <div
+                              className="relative cursor-pointer group bg-slate-100"
+                              onClick={() => setPreviewImage({ url: bd.id_card_url!, name: `${bd.fullname} — สำเนาบัตร` })}
+                            >
+                              <img
+                                src={bd.id_card_url}
+                                alt="สำเนาบัตรประชาชน"
+                                className="w-full h-48 object-cover transition-opacity group-hover:opacity-80"
+                              />
+                              <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors flex items-center justify-center">
+                                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full shadow">
+                                  คลิกเพื่อขยาย
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between px-4 py-3 bg-white">
+                              <p className="text-xs text-slate-500 font-medium">สำเนาบัตรประชาชน</p>
+                              <a
+                                href={bd.id_card_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                เปิดดูไฟล์ต้นฉบับ
+                              </a>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      /* Image preview */
-                      <div>
-                        <div
-                          className="relative cursor-pointer group"
-                          onClick={() => setPreviewImage({ url: bd.id_card_url!, name: `${bd.fullname} — สำเนาบัตร` })}
-                        >
-                          <img
-                            src={bd.id_card_url}
-                            alt="สำเนาบัตรประชาชน"
-                            className="w-full h-36 object-cover transition-opacity group-hover:opacity-90"
-                          />
-                          <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/20 transition-colors flex items-center justify-center">
-                            <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full shadow">
-                              คลิกเพื่อขยาย
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between px-3 py-2.5 bg-white border-t border-slate-100">
-                          <p className="text-xs text-slate-500 font-medium">สำเนาบัตรประชาชน</p>
-                          <a
-                            href={bd.id_card_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            เปิดดูไฟล์ต้นฉบับ
-                          </a>
-                        </div>
+                      <div className="rounded-xl border border-slate-300 p-8 text-center">
+                        <p className="text-sm font-semibold text-slate-400">ไม่มีเอกสารแนบ</p>
+                        <p className="text-xs text-slate-400 mt-1">ผู้ยืมไม่ได้อัปโหลดสำเนาบัตรประชาชน</p>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                    <Shield className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-slate-400">ไม่มีเอกสารแนบ</p>
-                    <p className="text-xs text-slate-300 mt-1">ผู้ยืมไม่ได้อัปโหลดสำเนาบัตร</p>
-                  </div>
-                )}
+
+                  {/* Right: Notes */}
+                  {bd.notes && (
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 mb-3">หมายเหตุ</h4>
+                      <p className="text-sm text-slate-700 leading-relaxed">{bd.notes}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </section>
         )}
 
-        {/* ── Main Split Layout (flex-1 fills remaining height) ─────────────── */}
-        <div className="flex-1 min-h-0 rounded-xl bg-white border border-slate-200 shadow-sm p-5">
-          <div className="flex h-full overflow-hidden gap-4">
+        {/* ── Main Split Layout ────────────────────────────────────────────── */}
+        <div className="flex flex-col rounded-xl bg-white border border-slate-200 shadow-sm flex-shrink-0">
+          <div className="flex-1 min-h-0 flex overflow-hidden gap-4 p-4">
 
             {/* ── Left Panel (60%) — Items table ───────────────────────────── */}
-            <div className="flex-[3_1_0%] min-w-0 bg-white flex flex-col rounded-lg overflow-hidden border border-slate-200">
+            <div className="flex-[3_1_0%] min-w-0 flex flex-col rounded-lg overflow-hidden border border-slate-200 bg-white">
               <div className="px-5 py-3.5 border-b bg-slate-50/70 flex justify-between items-center flex-shrink-0">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm">
                   รายการที่ต้องเบิกจ่าย
@@ -564,10 +563,10 @@ export default function RequisitionDetailsPage({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {requisition.items?.map((item: RequisitionItem) => {
-                      const alloc    = allocations[item.id] || { qty: 0, lots: {}, units: [] };
-                      const isSel    = selectedItemId === item.id;
+                      const alloc = allocations[item.id] || { qty: 0, lots: {}, units: [] };
+                      const isSel = selectedItemId === item.id;
                       const isComplete = alloc.qty === item.qty;
-                      const isOver  = alloc.qty > item.qty;
+                      const isOver = alloc.qty > item.qty;
                       return (
                         <tr
                           key={item.id}
@@ -580,7 +579,7 @@ export default function RequisitionDetailsPage({
                               <div className="w-11 h-11 rounded-lg overflow-hidden flex items-center justify-center bg-slate-100 border border-slate-100 flex-shrink-0">
                                 {item.image_url
                                   ? <img src={item.image_url} className="w-full h-full object-cover" alt=""
-                                         onClick={(e) => { e.stopPropagation(); setPreviewImage({ url: item.image_url!, name: item.name }); }} />
+                                    onClick={(e) => { e.stopPropagation(); setPreviewImage({ url: item.image_url!, name: item.name }); }} />
                                   : <PackageCheck className="w-5 h-5 text-slate-300" />}
                               </div>
                             </div>
@@ -629,7 +628,7 @@ export default function RequisitionDetailsPage({
             {/* ── Right Panel (40%) — Allocator ────────────────────────────── */}
             <div className="flex-[2_1_0%] min-w-0 flex flex-col z-0 h-full overflow-hidden">
               {selectedItem ? (() => {
-                const alloc     = allocations[selectedItem.id] || { qty: 0, lots: {}, units: [] };
+                const alloc = allocations[selectedItem.id] || { qty: 0, lots: {}, units: [] };
                 const isReusable = selectedItem.itemType === "REUSABLE";
                 return (
                   <div className="flex-1 flex flex-col bg-white rounded-lg overflow-hidden border border-slate-200">
@@ -663,19 +662,19 @@ export default function RequisitionDetailsPage({
                       ) : isReusable ? (
                         <div className="flex h-full min-h-0 flex-col gap-4">
                           {/* Barcode scanner */}
-                          <div className="flex-shrink-0 bg-blue-600 text-white rounded-[14px] p-4 shadow-lg shadow-blue-200">
-                            <label className="text-xs font-bold text-blue-200 mb-2 flex items-center gap-1">
+                          <div className="flex-shrink-0 bg-white border border-slate-200 rounded-[14px] p-4 shadow-sm">
+                            <label className="text-xs font-bold text-slate-600 mb-2 flex items-center gap-1">
                               <ScanLine size={14} />
                               แสกนบาร์โค้ดเพิ่ม ({alloc.units.length}/{selectedItem.qty})
                             </label>
-                            <div className="flex bg-white/10 rounded-lg p-1">
+                            <div className="flex bg-slate-100 rounded-lg p-1">
                               <input
                                 type="text"
                                 value={scanInput}
                                 onChange={(e) => setScanInput(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScanUnit(selectedItem); } }}
                                 placeholder="ยิงที่นี่..."
-                                className="w-full bg-transparent border-none text-white placeholder:text-blue-300 px-3 py-1.5 focus:ring-0 outline-none text-sm font-mono"
+                                className="w-full bg-transparent border-none text-slate-700 placeholder:text-slate-400 px-3 py-1.5 focus:ring-0 outline-none text-sm font-mono"
                                 autoFocus
                               />
                             </div>
@@ -703,8 +702,8 @@ export default function RequisitionDetailsPage({
                             </div>
                             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
                               {filteredAvailableUnits.map((unit: RequisitionItemUnits) => {
-                                const isSel2    = alloc.units.includes(unit.id);
-                                const isMaxed   = alloc.qty >= selectedItem.qty;
+                                const isSel2 = alloc.units.includes(unit.id);
+                                const isMaxed = alloc.qty >= selectedItem.qty;
                                 const isDisabled = isMaxed && !isSel2;
                                 return (
                                   <button
@@ -720,13 +719,12 @@ export default function RequisitionDetailsPage({
                                       }
                                     }}
                                     disabled={isDisabled}
-                                    className={`flex items-center justify-between p-2.5 rounded-lg border text-sm font-bold transition-all ${
-                                      isSel2
-                                        ? "bg-blue-600 border-blue-600 text-white shadow-md"
-                                        : isDisabled
+                                    className={`flex items-center justify-between p-2.5 rounded-lg border text-sm font-bold transition-all ${isSel2
+                                      ? "bg-blue-600 border-blue-600 text-white shadow-md"
+                                      : isDisabled
                                         ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-50"
                                         : "bg-slate-50 border-slate-200 text-slate-600 hover:border-blue-400"
-                                    }`}
+                                      }`}
                                   >
                                     <span className="font-mono text-xs">{unit.unit_code}</span>
                                     {isSel2 ? <Trash2 size={14} className="text-white/60 hover:text-white" /> : <Plus size={14} className="text-slate-300" />}
@@ -751,7 +749,7 @@ export default function RequisitionDetailsPage({
                           {selectedItem.available_lots && selectedItem.available_lots.length > 0 ? (
                             <div className="flex flex-col gap-3">
                               {selectedItem.available_lots.map((lot: RequisitionItemLots) => {
-                                const lotQty   = alloc.lots[lot.id.toString()] || 0;
+                                const lotQty = alloc.lots[lot.id.toString()] || 0;
                                 const isExpired = new Date(lot.expired_at) < new Date();
                                 const isActive = lotQty > 0;
                                 return (
@@ -816,9 +814,8 @@ export default function RequisitionDetailsPage({
             </div>
           </div>
         </div>
-
-        {/* ── Action Footer ──────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm px-6 py-3.5 flex justify-between items-center">
+        {/* ── Action Footer ────────────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 bg-white border-t border-slate-200 px-4 py-3.5 flex justify-between items-center">
           <p className="text-xs text-slate-500">
             {isPending
               ? "ระบบจะบันทึกการตัดคลังแบบอัตโนมัติ กรุณาแน่ใจก่อนกดอนุมัติ"
@@ -856,9 +853,7 @@ export default function RequisitionDetailsPage({
             )}
           </div>
         </div>
-
       </div>{/* end scrollable body */}
-
       {/* ── Image lightbox ─────────────────────────────────────────────────── */}
       {previewImage && (
         <div

@@ -16,7 +16,6 @@ import {
   StockMovementFilters,
   StockMovementType,
 } from "@/types/stockmovement_type";
-import { MovementDetailModal, TypeBadge, typeConfig } from "./StockMovementModal";
 
 const typeOptions: { v: StockMovementType | ""; l: string }[] = [
   { v: "", l: "ประเภททั้งหมด" },
