@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Minus, Plus, ShoppingCart, X, ChevronDown } from "lucide-react";
+import { Minus, Plus, ShoppingCart, X, ChevronDown, Package, RefreshCw } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 // ✅ ใช้ Path Alias และชื่อไฟล์ตัวเล็กตามที่ตกลงกัน
@@ -21,6 +21,7 @@ interface CartItem {
   stock: number;
   unit: string;
   imageUrl?: string;
+  type?: string;
   quantity: number;
 }
 
@@ -231,7 +232,17 @@ export default function CartModal({
                         <div className="font-semibold text-slate-800">{item.name}</div>
                         <div className="text-xs text-slate-500 font-mono">{item.code}</div>
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{item.category}</td>
+                      <td className="px-4 py-3">
+                        {item.type === "REUSABLE" ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            <RefreshCw className="w-3 h-3" />ครุภัณฑ์
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                            <Package className="w-3 h-3" />วัสดุ
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1">

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
-  PackagePlus, Search, Edit, Package,
+  PackagePlus, Search, Edit, Package, RefreshCw,
   ChevronLeft, ChevronRight, ChevronDown,
   Trash2, X
 } from "lucide-react";
@@ -28,6 +28,12 @@ const formatThaiDateTime = (iso: string | null | undefined): { date: string; tim
   const time = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
   return { date, time };
 };
+
+// Returns the stock number that should be displayed and used for threshold checks
+const getEffectiveStock = (item: Item.UiItem): number =>
+  item.type === "REUSABLE"
+    ? (typeof item.availableStock === "number" ? item.availableStock : 0)
+    : item.stock;
 
 export default function ItemsClient({ initialItems }: { initialItems: Item.UiItem[] }) {
   const [items, setItems] = useState<Item.UiItem[]>(initialItems || []);
@@ -377,12 +383,13 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4 w-[100px]">รูป</th>
                 <th className="px-6 py-4 w-[150px]">รหัส</th>
                 <th className="px-6 py-4 w-[250px]">ชื่อพัสดุ</th>
-                <th className="px-6 py-4 w-[200px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[150px]">คงเหลือ</th>
+                <th className="px-6 py-4 w-[150px]">หมวดหมู่</th>
+                <th className="px-3 py-4 w-[56px] text-center">ประเภท</th>
+                <th className="px-6 py-4 w-[140px]">สต็อก</th>
                 <th className="px-6 py-4 w-[120px]">หน่วย</th>
                 <th className="px-6 py-4 w-[150px]">สถานะ</th>
                 <th className="px-6 py-4 w-[130px] text-center">จำนวนขั้นต่ำ</th>
-                <th className="px-6 py-4 w-[160px] hidden sm:table-cell">อัปเดตล่าสุด</th>
+                {/* <th className="px-6 py-4 w-[160px] hidden sm:table-cell">อัปเดตล่าสุด</th> */}
                 <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
               </tr>
             </thead>
@@ -406,22 +413,58 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                   </td>
                   <td className="px-6 py-3">{item.code}</td>
                   <td className="px-6 py-3">{item.name}</td>
-                  <td className="px-6 py-3 text-slate-600">
-                    {item.category}
+                  <td className="px-6 py-3 text-slate-600">{item.category}</td>
+                  <td className="px-3 py-3 text-center">
+                    {item.type === "REUSABLE" ? (
+                      <span title="วัสดุถาวร / ครุภัณฑ์" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 cursor-help">
+                        <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                      </span>
+                    ) : (
+                      <span title="วัสดุสิ้นเปลือง" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 cursor-help">
+                        <Package className="w-3.5 h-3.5 text-blue-600" />
+                      </span>
+                    )}
                   </td>
-                  <td className="px-6 py-3">{item.stock}</td>
-                   <td className="px-6 py-3">{item.unit}</td>
+                  <td className="px-6 py-3">
+                    {item.type === "REUSABLE" ? (
+                      <div className="relative group inline-block cursor-help">
+                        <span className={`font-bold text-base ${
+                          getEffectiveStock(item) <= 0 ? "text-red-500" :
+                          getEffectiveStock(item) <= item.minStock ? "text-orange-500" :
+                          "text-emerald-600"
+                        }`}>
+                          {getEffectiveStock(item)}
+                        </span>
+                        <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                          ทั้งหมดในคลัง: {item.stock} {item.unit}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col">
+                        <span className={`font-bold ${
+                          item.stock <= 0 ? "text-red-500" :
+                          item.stock <= item.minStock ? "text-orange-500" :
+                          "text-blue-600"
+                        }`}>
+                          {item.stock}
+                        </span>
+                        <span className="text-[11px] text-slate-400">คงเหลือ</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-3">{item.unit}</td>
                   <td className="px-6 py-3 w-[150px]"><Badge status={item.status} /></td>
                   <td className="px-6 py-3 w-[130px] text-center">
                     {item.minStock > 0 ? (
-                      <span className={item.stock <= item.minStock ? "text-red-600 font-bold" : "text-slate-700 font-semibold"}>
+                      <span className={getEffectiveStock(item) <= item.minStock ? "text-red-600 font-bold" : "text-slate-700 font-semibold"}>
                         {item.minStock}
                       </span>
                     ) : (
                       <span className="text-slate-400">-</span>
                     )}
                   </td>
-                  <td className="px-6 py-3 w-[160px] hidden sm:table-cell">
+                  {/* <td className="px-6 py-3 w-[160px] hidden sm:table-cell">
                     {(() => {
                       const dt = formatThaiDateTime(item.updatedAt);
                       if (!dt) return <span className="text-slate-400 text-xs">-</span>;
@@ -432,7 +475,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                         </div>
                       );
                     })()}
-                  </td>
+                  </td> */}
                   <td className="px-6 py-3 w-[100px] text-center">
                     <div className="flex justify-between gap-1">
                       <button onClick={() => openEditModal(item)} className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"><Edit className="w-5 h-5"/></button>

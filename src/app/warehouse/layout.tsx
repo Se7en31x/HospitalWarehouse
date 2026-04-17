@@ -22,12 +22,23 @@ export default async function WarehouseLayout({ children }: { children: ReactNod
 
   try {
     const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      initialProfile = await getProfile(session.access_token);
+    // getUser() validates with Supabase servers and refreshes an expired token;
+    // getSession() alone reads the cookie without revalidating.
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error("[WarehouseLayout] getUser() error:", userError.message);
+    } else if (user) {
+      console.log("[WarehouseLayout] SSR user id:", user.id, "| email:", user.email);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        initialProfile = await getProfile(session.access_token);
+        console.log("[WarehouseLayout] SSR profile loaded:", initialProfile?.firstname_th, initialProfile?.lastname_th);
+      } else {
+        console.warn("[WarehouseLayout] No access_token in session after getUser()");
+      }
     }
-  } catch {
-    // Session unavailable or API error — client-side fetch is the fallback.
+  } catch (e) {
+    console.error("[WarehouseLayout] SSR profile fetch failed:", e);
   }
 
   return (

@@ -157,6 +157,7 @@ const RequestClient = () => {
     REJECTED:  "ปฏิเสธ",
     PENDING:   "รออนุมัติ",
     CANCELLED: "ยกเลิก",
+    BORROWING: "กำลังยืม",
   };
 
   const StatusBadge = ({ status }: { status: string }) => {

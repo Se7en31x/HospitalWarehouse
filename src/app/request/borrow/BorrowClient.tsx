@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown, X } from "lucide-react";
+import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown, X, RefreshCw, Package } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
@@ -29,12 +29,11 @@ interface BorrowHistory {
   status: 'BORROWED' | 'RETURNED' | 'PARTIAL';
 }
 
-const mapBorrowableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => {
-  return rows.map((item) => ({
-    ...item,
-    stock: typeof item.availableStock === "number" ? item.availableStock : item.stock,
-  }));
-};
+const getEffectiveStock = (item: Item.UiItem): number =>
+  typeof item.availableStock === "number" ? item.availableStock : 0;
+
+// No stock override — item.stock stays as current_stock for tooltip and ItemDetailModal
+const mapBorrowableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
 
 export default function BorrowClient({ initialItems }: Props) {
 
@@ -250,11 +249,6 @@ export default function BorrowClient({ initialItems }: Props) {
   }, [filteredItems, currentPage, itemsPerPage]);
 
   // --- [Helper Actions] ---
-  const openItemDetail = useCallback((item: Item.UiItem) => {
-    setSelectedItemForDetail(item);
-    setShowItemDetailModal(true);
-  }, []);
-
   const handleItemDetailConfirm = useCallback((quantity: number) => {
     if (!selectedItemForDetail) return;
 
@@ -276,11 +270,11 @@ export default function BorrowClient({ initialItems }: Props) {
   }, [selectedItemForDetail, globalReturnDate]);
 
   const addToCart = useCallback((item: Item.UiItem) => {
-    if (item.stock <= 0) {
-      return;
-    }
-    openItemDetail(item);
-  }, [openItemDetail]);
+    if (getEffectiveStock(item) <= 0) return;
+    // Pass item with stock = effective stock so ItemDetailModal caps at the right max
+    setSelectedItemForDetail({ ...item, stock: getEffectiveStock(item) });
+    setShowItemDetailModal(true);
+  }, []);
 
   if (!isMounted) return null;
 
@@ -470,10 +464,11 @@ export default function BorrowClient({ initialItems }: Props) {
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
                 <th className="px-6 py-4 w-[120px]">รหัสพัสดุ</th>
-                <th className="px-6 py-4 w-[300px]">ชื่อรายการ</th>
+                <th className="px-6 py-4 w-[260px]">ชื่อรายการ</th>
+                <th className="px-3 py-4 w-[56px] text-center">ประเภท</th>
                 <th className="px-6 py-4 w-[140px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[150px]">ตำแหน่ง</th>
-                <th className="px-6 py-4 w-[150px]">คงเหลือ</th>
+                <th className="px-6 py-4 w-[130px]">พร้อมใช้งาน</th>
                 <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
               </tr>
             </thead>
@@ -500,18 +495,42 @@ export default function BorrowClient({ initialItems }: Props) {
                   <td className="px-6 py-4 w-[120px]">
                     {item.code || '-'}
                   </td>
-                  <td className="px-6 py-4 w-[300px]">
+                  <td className="px-6 py-4 w-[260px]">
                     {item.name}
+                  </td>
+                  <td className="px-3 py-4 text-center">
+                    {item.type === "REUSABLE" ? (
+                      <span title="วัสดุถาวร / ครุภัณฑ์" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 cursor-help">
+                        <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                      </span>
+                    ) : (
+                      <span title="วัสดุสิ้นเปลือง" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 cursor-help">
+                        <Package className="w-3.5 h-3.5 text-blue-600" />
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 w-[140px] text-slate-600">{item.category}</td>
                   <td className="px-6 py-4 w-[150px]">{item.location || '-'}</td>
-                  <td className="px-6 py-4 w-[150px]">
-                    {item.stock} {item.unit}
+                  <td className="px-6 py-4 w-[130px]">
+                    <div className="relative group inline-block cursor-help">
+                      <span className={`font-bold text-base ${
+                        getEffectiveStock(item) <= 0 ? "text-red-500" :
+                        getEffectiveStock(item) <= item.minStock ? "text-orange-500" :
+                        "text-emerald-600"
+                      }`}>
+                        {getEffectiveStock(item)}
+                        <span className="text-xs font-normal ml-0.5">{item.unit}</span>
+                      </span>
+                      <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                        ทั้งหมดในคลัง: {item.stock} {item.unit}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right w-[100px]">
                     <button
                       onClick={() => addToCart(item)}
-                      disabled={item.stock <= 0}
+                      disabled={getEffectiveStock(item) <= 0}
                       className="p-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       title="เพิ่มเข้าตะกร้า"
                     >
@@ -522,7 +541,7 @@ export default function BorrowClient({ initialItems }: Props) {
               ))}
               {displayItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

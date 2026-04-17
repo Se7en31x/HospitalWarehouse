@@ -31,10 +31,26 @@ export interface ItemAllocation {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/** Returns true when the Cloudinary URL points to a PDF document. */
+const DOC_EXTENSIONS = [".pdf", ".doc", ".docx"];
+
+/**
+ * Cloudinary stores PDFs/docs under /raw/upload/ but may return /image/upload/
+ * for files uploaded with resource_type:"auto". This corrects the URL so the
+ * browser can actually fetch the file.
+ */
+const formatCloudinaryUrl = (url: string): string => {
+  const lower = url.toLowerCase();
+  const isDoc = DOC_EXTENSIONS.some((ext) => lower.includes(ext));
+  if (isDoc && url.includes("/image/upload/")) {
+    return url.replace("/image/upload/", "/raw/upload/");
+  }
+  return url;
+};
+
+/** Returns true when the Cloudinary URL points to a PDF/doc document. */
 const isPdfUrl = (url: string): boolean => {
   const lower = url.toLowerCase();
-  return lower.includes(".pdf") || lower.includes("/raw/upload/");
+  return DOC_EXTENSIONS.some((ext) => lower.includes(ext)) || lower.includes("/raw/upload/");
 };
 
 /** Formats all address parts into one clean Thai address string. */
@@ -345,8 +361,8 @@ export default function RequisitionDetailsPage({
 
         {/* ── Page Header ─────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-800">
-            {requisition.doc_no} — {isBorrow ? "รายการยืม" : "รายการเบิก"}
+          <h1 className="text-2xl font-bold text-gray-800">
+            {requisition.doc_no}
           </h1>
           <button
             onClick={() => router.push("/warehouse/requests")}
@@ -471,7 +487,7 @@ export default function RequisitionDetailsPage({
                               </div>
                             </div>
                             <a
-                              href={bd.id_card_url}
+                              href={formatCloudinaryUrl(bd.id_card_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 flex items-center justify-center transition-colors"
@@ -484,10 +500,10 @@ export default function RequisitionDetailsPage({
                           <div>
                             <div
                               className="relative cursor-pointer group bg-slate-100"
-                              onClick={() => setPreviewImage({ url: bd.id_card_url!, name: `${bd.fullname} — สำเนาบัตร` })}
+                              onClick={() => setPreviewImage({ url: formatCloudinaryUrl(bd.id_card_url!), name: `${bd.fullname} — สำเนาบัตร` })}
                             >
                               <img
-                                src={bd.id_card_url}
+                                src={formatCloudinaryUrl(bd.id_card_url)}
                                 alt="สำเนาบัตรประชาชน"
                                 className="w-full h-48 object-cover transition-opacity group-hover:opacity-80"
                               />
@@ -500,7 +516,7 @@ export default function RequisitionDetailsPage({
                             <div className="flex items-center justify-between px-4 py-3 bg-white">
                               <p className="text-xs text-slate-500 font-medium">สำเนาบัตรประชาชน</p>
                               <a
-                                href={bd.id_card_url}
+                                href={formatCloudinaryUrl(bd.id_card_url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"

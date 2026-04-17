@@ -1,25 +1,30 @@
+export const dynamic = "force-dynamic";
+
 import React from 'react';
 import WithdrawClient from './WithdrawClient';
-// Import Service ที่เราเคยทำไว้
 import { getInventoryItems } from '@/services/itemsService';
+import { createClient } from '@/lib/supabase/server';
+import { UiItem } from '@/types/items_type';
 
 export const metadata = {
   title: "ระบบเบิกพัสดุ (Withdrawal System)",
 };
 
 export default async function WithdrawPage() {
-  let items = [];
+  let items: UiItem[] = [];
   try {
-    // 1. ลองดึงข้อมูล ถ้าพัง (เพราะไม่มี Token) มันจะเข้า catch
-    items = await getInventoryItems({ allowed_req: true }); 
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    items = await getInventoryItems({ allowed_req: true }, token);
   } catch (error) {
-    console.warn("⚠️ Server Fetch failed, switching to client-side fetch.");
-    items = []; // ส่ง Array ว่างไปก่อน เดี๋ยว WithdrawClient จะไปดึงเองที่หน้าบ้าน
+    console.error("[WithdrawPage] SSR fetch failed — client will re-fetch on mount:", error instanceof Error ? error.message : error);
+    items = [];
   }
 
   return (
     <main>
-        <WithdrawClient initialItems={items} />
+      <WithdrawClient initialItems={items} />
     </main>
   );
 }

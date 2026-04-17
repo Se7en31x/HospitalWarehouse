@@ -18,12 +18,23 @@ export default async function RequestLayout({ children }: { children: ReactNode 
 
   try {
     const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      initialProfile = await getProfile(session.access_token);
+    // getUser() validates with Supabase servers and refreshes an expired token;
+    // getSession() alone reads the cookie without revalidating.
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error("[RequestLayout] getUser() error:", userError.message);
+    } else if (user) {
+      console.log("[RequestLayout] SSR user id:", user.id, "| email:", user.email);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        initialProfile = await getProfile(session.access_token);
+        console.log("[RequestLayout] SSR profile loaded:", initialProfile?.firstname_th, initialProfile?.lastname_th);
+      } else {
+        console.warn("[RequestLayout] No access_token in session after getUser()");
+      }
     }
-  } catch {
-    // Session unavailable or API error — client-side fetch is the fallback.
+  } catch (e) {
+    console.error("[RequestLayout] SSR profile fetch failed:", e);
   }
 
   return (

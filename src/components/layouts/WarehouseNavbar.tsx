@@ -113,32 +113,33 @@ export default function WarehouseNavbar() {
 
               {/* Profile Dropdown */}
               {showProfileMenu && (
-                <div className="absolute right-0 top-[110%] w-60 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-slate-200 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
-                  <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">บัญชีผู้ใช้งาน</p>
+                <div className="absolute right-0 top-[calc(100%+8px)] w-60 bg-white rounded-xl border border-slate-100 shadow-2xl z-50 overflow-hidden transition-all duration-200 ease-out">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">บัญชีผู้ใช้งาน</p>
                     <p className="text-sm font-bold text-slate-800 truncate">{displayName}</p>
+                    <p className="text-[11px] font-semibold text-blue-600 mt-0.5">{roleName}</p>
                   </div>
                   <div className="p-1.5">
                     <Link
                       href="/warehouse/profile"
                       onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-all"
+                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors"
                     >
-                      <User className="w-4.5 h-4.5 text-blue-600" /> โปรไฟล์ส่วนตัว
+                      <User className="w-4 h-4 text-blue-600" /> โปรไฟล์ส่วนตัว
                     </Link>
                     <Link
                       href="/warehouse/settings"
                       onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-all"
+                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors"
                     >
-                      <Settings className="w-4.5 h-4.5 text-blue-600" /> ตั้งค่าระบบ
+                      <Settings className="w-4 h-4 text-blue-600" /> ตั้งค่าระบบ
                     </Link>
                     <div className="h-[1px] bg-slate-100 my-1.5 mx-2" />
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     >
-                      <LogOut className="w-4.5 h-4.5" /> ออกจากระบบ
+                      <LogOut className="w-4 h-4" /> ออกจากระบบ
                     </button>
                   </div>
                 </div>

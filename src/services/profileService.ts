@@ -43,9 +43,32 @@ export interface UserProfile {
 }
 
 /**
- * Fetch the current user's profile.
+ * Fetch the current user's profile directly from the backend API.
  * Pass `token` from a Server Component to authenticate the SSR request.
  * Omit it for client-side calls — the browser session is used automatically.
+ * NOTE: client-side callers should prefer `getMyProfile()` below, which routes
+ * the request through the Next.js server so auth is always reliable.
  */
 export const getProfile = async (token?: string): Promise<UserProfile> =>
   api.get<UserProfile>('/v1/user/profile', undefined, token);
+
+export interface UpdateProfilePayload {
+  firstname_th?: string;
+  lastname_th?: string;
+  firstname_en?: string;
+  lastname_en?: string;
+  title_code?: string;
+  phone?: string;
+}
+
+export const updateProfile = async (payload: UpdateProfilePayload): Promise<UserProfile> =>
+  api.patch<UserProfile>('/v1/user/profile', payload);
+
+export const getMyProfile = async (): Promise<UserProfile> => {
+  const res = await fetch('/api/me', { credentials: 'include' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    throw { status: res.status, message: body.error ?? `HTTP ${res.status}` };
+  }
+  return res.json() as Promise<UserProfile>;
+};

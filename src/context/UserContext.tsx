@@ -7,62 +7,92 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getProfile, type UserProfile } from "@/services/profileService";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import { getProfile, getMyProfile, type UserProfile } from "@/services/profileService";
 
 interface UserContextValue {
   profile: UserProfile | null;
-  /** Formatted Thai name (or email / fallback string). */
   displayName: string;
-  /** User's role name, e.g. "เจ้าหน้าที่คลัง". */
   roleName: string;
-  /** True only while the initial fetch is in-flight (never true when SSR data is provided). */
   isLoading: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Context
-// ─────────────────────────────────────────────────────────────────────────────
-
 const UserContext = createContext<UserContextValue | null>(null);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Provider
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface UserProviderProps {
   children: ReactNode;
-  /**
-   * Profile data pre-fetched by the Server Component layout.
-   * When provided, the client-side fetch is skipped entirely — no loading
-   * state, no flicker, the name is visible on the very first paint.
-   * When null/undefined the provider falls back to fetching on the client.
-   */
   initialProfile?: UserProfile | null;
 }
 
 export function UserProvider({ children, initialProfile = null }: UserProviderProps) {
   const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
-  // If we have SSR data, we're already done — skip the loading state.
   const [isLoading, setIsLoading] = useState<boolean>(initialProfile === null);
 
   useEffect(() => {
-    // SSR pre-fetched the data — nothing to do on the client.
+    // SSR already fetched the profile in the layout and passed it as initialProfile.
+    // Skip the client-side fetch entirely in that case.
     if (initialProfile !== null) return;
 
-    getProfile()
-      .then(setProfile)
-      .catch(() => setProfile(null))
-      .finally(() => setIsLoading(false));
-  }, []); // intentionally empty — run once on mount
+    const fetchProfile = async () => {
+      // ── Attempt 1: /api/me (server-side proxy) ───────────────────────────────
+      // This route handler reads the Supabase session from HTTP cookies on the
+      // server, where it is ALWAYS available — even if the browser can't read
+      // the HttpOnly SSR session cookie via document.cookie / getSession().
+      try {
+        const data = await getMyProfile();
+        console.log("[UserContext] Profile loaded via /api/me:", data?.firstname_th, data?.lastname_th, "| email:", data?.email);
+        setProfile(data);
+        return;
+      } catch (err1: unknown) {
+        console.warn("[UserContext] /api/me failed, trying direct API with explicit token:", err1);
+      }
 
+      // ── Attempt 2: direct backend call with an explicit Supabase token ────────
+      // getUser() makes a live round-trip to Supabase so it both validates the
+      // session AND triggers a token refresh — more reliable than getSession().
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          console.error("[UserContext] Supabase getUser() failed:", userError?.message, "| user:", user?.id);
+          setProfile(null);
+          return;
+        }
+
+        console.log("[UserContext] Supabase auth user:", user.id, "|", user.email);
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          console.error("[UserContext] getUser() succeeded but getSession() has no access_token for:", user.id);
+          setProfile(null);
+          return;
+        }
+
+        const data = await getProfile(session.access_token);
+        console.log("[UserContext] Profile loaded via direct API (retry):", data?.firstname_th, data?.lastname_th);
+        setProfile(data);
+      } catch (err2: unknown) {
+        console.error(
+          "[UserContext] All profile fetch attempts failed.\n" +
+          "  → Check server console for [/api/me] logs to see the exact error.\n" +
+          "  → Verify a row exists in public.profiles with id matching the Auth user UUID.",
+          err2
+        );
+        setProfile(null);
+      }
+    };
+
+    fetchProfile().finally(() => setIsLoading(false));
+  }, []);
+
+  // Build display name: Thai full name → English full name → email → fallback
   const displayName = profile
     ? [profile.title?.short_name, profile.firstname_th, profile.lastname_th]
-        .filter(Boolean)
-        .join(" ") || profile.email || "ผู้ใช้งาน"
+        .filter(Boolean).join(" ")
+      || [profile.firstname_en, profile.lastname_en].filter(Boolean).join(" ")
+      || profile.email
+      || "ผู้ใช้งาน"
     : "ผู้ใช้งาน";
 
   const roleName = profile?.role?.name ?? "guest";
@@ -74,15 +104,6 @@ export function UserProvider({ children, initialProfile = null }: UserProviderPr
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Read the shared user profile from the nearest <UserProvider>.
- * Throws in development if called outside a provider so the missing wrapper
- * is caught immediately during development.
- */
 export function useUser(): UserContextValue {
   const ctx = useContext(UserContext);
   if (!ctx) {
