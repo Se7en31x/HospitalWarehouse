@@ -77,7 +77,7 @@ export default function WarehouseNavbar() {
 
           {/* Right: Bell + Avatar */}
           <div className="flex items-center gap-4">
-            <NotificationBell title="การแจ้งเตือนคลัง" viewAllHref="/warehouse/notifications" />
+            <NotificationBell title="การแจ้งเตือนคลัง" viewAllHref="/warehouse/notifications" entityType="WAREHOUSE" />
 
             <div className="h-8 w-[1px] bg-white/20 mx-1" />
 

@@ -42,6 +42,19 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+const DEPT_TH: Record<string, string> = {
+  "Emergency":      "แผนกฉุกเฉิน",
+  "Dental":         "แผนกทันตกรรม",
+  "Palliative":     "ศูนย์ชีวาภิบาล",
+  "OPD":            "แผนกผู้ป่วยนอก",
+  "IPD":            "แผนกผู้ป่วยใน",
+  "MedicalRecords": "แผนกเวชระเบียน",
+  "Pharmacy":       "ห้องจ่ายยา",
+  "Warehouse":      "คลังหลัก",
+};
+/** Returns the Thai name, or null if the department is not in the clinical mapping. */
+const deptTh = (name?: string | null): string | null => (name ? (DEPT_TH[name] ?? null) : null);
+
 export default function CartModal({
   isOpen,
   onClose,
@@ -54,6 +67,9 @@ export default function CartModal({
   onSuccess,
 }: CartModalProps) {
   const [isDeptOpen, setIsDeptOpen] = useState(false);
+
+  // Only show departments that have a Thai clinical name in the mapping
+  const mappedDepts = departments.filter((d) => DEPT_TH[d.name] !== undefined);
 
   // ตัวจัดการ click-outside สำหรับปิด dropdown
   React.useEffect(() => {
@@ -77,7 +93,7 @@ export default function CartModal({
     }
   }, [isOpen]);
 
-  const selectedDeptName = departments.find((d) => d.id === selectedDeptId)?.name || "-- กรุณาเลือกแผนก --";
+  const selectedDeptName = deptTh(departments.find((d) => d.id === selectedDeptId)?.name) ?? "-- กรุณาเลือกแผนก --";
 
   const handleSubmit = async (): Promise<void> => {
     if (!selectedDeptId || selectedItems.length === 0) {
@@ -91,7 +107,7 @@ export default function CartModal({
 
     // ✅ ดึงชื่อแผนกมาโชว์ใน Confirm Dialog เฉยๆ (เพื่อให้ User มั่นใจก่อนกด)
     const currentDept = departments.find((d) => d.id === selectedDeptId);
-    const deptDisplayName = currentDept ? currentDept.name : "แผนกที่เลือก";
+    const deptDisplayName = currentDept ? deptTh(currentDept.name) : "แผนกที่เลือก";
 
     onClose();
 
@@ -184,7 +200,7 @@ export default function CartModal({
               {isDeptOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
                   <ul className="py-1">
-                    {departments.map((d) => (
+                    {mappedDepts.map((d) => (
                       <li key={d.id}>
                         <button
                           type="button"
@@ -197,7 +213,7 @@ export default function CartModal({
                               : "border-transparent text-slate-700 hover:bg-slate-50"
                             }`}
                         >
-                          {d.name} 
+                          {deptTh(d.name)}
                         </button>
                       </li>
                     ))}

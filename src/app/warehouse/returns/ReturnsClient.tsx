@@ -350,7 +350,7 @@ export default function ReturnsClient() {
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
                 <th className="px-6 py-4 w-[160px]">ผู้ดำเนินเรื่องยืม</th>
                 <th className="px-6 py-4 w-[160px]">ผู้ยืม</th>
-                <th className="px-6 py-4 w-[150px]">ช่องทางติดต่อ</th>
+                <th className="px-6 py-4 w-[150px]">เบอร์ติดต่อ</th>
                 <th className="px-6 py-4 w-[80px]">รายการ</th>
                 <th className="px-6 py-4 w-[120px]">กำหนดคืน</th>
                 <th className="px-6 py-4 w-[120px]">สถานะ</th>
@@ -388,7 +388,6 @@ export default function ReturnsClient() {
                           href={`tel:${r.borrower_details.phone}`}
                           className="flex items-center gap-1 text-slate-500 hover:text-blue-600 transition-colors w-fit"
                         >
-                          <Phone className="w-3.5 h-3.5 shrink-0" />
                           <span className="text-sm">{r.borrower_details.phone}</span>
                         </a>
                       ) : (

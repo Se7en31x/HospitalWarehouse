@@ -392,7 +392,7 @@ const RequisitionDetailsModal: React.FC<RequisitionDetailsModalProps> = ({
                      {!isPending ? (
                         <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
                           <PackageCheck size={40} className="mb-3 opacity-30" />
-                          <p className="font-bold text-slate-600">พัสดุนี้อนุมัติไปแล้ว {selectedItem.issued} ชิ้น</p>
+                          <p className="font-bold text-slate-600">อนุมัติแล้ว {selectedItem.issued} ชิ้น</p>
                         </div>
                      ) : isReusable ? (
                         <div className="space-y-5">

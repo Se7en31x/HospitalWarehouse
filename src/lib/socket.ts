@@ -34,7 +34,7 @@ async function registerNotificationChannel(s: Socket) {
     const roleString: string | null =
       typeof rawRole === "string"
         ? rawRole
-        : (rawRole as Record<string, unknown>)?.role_name_en as string ?? null;
+        : (rawRole as Record<string, unknown>)?.name as string ?? null;
 
     const identity = {
       userId: user.id,

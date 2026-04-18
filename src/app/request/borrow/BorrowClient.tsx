@@ -17,6 +17,19 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+const DEPT_TH: Record<string, string> = {
+  "Emergency":      "แผนกฉุกเฉิน",
+  "Dental":         "แผนกทันตกรรม",
+  "Palliative":     "ศูนย์ชีวาภิบาล",
+  "OPD":            "แผนกผู้ป่วยนอก",
+  "IPD":            "แผนกผู้ป่วยใน",
+  "MedicalRecords": "แผนกเวชระเบียน",
+  "Pharmacy":       "ห้องจ่ายยา",
+  "Warehouse":      "คลังหลัก",
+};
+/** Returns Thai name or null if the department is not in the clinical mapping. */
+const deptTh = (name?: string | null): string | null => (name ? (DEPT_TH[name] ?? null) : null);
+
 interface Props {
   initialItems: Item.UiItem[];
 }
@@ -57,7 +70,7 @@ const getTypeDisplay = (type: string): string => {
 
 export default function BorrowClient({ initialItems }: Props) {
   // ดึงข้อมูลแผนกและสถานะการโหลดจาก useAuth ที่แกะจาก Token จริง
-  const { departments, isLoading: isAuthLoading } = useAuth();
+  const { departments, user, isLoading: isAuthLoading } = useAuth();
 
   // ✅ State สำหรับรายการ Items
   const [items, setItems] = useState<Item.UiItem[]>(mapBorrowableStock(initialItems || []));
@@ -266,18 +279,22 @@ export default function BorrowClient({ initialItems }: Props) {
   // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
     if (!isAuthLoading && departments.length > 0) {
+      const clinicalDepts = departments.filter((d) => DEPT_TH[d.name] !== undefined);
+      if (!clinicalDepts.length) return;
+
       const savedDept = localStorage.getItem("borrow_dept");
       const savedDeptId = savedDept ? Number(savedDept) : null;
-      const isValid = savedDeptId !== null && departments.some((d) => d.id === savedDeptId);
+      const isValid = savedDeptId !== null && clinicalDepts.some((d) => d.id === savedDeptId);
 
       if (isValid && savedDeptId !== null) {
         setSelectedDeptId(savedDeptId);
       } else {
-        // Default เป็นแผนกแรกที่ได้รับสิทธิ์
-        setSelectedDeptId(departments[0].id);
+        const metaDept = user?.app_metadata?.department as string | undefined;
+        const metaMatch = metaDept ? clinicalDepts.find((d) => d.name === metaDept || d.code === metaDept) : null;
+        setSelectedDeptId(metaMatch ? metaMatch.id : clinicalDepts[0].id);
       }
     }
-  }, [isAuthLoading, departments]);
+  }, [isAuthLoading, departments, user]);
 
   // --- [Persist Cart, Return Date & Department to LocalStorage] ---
   useEffect(() => {
@@ -370,14 +387,6 @@ export default function BorrowClient({ initialItems }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-gray-800">ยืม ครุภัณฑ์</h2>
-          <div className="flex flex-col">
-             <span className="text-xs text-slate-500 font-medium">แผนกที่เลือกยืม:</span>
-             <span className="text-sm font-bold text-blue-600">
-               {isAuthLoading
-                 ? "กำลังโหลดข้อมูล..."
-                 : (departments.find((d) => d.id === selectedDeptId)?.name || "โปรดเลือกแผนกในตะกร้า")}
-             </span>
-          </div>
         </div>
         <div className="flex items-center gap-3">
           <button

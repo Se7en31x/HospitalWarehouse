@@ -71,7 +71,8 @@ const DEPT_TH: Record<string, string> = {
   "Pharmacy":        "ห้องจ่ายยา",
   "Warehouse":       "คลังหลัก",
 };
-const deptDisplayName = (name: string): string => DEPT_TH[name] ?? name;
+/** Returns Thai name or null if the department is not in the clinical mapping. */
+const deptDisplayName = (name: string): string | null => DEPT_TH[name] ?? null;
 
 interface ExternalPersonForm {
   titleCode: string;
@@ -840,7 +841,7 @@ export default function BorrowCartModal({
                       >
                         <span className={externalOperatorDeptId !== null ? "text-slate-800 font-medium" : "text-gray-400"}>
                           {externalOperatorDeptId !== null
-                            ? deptDisplayName(departments.find((d) => d.id === externalOperatorDeptId)?.name ?? "")
+                            ? (deptDisplayName(departments.find((d) => d.id === externalOperatorDeptId)?.name ?? "") ?? "-- เลือกแผนก --")
                             : "-- เลือกแผนก --"}
                         </span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
@@ -851,7 +852,7 @@ export default function BorrowCartModal({
                         <div className="mt-2 border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm">
                           <ul className="overflow-y-auto" style={{ maxHeight: "220px" }}>
                             {(departments || [])
-                              .filter((d) => d.name !== "Administration")   // hide Admin from borrower form
+                              .filter((d) => DEPT_TH[d.name] !== undefined)
                               .map((d) => (
                                 <li key={d.id}>
                                   <button

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, Trash2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
 import {
   getAllRequisitions,
@@ -17,6 +17,7 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const PAGE_LIMIT = 10;
+const ACTIVE_STATUSES = new Set(["PENDING", "APPROVED"]);
 
 const RequestClient = () => {
   const [requests, setRequests] = useState<RequisitionHeader[]>([]);
@@ -32,7 +33,6 @@ const RequestClient = () => {
 
   const router = useRouter();
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
-  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [isCancelLoading, setIsCancelLoading] = useState<string | number | null>(null);
   
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,9 +90,8 @@ const RequestClient = () => {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest("[data-type-dropdown]") && !target.closest("[data-status-dropdown]")) {
+      if (!target.closest("[data-type-dropdown]")) {
         setIsTypeDropdownOpen(false);
-        setIsStatusDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -143,25 +142,29 @@ const RequestClient = () => {
   }, [refreshData, isFetching]);
 
   // --- [Filter Logic] ---
-  // Client-side secondary filters (status/type) applied to current page's items
   const filteredRequests = requests.filter(req => {
     const matchesStatus = activeTab === "all" || req.status === activeTab;
     const matchesType = selectedType === "all" || req.type === selectedType;
     return matchesStatus && matchesType;
   });
 
-  // paginatedItems = filteredRequests (server already paged by keyword)
-  const paginatedItems = filteredRequests;
+  // Sort: active statuses first, then oldest first within each group
+  const paginatedItems = [...filteredRequests].sort((a, b) => {
+    const aActive = ACTIVE_STATUSES.has(a.status) ? 0 : 1;
+    const bActive = ACTIVE_STATUSES.has(b.status) ? 0 : 1;
+    if (aActive !== bActive) return aActive - bActive;
+    return new Date(a.request_date).getTime() - new Date(b.request_date).getTime();
+  });
   const totalPages = serverTotalPages;
 
   // --- [Components] ---
   const statusLabels: Record<string, string> = {
-    COMPLETED: "อนุมัติการเบิก",
+    COMPLETED: "เสร็จสิ้น",
     APPROVED:  "รอนำส่ง",
     REJECTED:  "ปฏิเสธ",
     PENDING:   "รออนุมัติ",
     CANCELLED: "ยกเลิก",
-    BORROWING: "อนุมัติการยืม",
+    BORROWING: "อยู่ระหว่างยืม",
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -183,6 +186,22 @@ const RequestClient = () => {
         {statusLabels[status] || status}
       </span>
     );
+  };
+
+  const getDurationDays = (dateStr: string): number => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const created = new Date(dateStr);
+    created.setHours(0, 0, 0, 0);
+    return Math.round((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const getRowStyle = (dateStr: string, status: string): { row: string; date: string } => {
+    if (!ACTIVE_STATUSES.has(status)) return { row: "hover:bg-slate-50", date: "text-slate-600" };
+    const days = getDurationDays(dateStr);
+    if (days > 5) return { row: "bg-red-50/80 hover:bg-red-100/80", date: "text-red-600 font-semibold" };
+    if (days > 2) return { row: "bg-orange-50/50 hover:bg-orange-100/50", date: "text-orange-600" };
+    return { row: "hover:bg-slate-50", date: "text-slate-600" };
   };
 
   const handleSearchChange = (value: string) => {
@@ -226,7 +245,7 @@ const RequestClient = () => {
         {/* Type Dropdown */}
         <div className="relative" data-type-dropdown>
           <button
-            onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsStatusDropdownOpen(false); }}
+            onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
             className="flex items-center justify-between gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 w-[180px] shadow-sm"
           >
             <span className="font-medium text-slate-700">
@@ -252,41 +271,30 @@ const RequestClient = () => {
           )}
         </div>
 
-        {/* Status Dropdown */}
-        <div className="relative" data-status-dropdown>
+      </div>
+
+      {/* Status Tab Bar */}
+      <div className="flex flex-row gap-3 overflow-x-auto mb-4 pb-1">
+        {[
+          { v: 'all',       l: 'รวมทั้งหมด' },
+          { v: 'PENDING',   l: 'รออนุมัติ' },
+          { v: 'APPROVED',  l: 'รอนำส่ง' },
+          { v: 'COMPLETED', l: 'เสร็จสิ้น' },
+          { v: 'REJECTED',  l: 'ปฏิเสธ' },
+          { v: 'CANCELLED', l: 'ยกเลิก' },
+        ].map(tab => (
           <button
-            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsTypeDropdownOpen(false); }}
-            className="flex items-center justify-between gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 w-[180px] shadow-sm"
+            key={tab.v}
+            onClick={() => { setActiveTab(tab.v); setCurrentPage(1); pageRef.current = 1; }}
+            className={`whitespace-nowrap rounded-full border px-5 py-1.5 text-sm font-medium transition-colors
+              ${activeTab === tab.v
+                ? 'bg-blue-50 border-blue-600 text-blue-600'
+                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+              }`}
           >
-            <span className="font-medium text-slate-700">
-              {activeTab === "all" ? "ทุกสถานะ" : statusLabels[activeTab] ?? activeTab}
-            </span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
+            {tab.l}
           </button>
-          {isStatusDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-30 w-full">
-              <ul className="py-1">
-                {[
-                  { v: 'all', l: 'ทุกสถานะ' },
-                  { v: 'PENDING',   l: 'รออนุมัติ' },
-                  { v: 'APPROVED',  l: 'รอนำส่ง' },
-                  { v: 'COMPLETED', l: 'เสร็จสิ้น' },
-                  { v: 'REJECTED',  l: 'ปฏิเสธ' },
-                  { v: 'CANCELLED', l: 'ยกเลิก' },
-                ].map(s => (
-                  <li key={s.v}>
-                    <button
-                      onClick={() => { setActiveTab(s.v); setIsStatusDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${activeTab === s.v ? "text-emerald-700 font-semibold bg-emerald-50" : "text-slate-600"}`}
-                    >
-                      {s.l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        ))}
       </div>
 
       {/* Table Section */}
@@ -312,11 +320,13 @@ const RequestClient = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
-              {paginatedItems.map((req, idx) => (
-                <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-2.5">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
+              {paginatedItems.map((req, idx) => {
+                const style = getRowStyle(req.request_date, req.status);
+                return (
+                <tr key={req.id} className={`transition-colors ${style.row}`}>
+                  <td className="px-6 py-2.5 text-slate-600">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
                   <td className="px-6 py-2.5 font-mono text-slate-600">{req.doc_no}</td>
-                  <td className="px-6 py-2.5 whitespace-nowrap text-slate-600">
+                  <td className={`px-6 py-2.5 whitespace-nowrap ${style.date}`}>
                     {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
                   </td>
                   <td className="px-6 py-2.5 truncate text-slate-600" title={displayRequesterName(req)}>
@@ -341,7 +351,8 @@ const RequestClient = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
                   <td colSpan={8}>

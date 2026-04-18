@@ -76,7 +76,7 @@ export default function RequestNavbar() {
 
           {/* Right: Bell + Avatar */}
           <div className="flex items-center gap-4">
-            <NotificationBell title="สถานะใบเบิก-ยืม" viewAllHref="/request/notifications" />
+            <NotificationBell title="สถานะใบเบิก-ยืม" viewAllHref="/request/notifications" entityType="REQUEST_HISTORY" />
 
             <div className="h-8 w-[1px] bg-white/20 mx-1" />
 

@@ -15,6 +15,7 @@ import { socket } from "@/lib/socket";
 interface NotificationBellProps {
   title?: string;
   viewAllHref?: string;
+  entityType?: string;
 }
 
 const timeAgo = (value?: string | null): string => {
@@ -60,7 +61,7 @@ const getIconConfig = (n: NotificationItem): IconConfig => {
   };
 };
 
-export default function NotificationBell({ title = "การแจ้งเตือน", viewAllHref }: NotificationBellProps) {
+export default function NotificationBell({ title = "การแจ้งเตือน", viewAllHref, entityType }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
@@ -69,36 +70,43 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
 
   const isVisibleRef = useRef(true);
+  const isOpenRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const prevItemCountRef = useRef(4);
 
   const badgeText = useMemo(() => (unreadCount > 99 ? "99+" : String(unreadCount)), [unreadCount]);
 
   const loadUnreadCount = useCallback(async () => {
     try {
-      const count = await getUnreadCount();
+      const count = await getUnreadCount(entityType);
       setUnreadCount(count);
     } catch {
       // silent
     }
-  }, []);
+  }, [entityType]);
 
   const loadItems = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await getNotifications({ page: 1, limit: 200 });
-      setItems(result.items || []);
+      const result = await getNotifications({ page: 1, limit: 200, ...(entityType ? { entity_type: entityType } : {}) });
+      const fetched = result.items || [];
+      prevItemCountRef.current = fetched.length || prevItemCountRef.current;
+      setItems(fetched);
     } catch {
       setItems([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [entityType]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([loadUnreadCount(), loadItems()]);
   }, [loadUnreadCount, loadItems]);
+
+  // Keep the ref in sync so the stable socket effect can read it without deps
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
   useEffect(() => { loadUnreadCount(); }, [loadUnreadCount]);
   useEffect(() => { if (isOpen) loadItems(); }, [isOpen, loadItems]);
@@ -127,36 +135,59 @@ export default function NotificationBell({ title = "การแจ้งเต�
   }, []);
 
   useEffect(() => {
+    console.log("[Socket] Listening for:", entityType);
+
     if (!socket.connected) socket.connect();
 
     const handleRefreshSignal = (message: string) => {
-      console.log("[NotificationBell] socket REFRESH_DATA received:", message);
       if (message !== "NOTIFICATIONS") return;
-
       if (!isVisibleRef.current) {
-        // Tab is hidden — mark pending so we refresh when user comes back
         pendingRefreshRef.current = true;
         return;
       }
-
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         loadUnreadCount();
-        if (isOpen) loadItems();
+        if (isOpenRef.current) loadItems();
         refreshTimerRef.current = null;
       }, 180);
     };
 
+    const handleNotificationNew = (notif: NotificationItem) => {
+      if (entityType && notif.entity_type !== entityType) return;
+      setItems((prev) => {
+        // Guard against duplicate delivery (user is in both USER: and ROLE: rooms)
+        if (notif.id && prev.some((n) => n.id === notif.id)) return prev;
+        setUnreadCount((c) => c + 1);
+        return [notif, ...prev];
+      });
+    };
+
     socket.on("REFRESH_DATA", handleRefreshSignal);
+    socket.on("notification:new", handleNotificationNew);
+
     return () => {
       if (refreshTimerRef.current) { clearTimeout(refreshTimerRef.current); refreshTimerRef.current = null; }
-      socket.off("REFRESH_DATA", handleRefreshSignal);
+      socket.off("notification:new");
+      socket.off("REFRESH_DATA");
     };
-  }, [loadUnreadCount, loadItems, isOpen]);
+  }, [entityType, socket, loadUnreadCount, loadItems]);
 
   const handleMarkRead = useCallback(async (id: number) => {
-    try { await markNotificationRead(id); await refreshAll(); } catch { /* silent */ }
-  }, [refreshAll]);
+    const wasUnread = items.find((n) => n.id === id)?.is_read === false;
+
+    // Optimistic update — flip to read instantly
+    setItems((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
+
+    try {
+      await markNotificationRead(id);
+    } catch {
+      // Revert on failure
+      setItems((prev) => prev.map((n) => n.id === id ? { ...n, is_read: false } : n));
+      if (wasUnread) setUnreadCount((c) => c + 1);
+    }
+  }, [items]);
 
   const handleMarkAllRead = useCallback(async () => {
     setIsMarkingAll(true);
@@ -221,11 +252,19 @@ export default function NotificationBell({ title = "การแจ้งเต�
           </div>
 
           {/* List */}
-          <div className="max-h-[420px] overflow-y-auto">
+          <div className="min-h-[300px] max-h-[420px] overflow-y-auto">
             {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-12 text-slate-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-xs">กำลังโหลด...</span>
+              <div className="flex flex-col">
+                {[...Array(prevItemCountRef.current)].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3 px-4 py-3 animate-pulse">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-2 py-1">
+                      <div className="h-3 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-200 rounded w-1/2" />
+                      <div className="h-2.5 bg-gray-100 rounded w-1/4 mt-1" />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -242,7 +281,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
               const { icon, bg } = getIconConfig(n);
               return (
                 <button
-                  key={`${n.recipient_row_id}-${n.id}`}
+                  key={n.id ?? `sock-${n.created_at}`}
                   onClick={() => handleMarkRead(n.id)}
                   className={`w-full text-left flex items-start gap-3 px-4 py-3 transition-colors ${
                     !n.is_read ? "bg-blue-50/60 hover:bg-blue-100/60" : "hover:bg-gray-100"

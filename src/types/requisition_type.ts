@@ -58,6 +58,8 @@ export interface RequisitionItem {
   name: string;
   code: string;
   image_url?: string | null;
+  category_name?: string | null;
+  unit_name?: string | null;
   qty: number;
   current_stock: number;
   available_stock?: number;
@@ -89,6 +91,7 @@ export interface RequisitionHeader {
   department_name?: string; 
   requester_id: string;
   requester?: string;
+  approver?: string | null;
   item_count?: number;
   status: "PENDING" | "COMPLETED" | "BORROWING" | "APPROVED" | "REJECTED" | "DRAFT" | "CANCELLED";
   type: "WITHDRAW" | "BORROW";

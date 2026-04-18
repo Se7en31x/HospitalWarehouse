@@ -37,7 +37,7 @@ const mapRequestableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
 
 export default function WithdrawClient({ initialItems }: Props) {
   // ดึงข้อมูลแผนกและสถานะการโหลดจาก useAuth ที่แกะจาก Token จริง
-  const { departments, isLoading: isAuthLoading } = useAuth();
+  const { departments, user, isLoading: isAuthLoading } = useAuth();
 
   // ✅ State สำหรับรายการ Items
   const [items, setItems] = useState<Item.UiItem[]>(mapRequestableStock(initialItems || []));
@@ -229,18 +229,23 @@ export default function WithdrawClient({ initialItems }: Props) {
   // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
     if (!isAuthLoading && departments.length > 0) {
+      const DEPT_TH_KEYS = new Set(["Emergency","Dental","Palliative","OPD","IPD","MedicalRecords","Pharmacy","Warehouse"]);
+      const clinicalDepts = departments.filter((d) => DEPT_TH_KEYS.has(d.name));
+      if (!clinicalDepts.length) return;
+
       const savedDept = localStorage.getItem("withdraw_dept");
       const savedDeptId = savedDept ? Number(savedDept) : null;
-      const isValid = savedDeptId !== null && departments.some((d) => d.id === savedDeptId);
+      const isValid = savedDeptId !== null && clinicalDepts.some((d) => d.id === savedDeptId);
 
       if (isValid && savedDeptId !== null) {
         setSelectedDeptId(savedDeptId);
       } else {
-        // Default เป็นแผนกแรกที่ได้รับสิทธิ์
-        setSelectedDeptId(departments[0].id);
+        const metaDept = user?.app_metadata?.department as string | undefined;
+        const metaMatch = metaDept ? clinicalDepts.find((d) => d.name === metaDept || d.code === metaDept) : null;
+        setSelectedDeptId(metaMatch ? metaMatch.id : clinicalDepts[0].id);
       }
     }
-  }, [isAuthLoading, departments]);
+  }, [isAuthLoading, departments, user]);
 
   // --- [Persist Cart & Department to LocalStorage] ---
   useEffect(() => {
@@ -361,14 +366,6 @@ export default function WithdrawClient({ initialItems }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-gray-800">เบิกพัสดุ</h2>
-          <div className="flex flex-col">
-             <span className="text-xs text-slate-500 font-medium">แผนกที่เลือกเบิก:</span>
-             <span className="text-sm font-bold text-blue-600">
-               {isAuthLoading
-                 ? "กำลังโหลดข้อมูล..."
-                 : (departments.find((d) => d.id === selectedDeptId)?.name || "โปรดเลือกแผนกในตะกร้า")}
-             </span>
-          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
