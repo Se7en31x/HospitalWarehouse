@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import {
-  User, Mail, Phone, Shield, MapPin, Briefcase,
-  Building2, Copy, Check, Pencil, Lock, Eye, EyeOff,
-  Loader2, CheckCircle2, AlertCircle, CalendarDays,
-  CreditCard, Globe, X,
+  User, Shield, MapPin, Copy, Check, Lock, Eye, EyeOff,
+  Loader2, CheckCircle2, AlertCircle, CalendarDays, X, Camera,
 } from 'lucide-react';
 import { getMyProfile, type UserProfile } from '@/services/profileService';
 import { createClient } from '@/lib/supabase/client';
 
 /* ─── helpers ─────────────────────────────────────────────────── */
+
+type Tab = 'personal' | 'account';
 
 function maskCid(cid: string): string {
   if (cid.length !== 13) return cid;
@@ -25,41 +25,19 @@ function CopyButton({ text }: { text: string }) {
     catch { /* silent */ }
   };
   return (
-    <button onClick={handle} title="คัดลอก" className="ml-2 p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+    <button onClick={handle} title="คัดลอก" className="ml-1.5 p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
 
-interface RowProps {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}
-function Row({ icon, label, children }: RowProps) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-4 py-4 border-b border-slate-50 last:border-0">
-      <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 mt-0.5">
-        {icon}
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 mb-1.5">{label}</label>
+      <div className="w-full text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 min-h-[40px] flex items-center flex-wrap gap-1.5">
+        {children}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
-        <div className="text-sm font-semibold text-slate-900 flex items-center flex-wrap gap-1.5">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-      <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100">
-        <span className="text-blue-600">{icon}</span>
-        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
-      </div>
-      <div className="px-6 py-2">{children}</div>
     </div>
   );
 }
@@ -157,12 +135,11 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
 function Skeleton() {
   return (
-    <div className="min-h-screen bg-slate-50 animate-pulse">
-      <div className="h-40 bg-gradient-to-br from-slate-100 to-blue-50" />
-      <div className="max-w-2xl mx-auto px-6 py-8 flex flex-col gap-5">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="bg-white rounded-2xl border border-slate-100 h-40" />
-        ))}
+    <div className="min-h-screen bg-white animate-pulse py-8">
+      <div className="max-w-3xl mx-auto px-6 flex flex-col gap-5">
+        <div className="bg-white rounded-2xl border border-slate-100 h-28" />
+        <div className="bg-white rounded-2xl border border-slate-100 h-12" />
+        <div className="bg-white rounded-2xl border border-slate-100 h-72" />
       </div>
     </div>
   );
@@ -171,10 +148,11 @@ function Skeleton() {
 /* ─── Main ─────────────────────────────────────────────────────── */
 
 export default function ProfileClient() {
-  const [profile,  setProfile]  = useState<UserProfile | null>(null);
+  const [profile,   setProfile]   = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
-  const [showPwd,  setShowPwd]  = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const [showPwd,   setShowPwd]   = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('personal');
 
   useEffect(() => {
     getMyProfile()
@@ -186,7 +164,7 @@ export default function ProfileClient() {
   if (isLoading) return <Skeleton />;
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <AlertCircle className="w-8 h-8 text-red-400" />
           <p className="text-sm font-semibold text-red-500">{error || 'ไม่พบข้อมูลโปรไฟล์'}</p>
@@ -195,7 +173,6 @@ export default function ProfileClient() {
     );
   }
 
-  const fullNameTh = [profile.firstname_th, profile.lastname_th].filter(Boolean).join(' ');
   const fullNameWithTitle = [profile.title?.short_name, profile.firstname_th, profile.lastname_th].filter(Boolean).join(' ');
   const fullNameEn = [profile.firstname_en, profile.lastname_en].filter(Boolean).join(' ');
   const avatarLetter = (profile.firstname_th || profile.firstname_en || profile.email || '?')[0].toUpperCase();
@@ -211,136 +188,166 @@ export default function ProfileClient() {
     ? new Date(profile.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
 
-  return (
-    <div className="min-h-screen bg-slate-50">
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'personal', label: 'ข้อมูลส่วนตัว' },
+    { key: 'account',  label: 'การทำงาน' },
+  ];
 
-      {/* ── Header Banner ── */}
-      <div className="bg-gradient-to-br from-slate-50 via-white to-blue-50/60 border-b border-slate-100">
-        <div className="max-w-2xl mx-auto px-6 py-8 flex items-center justify-between gap-6">
-          {/* Avatar + Name */}
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-2xl font-extrabold text-white shadow-md flex-shrink-0 ring-4 ring-blue-100">
-              {avatarLetter}
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 leading-tight">{fullNameWithTitle || 'ผู้ใช้งาน'}</h1>
-              {fullNameEn && <p className="text-sm text-slate-500 mt-0.5 font-medium">{fullNameEn}</p>}
-              <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                  <Shield className="w-3 h-3" />
-                  {profile.role?.name || 'guest'}
-                </span>
+  return (
+    <div className="min-h-screen bg-white py-8">
+      <div className="max-w-3xl mx-auto px-6 flex flex-col gap-5">
+
+        {/* ── Header Card ── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white">
+                  <User className="w-8 h-8" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center shadow-sm">
+                  <Camera className="w-3 h-3 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Name + meta */}
+              <div>
+                <div className="flex items-center gap-2.5 mb-0.5">
+                  <h1 className="text-xl font-bold text-slate-900">{fullNameWithTitle || 'ผู้ใช้งาน'}</h1>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    {profile.role?.name || 'guest'}
+                  </span>
+                </div>
+                {fullNameEn && <p className="text-sm text-slate-500 mb-2">{fullNameEn}</p>}
+                <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
+                  {fullAddress && (
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5" />{fullAddress}
+                    </span>
+                  )}
+                  {joinedDate && (
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5" />เข้าร่วม {joinedDate}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Edit button — disabled/read-only */}
-          <button
-            disabled
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold text-slate-400 cursor-not-allowed shadow-sm select-none"
-            title="ไม่สามารถแก้ไขได้ในขณะนี้"
-          >
-            <Pencil className="w-4 h-4" />
-            แก้ไขโปรไฟล์
-          </button>
         </div>
-      </div>
 
-      {/* ── Cards ── */}
-      <div className="max-w-2xl mx-auto px-6 py-7 flex flex-col gap-5">
-
-        {/* Card 1 — Personal Info */}
-        <Card title="ข้อมูลส่วนตัว" icon={<User className="w-4 h-4" />}>
-          <Row icon={<User className="w-3.5 h-3.5" />} label="คำนำหน้า">
-            {profile.title?.name || <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<User className="w-3.5 h-3.5" />} label="ชื่อ-นามสกุล (ไทย)">
-            {fullNameTh || <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<Globe className="w-3.5 h-3.5" />} label="Full Name (English)">
-            {fullNameEn || <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<User className="w-3.5 h-3.5" />} label="เพศ">
-            {profile.sex?.name || <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<CalendarDays className="w-3.5 h-3.5" />} label="วันเกิด">
-            {profile.birth_date
-              ? <>{profile.birth_date}{profile.age != null && <span className="text-xs text-slate-500 font-normal">({profile.age} ปี)</span>}</>
-              : <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<CreditCard className="w-3.5 h-3.5" />} label="เลขบัตรประชาชน">
-            {profile.cid
-              ? <span className="font-mono tracking-widest text-slate-700">{maskCid(profile.cid)}</span>
-              : <span className="text-slate-300">—</span>}
-          </Row>
-        </Card>
-
-        {/* Card 2 — Work Info */}
-        <Card title="ข้อมูลการทำงาน" icon={<Briefcase className="w-4 h-4" />}>
-          <Row icon={<Shield className="w-3.5 h-3.5" />} label="บทบาทในระบบ">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-              <Shield className="w-3 h-3" />
-              {profile.role?.name || 'guest'}
-            </span>
-          </Row>
-          <Row icon={<Building2 className="w-3.5 h-3.5" />} label="แผนก / คลัง">
-            {profile.departments.length > 0
-              ? profile.departments.map(d => (
-                  <span key={d.id} className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    {d.name}
-                  </span>
-                ))
-              : <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<Briefcase className="w-3.5 h-3.5" />} label="วิชาชีพ / ตำแหน่ง">
-            {profile.profession_id || <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<CheckCircle2 className="w-3.5 h-3.5" />} label="สถานะ">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Active
-            </span>
-          </Row>
-        </Card>
-
-        {/* Card 3 — Contact */}
-        <Card title="ช่องทางติดต่อ" icon={<Phone className="w-4 h-4" />}>
-          <Row icon={<Phone className="w-3.5 h-3.5" />} label="โทรศัพท์">
-            {profile.phone || <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<Mail className="w-3.5 h-3.5" />} label="อีเมล">
-            {profile.email
-              ? <>{profile.email}<CopyButton text={profile.email} /></>
-              : <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<MapPin className="w-3.5 h-3.5" />} label="ที่อยู่">
-            {profile.address.detail || fullAddress
-              ? <span className="leading-relaxed">{[profile.address.detail, fullAddress].filter(Boolean).join(' ')}</span>
-              : <span className="text-slate-300">—</span>}
-          </Row>
-        </Card>
-
-        {/* Card 4 — Account Security */}
-        <Card title="ความปลอดภัยของบัญชี" icon={<Lock className="w-4 h-4" />}>
-          <Row icon={<Mail className="w-3.5 h-3.5" />} label="อีเมลบัญชี (Supabase Auth)">
-            {profile.email
-              ? <>{profile.email}<CopyButton text={profile.email} /></>
-              : <span className="text-slate-300">—</span>}
-          </Row>
-          <Row icon={<CalendarDays className="w-3.5 h-3.5" />} label="วันที่ลงทะเบียน">
-            {joinedDate || <span className="text-slate-300">—</span>}
-          </Row>
-          <div className="pb-4 pt-1">
+        {/* ── Tab Bar ── */}
+        <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5">
+          {tabs.map(({ key, label }) => (
             <button
-              onClick={() => setShowPwd(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-colors ${
+                activeTab === key
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
             >
-              <Lock className="w-4 h-4" />
-              เปลี่ยนรหัสผ่าน
+              {label}
             </button>
-          </div>
-        </Card>
+          ))}
+        </div>
 
+        {/* ── Tab Content ── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+
+          {/* Personal */}
+          {activeTab === 'personal' && (
+            <div>
+              <h2 className="text-base font-bold text-slate-900 mb-0.5">ข้อมูลส่วนตัว</h2>
+              <p className="text-sm text-blue-600 mb-6">อัปเดตรายละเอียดส่วนตัวและข้อมูลโปรไฟล์ของคุณ</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="คำนำหน้า">
+                  {profile.title?.name || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="เพศ">
+                  {profile.sex?.name || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="ชื่อ (ไทย)">
+                  {profile.firstname_th || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="นามสกุล (ไทย)">
+                  {profile.lastname_th || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="First Name (EN)">
+                  {profile.firstname_en || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="Last Name (EN)">
+                  {profile.lastname_en || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="โทรศัพท์">
+                  {profile.phone || <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="วันเกิด">
+                  {profile.birth_date
+                    ? <>{profile.birth_date}{profile.age != null && <span className="text-xs text-slate-500 ml-1">({profile.age} ปี)</span>}</>
+                    : <span className="text-slate-300">—</span>}
+                </Field>
+                <Field label="เลขบัตรประชาชน">
+                  {profile.cid
+                    ? <span className="font-mono tracking-widest">{maskCid(profile.cid)}</span>
+                    : <span className="text-slate-300">—</span>}
+                </Field>
+              </div>
+              <div className="mt-4">
+                <Field label="ที่อยู่">
+                  {profile.address.detail || fullAddress
+                    ? [profile.address.detail, fullAddress].filter(Boolean).join(' ')
+                    : <span className="text-slate-300">—</span>}
+                </Field>
+              </div>
+            </div>
+          )}
+
+          {/* Account */}
+          {activeTab === 'account' && (
+            <div>
+              <h2 className="text-base font-bold text-slate-900 mb-0.5">ข้อมูลการทำงาน</h2>
+              <p className="text-sm text-blue-600 mb-6">บทบาทและหน้าที่ในองค์กร</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="บทบาทในระบบ">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    <Shield className="w-3 h-3" />
+                    {profile.role?.name || 'guest'}
+                  </span>
+                </Field>
+                <Field label="สถานะ">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-teal-100 text-teal-700 border border-teal-300">
+                    <span className="relative flex w-2 h-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-60" />
+                      <span className="relative inline-flex rounded-full w-2 h-2 bg-teal-500" />
+                    </span>
+                    ใช้งานอยู่
+                  </span>
+                </Field>
+                <div className="col-span-2">
+                  <Field label="แผนก / คลัง">
+                    {profile.departments.length > 0
+                      ? profile.departments.map(d => (
+                          <span key={d.id} className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                            {d.name}
+                          </span>
+                        ))
+                      : <span className="text-slate-300">—</span>}
+                  </Field>
+                </div>
+                <div className="col-span-2">
+                  <Field label="วิชาชีพ / ตำแหน่ง">
+                    {profile.profession_id || <span className="text-slate-300">—</span>}
+                  </Field>
+                </div>
+              </div>
+            </div>
+          )}
+
+
+        </div>
       </div>
 
       {showPwd && <ChangePasswordModal onClose={() => setShowPwd(false)} />}

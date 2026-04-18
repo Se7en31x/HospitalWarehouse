@@ -37,7 +37,7 @@ export interface NotificationListResult {
  * ไม่ต้องส่ง recipient_id ไปแล้ว เพราะ Middleware หลังบ้านจะดึงจาก Token ให้เอง
  */
 export const getNotifications = async (
-  params: { page?: number; limit?: number; unread?: boolean } = {}
+  params: { page?: number; limit?: number; unread?: boolean; read?: boolean; severity?: string } = {}
 ): Promise<NotificationListResult> => {
   const res = await api.list<NotificationItem>("/v1/notifications", params as Record<string, unknown>);
   
@@ -59,6 +59,14 @@ export const getUnreadCount = async (): Promise<number> => {
   // api.get จะทำการ unwrap body.data ให้โดยอัตโนมัติ
   const data = await api.get<{ unread: number }>("/v1/notifications/unread-count");
   return Number(data?.unread || 0);
+};
+
+/**
+ * ดึงจำนวนแจ้งเตือนทั้งหมดตาม severity
+ */
+export const getSeverityTotal = async (severity: string): Promise<number> => {
+  const res = await getNotifications({ page: 1, limit: 1, severity });
+  return res.total;
 };
 
 /**

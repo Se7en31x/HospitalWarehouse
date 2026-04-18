@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bell, Package, FileText, Loader2, CheckCheck } from "lucide-react";
+import { AlertTriangle, Bell, Package, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 import {
   getNotifications,
@@ -66,6 +66,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
 
   const isVisibleRef = useRef(true);
   const pendingRefreshRef = useRef(false);
@@ -86,7 +87,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const loadItems = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await getNotifications({ page: 1, limit: 10 });
+      const result = await getNotifications({ page: 1, limit: 200 });
       setItems(result.items || []);
     } catch {
       setItems([]);
@@ -180,87 +181,88 @@ export default function NotificationBell({ title = "การแจ้งเต�
 
       {/* Dropdown panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 top-full w-80 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-50 transition-all duration-200 ease-out">
+        <div className="absolute right-0 mt-2 top-full w-[360px] bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-50">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-3 py-3 bg-slate-50/50 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-bold text-slate-800">{title}</span>
-              {unreadCount > 0 && (
-                <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full leading-none">
-                  {unreadCount}
-                </span>
-              )}
+          <div className="px-4 pt-4 pb-2">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+              <button
+                onClick={handleMarkAllRead}
+                disabled={isMarkingAll || unreadCount === 0}
+                className="text-[13px] font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+              >
+                {isMarkingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                อ่านทั้งหมด
+              </button>
             </div>
-            <button
-              onClick={handleMarkAllRead}
-              disabled={isMarkingAll || unreadCount === 0}
-              className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {isMarkingAll
-                ? <Loader2 className="w-3 h-3 animate-spin" />
-                : <CheckCheck className="w-3 h-3" />}
-              Mark all as read
-            </button>
+
+            {/* Tabs */}
+            <div className="flex gap-1">
+              {(["all", "unread"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors ${
+                    activeTab === tab
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {tab === "all" ? "ทั้งหมด" : "ยังไม่ได้อ่าน"}
+                  {tab === "unread" && unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] flex items-center justify-center px-1">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* List */}
-          <div className="max-h-[400px] overflow-y-auto">
-
+          <div className="max-h-[420px] overflow-y-auto">
             {isLoading && (
-              <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
+              <div className="flex items-center justify-center gap-2 py-12 text-slate-400">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span className="text-xs">กำลังโหลด...</span>
               </div>
             )}
 
-            {!isLoading && items.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
-                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
-                  <Bell className="w-6 h-6 text-slate-300" />
+            {!isLoading && items.filter(n => activeTab === "all" || !n.is_read).length === 0 && (
+              <div className="flex flex-col items-center justify-center py-14 gap-3">
+                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                  <Bell className="w-7 h-7 text-gray-300" />
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-slate-500">ไม่มีการแจ้งเตือนใหม่</p>
-                  <p className="text-xs text-slate-400 mt-0.5">ระบบจะแจ้งเตือนเมื่อมีกิจกรรมใหม่</p>
-                </div>
+                <p className="text-sm font-medium text-gray-400">ไม่มีการแจ้งเตือน</p>
               </div>
             )}
 
-            {!isLoading && items.map((n) => {
+            {!isLoading && items.filter(n => activeTab === "all" || !n.is_read).map((n) => {
               const { icon, bg } = getIconConfig(n);
               return (
                 <button
                   key={`${n.recipient_row_id}-${n.id}`}
                   onClick={() => handleMarkRead(n.id)}
-                  className={`w-full text-left flex items-start gap-3 px-3 py-3 border-b border-slate-50 last:border-0 transition-colors ${
-                    n.is_read
-                      ? "hover:bg-slate-50"
-                      : "bg-blue-50/30 border-l-4 border-blue-500 hover:bg-blue-50/60"
+                  className={`w-full text-left flex items-start gap-3 px-4 py-3 transition-colors ${
+                    !n.is_read ? "bg-blue-50/60 hover:bg-blue-100/60" : "hover:bg-gray-100"
                   }`}
                 >
-                  {/* Type icon */}
-                  <div className={`mt-0.5 p-2 rounded-lg flex-shrink-0 ${bg}`}>
+                  <div className={`mt-0.5 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${bg}`}>
                     {icon}
                   </div>
-
-                  {/* Content */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={`text-xs font-semibold truncate ${n.is_read ? "text-slate-600" : "text-slate-800"}`}>
-                        {n.title || "(ไม่มีหัวข้อ)"}
-                      </p>
-                      {!n.is_read && (
-                        <span className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1" />
-                      )}
-                    </div>
-                    {n.body && (
-                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">{n.body}</p>
-                    )}
-                    <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                    <p className={`text-[13px] leading-snug ${!n.is_read ? "font-semibold text-gray-900" : "text-gray-700"}`}>
+                      <span className="font-bold">{n.title || "(ไม่มีหัวข้อ)"}</span>
+                      {n.body ? <> {n.body}</> : null}
+                    </p>
+                    <p className={`text-[12px] mt-1 font-semibold ${!n.is_read ? "text-blue-600" : "text-gray-400"}`}>
                       {timeAgo(n.created_at || n.delivered_at)}
                     </p>
                   </div>
+                  {!n.is_read && (
+                    <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
+                  )}
                 </button>
               );
             })}
@@ -268,13 +270,13 @@ export default function NotificationBell({ title = "การแจ้งเต�
 
           {/* Footer */}
           {viewAllHref && (
-            <div className="border-t border-slate-100">
+            <div className="border-t border-gray-100">
               <Link
                 href={viewAllHref}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center justify-center w-full px-4 py-2.5 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 transition-colors"
+                className="flex items-center justify-center w-full px-4 py-3 text-[13px] font-bold text-gray-700 hover:bg-gray-100 transition-colors"
               >
-                ดูการแจ้งเตือนทั้งหมด →
+                ดูการแจ้งเตือนทั้งหมด
               </Link>
             </div>
           )}

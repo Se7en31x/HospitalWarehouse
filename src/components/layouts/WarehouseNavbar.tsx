@@ -102,8 +102,6 @@ export default function WarehouseNavbar() {
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 ring-2 ring-white/30 group-hover:ring-white/60 transition-all flex items-center justify-center text-sm font-extrabold text-white shadow-lg">
                       <User className="w-5 h-5" />
                     </div>
-                    {/* Online Status */}
-                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#002A75]" />
                   </div>
                   <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform duration-300 ${showProfileMenu ? "rotate-180" : ""}`} />
                 </button>
@@ -112,11 +110,6 @@ export default function WarehouseNavbar() {
               {/* Profile Dropdown */}
               {showProfileMenu && (
                 <div className="absolute right-0 top-[calc(100%+8px)] w-60 bg-white rounded-xl border border-slate-100 shadow-2xl z-50 overflow-hidden transition-all duration-200 ease-out">
-                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">บัญชีผู้ใช้งาน</p>
-                    <p className="text-sm font-bold text-slate-800 truncate">{displayName}</p>
-                    <p className="text-[11px] font-semibold text-blue-600 mt-0.5">{roleName}</p>
-                  </div>
                   <div className="p-1.5">
                     <Link
                       href="/warehouse/profile"

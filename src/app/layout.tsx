@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import { Prompt } from "next/font/google";
 import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "ระบบจัดการแผนกคลังหลักโรงพยาบาล",
+  icons: {
+    icon: "https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png",
+  },
+};
 
 const prompt = Prompt({
   subsets: ["latin", "thai"],
