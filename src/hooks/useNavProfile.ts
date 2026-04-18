@@ -10,6 +10,6 @@ import { useUser } from "@/context/UserContext";
  * exactly once per layout — zero duplicate requests.
  */
 export const useNavProfile = () => {
-  const { displayName, roleName, isLoading } = useUser();
-  return { displayName, roleName, isLoading };
+  const { profile, displayName, roleName, isLoading } = useUser();
+  return { profile, displayName, roleName, isLoading };
 };

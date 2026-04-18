@@ -640,10 +640,10 @@ export default function BorrowCartModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[650px] flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 flex-shrink-0 px-5 py-4 bg-emerald-50/50">
+        <div className="flex items-center justify-between border-b border-gray-200 flex-shrink-0 px-5 py-4 bg-white">
           <h2 className="text-lg font-bold text-gray-900">
             ยืมบุคคลภายนอก
           </h2>
@@ -688,7 +688,7 @@ export default function BorrowCartModal({
 
               {/* Step 1: Cart Items + Return Date */}
               {externalStep === 1 && (
-                <>
+                <div className="flex flex-col gap-2 flex-1">
                   {/* Return Date Section */}
                   <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
@@ -730,26 +730,27 @@ export default function BorrowCartModal({
                   </div>
 
                   {/* Items Table */}
-                  <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden flex flex-col flex-1">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-blue-100 bg-blue-50/40">
                       <ShoppingCart className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">รายการที่ต้องการยืม</span>
                       <span className="ml-auto text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">{selectedItems.length} รายการ</span>
                     </div>
                     {selectedItems.length === 0 ? (
-                      <div className="text-center py-10 flex flex-col items-center">
+                      <div className="text-center py-10 flex flex-col items-center justify-center flex-1">
                         <ShoppingCart className="w-10 h-10 text-gray-200 mb-2" />
                         <p className="text-gray-400 text-sm font-medium">ยังไม่มีรายการในตะกร้า</p>
                         <p className="text-xs text-gray-300 mt-1">กรุณาเลือกรายการจากหน้าระบบยืม</p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className="overflow-y-auto flex-1 h-full">
+                        <div className="overflow-x-auto h-full">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase">
                               <th className="px-3 py-2.5 text-left w-14">รูป</th>
                               <th className="px-3 py-2.5 text-left">ชื่อรายการ</th>
-                              <th className="px-3 py-2.5 text-left w-28">ประเภท</th>
+                              <th className="px-3 py-2.5 text-left w-28">หมวดหมู่</th>
                               <th className="px-3 py-2.5 text-center w-32">จำนวน</th>
                               <th className="px-3 py-2.5 w-10"></th>
                             </tr>
@@ -768,16 +769,10 @@ export default function BorrowCartModal({
                                   <div className="font-semibold text-gray-900 text-sm">{item.name}</div>
                                   <div className="text-xs text-gray-400">{item.code}</div>
                                 </td>
-                                <td className="px-3 py-2.5">
-                                  {item.type === "REUSABLE" ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                                      <RefreshCw className="w-3 h-3" />ครุภัณฑ์
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
-                                      <Package className="w-3 h-3" />วัสดุ
-                                    </span>
-                                  )}
+                                <td className="px-3 py-2.5 text-left">
+                                  <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-lg">
+                                    {item.category || (item.type === "REUSABLE" ? "ครุภัณฑ์" : "วัสดุ")}
+                                  </span>
                                 </td>
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-center justify-center gap-1 bg-gray-50 rounded-lg border border-gray-200 p-1">
@@ -802,10 +797,11 @@ export default function BorrowCartModal({
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )}
                   </div>
-                </>
+                </div>
               )}
 
               {/* Step 2: Personal Info Form */}

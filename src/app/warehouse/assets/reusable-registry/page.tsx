@@ -41,7 +41,7 @@ export default async function ReusableRegistryPage({
     // getReusableUnitById would be wrong here because itemId is NOT a unit UUID.
     const [item, unitList] = await Promise.all([
       getInventoryItemById(itemId, token),
-      getReusableUnits({ item_id: itemId, limit: 10 }, token),
+      getReusableUnits({ item_id: itemId, page: 1, limit: 10 }, token),
     ]);
 
     initialItemName = item.name || "";

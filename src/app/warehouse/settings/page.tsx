@@ -767,7 +767,7 @@ export default function SettingsPage() {
                           </div>
                         )}
                         {sup.contact_phone && (
-                          <div className="flex items-center gap-1 text-slate-500 text-xs mt-0.5">
+                          <div className="flex items-center gap-1 text-slate-700 mt-0.5">
                             <UserRound className="w-3 h-3 text-slate-400 shrink-0" />
                             <span>{sup.contact_phone}</span>
                           </div>
@@ -808,13 +808,13 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(sup.id, "suppliers", sup.name)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
                       </td>

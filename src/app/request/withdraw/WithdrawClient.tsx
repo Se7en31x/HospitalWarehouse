@@ -74,24 +74,76 @@ export default function WithdrawClient({ initialItems }: Props) {
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<Item.UiItem | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
+
+  // Refs to track current state for socket refresh
+  const pageRef = useRef(1);
+  const categoryRef = useRef("หมวดหมู่ทั้งหมด");
+  const unitRef = useRef("หน่วยทั้งหมด");
+  const locationRef = useRef("ตำแหน่งทั้งหมด");
+  const searchRef = useRef("");
 
   // --- [Data Fetching Logic] ---
-  const refreshData = useCallback(async () => {
+  const fetchPage = useCallback(async (
+    page: number,
+    category: string,
+    unit: string,
+    location: string,
+    search: string
+  ) => {
     setIsFetching(true);
     try {
-      const data = await ItemSvc.getInventoryItems({ allowed_req: true });
-      setItems(mapRequestableStock(data || []));
+      // Build filter params based on selections
+      const filters: Record<string, unknown> = {
+        page,
+        limit: itemsPerPage,
+      };
+      
+      if (category !== "หมวดหมู่ทั้งหมด") {
+        filters.category = category;
+      }
+      if (unit !== "หน่วยทั้งหมด") {
+        filters.unit = unit;
+      }
+      if (location !== "ตำแหน่งทั้งหมด") {
+        filters.location = location;
+      }
+      if (search) {
+        filters.keyword = search;
+      }
+
+      const result = await ItemSvc.getInventoryItemsPage(filters);
+      setItems(mapRequestableStock(result.items || []));
+      setServerTotal(result.meta.total);
+      setServerTotalPages(result.meta.totalPages);
+
+      console.log(`[WithdrawClient] Fetched page ${page}, total items: ${result.meta.total}`);
     } catch (error) {
       console.error("Fetch error:", error);
       SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลล้มเหลว");
     } finally {
       setIsFetching(false);
     }
-  }, []);
+  }, [itemsPerPage]);
 
-  // Keep refs in sync so the stable socket listener can read current modal state
+  const refreshData = useCallback(async () => {
+    await fetchPage(
+      pageRef.current,
+      categoryRef.current,
+      unitRef.current,
+      locationRef.current,
+      searchRef.current
+    );
+  }, [fetchPage]);
+
+  // Keep refs in sync so the stable socket listener can read current state
   useEffect(() => { showCartModalRef.current = showCartModal; }, [showCartModal]);
   useEffect(() => { showItemDetailModalRef.current = showItemDetailModal; }, [showItemDetailModal]);
+  useEffect(() => { categoryRef.current = selectedCategory; }, [selectedCategory]);
+  useEffect(() => { unitRef.current = selectedUnit; }, [selectedUnit]);
+  useEffect(() => { locationRef.current = selectedLocation; }, [selectedLocation]);
+  useEffect(() => { searchRef.current = searchTerm; }, [searchTerm]);
 
   // --- [Real-time Socket.io Connection] ---
   useEffect(() => {
@@ -170,11 +222,9 @@ export default function WithdrawClient({ initialItems }: Props) {
     };
     fetchOptions();
 
-    // โหลดข้อมูล Items หากไม่มีข้อมูลเริ่มต้น
-    if (!initialItems || initialItems.length === 0) {
-      refreshData();
-    }
-  }, [initialItems, refreshData]);
+    // โหลดข้อมูล Items (page 1)
+    fetchPage(1, "หมวดหมู่ทั้งหมด", "หน่วยทั้งหมด", "ตำแหน่งทั้งหมด", "");
+  }, [fetchPage]);
 
   // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
@@ -231,26 +281,9 @@ export default function WithdrawClient({ initialItems }: Props) {
     return ["ตำแหน่งทั้งหมด", ...Array.from(locations)];
   }, [items]);
 
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch =
-        (item.code || "").toLowerCase().includes(term) ||
-        (item.name || "").toLowerCase().includes(term);
-
-      const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
-      const matchesUnit = selectedUnit === "หน่วยทั้งหมด" || item.unit === selectedUnit;
-      const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
-
-      return matchesSearch && matchesCat && matchesUnit && matchesLocation;
-    });
-  }, [items, selectedCategory, selectedUnit, selectedLocation, searchTerm]);
-
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const displayItems = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredItems.slice(start, start + itemsPerPage);
-  }, [filteredItems, currentPage, itemsPerPage]);
+  // Server-side pagination (no client-side filtering needed)
+  const totalPages = serverTotalPages;
+  const displayItems = items;
 
   const openItemDetail = useCallback((item: Item.UiItem) => {
     // Override stock → effective stock so ItemDetailModal caps at the right max
@@ -281,6 +314,15 @@ export default function WithdrawClient({ initialItems }: Props) {
   const removeItem = useCallback((id: string) => {
     setSelectedItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
+
+  const getTypeDisplay = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      "MED_ASSET": "ครุภัณฑ์ภายในองค์กร",
+      "REUSABLE": "ของใช้ซ้ำรายชิ้น",
+      "CONSUMABLE": "วัสดุสิ้นเปลือง",
+    };
+    return typeMap[type] || type;
+  };
 
   const updateQty = useCallback(
     (id: string, delta: number) => {
@@ -349,7 +391,14 @@ export default function WithdrawClient({ initialItems }: Props) {
             type="text"
             placeholder="ค้นหา..."
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSearchTerm(value);
+              searchRef.current = value;
+              setCurrentPage(1);
+              pageRef.current = 1;
+              fetchPage(1, categoryRef.current, unitRef.current, locationRef.current, value);
+            }}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
@@ -373,8 +422,11 @@ export default function WithdrawClient({ initialItems }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedCategory(c);
+                        categoryRef.current = c;
                         setIsCategoryDropdownOpen(false);
                         setCurrentPage(1);
+                        pageRef.current = 1;
+                        fetchPage(1, c, unitRef.current, locationRef.current, searchRef.current);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedCategory === c
@@ -410,8 +462,11 @@ export default function WithdrawClient({ initialItems }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedUnit(u);
+                        unitRef.current = u;
                         setIsUnitDropdownOpen(false);
                         setCurrentPage(1);
+                        pageRef.current = 1;
+                        fetchPage(1, categoryRef.current, u, locationRef.current, searchRef.current);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedUnit === u
@@ -447,8 +502,11 @@ export default function WithdrawClient({ initialItems }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedLocation(loc);
+                        locationRef.current = loc;
                         setIsLocationDropdownOpen(false);
                         setCurrentPage(1);
+                        pageRef.current = 1;
+                        fetchPage(1, categoryRef.current, unitRef.current, loc, searchRef.current);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedLocation === loc
@@ -467,37 +525,59 @@ export default function WithdrawClient({ initialItems }: Props) {
       </div>
 
       {/* Table Content */}
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full"></div>
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
             </div>
           </div>
         )}
         <div 
-          className="flex-1 overflow-x-auto overflow-y-auto"
-          style={{ scrollbarWidth: 'auto', msOverflowStyle: 'auto' }}
+          className="flex-1" 
+          style={{
+            overflowX: 'auto',
+            overflowY: 'auto',
+            scrollbarWidth: 'auto',
+            msOverflowStyle: 'auto',
+          } as React.CSSProperties}
         >
+          <style>{`
+            div::-webkit-scrollbar {
+              width: 0;
+              height: 8px;
+            }
+            div::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            div::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+            }
+            div::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
           <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[50px]">#</th>
-                <th className="px-6 py-4 w-[100px]">รูป</th>
-                <th className="px-6 py-4 w-[120px]">รหัสพัสดุ</th>
-                <th className="px-6 py-4 w-[260px]">ชื่อรายการ</th>
-                <th className="px-3 py-4 w-[56px] text-center">ประเภท</th>
-                <th className="px-6 py-4 w-[140px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[150px]">ตำแหน่ง</th>
-                <th className="px-6 py-4 w-[130px]">สต็อก</th>
-                <th className="px-6 py-4 text-right w-[100px]">จัดการ</th>
+                <th className="px-6 py-4 w-[20px]">#</th>
+                <th className="px-6 py-4 w-[50px]">รูป</th>
+                <th className="px-6 py-4 w-[100px]">รหัส</th>
+                <th className="px-6 py-4 w-[180px]">ชื่อรายการ</th>
+                <th className="px-6 py-4 w-[100px]">หมวดหมู่</th>
+                <th className="px-6 py-4 w-[110px]">ประเภท</th>
+                <th className="px-6 py-4 w-[100px]">ตำแหน่ง</th>
+                <th className="px-6 py-4 w-[100px]">สต็อก</th>
+                <th className="px-6 py-4 w-[80px]">หน่วย</th>
+                <th className="px-6 py-4 text-right w-[80px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-600">
               {displayItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-4">
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                  <td className="px-6 py-2 w-[20px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-2 w-[50px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <button
@@ -511,22 +591,14 @@ export default function WithdrawClient({ initialItems }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">{item.code}</td>
-                  <td className="px-6 py-4 truncate" title={item.name}>{item.name}</td>
-                  <td className="px-3 py-4 text-center">
-                    {item.type === "REUSABLE" ? (
-                      <span title="วัสดุถาวร / ครุภัณฑ์" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 cursor-help">
-                        <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-                      </span>
-                    ) : (
-                      <span title="วัสดุสิ้นเปลือง" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 cursor-help">
-                        <Package className="w-3.5 h-3.5 text-blue-600" />
-                      </span>
-                    )}
+                  <td className="px-6 py-2 w-[100px]">{item.code}</td>
+                  <td className="px-6 py-2 w-[180px]">{item.name}</td>
+                  <td className="px-6 py-2 w-[100px]">{item.category}</td>
+                  <td className="px-6 py-2 w-[110px]">
+                    {getTypeDisplay(item.type)}
                   </td>
-                  <td className="px-6 py-4 text-slate-600">{item.category}</td>
-                  <td className="px-6 py-4">{item.location}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-2 w-[100px]">{item.location}</td>
+                  <td className="px-6 py-2 w-[100px]">
                     {item.type === "REUSABLE" ? (
                       <div className="relative group inline-block cursor-help">
                         <span className={`font-bold text-base ${
@@ -535,7 +607,6 @@ export default function WithdrawClient({ initialItems }: Props) {
                           "text-emerald-600"
                         }`}>
                           {getEffectiveStock(item)}
-                          <span className="text-xs font-normal ml-0.5">{item.unit}</span>
                         </span>
                         <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                           ทั้งหมดในคลัง: {item.stock} {item.unit}
@@ -550,13 +621,12 @@ export default function WithdrawClient({ initialItems }: Props) {
                           "text-blue-600"
                         }`}>
                           {item.stock}
-                          <span className="text-xs font-normal ml-0.5">{item.unit}</span>
                         </span>
-                        <span className="text-[11px] text-slate-400">คงเหลือ</span>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-2 w-[80px]">{item.unit}</td>
+                  <td className="px-6 py-2 w-[80px] text-right">
                     <button
                       onClick={() => openItemDetail(item)}
                       disabled={getEffectiveStock(item) <= 0}
@@ -570,7 +640,7 @@ export default function WithdrawClient({ initialItems }: Props) {
               ))}
               {displayItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <Search className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">ไม่พบข้อมูลพัสดุ</p>
@@ -586,12 +656,17 @@ export default function WithdrawClient({ initialItems }: Props) {
       {/* Pagination */}
       <div className="flex items-center justify-between mt-6">
         <p className="text-sm text-slate-600">
-          แสดง {displayItems.length} จาก {filteredItems.length} รายการ
+          แสดง {displayItems.length} จาก {serverTotal} รายการ
         </p>
         <div className="flex items-center gap-2">
           <button
             disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
+            onClick={() => {
+              const newPage = currentPage - 1;
+              setCurrentPage(newPage);
+              pageRef.current = newPage;
+              fetchPage(newPage, categoryRef.current, unitRef.current, locationRef.current, searchRef.current);
+            }}
             className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -601,7 +676,12 @@ export default function WithdrawClient({ initialItems }: Props) {
           </span>
           <button
             disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
+            onClick={() => {
+              const newPage = currentPage + 1;
+              setCurrentPage(newPage);
+              pageRef.current = newPage;
+              fetchPage(newPage, categoryRef.current, unitRef.current, locationRef.current, searchRef.current);
+            }}
             className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />

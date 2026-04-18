@@ -71,6 +71,8 @@ export default function AssetRegistryClient({
 
     const [isFetching, setIsFetching] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [serverTotal, setServerTotal] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(0);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState("");
@@ -78,6 +80,11 @@ export default function AssetRegistryClient({
     const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+
+    // Refs for state tracking
+    const pageRef = useRef(1);
+    const keywordRef = useRef("");
+    const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Dropdown states
     const [isDepartmentOpen, setIsDepartmentOpen] = useState(false);
@@ -123,17 +130,22 @@ export default function AssetRegistryClient({
         }
     }, [isEditStatusOpen, isEditDeptOpen]);
 
-    // Fetch ALL asset instances for this item type.
-    // Uses GET /v1/assets?item_id=... (list endpoint) — NOT getAssetById, because
-    // itemId here is the ITEM TYPE UUID, not an individual asset UUID.
-    const loadAssets = useCallback(async () => {
+    // Fetch assets with server-side pagination
+    const fetchPage = useCallback(async (page: number, keyword: string) => {
         if (!itemId) return;
         setIsFetching(true);
         setFetchError(null);
         try {
-            const response = await assetService.getAssets({ item_id: itemId, limit: 10 });
+            const response = await assetService.getAssets({ 
+                item_id: itemId,
+                limit: itemsPerPage,
+                page,
+                keyword
+            });
             const assets = response.data || [];
             setRecords(assets);
+            setServerTotal(response.meta?.total || 0);
+            setServerTotalPages(response.meta?.totalPages || 0);
             if (assets.length > 0) {
                 setMasterItem({
                     name: assets[0].item_name || initialItemName,
@@ -146,22 +158,26 @@ export default function AssetRegistryClient({
         } finally {
             setIsFetching(false);
         }
-    }, [itemId, initialItemName, initialItemCode]);
+    }, [itemId, initialItemName, initialItemCode, itemsPerPage]);
 
     useEffect(() => {
         departmentService.getDepartmentOptions().then(setDepartments).catch(console.error);
     }, []);
 
-    // hasMounted prevents React Strict Mode's double-invoke from firing two requests,
-    // and lets the server-pre-fetched initialAssets skip the first client fetch entirely.
+    // Refresh data using stored refs
+    const refreshData = useCallback(() => {
+        fetchPage(pageRef.current, keywordRef.current);
+    }, [fetchPage]);
+
+    // hasMounted prevents React Strict Mode's double-invoke from firing two requests
     const hasMounted = useRef(false);
     useEffect(() => {
         if (!itemId) return;
         if (hasMounted.current) return;
         hasMounted.current = true;
-        // Server already pre-fetched and populated records — skip client-side fetch.
-        if (initialAssets.length > 0) return;
-        loadAssets();
+        // Always fetch to get correct totalPages, even if initialAssets is populated.
+        // This ensures serverTotal and serverTotalPages are set for pagination.
+        fetchPage(1, "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [itemId]);
 
@@ -179,7 +195,7 @@ export default function AssetRegistryClient({
             SweetAlertUtils.success("สำเร็จ", "อัปเดตข้อมูลเรียบร้อย");
             setIsEditModalOpen(false);
             setEditingAsset(null);
-            loadAssets();
+            refreshData();
         } catch (err) {
             SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
         } finally {
@@ -193,7 +209,7 @@ export default function AssetRegistryClient({
         try {
             await assetService.deleteAsset(id);
             SweetAlertUtils.success("สำเร็จ", "ลบรายการเรียบร้อย");
-            loadAssets();
+            refreshData();
         } catch (err) {
             SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
         }
@@ -219,6 +235,23 @@ export default function AssetRegistryClient({
         setEditWarranty("");
     };
 
+    const handleSearchChange = (value: string) => {
+        setSearchTerm(value);
+        keywordRef.current = value;
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setCurrentPage(1);
+            pageRef.current = 1;
+            fetchPage(1, value);
+        }, 300);
+    };
+
+    const handlePageChange = (newPage: number) => {
+        setCurrentPage(newPage);
+        pageRef.current = newPage;
+        fetchPage(newPage, keywordRef.current);
+    };
+
     // Filter options
     const filterDepartments = ["แผนกประจำการทั้งหมด", ...departments.map(d => ({ id: d.id, name: d.name }))];
     const filterStatuses = [
@@ -229,25 +262,18 @@ export default function AssetRegistryClient({
         { value: "DISPOSED", label: "จำหน่ายออก" },
     ];
 
-    // Filter data
+    // Filter data (server handles keyword filtering, client handles additional filters)
     const filteredRecords = (records || []).filter((record) => {
-        const term = searchTerm.toLowerCase();
-        const matchesSearch =
-            (record.asset_code || "").toLowerCase().includes(term) ||
-            (record.serial_no || "").toLowerCase().includes(term);
-
         const matchesDept = selectedDepartment === "แผนกประจำการทั้งหมด" || 
             (selectedDepartment && String(record.department_id) === selectedDepartment);
         const matchesStatus = selectedStatus === "สถานะทั้งหมด" || record.status === selectedStatus;
 
-        return matchesSearch && matchesDept && matchesStatus;
+        return matchesDept && matchesStatus;
     });
 
-    const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
-    const paginatedRecords = filteredRecords.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    // Calculate pagination based on server total
+    const totalPages = Math.ceil(serverTotal / itemsPerPage);
+    const paginatedRecords = filteredRecords;
 
     // Compute summary counts from loaded records — no extra API call needed.
     const totalRegistered = records.length;
@@ -295,7 +321,7 @@ export default function AssetRegistryClient({
                         type="text"
                         placeholder="ค้นหารหัส / Serial..."
                         value={searchTerm}
-                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
                     />
                 </div>
@@ -320,7 +346,7 @@ export default function AssetRegistryClient({
                                         <li key={deptValue}>
                                             <button
                                                 type="button"
-                                                onClick={() => { setSelectedDepartment(deptValue); setIsDepartmentOpen(false); setCurrentPage(1); }}
+                                                onClick={() => { setSelectedDepartment(deptValue); setIsDepartmentOpen(false); setCurrentPage(1); pageRef.current = 1; fetchPage(1, keywordRef.current); }}
                                                 className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedDepartment === deptValue ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                                             >
                                                 {deptLabel}
@@ -350,7 +376,7 @@ export default function AssetRegistryClient({
                                     <li key={s.value}>
                                         <button
                                             type="button"
-                                            onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                                            onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); pageRef.current = 1; fetchPage(1, keywordRef.current); }}
                                             className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                                         >
                                             {s.label}
@@ -480,11 +506,11 @@ export default function AssetRegistryClient({
 
             {/* Pagination */}
             <div className="flex items-center justify-between mt-6">
-                <p className="text-sm text-slate-500">แสดง {paginatedRecords.length} จาก {filteredRecords.length} รายการ</p>
+                <p className="text-sm text-slate-500">แสดง {paginatedRecords.length} จาก {serverTotal} รายการ</p>
                 <div className="flex items-center gap-2">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+                    <button disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
                     <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-                    <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
+                    <button disabled={currentPage >= totalPages} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
                 </div>
             </div>
 

@@ -86,9 +86,9 @@ const getStatusLabel = (status?: RequisitionHeader["status"]): string => {
   switch (status) {
     case "PENDING": return "รออนุมัติ";
     case "APPROVED": return "รอนำส่ง";
-    case "COMPLETED": return "เสร็จสิ้น";
-    case "BORROWING": return "กำลังยืม";
-    case "REJECTED": return "ปฏิเสธแล้ว";
+    case "COMPLETED": return "อนุมัติการเบิก";
+    case "BORROWING": return "อนุมัติการยืม";
+    case "REJECTED": return "ปฏิเสธ";
     case "DRAFT": return "ร่าง";
     case "CANCELLED": return "ยกเลิก";
     default: return status || "-";
@@ -97,14 +97,14 @@ const getStatusLabel = (status?: RequisitionHeader["status"]): string => {
 
 const getStatusBadgeClass = (status?: RequisitionHeader["status"]): string => {
   switch (status) {
-    case "COMPLETED": return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-    case "APPROVED": return "bg-blue-50 text-blue-700 border border-blue-200";
-    case "BORROWING": return "bg-sky-50 text-sky-700 border border-sky-200";
-    case "REJECTED": return "bg-rose-50 text-rose-700 border border-rose-200";
-    case "PENDING": return "bg-amber-50 text-amber-700 border border-amber-200";
+    case "COMPLETED": return "bg-green-100 text-green-500";
+    case "APPROVED": return "bg-blue-100 text-blue-500";
+    case "BORROWING": return "bg-green-100 text-green-500";
+    case "REJECTED": return "bg-red-100 text-red-500";
+    case "PENDING": return "bg-amber-100 text-amber-500";
     case "DRAFT":
-    case "CANCELLED": return "bg-slate-100 text-slate-500 border border-slate-200";
-    default: return "bg-slate-100 text-slate-500 border border-slate-200";
+    case "CANCELLED": return "bg-red-100 text-red-500";
+    default: return "bg-slate-100 text-slate-700";
   }
 };
 
@@ -262,7 +262,7 @@ export default function RequisitionDetailsPage({
     );
     if (!confirmed.isConfirmed) return;
 
-    Swal.fire({ title: "กำลังตรวจสอบและตัดสต็อก...", allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({ allowOutsideClick: false, allowEscapeKey: false, background: 'transparent', html: '', didOpen: () => Swal.showLoading() });
     setIsLoading(true);
     try {
       const payload: Record<string, ItemAllocation> = {};
@@ -271,7 +271,7 @@ export default function RequisitionDetailsPage({
       if (res.success) {
         Swal.close();
         await SweetAlertUtils.success("สำเร็จ", "อนุมัติและตัดสต็อกเรียบร้อยแล้ว");
-        router.push("/warehouse/requests");
+        fetchRequisition();
       } else throw new Error(res.message || "เกิดข้อผิดพลาดจากระบบ");
     } catch (err: unknown) {
       Swal.close();
@@ -320,7 +320,7 @@ export default function RequisitionDetailsPage({
     const confirmed = await SweetAlertUtils.confirm("ยืนยันการนำส่ง", `ยืนยันนำส่งใบ ${requisition.doc_no} แล้วใช่หรือไม่?`);
     if (!confirmed.isConfirmed) return;
 
-    Swal.fire({ title: "กำลังบันทึกการนำส่ง...", allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({ allowOutsideClick: false, allowEscapeKey: false, background: 'transparent', html: '', didOpen: () => Swal.showLoading() });
     setIsLoading(true);
     try {
       const res = await completeRequisitionDelivery(requisition.id);
@@ -376,8 +376,8 @@ export default function RequisitionDetailsPage({
 
         {/* ── Page Header ─────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">
-            {requisition.doc_no}
+          <h1 className="text-4xl font-bold text-gray-800">
+            {isBorrow ? "รายการยืม" : "รายการเบิก"}
           </h1>
           <button
             onClick={() => router.push("/warehouse/requests")}
@@ -593,8 +593,8 @@ export default function RequisitionDetailsPage({
         )}
 
         {/* ── Main Split Layout ────────────────────────────────────────────── */}
-        <div className="flex flex-col rounded-xl bg-white border border-slate-200 shadow-sm flex-shrink-0">
-          <div className="flex-1 min-h-0 flex overflow-hidden gap-4 p-4">
+        
+          <div className="flex-1 min-h-0 flex overflow-hidden gap-3">
 
             {/* ── Left Panel (60%) — Items table ───────────────────────────── */}
             <div className="flex-[3_1_0%] min-w-0 flex flex-col rounded-lg overflow-hidden border border-slate-200 bg-white">
@@ -759,7 +759,7 @@ export default function RequisitionDetailsPage({
                                 )}
                               </div>
                             </div>
-                            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+                            <div className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: "calc(5 * 44px + 4 * 8px)" }}>
                               {filteredAvailableUnits.map((unit: RequisitionItemUnits) => {
                                 const isSel2 = alloc.units.includes(unit.id);
                                 const isMaxed = alloc.qty >= selectedItem.qty;
@@ -872,7 +872,7 @@ export default function RequisitionDetailsPage({
               )}
             </div>
           </div>
-        </div>
+
         {/* ── Action Footer ────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 bg-white border-t border-slate-200 px-4 py-3.5 flex justify-between items-center">
           <p className="text-xs text-slate-500">

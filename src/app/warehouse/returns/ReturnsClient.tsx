@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import { getAllRequisitions } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
+import toast from "react-hot-toast";
+
+const PAGE_LIMIT = 10;
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -48,14 +51,23 @@ const getBorrowerDisplay = (header: RequisitionHeader): string => {
 
 const getStatusBadgeColor = (status: UiStatus) => {
   switch (status) {
-    case "รอการคืน": return "bg-amber-50 text-amber-700 border-amber-200";
-    case "ค้างคืน": return "bg-red-50 text-red-700 border-red-200";
-    case "คืนแล้ว": return "bg-green-50 text-green-700 border-green-200";
-    case "รออนุมัติ": return "bg-blue-50 text-blue-700 border-blue-200";
-    case "ยกเลิก": return "bg-gray-50 text-gray-600 border-gray-200";
-    case "ถูกปฏิเสธ": return "bg-rose-50 text-rose-700 border-rose-200";
-    default: return "bg-gray-50 text-gray-600 border-gray-200";
+    case "รอการคืน": return "bg-amber-100 text-amber-500";
+    case "ค้างคืน": return "bg-red-100 text-red-500";
+    case "คืนแล้ว": return "bg-green-100 text-green-500";
+    case "รออนุมัติ": return "bg-blue-100 text-blue-500";
+    case "ยกเลิก": return "bg-slate-100 text-slate-500";
+    case "ถูกปฏิเสธ": return "bg-red-100 text-red-500";
+    default: return "bg-slate-100 text-slate-500";
   }
+};
+
+const StatusBadge = ({ status }: { status: UiStatus }) => {
+  const color = getStatusBadgeColor(status);
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${color}`}>
+      {status}
+    </span>
+  );
 };
 
 const getStatusIcon = (status: UiStatus) => {
@@ -74,6 +86,13 @@ const fmtDate = (dateStr?: string | null): string => {
   return new Date(dateStr).toLocaleString("th-TH", {
     year: "numeric", month: "short", day: "numeric",
     hour: "2-digit", minute: "2-digit",
+  });
+};
+
+const fmtDateOnly = (dateStr?: string | null): string => {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleString("th-TH", {
+    year: "numeric", month: "short", day: "numeric",
   });
 };
 
@@ -136,16 +155,27 @@ export default function ReturnsClient() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
 
+  const pageRef = useRef(1);
+  const keywordRef = useRef("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => { setIsMounted(true); }, []);
 
-  const fetchRecords = useCallback(async () => {
+  const fetchPage = useCallback(async (page: number, keyword: string) => {
     setIsFetching(true);
     try {
-      const result = await getAllRequisitions({ type: "BORROW", limit: 10 });
+      const result = await getAllRequisitions({
+        type: "BORROW",
+        page,
+        limit: PAGE_LIMIT,
+        ...(keyword ? { keyword } : {}),
+      });
+
       if (result && result.success !== false) {
         let data: RequisitionHeader[] = [];
         if (Array.isArray(result.data)) {
@@ -153,19 +183,32 @@ export default function ReturnsClient() {
         } else if (Array.isArray((result as unknown as { items: RequisitionHeader[] }).items)) {
           data = (result as unknown as { items: RequisitionHeader[] }).items;
         }
-        // แสดงเฉพาะรายการที่ผ่านการอนุมัติแล้ว (COMPLETED = รอคืน, RETURNED = คืนแล้ว)
+        // แสดงเฉพาะรายการที่ผ่านการอนุมัติแล้ว
         setRecords(data.filter(r => r.status === "BORROWING" || r.status === "COMPLETED"));
+        setServerTotal(result.total || 0);
+        const totalPages = result.limit ? Math.ceil((result.total || 0) / result.limit) : 0;
+        setServerTotalPages(totalPages);
+      } else {
+        throw new Error(result.message || "ไม่สามารถดึงข้อมูลได้");
       }
     } catch (err) {
       console.error("fetch borrows failed", err);
+      toast.error(getErrorMessage(err));
+      setRecords([]);
+      setServerTotal(0);
+      setServerTotalPages(0);
     } finally {
       setIsFetching(false);
     }
   }, []);
 
+  const refreshData = useCallback(async () => {
+    fetchPage(pageRef.current, keywordRef.current);
+  }, [fetchPage]);
+
   useEffect(() => {
-    if (isMounted) fetchRecords();
-  }, [isMounted, fetchRecords]);
+    if (isMounted) fetchPage(1, "");
+  }, [isMounted, fetchPage]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -180,33 +223,42 @@ export default function ReturnsClient() {
     router.push(`/warehouse/returns/${id}`);
   }, [router]);
 
-  const filteredRecords = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return records.filter(r => {
-      const uiStatus = mapUiStatus(r);
-      const matchesSearch =
-        r.doc_no.toLowerCase().includes(term) ||
-        (r.requester || "").toLowerCase().includes(term) ||
-        ([r.borrower_details?.firstname, r.borrower_details?.lastname].filter(Boolean).join(" ") || "").toLowerCase().includes(term);
-      const matchesStatus = selectedStatus === "สถานะทั้งหมด" || uiStatus === selectedStatus;
-      const matchDate =
-        !startDate && !endDate
-          ? true
-          : (() => {
-            const d = new Date(r.due_date ?? "");
-            const s = startDate ? new Date(startDate) : null;
-            const e = endDate ? new Date(endDate) : null;
-            return (!s || d >= s) && (!e || d <= e);
-          })();
-      return matchesSearch && matchesStatus && matchDate;
-    });
-  }, [records, searchTerm, selectedStatus, startDate, endDate]);
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    keywordRef.current = value;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      pageRef.current = 1;
+      fetchPage(1, value);
+    }, 300);
+  };
 
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
-  const displayRecords = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredRecords.slice(start, start + itemsPerPage);
-  }, [filteredRecords, currentPage]);
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    pageRef.current = newPage;
+    fetchPage(newPage, keywordRef.current);
+  };
+
+  // Client-side secondary filters (status/date) applied to current page's items
+  const filteredRecords = records.filter(r => {
+    const uiStatus = mapUiStatus(r);
+    const matchesStatus = selectedStatus === "สถานะทั้งหมด" || uiStatus === selectedStatus;
+    const matchDate =
+      !startDate && !endDate
+        ? true
+        : (() => {
+          const d = new Date(r.due_date ?? "");
+          const s = startDate ? new Date(startDate) : null;
+          const e = endDate ? new Date(endDate) : null;
+          return (!s || d >= s) && (!e || d <= e);
+        })();
+    return matchesStatus && matchDate;
+  });
+
+  // paginatedItems = filteredRecords (server already paged by keyword)
+  const displayRecords = filteredRecords;
+  const totalPages = serverTotalPages;
 
   if (!isMounted) return null;
 
@@ -228,7 +280,7 @@ export default function ReturnsClient() {
             type="text"
             placeholder="ค้นหา เลขที่ ชื่อผู้ยืม..."
             value={searchTerm}
-            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={e => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
@@ -248,7 +300,7 @@ export default function ReturnsClient() {
                 {STATUS_FILTER_OPTIONS.map(s => (
                   <li key={s}>
                     <button
-                      onClick={() => { setSelectedStatus(s); setIsStatusDropdownOpen(false); setCurrentPage(1); }}
+                      onClick={() => { setSelectedStatus(s); setIsStatusDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s ? "bg-indigo-50 text-indigo-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
                       {s}
@@ -313,7 +365,7 @@ export default function ReturnsClient() {
 
                 return (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                    <td className="px-6 py-2.5 text-slate-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                    <td className="px-6 py-2.5 text-slate-700">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
                     <td className="px-6 py-2.5 font-mono text-sm text-black">{r.doc_no}</td>
                     <td className="px-6 py-2.5 text-slate-600 text-sm">
                       {ext ? "ภายนอก" : "ภายใน"}
@@ -325,7 +377,7 @@ export default function ReturnsClient() {
                     </td>
                     <td className="px-6 py-2.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-slate-800 text-sm truncate">
+                        <span className="text-sm text-slate-700 truncate">
                           {getBorrowerDisplay(r)}
                         </span>
                       </div>
@@ -345,13 +397,13 @@ export default function ReturnsClient() {
                     </td>
                     <td className="px-6 py-2.5 text-slate-600">{r.item_count ?? 0}</td>
                     <td className="px-6 py-2.5">
-                      <div className="text-sm text-slate-700">{fmtDate(r.due_date)}</div>
+                      <div className="text-sm text-slate-700">{fmtDateOnly(r.due_date)}</div>
                       {overdue > 0 && (
                         <div className="text-xs text-red-600 font-bold">ค้าง {overdue} วัน</div>
                       )}
                     </td>
-                    <td className="px-6 py-2.5 text-slate-600 text-sm">
-                      {uiStatus}
+                    <td className="px-6 py-2.5">
+                      <StatusBadge status={uiStatus} />
                     </td>
                     <td className="px-6 py-2.5">
                       <div className="flex items-center justify-center gap-1">
@@ -385,12 +437,12 @@ export default function ReturnsClient() {
       {/* Pagination */}
       <div className="flex items-center justify-between mt-6">
         <p className="text-sm text-slate-600">
-          แสดง {displayRecords.length} จาก {filteredRecords.length} รายการ
+          แสดง {displayRecords.length} จาก {serverTotal} รายการ
         </p>
         <div className="flex items-center gap-2">
           <button
             disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => p - 1)}
+            onClick={() => handlePageChange(currentPage - 1)}
             className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -400,7 +452,7 @@ export default function ReturnsClient() {
           </span>
           <button
             disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage(p => p + 1)}
+            onClick={() => handlePageChange(currentPage + 1)}
             className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors bg-white"
           >
             <ChevronRight className="w-4 h-4" />

@@ -25,7 +25,7 @@ export default function RequestNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const router     = useRouter();
-  const { displayName, roleName, isLoading } = useNavProfile();
+  const { profile, displayName, roleName, isLoading } = useNavProfile();
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
@@ -43,17 +43,15 @@ export default function RequestNavbar() {
     router.push("/");
   };
 
-  const avatarLetter = displayName?.[0]?.toUpperCase() ?? "?";
-
   return (
-    <header className="w-full bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-950 text-white shadow-xl relative z-[50]">
-      <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute -top-10 -left-10 w-64 h-64 bg-white rounded-full blur-3xl" />
-        <div className="absolute top-0 right-20 w-32 h-32 bg-blue-400 rounded-full blur-2xl" />
+    <header className="w-full bg-gradient-to-r from-[#001E5D] via-[#003399] to-[#0A1931] text-white shadow-2xl relative z-[50]">
+      <div className="absolute inset-0 opacity-15 pointer-events-none">
+        <div className="absolute -top-10 -left-10 w-64 h-64 bg-blue-400 rounded-full blur-[100px]" />
+        <div className="absolute top-0 right-20 w-48 h-48 bg-indigo-500 rounded-full blur-[80px]" />
       </div>
 
-      <div className="relative z-10 border-b border-white/5">
-        <div className="flex items-center justify-between px-8 py-4">
+      <div className="relative z-10 border-b border-white/10">
+        <div className="flex items-center justify-between px-8 py-3.5">
 
           {/* Logo + Title */}
           <div className="flex items-center gap-5">
@@ -66,21 +64,21 @@ export default function RequestNavbar() {
                 className="object-contain"
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <h1 className="text-base font-semibold tracking-wide text-white/95 leading-none">
+            <div className="flex flex-col gap-1.5">
+              <h1 className="text-[17px] font-bold tracking-tight text-white leading-none">
                 โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
               </h1>
-              <span className="text-sm font-medium text-white tracking-wide">
+              <span className="text-[13px] font-semibold text-blue-100/90 tracking-wide uppercase">
                 ระบบเบิก-ยืม-คืน
               </span>
             </div>
           </div>
 
           {/* Right: Bell + Avatar */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <NotificationBell title="สถานะใบเบิก-ยืม" viewAllHref="/request/notifications" />
 
-            <div className="h-6 w-[1px] bg-white/10 mx-1" />
+            <div className="h-8 w-[1px] bg-white/20 mx-1" />
 
             <div className="relative self-stretch flex items-center" ref={profileRef}>
               {isLoading ? (
@@ -90,19 +88,19 @@ export default function RequestNavbar() {
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group"
                 >
-                  <div className="flex flex-col items-end leading-none">
-                    <span className="text-sm font-semibold text-white">{displayName}</span>
-                    <span className="text-[10px] text-blue-200/70 mt-1 tracking-wide font-medium">
+                  <div className="flex flex-col items-end leading-tight">
+                    <span className="text-[14px] font-bold text-white group-hover:text-blue-200 transition-colors">{displayName}</span>
+                    <span className="text-[10px] text-blue-300 font-bold uppercase tracking-wider">
                       {roleName}
                     </span>
                   </div>
                   <div className="relative">
-                    <div className="w-8 h-8 rounded-full bg-blue-700 ring-2 ring-white/20 group-hover:ring-white/50 transition-all flex items-center justify-center text-sm font-bold text-white">
-                      {avatarLetter}
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 ring-2 ring-white/30 group-hover:ring-white/60 transition-all flex items-center justify-center text-sm font-extrabold text-white shadow-lg">
+                      <User className="w-5 h-5" />
                     </div>
-                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-blue-900" />
+                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#002A75]" />
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform ${showProfileMenu ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform duration-300 ${showProfileMenu ? "rotate-180" : ""}`} />
                 </button>
               )}
 

@@ -246,7 +246,8 @@ const StockMovementClient = () => {
                 <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
                 <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[120px]">หน่วยนับ</th>
-                <th className="px-6 py-4 w-[160px]">จำนวน / ยอดคงเหลือ</th>
+                <th className="px-6 py-4 w-[120px]">จำนวน</th>
+                <th className="px-6 py-4 w-[160px]">ยอดคงเหลือ</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
                 <th className="px-6 py-4 w-[200px]">ผู้ดำเนินการ</th>
                 <th className="px-6 py-4 w-[160px]">วันที่และเวลา</th>
@@ -273,31 +274,26 @@ const StockMovementClient = () => {
                     <td className="px-6 py-[18px] text-slate-500">
                       {mv.item?.unit ?? "-"}
                     </td>
-                    <td
-                      className="px-6 py-[18px]"
-                      title={
-                        mv.balance_before != null && mv.balance_after != null
-                          ? `ยอดก่อนดำเนินการ ${fmt(mv.balance_before)} และยอดหลังดำเนินการ ${fmt(mv.balance_after)}`
-                          : undefined
-                      }
-                    >
+                    <td className="px-6 py-[18px]">
                       <div className={`text-base font-bold ${isOut ? "text-rose-600" : "text-emerald-600"}`}>
                         {isOut ? "-" : "+"}{fmt(mv.quantity)}
                       </div>
-                      {mv.balance_before != null && mv.balance_after != null && (
-                        <div className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">
-                          ก่อน:&nbsp;
-                          <span className="font-medium text-slate-500">{fmt(mv.balance_before)}</span>
-                          <span className="mx-1">→</span>
-                          หลัง:&nbsp;
-                          <span className="font-medium text-slate-500">{fmt(mv.balance_after)}</span>
+                    </td>
+                    <td className="px-6 py-[18px]">
+                      {mv.balance_before != null && mv.balance_after != null ? (
+                        <div className="text-sm text-slate-600">
+                          <div className="font-medium">{fmt(mv.balance_after)}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">
+                            ก่อน:&nbsp;
+                            <span className="font-medium text-slate-500">{fmt(mv.balance_before)}</span>
+                          </div>
                         </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs">-</span>
                       )}
                     </td>
                     <td className="px-6 py-[18px]">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
-                        {badge.label}
-                      </span>
+                      <span className="text-slate-700 text-sm">{badge.label}</span>
                     </td>
                     <td className="px-6 py-[18px] text-slate-600">
                       {mv.operator_name || mv.created_by ? (

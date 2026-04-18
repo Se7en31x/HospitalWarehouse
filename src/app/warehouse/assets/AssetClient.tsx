@@ -222,13 +222,13 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
   const Badge = ({ status }: { status: string }) => {
     const thaiStatus = translateStatus(status);
     const styles: Record<string, string> = {
-      "ใช้งาน": "bg-green-100 text-green-800",
-      "ต่ำ": "bg-yellow-100 text-yellow-800",
-      "หมด": "bg-red-100 text-red-800",
-      "ระงับ": "bg-gray-200 text-gray-500",
+      "ใช้งาน": "bg-green-100 text-green-500",
+      "ต่ำ": "bg-amber-100 text-amber-500",
+      "หมด": "bg-red-100 text-red-500",
+      "ระงับ": "bg-red-100 text-red-500",
     };
     return (
-      <span className={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-medium ${styles[thaiStatus] || "bg-gray-100"}`}>
+      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[thaiStatus] || "bg-slate-100 text-slate-700"}`}>
         {thaiStatus}
       </span>
     );
@@ -277,7 +277,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
                   <li key={c}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); }}
+                      onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); pageRef.current = 1; }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
@@ -307,7 +307,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
                   <li key={s.value}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); pageRef.current = 1; }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >

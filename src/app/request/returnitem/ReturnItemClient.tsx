@@ -1,14 +1,15 @@
 ﻿"use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
-  Clock, X, Building2, User, Eye,
-  MapPin, Phone, Calendar, Package, Loader2, FileText,
+  Clock, Building2, User, Eye,
+  Phone, Package,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
-import { getBorrowActive, getRequisitionById } from "@/services/requisitionService";
-import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
+import { getBorrowActive } from "@/services/requisitionService";
+import type { RequisitionHeader, BorrowerDetails } from "@/types/requisition_type";
 import { socket } from "@/lib/socket";
 
 // === Helper Functions ===
@@ -30,13 +31,6 @@ const isOverdue = (due?: string | null): boolean => {
   return new Date(due) < new Date();
 };
 
-// === Interfaces ===
-
-interface DetailModalProps {
-  record: RequisitionHeader | null;
-  onClose: () => void;
-}
-
 // === Status Badge Component ===
 
 const StatusBadge = ({ overdue }: { overdue: boolean }) => {
@@ -54,144 +48,11 @@ const StatusBadge = ({ overdue }: { overdue: boolean }) => {
   );
 };
 
-// === Helper Components for Detail Modal ===
-
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2 text-sm">
-      <span className="text-gray-400 mt-0.5 flex-shrink-0">{icon}</span>
-      <span className="text-gray-500 flex-shrink-0 w-28">{label}</span>
-      <span className="font-medium text-gray-800 flex-1">{value}</span>
-    </div>
-  );
-}
-
-function MiniInfo({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-2.5">
-      <p className="text-[10px] text-gray-400 uppercase font-bold">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 ${alert ? "text-red-600" : "text-gray-800"}`}>{value}</p>
-    </div>
-  );
-}
-
-// === Detail Modal ===
-
-function DetailModal({ record, onClose }: DetailModalProps) {
-  if (!record) return null;
-  const borrower = record.borrower_details as BorrowerDetails | undefined | null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0 bg-emerald-600">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-              <User className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-white font-bold text-sm">{record.doc_no}</p>
-              <p className="text-white/70 text-xs">ติดตามการยืมของบุคคลภายนอก</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition p-1.5 hover:bg-white/10 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <User className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-bold text-gray-700">ข้อมูลผู้ยืม</span>
-            </div>
-            <div className="p-4 space-y-2">
-              {borrower ? (
-                <>
-                  <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ผู้ทำรายการให้" value={record.requester ?? "-"} />
-                  <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ชื่อผู้ยืม" value={[borrower.firstname, borrower.lastname].filter(Boolean).join(" ") || "-"} />
-                  <InfoRow icon={<Phone className="w-3.5 h-3.5" />} label="โทรศัพท์" value={borrower.phone ?? "-"} />
-                  {borrower.address && <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="ที่อยู่" value={borrower.address} />}
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {borrower.subdistrict && <MiniInfo label="ตำบล" value={borrower.subdistrict} />}
-                    {borrower.district && <MiniInfo label="อำเภอ" value={borrower.district} />}
-                    {borrower.province && <MiniInfo label="จังหวัด" value={borrower.province} />}
-                    {borrower.zipcode && <MiniInfo label="รหัสไปรษณีย์" value={borrower.zipcode} />}
-                  </div>
-                  {borrower.notes && <InfoRow icon={<FileText className="w-3.5 h-3.5" />} label="หมายเหตุ" value={borrower.notes} />}
-                </>
-              ) : (
-                <>
-                  <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ผู้ทำรายการ" value={record.requester ?? "-"} />
-                  <InfoRow icon={<Building2 className="w-3.5 h-3.5" />} label="แผนก" value={record.department_name ?? `แผนก ${record.department_id}`} />
-                </>
-              )}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <Calendar className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-bold text-gray-700">วันที่</span>
-            </div>
-            <div className="p-4 grid grid-cols-2 gap-2">
-              <MiniInfo label="วันที่ยืม" value={fmtDate(record.request_date)} />
-              <MiniInfo label="กำหนดคืน" value={fmtDate(record.due_date)} alert={isOverdue(record.due_date)} />
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <Package className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-bold text-gray-700">รายการสินค้า</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-                    <th className="px-4 py-2 text-left">สินค้า</th>
-                    <th className="px-4 py-2 text-center">ขอ</th>
-                    <th className="px-4 py-2 text-center">จ่ายออก</th>
-                    <th className="px-4 py-2 text-center">คืนแล้ว</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {(record.items ?? []).map((item: RequisitionItem) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-800">{item.name}</p>
-                        <p className="text-xs text-gray-400 font-mono">{item.code}</p>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600">{item.qty}</td>
-                      <td className="px-4 py-3 text-center text-indigo-700 font-medium">{item.issued}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`font-medium ${item.returned >= item.issued ? "text-green-600" : "text-gray-500"}`}>
-                          {item.returned}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {!record.items?.length && (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-4 text-center text-gray-400 text-xs">ไม่มีรายการ</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {record.note && (
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
-              <p className="text-xs text-gray-400 uppercase font-bold mb-1">หมายเหตุ</p>
-              <p className="text-sm text-gray-700">{record.note}</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // === Main Component ===
 
 export default function ReturnItemClient() {
+  const router = useRouter();
+
   // ✅ State สำหรับรายการ Records
   const [records, setRecords] = useState<RequisitionHeader[]>([]);
 
@@ -206,9 +67,6 @@ export default function ReturnItemClient() {
   const [isDepartmentDropdownOpen, setIsDepartmentDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
-  // ✅ State สำหรับ Modal
-  const [detailLoading, setDetailLoading] = useState<number | null>(null);
-  const [viewingDetail, setViewingDetail] = useState<RequisitionHeader | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
@@ -257,7 +115,6 @@ export default function ReturnItemClient() {
 
     const scheduleRefresh = () => {
       if (!isVisibleRef.current) return;
-      if (viewingDetail || detailLoading !== null) return;
       if (isRefreshingRef.current) return;
 
       if (refreshTimerRef.current) {
@@ -290,7 +147,7 @@ export default function ReturnItemClient() {
       }
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [fetchData, viewingDetail, detailLoading]);
+  }, [fetchData]);
 
   // --- [Close dropdowns when clicking outside] ---
   useEffect(() => {
@@ -310,22 +167,10 @@ export default function ReturnItemClient() {
     }
   }, [isDepartmentDropdownOpen, isStatusDropdownOpen]);
 
-  // --- [Detail Modal Handler] ---
-  const openDetail = useCallback(async (id: number) => {
-    setDetailLoading(id);
-    try {
-      const result = await getRequisitionById(id);
-      if (result.success && result.data) {
-        setViewingDetail(result.data);
-      } else {
-        toast.error(result.message || "ไม่สามารถโหลดรายละเอียดได้");
-      }
-    } catch (error) {
-      toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาด");
-    } finally {
-      setDetailLoading(null);
-    }
-  }, []);
+  // --- [Navigate to Detail Page] ---
+  const openDetail = useCallback((id: number) => {
+    router.push(`/request/returnitem/${id}`);
+  }, [router]);
 
   // --- [Filter Options Logic] ---
   const filterDepartments = useMemo(() => {
@@ -407,16 +252,16 @@ export default function ReturnItemClient() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-6 items-end">
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
         {/* Search */}
-        <div className="relative w-56">
+        <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหาเลขที่เอกสาร / ชื่อผู้ยืม..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
@@ -515,19 +360,36 @@ export default function ReturnItemClient() {
       </div>
 
       {/* Table Content */}
-      <div className="rounded-lg bg-white shadow-lg border border-slate-300 overflow-hidden relative flex flex-col" style={{ height: '65vh' }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <div className="animate-spin">
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full" />
+            </div>
           </div>
         )}
-        <div className="overflow-x-auto overflow-y-auto flex-1">
+        <div
+          className="flex-1"
+          style={{
+            overflowX: 'auto',
+            overflowY: 'auto',
+            scrollbarWidth: 'auto',
+            msOverflowStyle: 'auto',
+          } as React.CSSProperties}
+        >
+          <style>{`
+            div::-webkit-scrollbar { width: 0; height: 8px; }
+            div::-webkit-scrollbar-track { background: #f1f5f9; }
+            div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+            div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+          `}</style>
           <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-600 font-semibold uppercase text-xs border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="px-5 py-4 w-12">#</th>
                 <th className="px-5 py-4">เลขที่เอกสาร</th>
                 <th className="px-5 py-4">ผู้ยืมภายนอก</th>
+                <th className="px-5 py-4">ช่องทางติดต่อ</th>
                 <th className="px-5 py-4">แผนก</th>
                 <th className="px-5 py-4 text-center">จำนวนสินค้า</th>
                 <th className="px-5 py-4">วันที่ยืม</th>
@@ -536,18 +398,24 @@ export default function ReturnItemClient() {
                 <th className="px-5 py-4 text-center">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-600">
               {displayed.map((r, idx) => {
                 const overdue = isOverdue(r.due_date);
                 const borrower = r.borrower_details as BorrowerDetails | undefined | null;
                 return (
-                  <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                     <td className="px-5 py-4 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                    <td className="px-5 py-4 font-mono font-medium text-indigo-700">{r.doc_no}</td>
+                    <td className="px-5 py-4 font-mono font-medium text-slate-800">{r.doc_no}</td>
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-800">{[borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") || "-"}</div>
                       <div className="text-xs text-emerald-700 font-medium">{borrower?.phone ?? "-"}</div>
                       <div className="text-xs text-slate-400">ผู้ทำรายการ: {r.requester ?? "-"}</div>
+                    </td>
+                    <td className="px-5 py-4 text-gray-600 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-gray-400" />
+                        {borrower?.phone || "-"}
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-gray-600">{r.department_name ?? `แผนก ${r.department_id}`}</td>
                     <td className="px-5 py-4 text-center font-medium text-gray-700">{r.item_count ?? 0}</td>
@@ -561,11 +429,10 @@ export default function ReturnItemClient() {
                     <td className="px-5 py-4 text-center">
                       <button
                         onClick={() => openDetail(r.id)}
-                        disabled={detailLoading === r.id}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition disabled:opacity-40"
-                        title="ดูรายละเอียด"
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        title="ดูรายละเอียด / รับคืน"
                       >
-                        {detailLoading === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                        <Eye className="w-5 h-5" />
                       </button>
                     </td>
                   </tr>
@@ -573,7 +440,7 @@ export default function ReturnItemClient() {
               })}
               {displayed.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">ไม่มีรายการยืมภายนอกที่ค้างคืนหรือยังไม่คืน</p>
@@ -612,8 +479,7 @@ export default function ReturnItemClient() {
         </div>
       </div>
 
-      {/* Detail Modal */}
-      {viewingDetail && <DetailModal record={viewingDetail} onClose={() => setViewingDetail(null)} />}
+
     </div>
   );
 }

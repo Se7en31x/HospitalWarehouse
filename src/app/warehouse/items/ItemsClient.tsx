@@ -221,17 +221,26 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     const displayStatus = statusMap[status] || status;
     
     const styles: Record<string, string> = {
-      "ปกติ": "bg-green-100 text-green-800",
-      "ต่ำ": "bg-yellow-100 text-yellow-800",
-      "หมด": "bg-red-100 text-red-800",
-      "ระงับ": "bg-gray-200 text-gray-500",
-      "เปิดใช้งาน": "bg-green-100 text-green-800",
+      "ปกติ": "bg-green-100 text-green-500",
+      "ต่ำ": "bg-amber-100 text-amber-500",
+      "หมด": "bg-red-100 text-red-500",
+      "ระงับ": "bg-red-100 text-red-500",
+      "เปิดใช้งาน": "bg-green-100 text-green-500",
     };
     return (
-      <span className={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-medium ${styles[displayStatus] || "bg-gray-100"}`}>
+      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[displayStatus] || "bg-slate-100 text-slate-700"}`}>
         {displayStatus}
       </span>
     );
+  };
+
+  const getTypeDisplay = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      "MED_ASSET": "ครุภัณฑ์ภายในองค์กร",
+      "REUSABLE": "ของใช้ซ้ำรายชิ้น",
+      "CONSUMABLE": "วัสดุสิ้นเปลือง",
+    };
+    return typeMap[type] || type;
   };
 
   return (
@@ -384,13 +393,13 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                 <th className="px-6 py-4 w-[150px]">รหัส</th>
                 <th className="px-6 py-4 w-[250px]">ชื่อพัสดุ</th>
                 <th className="px-6 py-4 w-[150px]">หมวดหมู่</th>
-                <th className="px-3 py-4 w-[56px] text-center">ประเภท</th>
-                <th className="px-6 py-4 w-[140px]">สต็อก</th>
+                <th className="px-6 py-4 w-[150px]">ประเภท</th>
+                <th className="px-6 py-4 w-[100px]">สต็อก</th>
                 <th className="px-6 py-4 w-[120px]">หน่วย</th>
-                <th className="px-6 py-4 w-[150px]">สถานะ</th>
-                <th className="px-6 py-4 w-[130px] text-center">จำนวนขั้นต่ำ</th>
+                <th className="px-6 py-4 w-[120px]">สถานะ</th>
+                <th className="px-6 py-4 w-[120px]">จำนวนขั้นต่ำ</th>
                 {/* <th className="px-6 py-4 w-[160px] hidden sm:table-cell">อัปเดตล่าสุด</th> */}
-                <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
+                <th className="px-6 py-4 text-center w-[120px]">จัดการ</th>
               </tr>
             </thead>
             <tbody className="text-slate-600">
@@ -414,16 +423,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                   <td className="px-6 py-3">{item.code}</td>
                   <td className="px-6 py-3">{item.name}</td>
                   <td className="px-6 py-3 text-slate-600">{item.category}</td>
-                  <td className="px-3 py-3 text-center">
-                    {item.type === "REUSABLE" ? (
-                      <span title="วัสดุถาวร / ครุภัณฑ์" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 cursor-help">
-                        <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-                      </span>
-                    ) : (
-                      <span title="วัสดุสิ้นเปลือง" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 cursor-help">
-                        <Package className="w-3.5 h-3.5 text-blue-600" />
-                      </span>
-                    )}
+                  <td className="px-6 py-3 text-sm">
+                    {getTypeDisplay(item.type)}
                   </td>
                   <td className="px-6 py-3">
                     {item.type === "REUSABLE" ? (
@@ -449,13 +450,12 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                         }`}>
                           {item.stock}
                         </span>
-                        <span className="text-[11px] text-slate-400">คงเหลือ</span>
                       </div>
                     )}
                   </td>
                   <td className="px-6 py-3">{item.unit}</td>
                   <td className="px-6 py-3 w-[150px]"><Badge status={item.status} /></td>
-                  <td className="px-6 py-3 w-[130px] text-center">
+                  <td className="px-6 py-3 w-[130px]">
                     {item.minStock > 0 ? (
                       <span className={getEffectiveStock(item) <= item.minStock ? "text-red-600 font-bold" : "text-slate-700 font-semibold"}>
                         {item.minStock}

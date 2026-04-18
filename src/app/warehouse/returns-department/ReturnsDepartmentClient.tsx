@@ -31,8 +31,18 @@ const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number =
 
 function StatusBadge({ status }: { status: string }) {
   const displayStatus = RETURN_REQUEST_STATUS_LABEL[status] || status;
+  
+  const getStatusColor = (s: string): string => {
+    switch (s) {
+      case "REQUESTED": return "bg-amber-100 text-amber-500";
+      case "COMPLETED": return "bg-green-100 text-green-500";
+      case "CANCELLED": return "bg-red-100 text-red-500";
+      default: return "bg-slate-100 text-slate-500";
+    }
+  };
+  
   return (
-    <span className="text-sm text-slate-600">
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${getStatusColor(status)}`}>
       {displayStatus}
     </span>
   );
@@ -45,6 +55,8 @@ export default function ReturnsDepartmentClient() {
   const [records, setRecords] = useState<reusableSvc.ReusableReturnRequest[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [isFetching, setIsFetching] = useState(false);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
 
   // State - Filters & UI
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -52,6 +64,8 @@ export default function ReturnsDepartmentClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageRef = useRef(1);
 
   // State - Modal
   const [activeRequest, setActiveRequest] = useState<reusableSvc.ReusableReturnRequest | null>(null);
@@ -70,16 +84,18 @@ export default function ReturnsDepartmentClient() {
   const isVisibleRef = useRef(true);
 
   // Fetch Data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page: number = 1) => {
     setIsFetching(true);
     try {
       const response = await reusableSvc.getReusableReturnRequests({
-        page: 1,
+        page,
         limit: 10,
         department_id: departmentFilter || undefined,
         status: "REQUESTED",
       });
       setRecords(response.items || []);
+      setServerTotal(response.total || 0);
+      setServerTotalPages(response.totalPages || 0);
     } catch (err) {
       console.error("fetch return requests failed", err);
       showToast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");
@@ -91,7 +107,7 @@ export default function ReturnsDepartmentClient() {
   // Initialize & Load Options
   useEffect(() => {
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
-    fetchData();
+    fetchData(1);
   }, [fetchData]);
 
   useEffect(() => {
@@ -119,7 +135,7 @@ export default function ReturnsDepartmentClient() {
       refreshTimerRef.current = setTimeout(async () => {
         isRefreshingRef.current = true;
         try {
-          await fetchData();
+          await fetchData(pageRef.current);
         } finally {
           isRefreshingRef.current = false;
           refreshTimerRef.current = null;
@@ -192,6 +208,8 @@ export default function ReturnsDepartmentClient() {
     setScanMessage("");
     setScanOk(null);
     setScanResolvedType(null);
+    setCurrentPage(1);
+    pageRef.current = 1;
     setIsLoadingDetail(true);
 
     try {
@@ -244,6 +262,8 @@ export default function ReturnsDepartmentClient() {
     setScanOk(null);
     setScanResolvedType(null);
     setProcessNote("");
+    setCurrentPage(1);
+    pageRef.current = 1;
   }, []);
 
   const updateForm = useCallback((itemId: string, patch: Partial<ProcessItemForm>) => {
@@ -349,7 +369,7 @@ export default function ReturnsDepartmentClient() {
 
       showToast.success(`ปิดงานใบ ${activeRequest.doc_no} สำเร็จ`);
       closeProcessModal();
-      fetchData();
+      fetchData(1);
     } catch (error) {
       showToast.error(getErrorMessage(error) || "บันทึกผลตรวจรับไม่สำเร็จ");
     } finally {
@@ -365,7 +385,7 @@ export default function ReturnsDepartmentClient() {
     try {
       await reusableSvc.deleteReusableReturnRequest(request.id);
       showToast.success(`ลบคำขอ ${request.doc_no} เรียบร้อย`);
-      fetchData();
+      fetchData(pageRef.current);
     } catch (error) {
       showToast.error(getErrorMessage(error) || "ลบคำขอไม่สำเร็จ");
     } finally {
@@ -415,6 +435,8 @@ export default function ReturnsDepartmentClient() {
                     onClick={() => {
                       setDepartmentFilter("");
                       setIsDeptOpen(false);
+                      setCurrentPage(1);
+                      pageRef.current = 1;
                     }}
                     className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${!departmentFilter ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                   >
@@ -428,6 +450,8 @@ export default function ReturnsDepartmentClient() {
                       onClick={() => {
                         setDepartmentFilter(String(d.id));
                         setIsDeptOpen(false);
+                        setCurrentPage(1);
+                        pageRef.current = 1;
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${departmentFilter === String(d.id) ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
@@ -561,13 +585,31 @@ export default function ReturnsDepartmentClient() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {filteredRecords.length} จาก {records.length} รายการ</p>
+        <p className="text-sm text-slate-500">แสดง {records.length} จาก {serverTotal} รายการ</p>
         <div className="flex items-center gap-2">
-          <button className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed">
+          <button 
+            disabled={currentPage === 1} 
+            onClick={() => {
+              const newPage = currentPage - 1;
+              setCurrentPage(newPage);
+              pageRef.current = newPage;
+              fetchData(newPage);
+            }}
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+          >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm font-medium">หน้า 1 / 1</span>
-          <button className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed bg-white">
+          <span className="text-sm font-medium">หน้า {currentPage} / {serverTotalPages || 1}</span>
+          <button 
+            disabled={currentPage >= serverTotalPages} 
+            onClick={() => {
+              const newPage = currentPage + 1;
+              setCurrentPage(newPage);
+              pageRef.current = newPage;
+              fetchData(newPage);
+            }}
+            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed bg-white"
+          >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

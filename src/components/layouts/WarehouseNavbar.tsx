@@ -25,7 +25,7 @@ export default function WarehouseNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { displayName, roleName, isLoading } = useNavProfile();
+  const { profile, displayName, roleName, isLoading } = useNavProfile();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -43,8 +43,6 @@ export default function WarehouseNavbar() {
     router.push("/");
   };
 
-  const avatarLetter = displayName?.[0]?.toUpperCase() ?? "?";
-
   return (
     <header className="w-full bg-gradient-to-r from-[#001E5D] via-[#003399] to-[#0A1931] text-white shadow-2xl relative z-[50]">
       {/* ปรับแต่งแสงเงา Background ให้นวลขึ้น */}
@@ -58,7 +56,7 @@ export default function WarehouseNavbar() {
 
           {/* Logo + Title */}
           <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-xl bg-white p-1 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.2)] overflow-hidden">
+            <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-md overflow-hidden">
               <Image
                 src="https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png"
                 alt="Logo"
@@ -102,7 +100,7 @@ export default function WarehouseNavbar() {
                   <div className="relative">
                     {/* เปลี่ยนสีพื้นหลัง Avatar ให้ตัดกับ Navbar */}
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 ring-2 ring-white/30 group-hover:ring-white/60 transition-all flex items-center justify-center text-sm font-extrabold text-white shadow-lg">
-                      {avatarLetter}
+                      <User className="w-5 h-5" />
                     </div>
                     {/* Online Status */}
                     <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#002A75]" />

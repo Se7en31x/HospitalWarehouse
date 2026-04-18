@@ -28,15 +28,15 @@ const TYPE_COLOR: Record<ReceiveType, string> = {
 };
 
 const STATUS_CONFIG: Record<ReceiveStatus, { color: string; label: string; dot: string }> = {
-    COMPLETED: { color: "bg-emerald-100 text-emerald-700", label: "เสร็จสมบูรณ์", dot: "bg-emerald-500" },
-    PENDING: { color: "bg-amber-100 text-amber-700", label: "รอดำเนินการ", dot: "bg-amber-500" },
-    CANCELLED: { color: "bg-red-100 text-red-700", label: "ยกเลิก", dot: "bg-red-500" },
+    COMPLETED: { color: "bg-green-100 text-green-500", label: "เสร็จสมบูรณ์", dot: "bg-green-500" },
+    PENDING: { color: "bg-amber-100 text-amber-500", label: "รอดำเนินการ", dot: "bg-amber-500" },
+    CANCELLED: { color: "bg-red-100 text-red-500", label: "ยกเลิก", dot: "bg-red-500" },
 };
 
 const StatusBadge = ({ status }: { status: string }) => {
     const cfg = STATUS_CONFIG[status as ReceiveStatus] ?? { color: "", label: status, dot: "" };
     return (
-        <span className="text-sm text-slate-600">
+        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${cfg.color}`}>
             {cfg.label}
         </span>
     );

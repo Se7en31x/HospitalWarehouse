@@ -40,6 +40,45 @@ const getStatusLabel = (unit: reusableSvc.ReusableUnit) => {
   return STATUS_LABEL.IN_USE;
 };
 
+function ConditionBadge({ condition }: { condition: string }) {
+  const label = CONDITION_LABEL[condition] || condition;
+  
+  const getConditionColor = (c: string): string => {
+    switch (c) {
+      case "GOOD": return "bg-green-100 text-green-500";
+      case "DAMAGED": return "bg-amber-100 text-amber-500";
+      case "INCOMPLETE": return "bg-purple-100 text-purple-500";
+      case "LOST": return "bg-red-100 text-red-500";
+      case "BROKEN": return "bg-red-100 text-red-500";
+      default: return "bg-slate-100 text-slate-500";
+    }
+  };
+  
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${getConditionColor(condition)}`}>
+      {label}
+    </span>
+  );
+}
+
+function StatusBadge({ unit }: { unit: reusableSvc.ReusableUnit }) {
+  const label = getStatusLabel(unit);
+  
+  const getStatusColor = (status: string, usage_context?: string): string => {
+    if (status === "AVAILABLE") return "bg-green-100 text-green-500";
+    if (status === "IN_USE") return "bg-blue-100 text-blue-500";
+    if (status === "REPAIR") return "bg-amber-100 text-amber-500";
+    if (status === "DISPOSED") return "bg-red-100 text-red-500";
+    return "bg-slate-100 text-slate-500";
+  };
+  
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${getStatusColor(unit.status, unit.usage_context)}`}>
+      {label}
+    </span>
+  );
+}
+
 
 // ============ Props ============
 
@@ -73,6 +112,8 @@ export default function ReusableRegistryClient({
 
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,6 +121,11 @@ export default function ReusableRegistryClient({
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Refs for state tracking
+  const pageRef = useRef(1);
+  const keywordRef = useRef("");
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Dropdown states
   const [isDepartmentOpen, setIsDepartmentOpen] = useState(false);
@@ -131,17 +177,22 @@ export default function ReusableRegistryClient({
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
-  // Fetch ALL unit instances for this item type.
-  // Uses GET /v1/reusable-items?item_id=... (list endpoint) — NOT getReusableUnitById,
-  // because itemId here is the ITEM TYPE UUID, not an individual unit UUID.
-  const loadUnits = useCallback(async () => {
+  // Fetch units with pagination
+  const fetchPage = useCallback(async (page: number, keyword: string) => {
     if (!itemId) return;
     setIsFetching(true);
     setFetchError(null);
     try {
-      const response = await reusableSvc.getReusableUnits({ item_id: itemId, limit: 10 });
+      const response = await reusableSvc.getReusableUnits({ 
+        item_id: itemId,
+        keyword,
+        page,
+        limit: itemsPerPage
+      });
       const units = response.items || [];
       setRecords(units);
+      setServerTotal(response.total || 0);
+      setServerTotalPages(response.totalPages || 0);
       if (units.length > 0) {
         setMasterItem({
           name: units[0].item_name || initialItemName,
@@ -154,18 +205,22 @@ export default function ReusableRegistryClient({
     } finally {
       setIsFetching(false);
     }
-  }, [itemId, initialItemName, initialItemCode]);
+  }, [itemId, initialItemName, initialItemCode, itemsPerPage]);
 
-  // hasMounted prevents React Strict Mode's double-invoke from firing two requests,
-  // and lets the server-pre-fetched initialUnits skip the first client fetch entirely.
+  // Refresh data using stored refs
+  const refreshData = useCallback(() => {
+    fetchPage(pageRef.current, keywordRef.current);
+  }, [fetchPage]);
+
+  // hasMounted prevents React Strict Mode's double-invoke from firing two requests
   const hasMounted = useRef(false);
   useEffect(() => {
     if (!itemId) return;
     if (hasMounted.current) return;
     hasMounted.current = true;
-    // Server already pre-fetched and populated records — skip client-side fetch.
-    if (initialUnits.length > 0) return;
-    loadUnits();
+    // Always fetch to get correct totalPages, even if initialUnits is populated.
+    // This ensures serverTotal and serverTotalPages are set for pagination.
+    fetchPage(1, "");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
@@ -183,7 +238,7 @@ export default function ReusableRegistryClient({
       SweetAlertUtils.success("สำเร็จ", "อัปเดตข้อมูลเรียบร้อย");
       setIsEditModalOpen(false);
       setEditingUnit(null);
-      loadUnits();
+      refreshData();
     } catch (err) {
       SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
     } finally {
@@ -197,7 +252,7 @@ export default function ReusableRegistryClient({
     try {
       await reusableSvc.deleteReusableUnit(id);
       SweetAlertUtils.success("สำเร็จ", "ลบรายการเรียบร้อย");
-      loadUnits();
+      refreshData();
     } catch (err) {
       SweetAlertUtils.error("ข้อผิดพลาด", getErrorMessage(err));
     }
@@ -223,6 +278,23 @@ export default function ReusableRegistryClient({
     setEditNote("");
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    keywordRef.current = value;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      pageRef.current = 1;
+      fetchPage(1, value);
+    }, 300);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    pageRef.current = newPage;
+    fetchPage(newPage, keywordRef.current);
+  };
+
   // Filter options
   const filterDepartments = ["แผนกประจำการทั้งหมด", ...departments.map(d => ({ id: d.id, name: d.name }))];
   const filterStatuses = [
@@ -233,25 +305,18 @@ export default function ReusableRegistryClient({
     { value: "DISPOSED", label: "จำหน่ายออก" },
   ];
 
-  // Filter data
+  // Filter data (server handles keyword filtering, client handles additional filters)
   const filteredRecords = records.filter((record) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      (record.unit_code || "").toLowerCase().includes(term) ||
-      (record.serial_no || "").toLowerCase().includes(term);
-
     const matchesDept = selectedDepartment === "แผนกประจำการทั้งหมด" || 
       (selectedDepartment && String(record.department_id) === selectedDepartment);
     const matchesStatus = selectedStatus === "สถานะทั้งหมด" || record.status === selectedStatus;
 
-    return matchesSearch && matchesDept && matchesStatus;
+    return matchesDept && matchesStatus;
   });
 
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
-  const paginatedRecords = filteredRecords.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Calculate pagination based on filtered records for this page
+  const totalPages = Math.ceil(serverTotal / itemsPerPage);
+  const paginatedRecords = filteredRecords;
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
@@ -280,7 +345,7 @@ export default function ReusableRegistryClient({
             type="text"
             placeholder="ค้นหา Unit Code / Serial..."
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
@@ -305,7 +370,7 @@ export default function ReusableRegistryClient({
                     <li key={deptValue}>
                       <button
                         type="button"
-                        onClick={() => { setSelectedDepartment(deptValue); setIsDepartmentOpen(false); setCurrentPage(1); }}
+                        onClick={() => { setSelectedDepartment(deptValue); setIsDepartmentOpen(false); setCurrentPage(1); pageRef.current = 1; fetchPage(1, keywordRef.current); }}
                         className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedDepartment === deptValue ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                       >
                         {deptLabel}
@@ -335,7 +400,7 @@ export default function ReusableRegistryClient({
                   <li key={s.value}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
+                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); pageRef.current = 1; fetchPage(1, keywordRef.current); }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
                       {s.label}
@@ -404,8 +469,8 @@ export default function ReusableRegistryClient({
                   <td className="px-6 py-2.5 w-[140px] font-mono">{rec.unit_code}</td>
                   <td className="px-6 py-2.5 w-[140px] truncate">{rec.serial_no || "-"}</td>
                   <td className="px-6 py-2.5 w-[140px] truncate">{rec.department_name || "ส่วนกลาง"}</td>
-                  <td className="px-6 py-2.5 w-[140px]">{getStatusLabel(rec)}</td>
-                  <td className="px-6 py-2.5 w-[100px]">{CONDITION_LABEL[rec.condition] || rec.condition}</td>
+                  <td className="px-6 py-2.5 w-[140px]"><StatusBadge unit={rec} /></td>
+                  <td className="px-6 py-2.5 w-[100px]"><ConditionBadge condition={rec.condition} /></td>
                   <td className="px-6 py-2.5 w-[150px] text-xs truncate">{rec.receive_doc_no || "-"}</td>
                   <td className="px-6 py-2.5 w-[120px] truncate">{rec.note || "-"}</td>
                   <td className="px-6 py-2.5 w-[80px] text-center">
@@ -449,11 +514,11 @@ export default function ReusableRegistryClient({
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedRecords.length} จาก {filteredRecords.length} รายการ</p>
+        <p className="text-sm text-slate-500">แสดง {paginatedRecords.length} จาก {serverTotal} รายการ</p>
         <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+          <button disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
           <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-          <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
+          <button disabled={currentPage >= totalPages} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
         </div>
       </div>
 

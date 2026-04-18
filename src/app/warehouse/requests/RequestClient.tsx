@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
 import {
   getAllRequisitions,
-  cancelRequisition,
 } from "../../../services/requisitionService";
 import { RequisitionHeader } from "../../../types/requisition_type";
 import toast, { Toaster } from "react-hot-toast";
@@ -17,16 +16,19 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+const PAGE_LIMIT = 10;
+
 const RequestClient = () => {
   const [requests, setRequests] = useState<RequisitionHeader[]>([]);
   const [isFetching, setIsFetching] = useState(true);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
 
   // Filters & Pagination
   const [activeTab, setActiveTab] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   const router = useRouter();
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -36,6 +38,9 @@ const RequestClient = () => {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
+  const pageRef = useRef(1);
+  const keywordRef = useRef("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- [Helper Functions] ---
 
@@ -43,23 +48,20 @@ const RequestClient = () => {
     return req.requester || req.requester_id || "ไม่ระบุผู้ทำรายการ";
   };
 
-  const refreshData = useCallback(async () => {
+  const fetchPage = useCallback(async (page: number, keyword: string) => {
     setIsFetching(true);
     try {
-      const result = await getAllRequisitions();
+      const result = await getAllRequisitions({
+        page,
+        limit: PAGE_LIMIT,
+        ...(keyword ? { keyword } : {}),
+      });
+      
       if (result && result.success !== false) {
-        let data: RequisitionHeader[] = [];
-
-        // รองรับโครงสร้างข้อมูลที่หลากหลายจาก API
-        if (Array.isArray(result.data)) {
-          data = result.data;
-        } else if (Array.isArray((result as any).items)) {
-          data = (result as any).items;
-        } else if (result.data?.items && Array.isArray(result.data.items)) {
-          data = result.data.items;
-        }
-
-        setRequests(data);
+        setRequests(result.data || []);
+        setServerTotal(result.total || 0);
+        const totalPages = result.limit ? Math.ceil((result.total || 0) / result.limit) : 0;
+        setServerTotalPages(totalPages);
       } else {
         throw new Error(result.message || "ไม่สามารถดึงข้อมูลได้");
       }
@@ -67,16 +69,22 @@ const RequestClient = () => {
       console.error("Fetch error:", err);
       toast.error(getErrorMessage(err));
       setRequests([]);
+      setServerTotal(0);
+      setServerTotalPages(0);
     } finally {
       setIsFetching(false);
     }
   }, []);
 
+  const refreshData = useCallback(async () => {
+    fetchPage(pageRef.current, keywordRef.current);
+  }, [fetchPage]);
+
   // --- [Effects] ---
 
   useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    fetchPage(1, "");
+  }, [fetchPage]);
 
   // Click Outside เพื่อปิด Dropdown
   useEffect(() => {
@@ -103,21 +111,27 @@ const RequestClient = () => {
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await refreshData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 300);
+    };
+
     const handleRefreshSignal = (message: string) => {
       if (message === "REQUISITIONS" || message === "ITEMS") {
-        if (isCancelLoading !== null || isRefreshingRef.current) return;
-
-        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-        
-        refreshTimerRef.current = setTimeout(async () => {
-          isRefreshingRef.current = true;
-          try {
-            await refreshData();
-          } finally {
-            isRefreshingRef.current = false;
-            refreshTimerRef.current = null;
-          }
-        }, 300);
+        scheduleRefresh();
       }
     };
 
@@ -126,46 +140,66 @@ const RequestClient = () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData, isCancelLoading]);
+  }, [refreshData, isFetching]);
 
   // --- [Filter Logic] ---
-  const filteredRequests = useMemo(() => {
-    return requests.filter(req => {
-      const matchesTab = activeTab === "all" || req.status === activeTab;
-      const matchesType = selectedType === "all" || req.type === selectedType;
-      const searchLower = searchTerm.toLowerCase();
-      
-      const matchesSearch =
-        req.doc_no?.toLowerCase().includes(searchLower) ||
-        (req.department_name ?? '').toLowerCase().includes(searchLower) ||
-        req.requester?.toLowerCase().includes(searchLower);
+  // Client-side secondary filters (status/type) applied to current page's items
+  const filteredRequests = requests.filter(req => {
+    const matchesStatus = activeTab === "all" || req.status === activeTab;
+    const matchesType = selectedType === "all" || req.type === selectedType;
+    return matchesStatus && matchesType;
+  });
 
-      return matchesTab && matchesType && matchesSearch;
-    });
-  }, [requests, activeTab, selectedType, searchTerm]);
-
-  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
-  const paginatedItems = filteredRequests.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // paginatedItems = filteredRequests (server already paged by keyword)
+  const paginatedItems = filteredRequests;
+  const totalPages = serverTotalPages;
 
   // --- [Components] ---
   const statusLabels: Record<string, string> = {
-    COMPLETED: "เสร็จสิ้น",
+    COMPLETED: "อนุมัติการเบิก",
     APPROVED:  "รอนำส่ง",
     REJECTED:  "ปฏิเสธ",
     PENDING:   "รออนุมัติ",
     CANCELLED: "ยกเลิก",
-    BORROWING: "กำลังยืม",
+    BORROWING: "อนุมัติการยืม",
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
+    let badgeClass = "px-2.5 py-1 rounded-full font-semibold whitespace-nowrap text-xs";
+    
+    const statusColorMap: Record<string, string> = {
+      COMPLETED: "bg-green-100 text-green-500",
+      BORROWING: "bg-green-100 text-green-500",
+      APPROVED: "bg-blue-100 text-blue-500",
+      PENDING: "bg-amber-100 text-amber-500",
+      REJECTED: "bg-red-100 text-red-500",
+      CANCELLED: "bg-red-100 text-red-500",
+    };
+    
+    badgeClass += " " + (statusColorMap[status] || "bg-slate-100 text-slate-700");
+    
     return (
-      <span className="text-sm text-slate-600">
+      <span className={badgeClass}>
         {statusLabels[status] || status}
       </span>
     );
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    keywordRef.current = value;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      pageRef.current = 1;
+      fetchPage(1, value);
+    }, 300);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    pageRef.current = newPage;
+    fetchPage(newPage, keywordRef.current);
   };
 
   return (
@@ -184,7 +218,7 @@ const RequestClient = () => {
             type="text"
             placeholder="ค้นหาเลขที่, แผนก, ชื่อ..."
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm transition-all"
           />
         </div>
@@ -206,7 +240,7 @@ const RequestClient = () => {
                 {[{ v: 'all', l: 'ทุกประเภท' }, { v: 'WITHDRAW', l: 'เบิก' }, { v: 'BORROW', l: 'ยืม' }].map(t => (
                   <li key={t.v}>
                     <button
-                      onClick={() => { setSelectedType(t.v); setIsTypeDropdownOpen(false); setCurrentPage(1); }}
+                      onClick={() => { setSelectedType(t.v); setIsTypeDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
                       className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${selectedType === t.v ? "text-emerald-700 font-semibold bg-emerald-50" : "text-slate-600"}`}
                     >
                       {t.l}
@@ -242,7 +276,7 @@ const RequestClient = () => {
                 ].map(s => (
                   <li key={s.v}>
                     <button
-                      onClick={() => { setActiveTab(s.v); setIsStatusDropdownOpen(false); setCurrentPage(1); }}
+                      onClick={() => { setActiveTab(s.v); setIsStatusDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
                       className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${activeTab === s.v ? "text-emerald-700 font-semibold bg-emerald-50" : "text-slate-600"}`}
                     >
                       {s.l}
@@ -280,7 +314,7 @@ const RequestClient = () => {
             <tbody className="divide-y divide-slate-100 text-slate-600">
               {paginatedItems.map((req, idx) => (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-2.5">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-2.5">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
                   <td className="px-6 py-2.5 font-mono text-slate-600">{req.doc_no}</td>
                   <td className="px-6 py-2.5 whitespace-nowrap text-slate-600">
                     {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -289,7 +323,7 @@ const RequestClient = () => {
                     {displayRequesterName(req)}
                   </td>
                   <td className="px-6 py-2.5 text-slate-600">
-                    {req.department_name ?? (req.department ? `แผนก ${req.department}` : "-")}
+                    {req.department_name || "-"}
                   </td>
                   <td className="px-6 py-2.5 text-slate-600 text-sm">
                     {req.type === "WITHDRAW" ? "เบิก" : "ยืม"}
@@ -298,59 +332,13 @@ const RequestClient = () => {
                     <StatusBadge status={req.status} />
                   </td>
                   <td className="px-6 py-2.5 text-center">
-                    {/* ปรับแก้: ลบ opacity-0 ออกเพื่อให้ปุ่มแสดงตลอดเวลา และใส่สีพื้นหลัง/ตัวอักษรให้ชัดเจน */}
-                    <div className="flex items-center justify-between w-[72px] mx-auto transition-opacity">
-                      <button
-                        onClick={() => router.push(`/warehouse/requests/${req.id}`)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="ดูรายละเอียด"
-                      >
-                        <Eye size={18} />
-                      </button>
-
-                      {req.status === "PENDING" ? (
-                        <button
-                          onClick={async () => {
-                            const confirm = await Swal.fire({
-                              title: "ยกเลิกคำขอ?",
-                              text: `ยืนยันการยกเลิกใบเบิกเลขที่ ${req.doc_no}`,
-                              icon: "warning",
-                              showCancelButton: true,
-                              confirmButtonText: "ใช่, ยกเลิก",
-                              cancelButtonText: "ไม่",
-                              confirmButtonColor: "#e11d48"
-                            });
-                            if (!confirm.isConfirmed) return;
-                            
-                            setIsCancelLoading(req.id);
-                            try {
-                              const res = await cancelRequisition(req.id);
-                              if (res.success) {
-                                toast.success("ยกเลิกใบเบิกสำเร็จ");
-                                refreshData();
-                              } else {
-                                toast.error(res.message);
-                              }
-                            } catch {
-                              toast.error("เกิดข้อผิดพลาด");
-                            } finally {
-                              setIsCancelLoading(null);
-                            }
-                          }}
-                          disabled={isCancelLoading === req.id}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30"
-                          title="ยกเลิกใบเบิก"
-                        >
-                          {isCancelLoading === req.id ? (
-                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Trash2 size={18} />
-                          )}
-                        </button>
-                      ) : (
-                        <div className="w-[34px]" />
-                      )}
-                    </div>
+                    <button
+                      onClick={() => router.push(`/warehouse/requests/${req.id}`)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                      title="ดูรายละเอียด"
+                    >
+                      <Eye size={18} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -373,11 +361,11 @@ const RequestClient = () => {
 
       {/* Pagination Control */}
       <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {filteredRequests.length} รายการ</p>
+        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {serverTotal} รายการ</p>
         <div className="flex items-center gap-2">
           <button
             disabled={currentPage <= 1}
-            onClick={() => setCurrentPage(p => p - 1)}
+            onClick={() => handlePageChange(currentPage - 1)}
             className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -385,7 +373,7 @@ const RequestClient = () => {
           <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
           <button
             disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage(p => p + 1)}
+            onClick={() => handlePageChange(currentPage + 1)}
             className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
           >
             <ChevronRight className="w-4 h-4" />

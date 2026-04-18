@@ -225,7 +225,7 @@ export default function SettingsModals({
                     <div className="md:col-span-1">
                       <label className={labelClass}>อีเมล</label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         <input
                           type="email"
                           value={supplierForm.email || ""}
@@ -238,7 +238,7 @@ export default function SettingsModals({
                     <div className="md:col-span-1">
                       <label className={labelClass}>เบอร์โทรศัพท์บริษัท</label>
                       <div className="relative">
-                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         <input
                           value={supplierForm.phone || ""}
                           onChange={(e) => onSupplierFormChange({ ...supplierForm, phone: e.target.value })}
@@ -250,7 +250,7 @@ export default function SettingsModals({
                     <div className="md:col-span-1">
                       <label className={labelClass}>เบอร์ผู้ติดต่อ / ส่วนตัว</label>
                       <div className="relative">
-                        <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         <input
                           value={supplierForm.contact_phone || ""}
                           onChange={(e) => onSupplierFormChange({ ...supplierForm, contact_phone: e.target.value })}
@@ -271,7 +271,7 @@ export default function SettingsModals({
                     <div className="md:col-span-1">
                       <label className={labelClass}>ธนาคาร</label>
                       <div className="relative">
-                        <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         <input
                           value={supplierForm.bank_name || ""}
                           onChange={(e) => onSupplierFormChange({ ...supplierForm, bank_name: e.target.value })}
@@ -283,7 +283,7 @@ export default function SettingsModals({
                     <div className="md:col-span-1">
                       <label className={labelClass}>เลขบัญชี</label>
                       <div className="relative">
-                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         <input
                           value={supplierForm.bank_account_number || ""}
                           onChange={(e) => onSupplierFormChange({ ...supplierForm, bank_account_number: e.target.value })}

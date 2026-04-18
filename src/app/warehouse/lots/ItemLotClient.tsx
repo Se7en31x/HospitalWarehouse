@@ -584,7 +584,7 @@ export default function LotClient({
                       <td className="px-6 py-2.5 text-slate-600">{enrichedData.unit}</td>
                       <td className={`px-6 py-2.5 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
                       <td className="px-6 py-2.5">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${lot.status !== 'ACTIVE' ? 'bg-red-100 text-red-800' : currentStatus === 'ปกติ' ? 'bg-green-100 text-green-800' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${lot.status !== 'ACTIVE' ? 'bg-red-100 text-red-500' : currentStatus === 'ปกติ' ? 'bg-green-100 text-green-500' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-500' : 'bg-amber-100 text-amber-500'}`}>
                           {lot.status !== 'ACTIVE' ? 'ระงับการใช้งาน' : (currentStatus === 'ปกติ' ? 'ใช้งานได้' : currentStatus)}
                         </span>
                       </td>
