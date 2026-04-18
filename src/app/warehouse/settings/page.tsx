@@ -11,7 +11,10 @@ import {
   Edit2,
   Trash2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Landmark,
+  Building2,
+  UserRound,
 } from "lucide-react";
 import SettingsModals from "./SettingsModals";
 import { formatThaiDateTime } from "@/utils/formatters";
@@ -115,7 +118,7 @@ export default function SettingsPage() {
   });
   const [unitForm, setUnitForm] = useState<UnitPayload>({ name: "", description: "" });
   const [warehouseForm, setWarehouseForm] = useState<WarehousePayload>({ name: "", location: "", description: "" });
-  const [supplierForm, setSupplierForm] = useState<SupplierPayload>({ name: "", contact: "", phone: "", tax_id: "" });
+  const [supplierForm, setSupplierForm] = useState<SupplierPayload>({ name: "", contact: "", phone: "", contact_phone: "", tax_id: "", email: "", bank_name: "", bank_account_number: "", bank_account_name: "" });
 
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
@@ -206,7 +209,7 @@ export default function SettingsPage() {
     const keyword = keywordByTab.suppliers.trim().toLowerCase();
     if (!keyword) return suppliers;
     return suppliers.filter((sup) =>
-      [sup.name, sup.contact || "", sup.phone || "", sup.tax_id || ""]
+      [sup.name, sup.contact || "", sup.phone || "", sup.tax_id || "", sup.email || "", sup.bank_name || ""]
         .join(" ")
         .toLowerCase()
         .includes(keyword)
@@ -340,7 +343,7 @@ export default function SettingsPage() {
     }
     if (activeTab === "suppliers") {
       setEditingSupplierId(null);
-      setSupplierForm({ name: "", contact: "", phone: "", tax_id: "" });
+      setSupplierForm({ name: "", contact: "", phone: "", contact_phone: "", tax_id: "", email: "", bank_name: "", bank_account_number: "", bank_account_name: "" });
     }
     setIsFormModalOpen(true);
   };
@@ -733,32 +736,58 @@ export default function SettingsPage() {
             <table className="w-full text-sm text-left table-fixed">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
-                  <th className="px-6 py-4 w-[150px]">ผู้ติดต่อ</th>
-                  <th className="px-6 py-4 w-[130px]">โทรศัพท์</th>
-                  <th className="px-6 py-4 w-[150px]">เลขผู้เสียภาษี</th>
-                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
-                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
-                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
+                  <th className="px-4 py-4 w-[50px]">#</th>
+                  <th className="px-4 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
+                  <th className="px-4 py-4 w-[170px]">อีเมล</th>
+                  <th className="px-4 py-4 w-[140px]">ผู้ติดต่อ</th>
+                  <th className="px-4 py-4 w-[120px]">โทรศัพท์</th>
+                  <th className="px-4 py-4 w-[140px]">เลขผู้เสียภาษี</th>
+                  <th className="px-4 py-4 w-[200px]">ข้อมูลธนาคาร</th>
+                  <th className="px-4 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-500">
                 {pagedSuppliers.length > 0 ? (
                   pagedSuppliers.map((sup, idx) => (
                     <tr key={sup.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.suppliers - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
-                      <td className="px-6 py-4 w-[180px]">{sup.name}</td>
-                      <td className="px-6 py-4 w-[150px]">{sup.contact || <span className="text-slate-400">-</span>}</td>
-                      <td className="px-6 py-4 w-[130px]">{sup.phone || <span className="text-slate-400">-</span>}</td>
-                      <td className="px-6 py-4 w-[150px]">{sup.tax_id || <span className="text-slate-400">-</span>}</td>
-                      <td className="px-6 py-4 w-[100px]">
-                        {formatThaiDateTime(sup.created_at)}
+                      <td className="px-4 py-4 w-[50px]">{((pageByTabSafe.suppliers - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
+                      <td className="px-4 py-4 w-[180px] font-medium text-slate-800">{sup.name}</td>
+                      <td className="px-4 py-4 w-[170px]">
+                        {sup.email
+                          ? <span className="text-blue-600">{sup.email}</span>
+                          : <span className="text-slate-400">-</span>}
                       </td>
-                      <td className="px-6 py-4 w-[100px]">
-                        {formatThaiDateTime(sup.updated_at)}
+                      <td className="px-4 py-4 w-[140px]">{sup.contact || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-4 py-4 w-[120px]">
+                        {!sup.phone && !sup.contact_phone && <span className="text-slate-400">-</span>}
+                        {sup.phone && (
+                          <div className="flex items-center gap-1 text-slate-700">
+                            <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{sup.phone}</span>
+                          </div>
+                        )}
+                        {sup.contact_phone && (
+                          <div className="flex items-center gap-1 text-slate-500 text-xs mt-0.5">
+                            <UserRound className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{sup.contact_phone}</span>
+                          </div>
+                        )}
                       </td>
-                      <td className="px-6 py-4 w-[100px] text-center">
+                      <td className="px-4 py-4 w-[140px]">{sup.tax_id || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-4 py-4 w-[200px]">
+                        {sup.bank_name ? (
+                          <div className="flex items-start gap-1.5">
+                            <Landmark className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-slate-600 font-medium">{sup.bank_name}</span>
+                              {sup.bank_account_number && (
+                                <div className="text-xs text-slate-500 mt-0.5">{sup.bank_account_number}</div>
+                              )}
+                            </div>
+                          </div>
+                        ) : <span className="text-slate-400">-</span>}
+                      </td>
+                      <td className="px-4 py-4 w-[100px] text-center">
                         <div className="flex justify-center gap-1">
                           <button
                             onClick={() => {
@@ -768,19 +797,24 @@ export default function SettingsPage() {
                                 name: sup.name,
                                 contact: sup.contact || "",
                                 phone: sup.phone || "",
+                                contact_phone: sup.contact_phone || "",
                                 tax_id: sup.tax_id || "",
+                                email: sup.email || "",
+                                bank_name: sup.bank_name || "",
+                                bank_account_number: sup.bank_account_number || "",
+                                bank_account_name: sup.bank_account_name || "",
                               });
                               setIsFormModalOpen(true);
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-5 h-5" />
+                            <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => confirmDelete(sup.id, "suppliers", sup.name)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>

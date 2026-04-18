@@ -146,7 +146,7 @@ export function DetailModal({
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <p className="text-xs text-slate-500">ชื่อผู้ยืม</p>
-                  <p className="text-base text-slate-800">{borrower.fullname ?? "-"}</p>
+                  <p className="text-base text-slate-800">{[borrower.firstname, borrower.lastname].filter(Boolean).join(" ") || "-"}</p>
                 </div>
                 {borrower.phone && (
                   <div>

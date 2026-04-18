@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import React, { useState, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   Minus,
@@ -29,7 +30,7 @@ import withReactContent from "sweetalert2-react-content";
 import * as ItemSvc from "@/services/itemsService";
 import * as RequisitionSvc from "@/services/requisitionService";
 import * as LookupSvc from "@/services/lookupService";
-import type { ProvinceOption, DistrictOption, SubdistrictOption } from "@/services/lookupService";
+import type { ProvinceOption, DistrictOption, SubdistrictOption, TitleOption } from "@/services/lookupService";
 import { RequisitionPayload } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
@@ -73,7 +74,10 @@ const DEPT_TH: Record<string, string> = {
 const deptDisplayName = (name: string): string => DEPT_TH[name] ?? name;
 
 interface ExternalPersonForm {
-  fullName: string;
+  titleCode: string;
+  firstname: string;
+  lastname: string;
+  idCard: string;
   address: string;
   subdistrict: string;
   district: string;
@@ -86,7 +90,7 @@ interface ExternalPersonForm {
   phone: string;
   returnDate: string;
   notes: string;
-  document: File | null;
+  documents: File[];
 }
 
 interface BorrowCartModalProps {
@@ -105,7 +109,10 @@ interface BorrowCartModalProps {
 }
 
 const initialExternalForm: ExternalPersonForm = {
-  fullName: "",
+  titleCode: "",
+  firstname: "",
+  lastname: "",
+  idCard: "",
   address: "",
   subdistrict: "",
   district: "",
@@ -117,7 +124,7 @@ const initialExternalForm: ExternalPersonForm = {
   phone: "",
   returnDate: "",
   notes: "",
-  document: null,
+  documents: [],
 };
 
 export default function BorrowCartModal({
@@ -146,7 +153,15 @@ export default function BorrowCartModal({
   const [externalForm, setExternalForm] =
     useState<ExternalPersonForm>(initialExternalForm);
   const [fileError, setFileError] = useState<string>("");
+  const [titles, setTitles] = useState<TitleOption[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Title combobox state ─────────────────────────────────────────────────
+  const [isTitleOpen, setIsTitleOpen] = useState(false);
+  const [titleSearch, setTitleSearch] = useState("");
+  const titleTriggerRef = useRef<HTMLDivElement>(null);
+  const titleDropdownRef = useRef<HTMLDivElement>(null);
+  const [titleDropdownStyle, setTitleDropdownStyle] = useState<React.CSSProperties>({});
 
   // ── Address lookup state ─────────────────────────────────────────────────
   const [provinces, setProvinces]             = useState<ProvinceOption[]>([]);
@@ -189,6 +204,20 @@ export default function BorrowCartModal({
       setIsAddressOpen(false);
     }
   }, [showCartModal]);
+
+  // ✅ Close title combobox on outside click (trigger + portal)
+  React.useEffect(() => {
+    if (!isTitleOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!titleTriggerRef.current?.contains(t) && !titleDropdownRef.current?.contains(t)) {
+        setIsTitleOpen(false);
+        setTitleSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isTitleOpen]);
 
   // ✅ Close address picker on outside click
   React.useEffect(() => {
@@ -238,14 +267,19 @@ export default function BorrowCartModal({
     setExternalForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  // ── Load provinces once when modal opens ────────────────────────────────
+  // ── Load provinces + titles once when modal opens ───────────────────────
   React.useEffect(() => {
-    if (!showCartModal || provinces.length > 0) return;
-    setLoadingProvinces(true);
-    LookupSvc.getProvinces()
-      .then(setProvinces)
-      .catch(() => {})
-      .finally(() => setLoadingProvinces(false));
+    if (!showCartModal) return;
+    if (provinces.length === 0) {
+      setLoadingProvinces(true);
+      LookupSvc.getProvinces()
+        .then(setProvinces)
+        .catch(() => {})
+        .finally(() => setLoadingProvinces(false));
+    }
+    if (titles.length === 0) {
+      LookupSvc.getTitles().then(setTitles).catch(() => {});
+    }
   }, [showCartModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Chained pickers (called directly, not via <select> onChange) ─────────
@@ -309,6 +343,33 @@ export default function BorrowCartModal({
     setIsAddressOpen(false);
   };
 
+  // ── Filtered title list ──────────────────────────────────────────────────
+  const filteredTitles = useMemo(() => {
+    const q = titleSearch.trim().toLowerCase();
+    if (!q) return titles;
+    return titles.filter((t) =>
+      (t.short_name || t.name).toLowerCase().includes(q) ||
+      t.title_code.toLowerCase().includes(q)
+    );
+  }, [titles, titleSearch]);
+
+  const selectedTitle = titles.find((t) => t.title_code === externalForm.titleCode);
+
+  const openTitleDropdown = () => {
+    if (titleTriggerRef.current) {
+      const rect = titleTriggerRef.current.getBoundingClientRect();
+      setTitleDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 220),
+        zIndex: 9999,
+      });
+    }
+    setTitleSearch(selectedTitle ? (selectedTitle.short_name || selectedTitle.name) : "");
+    setIsTitleOpen(true);
+  };
+
   // ── Filtered lists for current tab+search ────────────────────────────────
   const filteredProvinces = useMemo(() => {
     const q = addressSearch.trim().toLowerCase();
@@ -335,41 +396,49 @@ export default function BorrowCartModal({
     return parts.join(", ") || null;
   }, [externalForm.province, externalForm.district, externalForm.subdistrict]);
 
-  // ✅ Handle File Upload
+  const ALLOWED_DOC_TYPES = new Set([
+    "application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
+  ]);
+  const MAX_DOC_SIZE = 10 * 1024 * 1024;
+  const MAX_DOC_COUNT = 5;
+
+  // ✅ Handle File Upload (multiple)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const incoming = Array.from(e.target.files || []);
     setFileError("");
-    if (!file) return;
+    if (!incoming.length) return;
 
-    const allowedTypes = [
-      "application/pdf",
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/heic",
-      "image/heif",
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      setFileError("รองรับ PDF, JPG, PNG, WEBP, HEIC/HEIF เท่านั้น");
+    const current = externalForm.documents;
+    if (current.length + incoming.length > MAX_DOC_COUNT) {
+      setFileError(`อัปโหลดได้สูงสุด ${MAX_DOC_COUNT} ไฟล์`);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
-    const maxSize = 10 * 1024 * 1024; // 10 MB
-    if (file.size > maxSize) {
-      setFileError("ขนาดไฟล์ต้องไม่เกิน 10 MB");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
+    for (const file of incoming) {
+      if (!ALLOWED_DOC_TYPES.has(file.type)) {
+        setFileError("รองรับ PDF, JPG, PNG, WEBP, HEIC/HEIF เท่านั้น");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      if (file.size > MAX_DOC_SIZE) {
+        setFileError(`${file.name}: ขนาดไฟล์ต้องไม่เกิน 10 MB`);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
     }
 
-    setExternalForm((prev) => ({ ...prev, document: file }));
+    setExternalForm((prev) => ({ ...prev, documents: [...prev.documents, ...incoming] }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ✅ Remove uploaded file
-  const removeFile = () => {
-    setExternalForm((prev) => ({ ...prev, document: null }));
+  // ✅ Remove one uploaded file by index
+  const removeFile = (index: number) => {
+    setExternalForm((prev) => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index),
+    }));
     setFileError("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // ✅ Format file size
@@ -468,38 +537,27 @@ export default function BorrowCartModal({
 
   // --- [Submit: ยืมบุคคลภายนอก] ---
   const submitExternalBorrow = async () => {
-    const { fullName, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
+    const { firstname, lastname, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
 
     if (externalOperatorDeptId === null) {
-      MySwal.fire({
-        title: "แจ้งเตือน",
-        text: "กรุณาระบุแผนกของผู้ดำเนินการ",
-        icon: "warning",
-      });
+      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาระบุแผนกของผู้ดำเนินการ", icon: "warning" });
       return;
     }
 
-    if (!fullName || !address || !subdistrict || !district || !province || !postalCode || !phone || !returnDate) {
-      MySwal.fire({
-        title: "แจ้งเตือน",
-        text: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (รวมถึงวันที่คืนครุภัณฑ์)",
-        icon: "warning",
-      });
+    if (!firstname || !lastname || !address || !subdistrict || !district || !province || !postalCode || !phone || !returnDate) {
+      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (รวมถึงวันที่คืนครุภัณฑ์)", icon: "warning" });
       return;
     }
 
     if (selectedItems.length === 0) {
-      MySwal.fire({
-        title: "แจ้งเตือน",
-        text: "กรุณาเลือกสินค้าอย่างน้อยหนึ่งรายการ",
-        icon: "warning",
-      });
+      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาเลือกสินค้าอย่างน้อยหนึ่งรายการ", icon: "warning" });
       return;
     }
 
+    const displayName = [externalForm.titleCode && titles.find(t => t.title_code === externalForm.titleCode)?.short_name, firstname, lastname].filter(Boolean).join(" ");
     const confirm = await MySwal.fire({
       title: "ยืนยันการยืม (บุคคลภายนอก)",
-      html: `<b>${fullName}</b><br/>${district}, ${province}<br/><br/>จำนวน: ${selectedItems.length} รายการ`,
+      html: `<b>${displayName}</b><br/>${district}, ${province}<br/><br/>จำนวน: ${selectedItems.length} รายการ`,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "ยืนยัน",
@@ -516,14 +574,13 @@ export default function BorrowCartModal({
         type: "BORROW",
         department_id: externalOperatorDeptId as number,
         due_date: returnDate,
-        items: selectedItems.map((i) => ({
-          item_id: i.id,
-          qty: i.quantity,
-          note: "",
-        })),
+        items: selectedItems.map((i) => ({ item_id: i.id, qty: i.quantity, note: "" })),
         note: externalForm.notes || "ยืมโดยบุคคลภายนอก",
         borrower: {
-          fullname: fullName,
+          title_code: externalForm.titleCode || undefined,
+          firstname,
+          lastname,
+          id_card: externalForm.idCard || undefined,
           phone,
           address,
           subdistrict,
@@ -537,15 +594,14 @@ export default function BorrowCartModal({
       const res = await RequisitionSvc.createRequisition(payload);
       if (!res.success) throw new Error(res.message || "เกิดข้อผิดพลาดในการสร้างใบยืม");
 
-      // Upload document to borrowers folder if one was attached
+      // Upload all documents to borrowers folder
       const borrowerId = res.data?.borrower_details?.id;
-      if (externalForm.document && borrowerId) {
+      if (externalForm.documents.length > 0 && borrowerId) {
         try {
           const fd = new FormData();
-          fd.append("document", externalForm.document);
+          externalForm.documents.forEach((file) => fd.append("document", file));
           await RequisitionSvc.uploadBorrowerDocument(borrowerId, fd);
         } catch {
-          // Non-fatal: requisition already created, just warn
           console.warn("Document upload failed — requisition was still created");
         }
       }
@@ -831,15 +887,135 @@ export default function BorrowCartModal({
                       <span className="text-sm font-bold text-gray-700">ข้อมูลส่วนตัว</span>
                     </div>
                     <div className="p-4 space-y-3">
+                      {/* Title + Name row */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div ref={titleTriggerRef}>
+                          <label className={labelClass}>คำนำหน้า</label>
+                          {/* Searchable input trigger */}
+                          <div className={`flex items-center border rounded-lg bg-white transition-colors ${
+                            isTitleOpen ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
+                          } ${isSubmitting ? "opacity-60 bg-slate-100" : ""}`}>
+                            <input
+                              type="text"
+                              placeholder="-"
+                              disabled={isSubmitting}
+                              value={isTitleOpen ? titleSearch : (selectedTitle ? (selectedTitle.short_name || selectedTitle.name) : "")}
+                              onFocus={() => { if (!isTitleOpen) openTitleDropdown(); }}
+                              onChange={(e) => {
+                                setTitleSearch(e.target.value);
+                                if (!isTitleOpen) openTitleDropdown();
+                              }}
+                              onKeyDown={(e) => { if (e.key === "Escape") { setIsTitleOpen(false); setTitleSearch(""); } }}
+                              className="flex-1 min-w-0 px-2.5 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400 disabled:cursor-not-allowed"
+                            />
+                            <ChevronDown
+                              onClick={() => isTitleOpen ? (setIsTitleOpen(false), setTitleSearch("")) : openTitleDropdown()}
+                              className={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 mr-2 cursor-pointer transition-transform ${isTitleOpen ? "rotate-180" : ""}`}
+                            />
+                          </div>
+                          {/* Portal dropdown */}
+                          {isTitleOpen && typeof document !== "undefined" && createPortal(
+                            <div
+                              ref={titleDropdownRef}
+                              style={titleDropdownStyle}
+                              className="border border-slate-200 rounded-xl bg-white shadow-xl overflow-hidden"
+                            >
+                              <div className="overflow-y-auto" style={{ maxHeight: "260px" }}>
+                                {/* Clear option */}
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { handleExternalFormChange("titleCode", ""); setIsTitleOpen(false); setTitleSearch(""); }}
+                                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                                    !externalForm.titleCode ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-400 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  -
+                                </button>
+                                {(() => {
+                                  const common = filteredTitles.filter((t) => t.is_common);
+                                  const others = filteredTitles.filter((t) => !t.is_common);
+                                  const TitleBtn = ({ t }: { t: typeof filteredTitles[0] }) => (
+                                    <button
+                                      key={t.title_code}
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => { handleExternalFormChange("titleCode", t.title_code); setIsTitleOpen(false); setTitleSearch(""); }}
+                                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                                        externalForm.titleCode === t.title_code
+                                          ? "bg-blue-50 text-blue-700 font-semibold"
+                                          : "text-gray-700 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      {t.short_name || t.name}
+                                    </button>
+                                  );
+                                  if (filteredTitles.length === 0) return (
+                                    <div className="px-3 py-4 text-xs text-gray-400 text-center">ไม่พบคำนำหน้า</div>
+                                  );
+                                  return (
+                                    <>
+                                      {common.length > 0 && (
+                                        <>
+                                          <div className="px-3 py-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wide bg-emerald-50 border-y border-emerald-100">
+                                            ใช้บ่อย
+                                          </div>
+                                          {common.map((t) => <TitleBtn key={t.title_code} t={t} />)}
+                                        </>
+                                      )}
+                                      {common.length > 0 && others.length > 0 && (
+                                        <div className="border-t border-slate-100 my-0.5" />
+                                      )}
+                                      {others.length > 0 && (
+                                        <>
+                                          {common.length > 0 && (
+                                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide bg-slate-50 border-y border-slate-100">
+                                              ทั้งหมด
+                                            </div>
+                                          )}
+                                          {others.map((t) => <TitleBtn key={t.title_code} t={t} />)}
+                                        </>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            </div>,
+                            document.body
+                          )}
+                        </div>
+                        <div>
+                          <label className={labelClass}>ชื่อ <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            placeholder="ชื่อ"
+                            value={externalForm.firstname}
+                            onChange={(e) => handleExternalFormChange("firstname", e.target.value)}
+                            disabled={isSubmitting}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>นามสกุล <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            placeholder="นามสกุล"
+                            value={externalForm.lastname}
+                            onChange={(e) => handleExternalFormChange("lastname", e.target.value)}
+                            disabled={isSubmitting}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                      {/* ID Card */}
                       <div>
-                        <label className={labelClass}>
-                          ชื่อ-นามสกุล <span className="text-red-500">*</span>
-                        </label>
+                        <label className={labelClass}>เลขบัตรประชาชน</label>
                         <input
                           type="text"
-                          placeholder="กรอกชื่อ-นามสกุล"
-                          value={externalForm.fullName}
-                          onChange={(e) => handleExternalFormChange("fullName", e.target.value)}
+                          placeholder="X-XXXX-XXXXX-XX-X"
+                          maxLength={13}
+                          value={externalForm.idCard}
+                          onChange={(e) => handleExternalFormChange("idCard", e.target.value.replace(/\D/g, ""))}
                           disabled={isSubmitting}
                           className={inputClass}
                         />
@@ -1126,73 +1302,56 @@ export default function BorrowCartModal({
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
                       <FileText className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสารสำเนาบัตรประชาชน</span>
-                      <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB</span>
+                      <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสาร</span>
+                      <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB · สูงสุด 5 ไฟล์</span>
                     </div>
-                    <div className="p-4">
-                      {externalForm.document ? (
-                        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                          {/* Smart preview: thumbnail for images, icon for PDF */}
-                          {externalForm.document.type === "application/pdf" ? (
-                            <div className="w-12 h-12 bg-red-50 border border-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <FileText className="w-6 h-6 text-red-500" />
+                    <div className="p-4 space-y-2">
+                      {/* File list */}
+                      {externalForm.documents.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                          {file.type === "application/pdf" ? (
+                            <div className="w-10 h-10 bg-red-50 border border-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-5 h-5 text-red-500" />
                             </div>
                           ) : (
-                            <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-blue-100">
-                              <img
-                                src={URL.createObjectURL(externalForm.document)}
-                                alt="preview"
-                                className="w-full h-full object-cover"
-                              />
+                            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-blue-100">
+                              <img src={URL.createObjectURL(file)} alt="preview" className="w-full h-full object-cover" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">
-                              {externalForm.document.name}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {formatFileSize(externalForm.document.size)}
-                              {externalForm.document.type === "application/pdf" && (
-                                <span className="ml-2 text-red-500 font-medium">PDF</span>
-                              )}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-800 truncate">{file.name}</p>
+                            <p className="text-[10px] text-gray-500">{formatFileSize(file.size)}</p>
                           </div>
-                          <button
-                            onClick={removeFile}
-                            disabled={isSubmitting}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                          >
+                          <button onClick={() => removeFile(idx)} disabled={isSubmitting}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
-                      ) : (
-                        <label
-                          className={`flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
-                            fileError
-                              ? "border-red-300 bg-red-50 hover:bg-red-50"
-                              : "border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/30"
-                          }`}
-                        >
+                      ))}
+                      {/* Upload button — hide when max reached */}
+                      {externalForm.documents.length < MAX_DOC_COUNT && (
+                        <label className={`flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                          fileError ? "border-red-300 bg-red-50" : "border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/30"
+                        }`}>
                           <input
                             ref={fileInputRef}
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
                             onChange={handleFileChange}
                             disabled={isSubmitting}
+                            multiple
                             className="sr-only"
                           />
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${fileError ? "bg-red-100" : "bg-blue-100"}`}>
-                            {fileError ? (
-                              <AlertCircle className="w-5 h-5 text-red-500" />
-                            ) : (
-                              <Upload className="w-5 h-5 text-blue-600" />
-                            )}
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center ${fileError ? "bg-red-100" : "bg-blue-100"}`}>
+                            {fileError ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Upload className="w-5 h-5 text-blue-600" />}
                           </div>
                           <div className="text-center">
                             <p className={`text-sm font-semibold ${fileError ? "text-red-600" : "text-gray-700"}`}>
-                              {fileError || "คลิกเพื่อเลือกไฟล์"}
+                              {fileError || "คลิกเพื่อเพิ่มไฟล์"}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, WEBP, HEIC · สูงสุด 10 MB</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {externalForm.documents.length}/{MAX_DOC_COUNT} ไฟล์ · PDF, JPG, PNG, WEBP, HEIC
+                            </p>
                           </div>
                         </label>
                       )}
@@ -1236,11 +1395,22 @@ export default function BorrowCartModal({
                     <div>
                       <h4 className="text-sm font-bold text-gray-700 border-b pb-2 mb-3">ข้อมูลผู้ยืม</h4>
                       <div className="space-y-2">
-                        <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">ชื่อ-นามสกุล:</span> <span className="font-semibold text-gray-800">{externalForm.fullName}</span></p>
+                        <p className="text-sm flex gap-2">
+                          <span className="text-gray-500 w-24 flex-shrink-0">ชื่อ-นามสกุล:</span>
+                          <span className="font-semibold text-gray-800">
+                            {[titles.find(t => t.title_code === externalForm.titleCode)?.short_name, externalForm.firstname, externalForm.lastname].filter(Boolean).join(" ")}
+                          </span>
+                        </p>
+                        {externalForm.idCard && (
+                          <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">บัตรประชาชน:</span> <span className="font-mono text-gray-800">{externalForm.idCard}</span></p>
+                        )}
                         <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">เบอร์โทรศัพท์:</span> <span className="font-semibold text-gray-800">{externalForm.phone}</span></p>
                         <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">ที่อยู่:</span> <span className="text-gray-800">{externalForm.address} อ.{externalForm.district} จ.{externalForm.province} {externalForm.postalCode}</span></p>
-                        {externalForm.document && (
-                          <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">เอกสารแนบ:</span> <span className="text-gray-800">{externalForm.document.name}</span></p>
+                        {externalForm.documents.length > 0 && (
+                          <p className="text-sm flex gap-2">
+                            <span className="text-gray-500 w-24 flex-shrink-0">เอกสารแนบ:</span>
+                            <span className="text-gray-800">{externalForm.documents.length} ไฟล์</span>
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1296,8 +1466,8 @@ export default function BorrowCartModal({
             </button>
             <button
               onClick={() => {
-                const { fullName, address, subdistrict, district, province, postalCode, phone } = externalForm;
-                if (!fullName || !address || !subdistrict || !district || !province || !postalCode || !phone) {
+                const { firstname, lastname, address, subdistrict, district, province, postalCode, phone } = externalForm;
+                if (!firstname || !lastname || !address || !subdistrict || !district || !province || !postalCode || !phone) {
                   MySwal.fire({ title: "แจ้งเตือน", text: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน", icon: "warning" });
                   return;
                 }

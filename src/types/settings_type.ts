@@ -64,7 +64,12 @@ export interface Supplier {
   contact?: string | null;
   address?: string | null;
   phone?: string | null;
+  contact_phone?: string | null;
   tax_id?: string | null;
+  email?: string | null;
+  bank_name?: string | null;
+  bank_account_number?: string | null;
+  bank_account_name?: string | null;
   active?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -75,7 +80,12 @@ export interface SupplierPayload {
   contact?: string;
   address?: string;
   phone?: string;
+  contact_phone?: string;
   tax_id?: string;
+  email?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
 }
 
 export type SystemSettingValueType = "string" | "number" | "boolean";

@@ -30,11 +30,17 @@ async function registerNotificationChannel(s: Socket) {
       console.warn("[Socket] getUser() returned no user — notification channel NOT registered:", error?.message);
       return;
     }
+    const rawRole = user.app_metadata?.role;
+    const roleString: string | null =
+      typeof rawRole === "string"
+        ? rawRole
+        : (rawRole as Record<string, unknown>)?.role_name_en as string ?? null;
+
     const identity = {
       userId: user.id,
-      roles: user.app_metadata?.role ? [user.app_metadata.role] : ["user"],
+      roles: roleString ? [roleString] : [],
     };
-    console.log("[Socket] Registering notification channel for user:", user.id);
+    console.log("[Socket] Registering notification channel for user:", user.id, "| roles:", identity.roles);
     s.emit("REGISTER_NOTIFICATION_CHANNEL", identity);
   } catch (err) {
     console.error("[Socket] Failed to register notification channel:", err);

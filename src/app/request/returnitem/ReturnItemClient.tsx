@@ -108,7 +108,7 @@ function DetailModal({ record, onClose }: DetailModalProps) {
               {borrower ? (
                 <>
                   <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ผู้ทำรายการให้" value={record.requester ?? "-"} />
-                  <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ชื่อผู้ยืม" value={borrower.fullname ?? "-"} />
+                  <InfoRow icon={<User className="w-3.5 h-3.5" />} label="ชื่อผู้ยืม" value={[borrower.firstname, borrower.lastname].filter(Boolean).join(" ") || "-"} />
                   <InfoRow icon={<Phone className="w-3.5 h-3.5" />} label="โทรศัพท์" value={borrower.phone ?? "-"} />
                   {borrower.address && <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="ที่อยู่" value={borrower.address} />}
                   <div className="grid grid-cols-2 gap-2 mt-2">
@@ -352,7 +352,7 @@ export default function ReturnItemClient() {
         r.doc_no.toLowerCase().includes(term) ||
         (r.requester ?? "").toLowerCase().includes(term) ||
         (r.department_name ?? "").toLowerCase().includes(term) ||
-        (borrower?.fullname ?? "").toLowerCase().includes(term) ||
+        ([borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") ?? "").toLowerCase().includes(term) ||
         (borrower?.phone ?? "").toLowerCase().includes(term)
       )) {
         return false;
@@ -545,7 +545,7 @@ export default function ReturnItemClient() {
                     <td className="px-5 py-4 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                     <td className="px-5 py-4 font-mono font-medium text-indigo-700">{r.doc_no}</td>
                     <td className="px-5 py-4">
-                      <div className="font-medium text-gray-800">{borrower?.fullname ?? "-"}</div>
+                      <div className="font-medium text-gray-800">{[borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") || "-"}</div>
                       <div className="text-xs text-emerald-700 font-medium">{borrower?.phone ?? "-"}</div>
                       <div className="text-xs text-slate-400">ผู้ทำรายการ: {r.requester ?? "-"}</div>
                     </td>

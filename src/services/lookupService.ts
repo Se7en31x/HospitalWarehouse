@@ -17,6 +17,16 @@ export interface SubdistrictOption {
   zip_code: string | null;
 }
 
+export interface TitleOption {
+  title_code: string;
+  short_name: string | null;
+  name: string;
+  is_common: boolean | null;
+}
+
+export const getTitles = (): Promise<TitleOption[]> =>
+  api.get<TitleOption[]>("/v1/lookup/titles");
+
 export const getProvinces = (): Promise<ProvinceOption[]> =>
   api.get<ProvinceOption[]>("/v1/lookup/provinces");
 

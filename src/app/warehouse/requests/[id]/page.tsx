@@ -53,6 +53,21 @@ const isPdfUrl = (url: string): boolean => {
   return DOC_EXTENSIONS.some((ext) => lower.includes(ext)) || lower.includes("/raw/upload/");
 };
 
+/**
+ * Parses id_card_url which may be:
+ *  - null / undefined  → []
+ *  - a JSON array string → string[]
+ *  - a plain single URL (legacy) → [url]
+ */
+const parseIdCardUrls = (raw: string | null | undefined): string[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean) as string[];
+  } catch { /* not JSON — fall through */ }
+  return [raw];
+};
+
 /** Formats all address parts into one clean Thai address string. */
 const formatBorrowerAddress = (bd: BorrowerDetails): string => {
   const parts = [
@@ -441,106 +456,134 @@ export default function RequisitionDetailsPage({
             {/* Content (collapsible) */}
             {isBorrowerDetailsOpen && (
               <div className="p-6 space-y-6 animate-in fade-in duration-300">
-                {/* ── Personal Information (3 columns) ──────────────────────────── */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Name */}
+
+                {/* ── Personal Information ─────────────────────────────────────── */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
+                  {/* Name (with title prefix) */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">ชื่อ-นามสกุล</p>
-                    <p className="text-sm font-semibold text-slate-800">{bd.fullname}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">ชื่อ-นามสกุล</p>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {[bd.lookup_titles?.short_name, bd.firstname, bd.lastname].filter(Boolean).join(" ") || "-"}
+                    </p>
+                  </div>
+
+                  {/* ID Card Number */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">เลขบัตรประชาชน</p>
+                    <p className="text-sm font-mono text-slate-700 tracking-wider">{bd.id_card || "-"}</p>
                   </div>
 
                   {/* Phone */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">เบอร์โทรศัพท์</p>
-                    <p className="text-sm font-mono text-slate-700">{bd.phone || "-"}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">เบอร์โทรศัพท์</p>
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                      <p className="text-sm font-mono text-slate-700">{bd.phone || "-"}</p>
+                    </div>
                   </div>
 
-                  {/* Address */}
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">ที่อยู่</p>
-                    <p className="text-sm text-slate-700 leading-relaxed">{formatBorrowerAddress(bd)}</p>
+                  {/* Address — full width */}
+                  <div className="md:col-span-3">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">ที่อยู่</p>
+                    <div className="flex items-start gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-slate-700 leading-relaxed">{formatBorrowerAddress(bd)}</p>
+                    </div>
                   </div>
                 </div>
 
                 {/* ── Divider ──────────────────────────────────────────────────── */}
                 <div className="border-t border-slate-100" />
 
-                {/* ── ID Card / Evidence (left) & Notes (right) ─────────────────── */}
+                {/* ── Attachments + Notes ───────────────────────────────────────── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Left: ID Card / Evidence */}
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-700 mb-4">หลักฐานและเอกสาร</h4>
 
-                    {bd.id_card_url ? (
-                      <div className="rounded-xl border border-slate-300 overflow-hidden">
-                        {isPdfUrl(bd.id_card_url) ? (
-                          /* PDF preview */
-                          <div className="flex items-center justify-between gap-4 p-5">
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className="w-16 h-16 rounded-lg bg-red-50 border border-red-200 flex flex-col items-center justify-center flex-shrink-0">
-                                <FileText className="w-7 h-7 text-red-600" />
-                                <span className="text-[9px] font-black text-red-600 mt-0.5 uppercase tracking-wide">PDF</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-slate-900">ดูสำเนาเอกสาร</p>
-                                <p className="text-xs text-slate-500 mt-1">ไฟล์ PDF · สำเนาบัตรประชาชน</p>
-                              </div>
-                            </div>
-                            <a
-                              href={formatCloudinaryUrl(bd.id_card_url)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 flex items-center justify-center transition-colors"
-                            >
-                              <ExternalLink className="w-5 h-5" />
-                            </a>
+                  {/* Left: Attachments (multi-file) */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">หลักฐานและเอกสาร</h4>
+                    {(() => {
+                      const urls = parseIdCardUrls(bd.id_card_url);
+                      if (urls.length === 0) {
+                        return (
+                          <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center bg-slate-50/50">
+                            <Shield className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                            <p className="text-sm font-semibold text-slate-400">ไม่มีเอกสารแนบ</p>
+                            <p className="text-xs text-slate-300 mt-0.5">ผู้ยืมไม่ได้อัปโหลดเอกสาร</p>
                           </div>
-                        ) : (
-                          /* Image preview */
-                          <div>
-                            <div
-                              className="relative cursor-pointer group bg-slate-100"
-                              onClick={() => setPreviewImage({ url: formatCloudinaryUrl(bd.id_card_url!), name: `${bd.fullname} — สำเนาบัตร` })}
-                            >
-                              <img
-                                src={formatCloudinaryUrl(bd.id_card_url)}
-                                alt="สำเนาบัตรประชาชน"
-                                className="w-full h-48 object-cover transition-opacity group-hover:opacity-80"
-                              />
-                              <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors flex items-center justify-center">
-                                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full shadow">
-                                  คลิกเพื่อขยาย
-                                </span>
+                        );
+                      }
+                      return (
+                        <div className="space-y-2.5">
+                          {urls.map((rawUrl, idx) => {
+                            const url = formatCloudinaryUrl(rawUrl);
+                            const isDoc = isPdfUrl(rawUrl);
+                            const label = `เอกสาร ${urls.length > 1 ? idx + 1 : ""}`.trim();
+                            return isDoc ? (
+                              /* PDF / document row */
+                              <div key={idx} className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="w-10 h-10 rounded-lg bg-red-50 border border-red-100 flex flex-col items-center justify-center flex-shrink-0">
+                                    <FileText className="w-5 h-5 text-red-500" />
+                                    <span className="text-[8px] font-black text-red-500 uppercase">PDF</span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{label}</p>
+                                    <p className="text-xs text-slate-400">ไฟล์เอกสาร</p>
+                                  </div>
+                                </div>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  เปิด
+                                </a>
                               </div>
-                            </div>
-                            <div className="flex items-center justify-between px-4 py-3 bg-white">
-                              <p className="text-xs text-slate-500 font-medium">สำเนาบัตรประชาชน</p>
-                              <a
-                                href={formatCloudinaryUrl(bd.id_card_url)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                เปิดดูไฟล์ต้นฉบับ
-                              </a>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-slate-300 p-8 text-center">
-                        <p className="text-sm font-semibold text-slate-400">ไม่มีเอกสารแนบ</p>
-                        <p className="text-xs text-slate-400 mt-1">ผู้ยืมไม่ได้อัปโหลดสำเนาบัตรประชาชน</p>
-                      </div>
-                    )}
+                            ) : (
+                              /* Image card with thumbnail */
+                              <div key={idx} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                                <div
+                                  className="relative cursor-pointer group bg-slate-100"
+                                  onClick={() => setPreviewImage({ url, name: `${[bd.firstname, bd.lastname].filter(Boolean).join(" ") || "ผู้ยืม"} — ${label}` })}
+                                >
+                                  <img
+                                    src={url}
+                                    alt={label}
+                                    className="w-full h-36 object-cover transition-opacity group-hover:opacity-80"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors">
+                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full shadow">
+                                      คลิกเพื่อขยาย
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-white">
+                                  <p className="text-xs text-slate-500 font-medium">{label}</p>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    เปิดต้นฉบับ
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Right: Notes */}
                   {bd.notes && (
                     <div>
                       <h4 className="text-sm font-bold text-slate-700 mb-3">หมายเหตุ</h4>
-                      <p className="text-sm text-slate-700 leading-relaxed">{bd.notes}</p>
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{bd.notes}</p>
                     </div>
                   )}
                 </div>

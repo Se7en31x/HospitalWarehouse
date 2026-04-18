@@ -10,7 +10,10 @@ export interface ApiResponse<T = unknown> {
 // --- เพิ่มข้อมูลคนยืม ---
 export interface BorrowerDetails {
   id: string; // UUID
-  fullname: string;
+  title_code?: string | null;
+  firstname?: string | null;
+  lastname?: string | null;
+  id_card?: string | null;
   phone: string;
   address?: string;
   subdistrict?: string;
@@ -19,6 +22,7 @@ export interface BorrowerDetails {
   zipcode?: string;
   notes?: string;
   id_card_url?: string | null;
+  lookup_titles?: { short_name: string | null; name: string } | null;
 }
 
 export interface RequisitionFilters {

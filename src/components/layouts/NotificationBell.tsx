@@ -68,6 +68,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const [items, setItems] = useState<NotificationItem[]>([]);
 
   const isVisibleRef = useRef(true);
+  const pendingRefreshRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -103,12 +104,18 @@ export default function NotificationBell({ title = "การแจ้งเต�
 
   useEffect(() => {
     const onVisibilityChange = () => {
-      isVisibleRef.current = document.visibilityState === "visible";
+      const nowVisible = document.visibilityState === "visible";
+      isVisibleRef.current = nowVisible;
+      // Flush any refresh that arrived while the tab was hidden
+      if (nowVisible && pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        loadUnreadCount();
+      }
     };
     onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, []);
+  }, [loadUnreadCount]);
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -122,7 +129,15 @@ export default function NotificationBell({ title = "การแจ้งเต�
     if (!socket.connected) socket.connect();
 
     const handleRefreshSignal = (message: string) => {
-      if (message !== "NOTIFICATIONS" || !isVisibleRef.current) return;
+      console.log("[NotificationBell] socket REFRESH_DATA received:", message);
+      if (message !== "NOTIFICATIONS") return;
+
+      if (!isVisibleRef.current) {
+        // Tab is hidden — mark pending so we refresh when user comes back
+        pendingRefreshRef.current = true;
+        return;
+      }
+
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         loadUnreadCount();

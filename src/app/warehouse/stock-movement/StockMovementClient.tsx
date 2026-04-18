@@ -6,8 +6,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Eye,
   Package,
+  UserRound,
 } from "lucide-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { getStockMovements } from "@/services/stockMovementService";
@@ -26,6 +26,20 @@ const typeOptions: { v: StockMovementType | ""; l: string }[] = [
   { v: "ADJUST_OUT", l: "ปรับลด" },
   { v: "UPDATE", l: "อัปเดต" },
 ];
+
+const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  RECEIVE_IN:     { label: "รับเข้า",    cls: "bg-blue-100 text-blue-700 border border-blue-200" },
+  RECEIVE_CANCEL: { label: "ยกเลิกรับ",  cls: "bg-rose-100 text-rose-700 border border-rose-200" },
+  OUT:            { label: "เบิกออก",    cls: "bg-amber-100 text-amber-700 border border-amber-200" },
+  ADJUST_IN:      { label: "ปรับเพิ่ม",  cls: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
+  ADJUST_OUT:     { label: "ปรับลด",    cls: "bg-slate-100 text-slate-600 border border-slate-200" },
+  UPDATE:         { label: "อัปเดต",    cls: "bg-indigo-100 text-indigo-700 border border-indigo-200" },
+};
+
+const OUT_TYPES = new Set(["OUT", "RECEIVE_CANCEL", "ADJUST_OUT"]);
+
+const fmt = (n: number | null | undefined) =>
+  n == null ? "-" : n.toLocaleString("th-TH");
 
 // ---- Main Client ----
 const StockMovementClient = () => {
@@ -232,7 +246,7 @@ const StockMovementClient = () => {
                 <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
                 <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[120px]">หน่วยนับ</th>
-                <th className="px-6 py-4 w-[130px]">จำนวน</th>
+                <th className="px-6 py-4 w-[160px]">จำนวน / ยอดคงเหลือ</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
                 <th className="px-6 py-4 w-[200px]">ผู้ดำเนินการ</th>
                 <th className="px-6 py-4 w-[160px]">วันที่และเวลา</th>
@@ -240,7 +254,8 @@ const StockMovementClient = () => {
             </thead>
             <tbody className="">
               {movements.map((mv, idx) => {
-                const isOut = ["OUT", "RECEIVE_CANCEL", "ADJUST_OUT"].includes(mv.type);
+                const isOut = OUT_TYPES.has(mv.type);
+                const badge = TYPE_BADGE[mv.type] ?? { label: mv.type, cls: "bg-slate-100 text-slate-600 border border-slate-200" };
                 return (
                   <tr key={mv.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                     <td className="px-6 py-[18px] text-slate-500 text-center">
@@ -249,31 +264,52 @@ const StockMovementClient = () => {
                     <td className="px-6 py-[18px] text-slate-500 font-mono">
                       {mv.item?.code ?? "-"}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-500">
+                    <td className="px-6 py-[18px] text-slate-700 font-medium">
                       {mv.item?.name ?? "ไม่ระบุ"}
                     </td>
                     <td className="px-6 py-[18px] text-slate-500">
                       {mv.item?.category ?? "-"}
                     </td>
                     <td className="px-6 py-[18px] text-slate-500">
-                      {mv.item?.unit?.name ?? mv.item?.unit ?? "-"}
+                      {mv.item?.unit ?? "-"}
                     </td>
-                    <td className="px-6 py-[18px] font-bold">
-                      <span className={isOut ? "text-rose-600" : "text-emerald-600"}>
-                        {isOut ? "-" : "+"}
-                        {mv.quantity}
+                    <td
+                      className="px-6 py-[18px]"
+                      title={
+                        mv.balance_before != null && mv.balance_after != null
+                          ? `ยอดก่อนดำเนินการ ${fmt(mv.balance_before)} และยอดหลังดำเนินการ ${fmt(mv.balance_after)}`
+                          : undefined
+                      }
+                    >
+                      <div className={`text-base font-bold ${isOut ? "text-rose-600" : "text-emerald-600"}`}>
+                        {isOut ? "-" : "+"}{fmt(mv.quantity)}
+                      </div>
+                      {mv.balance_before != null && mv.balance_after != null && (
+                        <div className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">
+                          ก่อน:&nbsp;
+                          <span className="font-medium text-slate-500">{fmt(mv.balance_before)}</span>
+                          <span className="mx-1">→</span>
+                          หลัง:&nbsp;
+                          <span className="font-medium text-slate-500">{fmt(mv.balance_after)}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-[18px]">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
+                        {badge.label}
                       </span>
                     </td>
-                    <td className="px-6 py-[18px] text-slate-500">
-                      {typeOptions.find(t => t.v === mv.type)?.l || mv.type}
-                    </td>
-                    <td className="px-6 py-[18px] text-slate-500">
-                      {mv.operator_name
-                        ? mv.operator_name
-                        : mv.created_by
-                          ? <span className="text-slate-400 text-xs font-mono">{mv.created_by}</span>
-                          : <span className="text-slate-400">ระบบอัตโนมัติ</span>
-                      }
+                    <td className="px-6 py-[18px] text-slate-600">
+                      {mv.operator_name || mv.created_by ? (
+                        <div className="flex items-center gap-1.5">
+                          <UserRound className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="text-sm">
+                            {mv.operator_name ?? mv.created_by}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs">ระบบอัตโนมัติ</span>
+                      )}
                     </td>
                     <td className="px-6 py-[18px] text-slate-500">
                       {new Date(mv.created_at).toLocaleString("th-TH", {

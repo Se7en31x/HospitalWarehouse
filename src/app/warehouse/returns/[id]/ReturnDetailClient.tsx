@@ -43,7 +43,8 @@ const isExternal = (header: RequisitionHeader): boolean =>
   !!header.borrower_details;
 
 const getBorrowerDisplay = (header: RequisitionHeader): string => {
-  if (header.borrower_details) return header.borrower_details.fullname || "บุคคลภายนอก";
+  const bd = header.borrower_details;
+  if (bd) return [bd.firstname, bd.lastname].filter(Boolean).join(" ") || "บุคคลภายนอก";
   return header.requester || "ไม่ระบุ";
 };
 

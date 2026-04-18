@@ -19,10 +19,13 @@ export interface StockMovement {
   id: number;
   type: StockMovementType;
   quantity: number;
+  balance_before?: number | null;
+  balance_after?: number | null;
+  remaining_balance?: number | null;   // alias for balance_after, kept for compat
   note?: string | null;
   created_by?: string | null;
   created_by_id?: string | null;
-  operator_name?: string | null;   // Thai full name resolved from profiles table
+  operator_name?: string | null;
   created_at: string;
   item: StockMovementItem | null;
 }
