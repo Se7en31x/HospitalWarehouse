@@ -130,10 +130,12 @@ export default function ItemDetailModal({
                     </button>
                     <input
                       type="number"
+                      autoFocus
                       min="1"
                       max={item.stock}
                       value={quantity}
                       onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleConfirm(); } }}
                       className="w-16 text-center px-2 py-2 border-0 text-lg font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                     <button

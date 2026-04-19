@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react";
 import {
    Search,
   Wrench, Trash2,
-  ChevronLeft, ChevronRight, ChevronDown, 
-  ToggleRight, ToggleLeft
+  ChevronLeft, ChevronRight, ChevronDown,
+  ToggleRight, ToggleLeft, Printer
 } from "lucide-react";
 
 import { socket } from "../../../lib/socket";
@@ -14,6 +14,7 @@ import { getLots, deleteLot, toggleLotStatus, adjustLot } from "@/services/lotse
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
 import { saveLots } from "@/services/stockInService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+import { printLabels, type LabelData } from "@/lib/printLabel";
 import type * as LotInterface from "@/types/lot_type";
 import type * as ItemInterface from "@/types/items_type";
 import type * as StockIn from "@/types/stockin_type";
@@ -122,6 +123,7 @@ export default function LotClient({
   });
   const [isSavingStockIn, setIsSavingStockIn] = useState(false);
   const LOT_PAGE_LIMIT = 10;
+  const [selectedItems, setSelectedItems] = useState<Map<string, LabelData>>(new Map());
 
   // Refs always hold current filter values for re-fetch
   const pageRef = React.useRef(1);
@@ -442,7 +444,15 @@ export default function LotClient({
           <h2 className="text-3xl font-bold text-gray-800">ล็อตพัสดุ</h2>
         </div>
         <div className="flex items-center gap-3">
-          {/* Action buttons can go here */}
+          {selectedItems.size > 0 && (
+            <button
+              onClick={() => printLabels(Array.from(selectedItems.values()))}
+              className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+            >
+              <Printer className="w-4 h-4" />
+              พิมพ์สติกเกอร์ ({selectedItems.size})
+            </button>
+          )}
         </div>
       </div>
 
@@ -554,6 +564,28 @@ export default function LotClient({
             <table className="w-full text-sm text-left table-fixed">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 w-[44px] text-center">
+                    <input
+                      type="checkbox"
+                      checked={lots.length > 0 && lots.every((l) => selectedItems.has(l.id))}
+                      onChange={() => {
+                        const allSel = lots.every((l) => selectedItems.has(l.id));
+                        setSelectedItems((prev) => {
+                          const s = new Map(prev);
+                          if (allSel) {
+                            lots.forEach((l) => s.delete(l.id));
+                          } else {
+                            lots.forEach((l) => {
+                              const d = getEnrichedLotData(l);
+                              s.set(l.id, { name: d.itemName, code: l.lotCode || l.id, subLabel: d.itemCode !== '-' ? d.itemCode : undefined });
+                            });
+                          }
+                          return s;
+                        });
+                      }}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-6 py-4 w-[60px] text-center">#</th>
                   <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
                   <th className="px-6 py-4 w-[100px]">รหัส LOT</th>
@@ -573,6 +605,23 @@ export default function LotClient({
                   const rowNumber = (currentPage - 1) * LOT_PAGE_LIMIT + idx + 1;
                   return (
                     <tr key={lot.id || idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                      <td className="px-4 py-2.5 w-[44px] text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(lot.id)}
+                          onChange={() => {
+                            const d = getEnrichedLotData(lot);
+                            setSelectedItems((prev) => {
+                              const s = new Map(prev);
+                              s.has(lot.id)
+                                ? s.delete(lot.id)
+                                : s.set(lot.id, { name: d.itemName, code: lot.lotCode || lot.id, subLabel: d.itemCode !== '-' ? d.itemCode : undefined });
+                              return s;
+                            });
+                          }}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-6 py-2.5 text-center font-medium text-slate-600">{rowNumber}</td>
                       <td className="px-6 py-2.5 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
                       <td className="px-6 py-2.5 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
@@ -602,7 +651,7 @@ export default function LotClient({
                 })}
                 {currentItems.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={10}>
+                    <td colSpan={11}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

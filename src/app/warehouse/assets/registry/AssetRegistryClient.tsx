@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import {
     Search, ChevronLeft, ChevronRight, ChevronDown, Edit, X, Trash2,
-    Package, MapPin, FileText, Calendar, AlertTriangle
+    Package, MapPin, FileText, Calendar, AlertTriangle, Printer
 } from "lucide-react";
+import { printLabels, type LabelData } from "@/lib/printLabel";
 
 import * as assetService from "@/services/assetService";
 import type { Asset } from "@/services/assetService";
@@ -116,6 +117,29 @@ export default function AssetRegistryClient({
     // Edit Modal Dropdown States
     const [isEditStatusOpen, setIsEditStatusOpen] = useState(false);
     const [isEditDeptOpen, setIsEditDeptOpen] = useState(false);
+
+    // Asset label selection
+    const [selectedAssets, setSelectedAssets] = useState<Map<string, LabelData>>(new Map());
+
+    const toggleSelectAsset = (rec: Asset) =>
+        setSelectedAssets((prev) => {
+            const s = new Map(prev);
+            s.has(rec.id)
+                ? s.delete(rec.id)
+                : s.set(rec.id, { name: masterItem.name, code: rec.asset_code, subLabel: rec.serial_no || undefined });
+            return s;
+        });
+
+    const toggleSelectAllAssets = () => {
+        const allSel = paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedAssets.has(r.id));
+        setSelectedAssets((prev) => {
+            const s = new Map(prev);
+            allSel
+                ? paginatedRecords.forEach((r) => s.delete(r.id))
+                : paginatedRecords.forEach((r) => s.set(r.id, { name: masterItem.name, code: r.asset_code, subLabel: r.serial_no || undefined }));
+            return s;
+        });
+    };
 
     // Close edit modal dropdowns when clicking outside
     useEffect(() => {
@@ -304,6 +328,15 @@ export default function AssetRegistryClient({
                     )}
                 </div>
                 <div className="flex items-center gap-3">
+                    {selectedAssets.size > 0 && (
+                        <button
+                            onClick={() => printLabels(Array.from(selectedAssets.values()))}
+                            className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+                        >
+                            <Printer className="w-4 h-4" />
+                            พิมพ์ป้ายครุภัณฑ์ ({selectedAssets.size})
+                        </button>
+                    )}
                     <button
                         onClick={() => router.back()}
                         className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-semibold transition-colors"
@@ -426,6 +459,15 @@ export default function AssetRegistryClient({
                     <table className="w-full text-sm text-left table-fixed">
                         <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                             <tr>
+                                <th className="px-4 py-4 w-[44px] text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedAssets.has(r.id))}
+                                        onChange={toggleSelectAllAssets}
+                                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                                        title="เลือกทั้งหมดในหน้านี้"
+                                    />
+                                </th>
                                 <th className="px-6 py-4 w-[50px]">#</th>
                                 <th className="px-6 py-4 w-[150px]">รหัสครุภัณฑ์</th>
                                 <th className="px-6 py-4 w-[150px]">Serial Number</th>
@@ -441,6 +483,14 @@ export default function AssetRegistryClient({
                                 const isExpired = rec.warranty_expire && new Date(rec.warranty_expire) < new Date();
                                 return (
                                     <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                                        <td className="px-4 py-2.5 w-[44px] text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedAssets.has(rec.id)}
+                                                onChange={() => toggleSelectAsset(rec)}
+                                                className="w-4 h-4 accent-blue-600 cursor-pointer"
+                                            />
+                                        </td>
                                         <td className="px-6 py-2.5 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                                         <td className="px-6 py-2.5">{rec.asset_code}</td>
                                         <td className="px-6 py-2.5 font-mono text-slate-600">{rec.serial_no || <span className="text-slate-300 italic text-xs">N/A</span>}</td>
@@ -482,7 +532,7 @@ export default function AssetRegistryClient({
                             })}
                             {paginatedRecords.length === 0 && !isFetching && (
                                 <tr>
-                                    <td colSpan={8}>
+                                    <td colSpan={9}>
                                         {fetchError ? (
                                             <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
                                                 <AlertTriangle className="w-10 h-10 text-rose-300" />

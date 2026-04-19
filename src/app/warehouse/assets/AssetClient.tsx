@@ -388,7 +388,6 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
                 <th className="px-6 py-4 w-[150px]">รหัส</th>
                 <th className="px-6 py-4 w-[300px]">ชื่อครุภัณฑ์</th>
@@ -402,7 +401,6 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
             <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-3 w-[50px]">{(currentPage - 1) * ASSET_PAGE_LIMIT + idx + 1}</td>
                   <td className="px-6 py-3 w-[100px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (

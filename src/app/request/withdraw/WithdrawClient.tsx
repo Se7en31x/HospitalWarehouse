@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown, X, Package, RefreshCw } from "lucide-react";
+import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown, X, Package, RefreshCw, ScanBarcode } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
-import { useAuth } from "@/hooks/useAuth"; 
+import { resolveBarcode } from "@/services/barcodeService";
+import { useAuth } from "@/hooks/useAuth";
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import CartModal from "./CartModal";
@@ -76,6 +77,11 @@ export default function WithdrawClient({ initialItems }: Props) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
   const [serverTotal, setServerTotal] = useState(0);
   const [serverTotalPages, setServerTotalPages] = useState(0);
+
+  // Scanner state
+  const [scanInput, setScanInput] = useState("");
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   // Refs to track current state for socket refresh
   const pageRef = useRef(1);
@@ -346,6 +352,47 @@ export default function WithdrawClient({ initialItems }: Props) {
     [items]
   );
 
+  const handleScan = useCallback(async () => {
+    const raw = scanInput.trim();
+    if (!raw) return;
+    setIsScanning(true);
+    setScanMsg(null);
+    try {
+      const result = await resolveBarcode(raw, selectedDeptId);
+      if (!result) {
+        setScanMsg(`❌ ไม่พบรหัส: ${raw}`);
+        return;
+      }
+      const itemId =
+        result.type === "ITEM" ? result.item.id
+        : result.type === "LOT" ? result.lot.item_id
+        : result.unit.item_id;
+
+      let found = items.find((i) => i.id === itemId);
+      if (!found) {
+        const itemCode =
+          result.type === "ITEM" ? result.item.code
+          : result.type === "LOT" ? result.lot.item_code
+          : result.unit.item_code;
+        if (itemCode) {
+          const res = await ItemSvc.getInventoryItemsPage({ keyword: itemCode, limit: 1, page: 1 });
+          found = res.items?.[0];
+        }
+      }
+      if (found) {
+        setScanMsg(`✓ ${found.name}`);
+        setScanInput("");
+        openItemDetail(found);
+      } else {
+        setScanMsg("❌ ไม่พบสินค้าในระบบ");
+      }
+    } catch {
+      setScanMsg("❌ เกิดข้อผิดพลาด");
+    } finally {
+      setIsScanning(false);
+    }
+  }, [scanInput, selectedDeptId, items, openItemDetail]);
+
   const handleCartSuccess = () => {
     setSelectedItems([]);
     localStorage.removeItem("withdraw_cart");
@@ -378,6 +425,40 @@ export default function WithdrawClient({ initialItems }: Props) {
             ตะกร้า ({selectedItems.length})
           </button>
         </div>
+      </div>
+
+      {/* Scanner Bar */}
+      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
+        <label className="block text-sm font-semibold text-indigo-900 mb-2 flex items-center gap-1.5">
+          <ScanBarcode className="w-4 h-4" />
+          สแกนบาร์โค้ด (รหัสพัสดุ / Lot Code / รหัสชิ้น)
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            autoFocus
+            value={scanInput}
+            onChange={(e) => setScanInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); void handleScan(); }
+            }}
+            placeholder="สแกนหรือพิมพ์รหัส แล้วกด Enter..."
+            className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none bg-white"
+          />
+          <button
+            type="button"
+            onClick={() => void handleScan()}
+            disabled={isScanning || !scanInput.trim()}
+            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+          >
+            {isScanning ? "กำลังค้นหา..." : "สแกน"}
+          </button>
+        </div>
+        {scanMsg && (
+          <p className={`mt-2 text-sm font-medium ${scanMsg.startsWith("❌") ? "text-red-600" : "text-green-600"}`}>
+            {scanMsg}
+          </p>
+        )}
       </div>
 
       {/* Filters */}

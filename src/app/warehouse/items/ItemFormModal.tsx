@@ -11,11 +11,13 @@ import {
   Upload,
   Search,
   PackagePlus,
+  Printer,
 } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
 import { useDropzone } from "react-dropzone";
+import { printLabels } from "@/lib/printLabel";
 
 interface FormData {
   name: string;
@@ -378,6 +380,26 @@ export default function ItemFormModal({
 
           {/* Content */}
           <div className="p-8 space-y-6">
+
+            {/* ── Barcode section (edit mode only) ── */}
+            {isEdit && initialData?.code && (
+              <div className="flex items-center justify-between gap-4 px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">รหัสพัสดุ (Inbound / Outbound)</span>
+                  <span className="text-sm font-mono font-bold text-slate-800">{initialData.code}</span>
+                  <span className="text-xs text-slate-500 truncate">{initialData.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => printLabels([{ name: initialData.name, code: initialData.code! }])}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition-colors flex-shrink-0 shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  พิมพ์สติกเกอร์
+                </button>
+              </div>
+            )}
+
             {/* Form Section */}
             <div className="">
               <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search } from "lucide-react";
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+import { printLabels, type LabelData } from "@/lib/printLabel";
 
 const STATUS_OPTIONS = [
   { value: "ทั้งหมด",  label: "สถานะทั้งหมด" },
@@ -39,6 +40,25 @@ export default function ReusableUnitClient() {
 
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Map<string, LabelData>>(new Map());
+
+  const toggleSelect = (item: Item.UiItem) =>
+    setSelectedItems((prev) => {
+      const s = new Map(prev);
+      s.has(item.id) ? s.delete(item.id) : s.set(item.id, { name: item.name, code: item.code });
+      return s;
+    });
+
+  const toggleSelectAll = () => {
+    const allSel = paginatedItems.every((i) => selectedItems.has(i.id));
+    setSelectedItems((prev) => {
+      const s = new Map(prev);
+      allSel
+        ? paginatedItems.forEach((i) => s.delete(i.id))
+        : paginatedItems.forEach((i) => s.set(i.id, { name: i.name, code: i.code }));
+      return s;
+    });
+  };
 
   const fetchPage = useCallback(async (page: number, keyword: string) => {
     setIsFetching(true);
@@ -176,7 +196,18 @@ export default function ReusableUnitClient() {
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">จัดการของใช้ซ้ำรายชิ้น</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-3xl font-bold text-gray-800">จัดการของใช้ซ้ำรายชิ้น</h2>
+          {selectedItems.size > 0 && (
+            <button
+              onClick={() => printLabels(Array.from(selectedItems.values()))}
+              className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+            >
+              <Printer className="w-4 h-4" />
+              พิมพ์สติกเกอร์ ({selectedItems.size})
+            </button>
+          )}
+        </div>
         <div className="flex border-b border-slate-200">
           <button
             onClick={() => router.push('/warehouse/assets?mode=reusable')}
@@ -276,7 +307,15 @@ export default function ReusableUnitClient() {
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[60px]">#</th>
+                <th className="px-4 py-4 w-[44px] text-center">
+                  <input
+                    type="checkbox"
+                    checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    title="เลือกทั้งหมดในหน้านี้"
+                  />
+                </th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
                 <th className="px-6 py-4 w-[140px]">รหัส</th>
                 <th className="px-6 py-4 w-[260px]">ชื่อรายการ</th>
@@ -291,7 +330,14 @@ export default function ReusableUnitClient() {
             <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-3">{(currentPage - 1) * REUSABLE_PAGE_LIMIT + idx + 1}</td>
+                  <td className="px-4 py-3 w-[44px] text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(item.id)}
+                      onChange={() => toggleSelect(item)}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-6 py-3">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl
@@ -315,7 +361,7 @@ export default function ReusableUnitClient() {
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={11}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <p className="text-sm font-medium">ไม่พบรายการของใช้ซ้ำ</p>
                     </div>
