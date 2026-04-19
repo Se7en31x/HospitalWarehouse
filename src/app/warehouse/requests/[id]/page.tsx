@@ -412,7 +412,7 @@ export default function RequisitionDetailsPage({
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => router.push("/warehouse/requests")}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-100 transition-colors"
+              className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
             >
               ย้อนกลับ
             </button>

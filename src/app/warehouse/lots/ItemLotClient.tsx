@@ -5,7 +5,7 @@ import {
    Search,
   Wrench, Trash2,
   ChevronLeft, ChevronRight, ChevronDown,
-  ToggleRight, ToggleLeft, Printer
+  ToggleRight, ToggleLeft, Printer, X
 } from "lucide-react";
 
 import { socket } from "../../../lib/socket";
@@ -108,6 +108,7 @@ export default function LotClient({
   const [selectedWarehouse, setSelectedWarehouse] = useState("ทั้งหมด");
   const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [expiryDays, setExpiryDays] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<"all" | "summary" | "stockin">("all");
   const [stockinForm, setStockinForm] = useState({
@@ -125,17 +126,26 @@ export default function LotClient({
   const LOT_PAGE_LIMIT = 10;
   const [selectedItems, setSelectedItems] = useState<Map<string, LabelData>>(new Map());
 
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startDateFocused, setStartDateFocused] = useState(false);
+  const [endDateFocused, setEndDateFocused] = useState(false);
+
   // Refs always hold current filter values for re-fetch
   const pageRef = React.useRef(1);
   const searchTermRef = React.useRef("");
   const warehouseRef = React.useRef("ทั้งหมด");
   const categoryRef = React.useRef("ทั้งหมด");
   const statusRef = React.useRef("ALL");
+  const expiryDaysRef = React.useRef(0);
+  const startDateRef = React.useRef("");
+  const endDateRef = React.useRef("");
   const searchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Dropdown open states
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isExpiryOpen, setIsExpiryOpen] = useState(false);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -143,12 +153,13 @@ export default function LotClient({
       const target = event.target as HTMLElement;
       if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
       if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
+      if (!target.closest("[data-filter-expiry]")) setIsExpiryOpen(false);
     };
-    if (isCategoryOpen || isStatusOpen) {
+    if (isCategoryOpen || isStatusOpen || isExpiryOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isCategoryOpen, isStatusOpen]);
+  }, [isCategoryOpen, isStatusOpen, isExpiryOpen]);
 
   const fetchLotsPage = async (
     page: number,
@@ -164,6 +175,9 @@ export default function LotClient({
         warehouse: warehouse !== "ทั้งหมด" ? warehouse : undefined,
         category: category !== "ทั้งหมด" ? category : undefined,
         status: status !== "ALL" ? status : undefined,
+        start_date: startDateRef.current || undefined,
+        end_date: endDateRef.current || undefined,
+        expiry_days: expiryDaysRef.current > 0 ? expiryDaysRef.current : undefined,
       });
       setLots(result.items);
       setServerTotal(result.meta.total);
@@ -259,6 +273,14 @@ export default function LotClient({
     setCurrentPage(1);
     pageRef.current = 1;
     fetchLotsPage(1, searchTermRef.current, warehouseRef.current, categoryRef.current, value);
+  };
+
+  const handleExpiryDaysFilter = (value: number) => {
+    setExpiryDays(value);
+    expiryDaysRef.current = value;
+    setCurrentPage(1);
+    pageRef.current = 1;
+    fetchLotsPage(1, searchTermRef.current, warehouseRef.current, categoryRef.current, statusRef.current);
   };
 
   const openAdjustModal = (lot: LotInterface.UiLot) => {
@@ -426,6 +448,11 @@ export default function LotClient({
     const date = new Date(dateStr);
     return date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
+  const formatDateTime = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return date.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
@@ -447,7 +474,7 @@ export default function LotClient({
           {selectedItems.size > 0 && (
             <button
               onClick={() => printLabels(Array.from(selectedItems.values()))}
-              className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
               พิมพ์สติกเกอร์ ({selectedItems.size})
@@ -496,7 +523,7 @@ export default function LotClient({
         <div className="relative" data-filter-status>
           <button
             type="button"
-            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); }}
+            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); setIsExpiryOpen(false); }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{{ ALL: "สถานะทั้งหมด", NEAR: "ใกล้หมดอายุ", EXPIRED: "หมดอายุ", ACTIVE: "ใช้งานได้", INACTIVE: "ระงับการใช้งาน" }[statusFilter] || "สถานะทั้งหมด"}</span>
@@ -521,6 +548,107 @@ export default function LotClient({
             </div>
           )}
         </div>
+
+        {/* Expiry Days Dropdown */}
+        <div className="relative" data-filter-expiry>
+          <button
+            type="button"
+            onClick={() => { setIsExpiryOpen(!isExpiryOpen); setIsCategoryOpen(false); setIsStatusOpen(false); }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[180px] justify-between"
+          >
+            <span className="text-slate-800 font-medium">
+              {expiryDays === 0 ? "วันหมดอายุ" : `หมดใน ${expiryDays} วัน`}
+            </span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpiryOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isExpiryOpen && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full">
+              <ul className="py-1">
+                {[{ value: 0, label: "ทั้งหมด" }, { value: 7, label: "หมดใน 7 วัน" }, { value: 30, label: "หมดใน 30 วัน" }, { value: 60, label: "หมดใน 60 วัน" }, { value: 90, label: "หมดใน 90 วัน" }].map(opt => (
+                  <li key={opt.value}>
+                    <button
+                      type="button"
+                      onClick={() => { handleExpiryDaysFilter(opt.value); setIsExpiryOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${expiryDays === opt.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Date range */}
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            startDate || startDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันรับเข้า (เริ่มต้น)</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              startDateRef.current = e.target.value;
+              setCurrentPage(1); pageRef.current = 1;
+              fetchLotsPage(1, searchTermRef.current, warehouseRef.current, categoryRef.current, statusRef.current);
+            }}
+            onFocus={() => setStartDateFocused(true)}
+            onBlur={() => setStartDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
+          />
+        </div>
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            endDate || endDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันรับเข้า (สิ้นสุด)</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              endDateRef.current = e.target.value;
+              setCurrentPage(1); pageRef.current = 1;
+              fetchLotsPage(1, searchTermRef.current, warehouseRef.current, categoryRef.current, statusRef.current);
+            }}
+            onFocus={() => setEndDateFocused(true)}
+            onBlur={() => setEndDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
+          />
+        </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedWarehouse !== "ทั้งหมด" || selectedCategory !== "ทั้งหมด" || statusFilter !== "ALL" || expiryDays !== 0 || startDate || endDate) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm(""); searchTermRef.current = "";
+              setSelectedWarehouse("ทั้งหมด"); warehouseRef.current = "ทั้งหมด";
+              setSelectedCategory("ทั้งหมด"); categoryRef.current = "ทั้งหมด";
+              setStatusFilter("ALL"); statusRef.current = "ALL";
+              setExpiryDays(0); expiryDaysRef.current = 0;
+              setStartDate(""); startDateRef.current = "";
+              setEndDate(""); endDateRef.current = "";
+              setCurrentPage(1); pageRef.current = 1;
+              fetchLotsPage(1, "", "ทั้งหมด", "ทั้งหมด", "ALL");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Content - Main Lot Management Table */}
@@ -586,7 +714,7 @@ export default function LotClient({
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </th>
-                  <th className="px-6 py-4 w-[60px] text-center">#</th>
+                  <th className="px-6 py-4 w-[120px]">วันที่รับเข้า</th>
                   <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
                   <th className="px-6 py-4 w-[100px]">รหัส LOT</th>
                   <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
@@ -622,7 +750,7 @@ export default function LotClient({
                           className="w-4 h-4 accent-blue-600 cursor-pointer"
                         />
                       </td>
-                      <td className="px-6 py-2.5 text-center font-medium text-slate-600">{rowNumber}</td>
+                      <td className="px-6 py-2.5 text-slate-600 text-xs">{formatDateTime(lot.createdAt)}</td>
                       <td className="px-6 py-2.5 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
                       <td className="px-6 py-2.5 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
                       <td className="px-6 py-2.5">

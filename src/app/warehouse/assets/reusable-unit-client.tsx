@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search, X } from "lucide-react";
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
@@ -201,7 +201,7 @@ export default function ReusableUnitClient() {
           {selectedItems.size > 0 && (
             <button
               onClick={() => printLabels(Array.from(selectedItems.values()))}
-              className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
               พิมพ์สติกเกอร์ ({selectedItems.size})
@@ -294,6 +294,24 @@ export default function ReusableUnitClient() {
             </div>
           )}
         </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "ทั้งหมด") && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm(""); keywordRef.current = "";
+              setSelectedCategory("หมวดหมู่ทั้งหมด");
+              setSelectedStatus("ทั้งหมด");
+              setCurrentPage(1); pageRef.current = 1;
+              fetchPage(1, "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "60vh" }}>

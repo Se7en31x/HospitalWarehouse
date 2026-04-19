@@ -323,15 +323,12 @@ export default function AssetRegistryClient({
                     <h2 className="text-3xl font-bold text-gray-800">
                         {masterItem?.name || "กำลังโหลด..."}
                     </h2>
-                    {masterItem?.code && (
-                        <span className="text-sm text-slate-400 font-mono">{masterItem.code}</span>
-                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     {selectedAssets.size > 0 && (
                         <button
                             onClick={() => printLabels(Array.from(selectedAssets.values()))}
-                            className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+                            className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
                         >
                             <Printer className="w-4 h-4" />
                             พิมพ์ป้ายครุภัณฑ์ ({selectedAssets.size})
@@ -420,6 +417,24 @@ export default function AssetRegistryClient({
                         </div>
                     )}
                 </div>
+
+                {/* Clear filters */}
+                {(searchTerm || selectedDepartment !== "แผนกประจำการทั้งหมด" || selectedStatus !== "สถานะทั้งหมด") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(""); keywordRef.current = "";
+                      setSelectedDepartment("แผนกประจำการทั้งหมด");
+                      setSelectedStatus("สถานะทั้งหมด");
+                      setCurrentPage(1); pageRef.current = 1;
+                      fetchPage(1, "");
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    ล้างตัวกรอง
+                  </button>
+                )}
             </div>
 
             {/* Table Content */}
@@ -468,7 +483,6 @@ export default function AssetRegistryClient({
                                         title="เลือกทั้งหมดในหน้านี้"
                                     />
                                 </th>
-                                <th className="px-6 py-4 w-[50px]">#</th>
                                 <th className="px-6 py-4 w-[150px]">รหัสครุภัณฑ์</th>
                                 <th className="px-6 py-4 w-[150px]">Serial Number</th>
                                 <th className="px-6 py-4 w-[180px]">แผนกประจำการ</th>
@@ -491,7 +505,6 @@ export default function AssetRegistryClient({
                                                 className="w-4 h-4 accent-blue-600 cursor-pointer"
                                             />
                                         </td>
-                                        <td className="px-6 py-2.5 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                                         <td className="px-6 py-2.5">{rec.asset_code}</td>
                                         <td className="px-6 py-2.5 font-mono text-slate-600">{rec.serial_no || <span className="text-slate-300 italic text-xs">N/A</span>}</td>
                                         <td className="px-6 py-2.5 text-slate-600">{rec.department_name || "ส่วนกลาง"}</td>
@@ -532,7 +545,7 @@ export default function AssetRegistryClient({
                             })}
                             {paginatedRecords.length === 0 && !isFetching && (
                                 <tr>
-                                    <td colSpan={9}>
+                                    <td colSpan={8}>
                                         {fetchError ? (
                                             <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
                                                 <AlertTriangle className="w-10 h-10 text-rose-300" />

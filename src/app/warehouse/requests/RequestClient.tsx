@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, X } from "lucide-react";
 import Swal from "sweetalert2";
 import {
   getAllRequisitions,
@@ -34,6 +34,10 @@ const RequestClient = () => {
   const router = useRouter();
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isCancelLoading, setIsCancelLoading] = useState<string | number | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startDateFocused, setStartDateFocused] = useState(false);
+  const [endDateFocused, setEndDateFocused] = useState(false);
   
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
@@ -145,7 +149,16 @@ const RequestClient = () => {
   const filteredRequests = requests.filter(req => {
     const matchesStatus = activeTab === "all" || req.status === activeTab;
     const matchesType = selectedType === "all" || req.type === selectedType;
-    return matchesStatus && matchesType;
+    const matchDate =
+      !startDate && !endDate
+        ? true
+        : (() => {
+            const d = new Date(req.request_date);
+            const s = startDate ? new Date(startDate) : null;
+            const e = endDate ? new Date(endDate) : null;
+            return (!s || d >= s) && (!e || d <= e);
+          })();
+    return matchesStatus && matchesType && matchDate;
   });
 
   // Sort: active statuses first, then oldest first within each group
@@ -271,6 +284,64 @@ const RequestClient = () => {
           )}
         </div>
 
+        {/* Date range */}
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            startDate || startDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันที่เริ่มต้น</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            onFocus={() => setStartDateFocused(true)}
+            onBlur={() => setStartDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
+          />
+        </div>
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            endDate || endDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันที่สิ้นสุด</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            onFocus={() => setEndDateFocused(true)}
+            onBlur={() => setEndDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
+          />
+        </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedType !== "all" || startDate || endDate) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm("");
+              keywordRef.current = "";
+              setSelectedType("all");
+              setStartDate("");
+              setEndDate("");
+              setCurrentPage(1);
+              pageRef.current = 1;
+              fetchPage(1, "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Status Tab Bar */}
@@ -298,14 +369,38 @@ const RequestClient = () => {
       </div>
 
       {/* Table Section */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col relative" style={{ height: '65vh' }}>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col relative" style={{ height: '60vh' }}>
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center backdrop-blur-[1px]">
             <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
           </div>
         )}
 
-        <div className="flex-1 overflow-auto">
+        <div
+          className="flex-1"
+          style={{
+            overflowX: 'auto',
+            overflowY: 'auto',
+            scrollbarWidth: 'auto',
+            msOverflowStyle: 'auto',
+          } as React.CSSProperties}
+        >
+          <style>{`
+            div::-webkit-scrollbar {
+              width: 0;
+              height: 8px;
+            }
+            div::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            div::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+            }
+            div::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
               <tr>

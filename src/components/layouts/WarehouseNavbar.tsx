@@ -55,7 +55,7 @@ export default function WarehouseNavbar() {
         <div className="flex items-center justify-between px-8 py-3.5">
 
           {/* Logo + Title */}
-          <div className="flex items-center gap-5">
+          <a href="https://www.hpk-hms.site/" className="flex items-center gap-5 hover:opacity-90 transition-opacity">
             <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-md overflow-hidden">
               <Image
                 src="https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png"
@@ -73,7 +73,7 @@ export default function WarehouseNavbar() {
                 ระบบจัดการแผนกคลังหลักโรงพยาบาล
               </span>
             </div>
-          </div>
+          </a>
 
           {/* Right: Bell + Avatar */}
           <div className="flex items-center gap-4">

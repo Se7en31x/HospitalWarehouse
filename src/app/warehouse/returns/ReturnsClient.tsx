@@ -154,6 +154,8 @@ export default function ReturnsClient() {
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [startDateFocused, setStartDateFocused] = useState(false);
+  const [endDateFocused, setEndDateFocused] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [serverTotal, setServerTotal] = useState(0);
   const [serverTotalPages, setServerTotalPages] = useState(0);
@@ -312,24 +314,63 @@ export default function ReturnsClient() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">ตั้งแต่</label>
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            startDate || startDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันที่เริ่มต้น</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+            onFocus={() => setStartDateFocused(true)}
+            onBlur={() => setStartDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">ถึง</label>
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            endDate || endDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันที่สิ้นสุด</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+            onFocus={() => setEndDateFocused(true)}
+            onBlur={() => setEndDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
           />
         </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedStatus !== "สถานะทั้งหมด" || startDate || endDate) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm("");
+              keywordRef.current = "";
+              setSelectedStatus("สถานะทั้งหมด");
+              setStartDate("");
+              setEndDate("");
+              setCurrentPage(1);
+              pageRef.current = 1;
+              fetchPage(1, "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Table */}

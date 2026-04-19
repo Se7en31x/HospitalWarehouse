@@ -12,9 +12,10 @@ import { SweetAlertUtils } from "@/utils/sweetAlert";
 import CartModal from "./CartModal";
 import ItemDetailModal from "./ItemDetailModal";
 
-// Helper function เพื่อดึงข้อความ Error
+// Helper function เพื่อดึงข้อความ Error (รองรับทั้ง Error instance และ plain object จาก apiClient)
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String((error as Record<string, unknown>).message);
   return String(error);
 };
 
@@ -126,8 +127,13 @@ export default function WithdrawClient({ initialItems }: Props) {
 
       console.log(`[WithdrawClient] Fetched page ${page}, total items: ${result.meta.total}`);
     } catch (error) {
-      console.error("Fetch error:", error);
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลล้มเหลว");
+      const msg = getErrorMessage(error);
+      console.error("Fetch error:", msg);
+      // 401 = session expired, don't spam user with popups
+      const status = (error as Record<string, unknown>)?.status;
+      if (status !== 401) {
+        SweetAlertUtils.error("เกิดข้อผิดพลาด", msg || "โหลดข้อมูลล้มเหลว");
+      }
     } finally {
       setIsFetching(false);
     }
@@ -235,23 +241,17 @@ export default function WithdrawClient({ initialItems }: Props) {
   // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
     if (!isAuthLoading && departments.length > 0) {
-      const DEPT_TH_KEYS = new Set(["Emergency","Dental","Palliative","OPD","IPD","MedicalRecords","Pharmacy","Warehouse"]);
-      const clinicalDepts = departments.filter((d) => DEPT_TH_KEYS.has(d.name));
-      if (!clinicalDepts.length) return;
-
       const savedDept = localStorage.getItem("withdraw_dept");
       const savedDeptId = savedDept ? Number(savedDept) : null;
-      const isValid = savedDeptId !== null && clinicalDepts.some((d) => d.id === savedDeptId);
+      const isValid = savedDeptId !== null && departments.some((d) => d.id === savedDeptId);
 
       if (isValid && savedDeptId !== null) {
         setSelectedDeptId(savedDeptId);
       } else {
-        const metaDept = user?.app_metadata?.department as string | undefined;
-        const metaMatch = metaDept ? clinicalDepts.find((d) => d.name === metaDept || d.code === metaDept) : null;
-        setSelectedDeptId(metaMatch ? metaMatch.id : clinicalDepts[0].id);
+        setSelectedDeptId(departments[0].id);
       }
     }
-  }, [isAuthLoading, departments, user]);
+  }, [isAuthLoading, departments.length]);
 
   // --- [Persist Cart & Department to LocalStorage] ---
   useEffect(() => {
@@ -427,40 +427,6 @@ export default function WithdrawClient({ initialItems }: Props) {
         </div>
       </div>
 
-      {/* Scanner Bar */}
-      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
-        <label className="block text-sm font-semibold text-indigo-900 mb-2 flex items-center gap-1.5">
-          <ScanBarcode className="w-4 h-4" />
-          สแกนบาร์โค้ด (รหัสพัสดุ / Lot Code / รหัสชิ้น)
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            autoFocus
-            value={scanInput}
-            onChange={(e) => setScanInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); void handleScan(); }
-            }}
-            placeholder="สแกนหรือพิมพ์รหัส แล้วกด Enter..."
-            className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none bg-white"
-          />
-          <button
-            type="button"
-            onClick={() => void handleScan()}
-            disabled={isScanning || !scanInput.trim()}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
-          >
-            {isScanning ? "กำลังค้นหา..." : "สแกน"}
-          </button>
-        </div>
-        {scanMsg && (
-          <p className={`mt-2 text-sm font-medium ${scanMsg.startsWith("❌") ? "text-red-600" : "text-green-600"}`}>
-            {scanMsg}
-          </p>
-        )}
-      </div>
-
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         <div className="relative w-64">
@@ -600,6 +566,30 @@ export default function WithdrawClient({ initialItems }: Props) {
             </div>
           )}
         </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedUnit !== "หน่วยทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedCategory("หมวดหมู่ทั้งหมด");
+              setSelectedUnit("หน่วยทั้งหมด");
+              setSelectedLocation("ตำแหน่งทั้งหมด");
+              setCurrentPage(1);
+              pageRef.current = 1;
+              categoryRef.current = "หมวดหมู่ทั้งหมด";
+              unitRef.current = "หน่วยทั้งหมด";
+              locationRef.current = "ตำแหน่งทั้งหมด";
+              searchRef.current = "";
+              fetchPage(1, "หมวดหมู่ทั้งหมด", "หน่วยทั้งหมด", "ตำแหน่งทั้งหมด", "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Table Content */}
@@ -639,23 +629,23 @@ export default function WithdrawClient({ initialItems }: Props) {
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[20px]">#</th>
-                <th className="px-6 py-4 w-[50px]">รูป</th>
-                <th className="px-6 py-4 w-[100px]">รหัส</th>
-                <th className="px-6 py-4 w-[180px]">ชื่อรายการ</th>
-                <th className="px-6 py-4 w-[100px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[110px]">ประเภท</th>
-                <th className="px-6 py-4 w-[100px]">ตำแหน่ง</th>
-                <th className="px-6 py-4 w-[100px]">สต็อก</th>
-                <th className="px-6 py-4 w-[80px]">หน่วย</th>
-                <th className="px-6 py-4 text-right w-[80px]">จัดการ</th>
+                <th className="px-4 py-4 w-[20px]">#</th>
+                <th className="px-4 py-4 w-[50px]">รูป</th>
+                <th className="px-5 py-4 w-[100px]">รหัส</th>
+                <th className="px-5 py-4 w-[180px]">ชื่อรายการ</th>
+                <th className="px-5 py-4 w-[100px]">หมวดหมู่</th>
+                <th className="px-5 py-4 w-[110px]">ประเภท</th>
+                <th className="px-5 py-4 w-[100px]">ตำแหน่ง</th>
+                <th className="px-5 py-4 w-[100px]">สต็อก</th>
+                <th className="px-5 py-4 w-[80px]">หน่วย</th>
+                <th className="px-5 py-4 text-right w-[80px]">จัดการ</th>
               </tr>
             </thead>
             <tbody className="text-slate-600">
               {displayItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-2 w-[20px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-2 w-[50px]">
+                  <td className="px-4 py-2 w-[20px] text-center">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-4 py-2 w-[50px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <button
@@ -669,14 +659,14 @@ export default function WithdrawClient({ initialItems }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-2 w-[100px]">{item.code}</td>
-                  <td className="px-6 py-2 w-[180px]">{item.name}</td>
-                  <td className="px-6 py-2 w-[100px]">{item.category}</td>
-                  <td className="px-6 py-2 w-[110px]">
+                  <td className="px-5 py-2 w-[100px]">{item.code}</td>
+                  <td className="px-5 py-2 w-[180px]">{item.name}</td>
+                  <td className="px-5 py-2 w-[100px]">{item.category}</td>
+                  <td className="px-5 py-2 w-[110px]">
                     {getTypeDisplay(item.type)}
                   </td>
-                  <td className="px-6 py-2 w-[100px]">{item.location}</td>
-                  <td className="px-6 py-2 w-[100px]">
+                  <td className="px-5 py-2 w-[100px]">{item.location}</td>
+                  <td className="px-5 py-2 w-[100px]">
                     {item.type === "REUSABLE" ? (
                       <div className="relative group inline-block cursor-help">
                         <span className={`font-bold text-base ${

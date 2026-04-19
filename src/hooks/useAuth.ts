@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client"; 
 import { User } from "@supabase/supabase-js";
+import { getProfile, ProfileDepartment } from "@/services/profileService";
 
 // กำหนดโครงสร้างรอไว้เลยครับ
 interface SystemOption {
@@ -26,21 +27,14 @@ export const useAuth = () => {
         if (user) {
           setUser(user);
 
-          // --- ส่วนการแกะ DATA ---
-          // 1. แกะ Systems (อิงตาม JSON ที่เรา Decode ได้)
-          const systemsRaw = user.app_metadata?.systems || [];
-          
-          const systemOptions = systemsRaw.map((s: any) => ({
-            id: s.id,      // ดึง ID มาแล้ว!
-            name: s.name,  // ชื่อระบบ เช่น 'Administration'
-            code: s.name,  // ใช้ชื่อเป็น code ไปด้วยเลย
-          }));
-          
-          setDepartments(systemOptions);
-
-          // 2. ถ้าคุณอยากได้แผนก (Departments) แยกต่างหาก ก็ทำได้เหมือนกัน:
-          // const deptsRaw = user.app_metadata?.departments || [];
-          // console.log("Departments list:", deptsRaw);
+          // ดึง departments จาก Profile API (ฐานข้อมูลจริง)
+          const profile = await getProfile();
+          const depts: ProfileDepartment[] = profile.departments || [];
+          setDepartments(depts.map((d) => ({
+            id: d.id,
+            name: d.name,
+            code: d.code,
+          })));
         }
       } catch (error) {
         console.error("Error fetching auth:", error);

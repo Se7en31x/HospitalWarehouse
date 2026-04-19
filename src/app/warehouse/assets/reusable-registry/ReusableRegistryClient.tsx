@@ -355,7 +355,7 @@ export default function ReusableRegistryClient({
           {selectedUnits.size > 0 && (
             <button
               onClick={() => printLabels(Array.from(selectedUnits.values()))}
-              className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
               พิมพ์บาร์โค้ด ({selectedUnits.size})
@@ -444,6 +444,24 @@ export default function ReusableRegistryClient({
             </div>
           )}
         </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedDepartment !== "แผนกประจำการทั้งหมด" || selectedStatus !== "สถานะทั้งหมด") && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm(""); keywordRef.current = "";
+              setSelectedDepartment("แผนกประจำการทั้งหมด");
+              setSelectedStatus("สถานะทั้งหมด");
+              setCurrentPage(1); pageRef.current = 1;
+              fetchPage(1, "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Table Content */}
@@ -493,7 +511,6 @@ export default function ReusableRegistryClient({
                     title="เลือกทั้งหมดในหน้านี้"
                   />
                 </th>
-                <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[140px]">Unit Code</th>
                 <th className="px-6 py-4 w-[140px]">Serial</th>
                 <th className="px-6 py-4 w-[140px]">แผนก</th>
@@ -515,7 +532,6 @@ export default function ReusableRegistryClient({
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </td>
-                  <td className="px-6 py-2.5 w-[50px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                   <td className="px-6 py-2.5 w-[140px] font-mono">{rec.unit_code}</td>
                   <td className="px-6 py-2.5 w-[140px] truncate">{rec.serial_no || "-"}</td>
                   <td className="px-6 py-2.5 w-[140px] truncate">{rec.department_name || "ส่วนกลาง"}</td>
@@ -543,7 +559,7 @@ export default function ReusableRegistryClient({
               ))}
               {paginatedRecords.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={9}>
                     {fetchError ? (
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
                         <AlertTriangle className="w-10 h-10 text-rose-300" />

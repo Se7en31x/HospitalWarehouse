@@ -537,6 +537,30 @@ export default function BorrowClient({ initialItems }: Props) {
             </div>
           )}
         </div>
+
+        {/* Clear filters */}
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedUnit !== "หน่วยทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedCategory("หมวดหมู่ทั้งหมด");
+              setSelectedUnit("หน่วยทั้งหมด");
+              setSelectedLocation("ตำแหน่งทั้งหมด");
+              setCurrentPage(1);
+              pageRef.current = 1;
+              categoryRef.current = "หมวดหมู่ทั้งหมด";
+              unitRef.current = "หน่วยทั้งหมด";
+              locationRef.current = "ตำแหน่งทั้งหมด";
+              searchRef.current = "";
+              fetchPage(1, "หมวดหมู่ทั้งหมด", "หน่วยทั้งหมด", "ตำแหน่งทั้งหมด", "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Table Content */}

@@ -113,7 +113,7 @@ export default function BarcodePrinter({
   const handlePrint = () => {
     if (!printAreaRef.current) return;
 
-    const win = window.open("", "_blank", "width=300,height=200,toolbar=0,menubar=0,scrollbars=0");
+    const win = window.open("", "_blank", "width=800,height=600,toolbar=0,menubar=0,scrollbars=1,resizable=1");
     if (!win) return;
 
     win.document.write(`<!DOCTYPE html>

@@ -4,12 +4,13 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, Edit, Package, ChevronLeft, ChevronRight,
-  ChevronDown, ClipboardList, X
+  ChevronDown, ClipboardList, X, Printer
 } from "lucide-react";
 
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
 import { getAssetCounts } from "@/services/assetService";
+import { printLabels, type LabelData } from "@/lib/printLabel";
 
 const ASSET_PAGE_LIMIT = 10;
 import { socket } from "../../../lib/socket";
@@ -170,6 +171,25 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item.UiItem | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Map<string, LabelData>>(new Map());
+
+  const toggleSelect = (item: Item.UiItem) =>
+    setSelectedItems((prev) => {
+      const s = new Map(prev);
+      s.has(item.id) ? s.delete(item.id) : s.set(item.id, { name: item.name, code: item.code });
+      return s;
+    });
+
+  const toggleSelectAll = () => {
+    const allSel = paginatedItems.every((i) => selectedItems.has(i.id));
+    setSelectedItems((prev) => {
+      const s = new Map(prev);
+      allSel
+        ? paginatedItems.forEach((i) => s.delete(i.id))
+        : paginatedItems.forEach((i) => s.set(i.id, { name: i.name, code: i.code }));
+      return s;
+    });
+  };
 
   // --- [Filter Logic] ---
   const filterCategories = ["หมวดหมู่ทั้งหมด", ...categories.map(c => c.name)];
@@ -237,7 +257,18 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">จัดการครุภัณฑ์</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-3xl font-bold text-gray-800">จัดการครุภัณฑ์</h2>
+          {selectedItems.size > 0 && (
+            <button
+              onClick={() => printLabels(Array.from(selectedItems.values()))}
+              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              พิมพ์สติกเกอร์ ({selectedItems.size})
+            </button>
+          )}
+        </div>
         <div className="flex border-b border-slate-200">
           <button
             onClick={() => router.push('/warehouse/assets?mode=reusable')}
@@ -349,6 +380,24 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
             </div>
           )}
         </div> */}
+
+        {/* Clear filters */}
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "ทั้งหมด") && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm(""); keywordRef.current = "";
+              setSelectedCategory("หมวดหมู่ทั้งหมด");
+              setSelectedStatus("ทั้งหมด");
+              setCurrentPage(1); pageRef.current = 1;
+              fetchPage(1, "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Table Content */}
@@ -388,6 +437,15 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
+                <th className="px-4 py-4 w-[44px] text-center">
+                  <input
+                    type="checkbox"
+                    checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    title="เลือกทั้งหมดในหน้านี้"
+                  />
+                </th>
                 <th className="px-6 py-4 w-[100px]">รูป</th>
                 <th className="px-6 py-4 w-[150px]">รหัส</th>
                 <th className="px-6 py-4 w-[300px]">ชื่อครุภัณฑ์</th>
@@ -401,6 +459,14 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
             <tbody className="text-slate-600">
               {paginatedItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                  <td className="px-4 py-3 w-[44px] text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(item.id)}
+                      onChange={() => toggleSelect(item)}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-6 py-3 w-[100px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (

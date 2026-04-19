@@ -238,6 +238,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
   if (!requisition) return null;
 
   const isPending       = requisition.status === "PENDING";
+  const isApproved      = requisition.status === "APPROVED";
   const isBorrow        = requisition.type   === "BORROW";
   const bd              = requisition.borrower_details as BorrowerDetails | null | undefined;
 
@@ -261,11 +262,12 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
           </div>
           {/* Right: action group */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {isPending && (
+            {(isPending || isApproved) && (
               <button
-                onClick={handleCancel}
-                disabled={isCancelling}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+                onClick={isPending ? handleCancel : undefined}
+                disabled={isCancelling || isApproved}
+                title={isApproved ? "ไม่สามารถยกเลิกได้หลังจากอนุมัติแล้ว" : undefined}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               >
                 {isCancelling && <Loader2 className="w-4 h-4 animate-spin" />}
                 ยกเลิกคำขอ
@@ -273,7 +275,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
             )}
             <button
               onClick={() => router.push("/request/history")}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-100 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-300 bg-blue-50 text-blue-600 text-sm font-medium hover:bg-blue-100 transition-colors"
             >
               ย้อนกลับ
             </button>

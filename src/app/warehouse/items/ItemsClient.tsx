@@ -278,7 +278,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
           {selectedItems.size > 0 && (
             <button
               onClick={handleBulkPrint}
-              className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 text-sm font-semibold flex items-center gap-2 shadow-md"
+              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
               พิมพ์สติกเกอร์ ({selectedItems.size})
@@ -383,6 +383,24 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
             </div>
           )}
         </div> */}
+
+        {/* Clear filters */}
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "สถานะทั้งหมด") && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm(""); keywordRef.current = "";
+              setSelectedCategory("หมวดหมู่ทั้งหมด");
+              setSelectedStatus("สถานะทั้งหมด");
+              setCurrentPage(1); pageRef.current = 1;
+              fetchPage(1, "");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>

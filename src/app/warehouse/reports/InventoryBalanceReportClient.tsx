@@ -5,11 +5,28 @@ import {
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
-	Download,
-	FileText,
 	Search,
 	Warehouse,
+	X,
 } from "lucide-react";
+
+const CsvIcon = () => (
+	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
+		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
+		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#4caf6e"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
+	</svg>
+);
+
+const PdfIcon = () => (
+	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
+		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
+		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#e53935"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">PDF</text>
+	</svg>
+);
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { apiClient } from "@/lib/apiClient";
 import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
@@ -403,21 +420,38 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 				</div>
 
 				<div className="ml-auto flex items-center gap-2">
+					{(searchTerm || selectedWarehouse || selectedCategory || selectedUnit || selectedStockLevel) && (
+						<button
+							type="button"
+							onClick={() => {
+								setSearchTerm("");
+								setSelectedWarehouse("");
+								setSelectedCategory("");
+								setSelectedUnit("");
+								setSelectedStockLevel("");
+								setCurrentPage(1);
+							}}
+							className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+						>
+							<X className="w-3.5 h-3.5" />
+							ล้างตัวกรอง
+						</button>
+					)}
 					<button
 						type="button"
+						title="Export PDF"
 						onClick={handleExportPdf}
-						className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold shadow-sm"
+						className="relative flex items-center p-1 bg-red-50 text-red-700 border border-red-300 rounded-lg hover:bg-red-100 transition-all shadow-sm"
 					>
-						<FileText className="w-4 h-4" />
-						Export PDF
+						<PdfIcon />
 					</button>
 					<button
 						type="button"
+						title="Export CSV"
 						onClick={handleExportCsv}
-						className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold shadow-sm"
+						className="relative flex items-center p-1 bg-green-50 text-green-700 border border-green-300 rounded-lg hover:bg-green-100 transition-all shadow-sm"
 					>
-						<Download className="w-4 h-4" />
-						Export CSV
+						<CsvIcon />
 					</button>
 				</div>
 			</div>
@@ -425,8 +459,10 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 			{/* Content */}
 			<div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "63vh" }}>
 				{isFetching && (
-					<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
-						<div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+					<div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
+						<div className="animate-spin">
+							<div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+						</div>
 					</div>
 				)}
 				<div 

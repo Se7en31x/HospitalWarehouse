@@ -27,6 +27,7 @@ export const mapApiLotToUi = (lot: Lot.ApiLot): Lot.UiLot => ({
     expiryDate: lot.expired_at,
     status: lot.status,
     expiryStatus: lot.expiry_status as Lot.ExpiryStatus,
+    createdAt: lot.created_at,
 });
 
 // ============ API Functions ============
@@ -43,6 +44,9 @@ export async function getLots(
         warehouse?: string;
         category?: string;
         status?: string;
+        start_date?: string;
+        end_date?: string;
+        expiry_days?: number;
     },
     token?: string
 ): Promise<PagedLots> {

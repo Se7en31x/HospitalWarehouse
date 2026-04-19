@@ -114,7 +114,7 @@ export function printLabels(labels: LabelData[]): void {
   const win = window.open(
     "",
     "_blank",
-    "width=340,height=220,toolbar=0,menubar=0,scrollbars=0,resizable=0"
+    "width=800,height=600,toolbar=0,menubar=0,scrollbars=1,resizable=1"
   );
   if (!win) return;
 

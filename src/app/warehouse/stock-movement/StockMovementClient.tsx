@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Package,
   UserRound,
+  X,
 } from "lucide-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { getStockMovements } from "@/services/stockMovementService";
@@ -54,6 +55,8 @@ const StockMovementClient = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [startDateFocused, setStartDateFocused] = useState(false);
+  const [endDateFocused, setEndDateFocused] = useState(false);
 
   // Pagination (server-side)
   const [currentPage, setCurrentPage] = useState(1);
@@ -181,24 +184,59 @@ const StockMovementClient = () => {
         </div>
 
         {/* Date range */}
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">ตั้งแต่</label>
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            startDate || startDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันที่เริ่มต้น</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+            onFocus={() => setStartDateFocused(true)}
+            onBlur={() => setStartDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600 font-medium">ถึง</label>
+        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+          endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+        }`}>
+          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+            endDate || endDateFocused
+              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+          }`}>วันที่สิ้นสุด</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+            onFocus={() => setEndDateFocused(true)}
+            onBlur={() => setEndDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
           />
         </div>
+
+        {/* Clear filters */}
+        {(keyword || selectedType || startDate || endDate) && (
+          <button
+            type="button"
+            onClick={() => {
+              setKeyword("");
+              setSelectedType("");
+              setStartDate("");
+              setEndDate("");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
+          >
+            <X className="w-3.5 h-3.5" />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -209,7 +247,7 @@ const StockMovementClient = () => {
         {isFetching && (
           <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
             <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full" />
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
             </div>
           </div>
         )}
@@ -246,8 +284,8 @@ const StockMovementClient = () => {
                 <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
                 <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[120px]">หน่วยนับ</th>
-                <th className="px-6 py-4 w-[120px]">จำนวน</th>
-                <th className="px-6 py-4 w-[160px]">ยอดคงเหลือ</th>
+                <th className="px-6 py-4 w-[100px]">จำนวน</th>
+                <th className="px-6 py-4 w-[180px]">ยอดคงเหลือ</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
                 <th className="px-6 py-4 w-[200px]">ผู้ดำเนินการ</th>
                 <th className="px-6 py-4 w-[160px]">วันที่และเวลา</th>
@@ -281,12 +319,10 @@ const StockMovementClient = () => {
                     </td>
                     <td className="px-6 py-[18px]">
                       {mv.balance_before != null && mv.balance_after != null ? (
-                        <div className="text-sm text-slate-600">
-                          <div className="font-medium">{fmt(mv.balance_after)}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">
-                            ก่อน:&nbsp;
-                            <span className="font-medium text-slate-500">{fmt(mv.balance_before)}</span>
-                          </div>
+                        <div className="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
+                          <span>ก่อน: <span className="font-medium text-slate-500">{fmt(mv.balance_before)}</span></span>
+                          <span className="text-slate-300">→</span>
+                          <span>หลัง: <span className="font-medium text-slate-700">{fmt(mv.balance_after)}</span></span>
                         </div>
                       ) : (
                         <span className="text-slate-400 text-xs">-</span>
@@ -297,12 +333,9 @@ const StockMovementClient = () => {
                     </td>
                     <td className="px-6 py-[18px] text-slate-600">
                       {mv.operator_name || mv.created_by ? (
-                        <div className="flex items-center gap-1.5">
-                          <UserRound className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="text-sm">
-                            {mv.operator_name ?? mv.created_by}
-                          </span>
-                        </div>
+                        <span className="text-sm">
+                          {mv.operator_name ?? mv.created_by}
+                        </span>
                       ) : (
                         <span className="text-slate-400 text-xs">ระบบอัตโนมัติ</span>
                       )}

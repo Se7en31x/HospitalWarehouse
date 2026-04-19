@@ -16,6 +16,7 @@ import {
   Phone,
   Upload,
   FileText,
+  Check,
   CheckCircle,
   AlertCircle,
   ChevronRight,
@@ -164,6 +165,9 @@ export default function BorrowCartModal({
   const titleDropdownRef = useRef<HTMLDivElement>(null);
   const [titleDropdownStyle, setTitleDropdownStyle] = useState<React.CSSProperties>({});
 
+  // ── Dept dropdown inline state ────────────────────────────────────────────
+  const deptWrapperRef = useRef<HTMLDivElement>(null);
+
   // ── Address lookup state ─────────────────────────────────────────────────
   const [provinces, setProvinces]             = useState<ProvinceOption[]>([]);
   const [districts, setDistricts]             = useState<DistrictOption[]>([]);
@@ -183,19 +187,16 @@ export default function BorrowCartModal({
   const [addressSearch, setAddressSearch]       = useState("");
   const addressPickerRef                        = useRef<HTMLDivElement>(null);
 
-  // ✅ Handle click-outside to close dropdown
+  // ✅ Handle click-outside to close dept dropdown
   React.useEffect(() => {
     if (!isDeptOpen) return;
-    
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest("[data-dept-dropdown]")) {
+    const handleClick = (e: MouseEvent) => {
+      if (deptWrapperRef.current && !deptWrapperRef.current.contains(e.target as Node)) {
         setIsDeptOpen(false);
       }
     };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, [isDeptOpen]);
 
   // ✅ Close dropdown when modal closes
@@ -555,20 +556,6 @@ export default function BorrowCartModal({
       return;
     }
 
-    const displayName = [externalForm.titleCode && titles.find(t => t.title_code === externalForm.titleCode)?.short_name, firstname, lastname].filter(Boolean).join(" ");
-    const confirm = await MySwal.fire({
-      title: "ยืนยันการยืม (บุคคลภายนอก)",
-      html: `<b>${displayName}</b><br/>${district}, ${province}<br/><br/>จำนวน: ${selectedItems.length} รายการ`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "ยืนยัน",
-      cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#059669",
-      reverseButtons: true,
-    });
-
-    if (!confirm.isConfirmed) return;
-
     setIsSubmitting(true);
     try {
       const payload: RequisitionPayload = {
@@ -820,7 +807,7 @@ export default function BorrowCartModal({
                   </div>
 
                   {/* Operator Department Section */}
-                  <div className="border border-slate-200 rounded-xl bg-white shadow-sm" data-dept-dropdown>
+                  <div className="border border-slate-200 rounded-xl bg-white shadow-sm">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
                       <User className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-slate-700">
@@ -828,52 +815,53 @@ export default function BorrowCartModal({
                       </span>
                     </div>
                     <div className="p-4">
-                      {/* Trigger button */}
-                      <button
-                        type="button"
-                        onClick={() => setIsDeptOpen(!isDeptOpen)}
-                        disabled={isSubmitting}
-                        className={`flex items-center justify-between gap-2 w-full border rounded-lg px-4 py-2.5 text-sm bg-white transition-colors disabled:opacity-50 ${
-                          isDeptOpen
-                            ? "border-blue-500 ring-2 ring-blue-200"
-                            : "border-slate-200 hover:border-blue-400"
-                        }`}
-                      >
-                        <span className={externalOperatorDeptId !== null ? "text-slate-800 font-medium" : "text-gray-400"}>
-                          {externalOperatorDeptId !== null
-                            ? (deptDisplayName(departments.find((d) => d.id === externalOperatorDeptId)?.name ?? "") ?? "-- เลือกแผนก --")
-                            : "-- เลือกแผนก --"}
-                        </span>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
-                      </button>
+                      {/* Inline wrapper — dropdown flows in document, never drifts on scroll */}
+                      <div ref={deptWrapperRef} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsDeptOpen((o) => !o)}
+                          disabled={isSubmitting}
+                          className={`flex items-center justify-between gap-2 w-full border rounded-lg px-4 py-2.5 text-sm bg-white transition-colors disabled:opacity-50 ${
+                            isDeptOpen
+                              ? "border-blue-500 ring-2 ring-blue-200"
+                              : "border-slate-200 hover:border-blue-400"
+                          }`}
+                        >
+                          <span className={externalOperatorDeptId !== null ? "text-slate-800 font-medium" : "text-gray-400"}>
+                            {externalOperatorDeptId !== null
+                              ? (departments.find((d) => d.id === externalOperatorDeptId)?.name ?? "-- เลือกแผนก --")
+                              : "-- เลือกแผนก --"}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+                        </button>
 
-                      {/* Inline panel — no absolute, no clipping */}
-                      {isDeptOpen && (
-                        <div className="mt-2 border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm">
-                          <ul className="overflow-y-auto" style={{ maxHeight: "220px" }}>
-                            {(departments || [])
-                              .filter((d) => DEPT_TH[d.name] !== undefined)
-                              .map((d) => (
+                        {/* Inline dropdown — anchored to trigger, scrolls with page */}
+                        {isDeptOpen && (
+                          <div className="absolute left-0 right-0 mt-1 z-50 border border-slate-200 rounded-xl bg-white shadow-xl overflow-hidden">
+                            <ul className="overflow-y-auto" style={{ maxHeight: "220px" }}>
+                              {(departments || []).map((d) => (
                                 <li key={d.id}>
                                   <button
                                     type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => {
                                       setExternalOperatorDeptId(d.id);
                                       setIsDeptOpen(false);
                                     }}
-                                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-l-4 ${
                                       d.id === externalOperatorDeptId
-                                        ? "bg-blue-50 text-blue-700 font-semibold"
-                                        : "text-slate-700 hover:bg-slate-50"
+                                        ? "bg-indigo-50 border-indigo-600 text-indigo-700 font-bold"
+                                        : "border-transparent text-slate-700 hover:bg-slate-50"
                                     }`}
                                   >
-                                    {deptDisplayName(d.name)}
+                                    {d.name}
                                   </button>
                                 </li>
                               ))}
-                          </ul>
-                        </div>
-                      )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -929,53 +917,23 @@ export default function BorrowCartModal({
                                 >
                                   -
                                 </button>
-                                {(() => {
-                                  const common = filteredTitles.filter((t) => t.is_common);
-                                  const others = filteredTitles.filter((t) => !t.is_common);
-                                  const TitleBtn = ({ t }: { t: typeof filteredTitles[0] }) => (
-                                    <button
-                                      key={t.title_code}
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => { handleExternalFormChange("titleCode", t.title_code); setIsTitleOpen(false); setTitleSearch(""); }}
-                                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                                        externalForm.titleCode === t.title_code
-                                          ? "bg-blue-50 text-blue-700 font-semibold"
-                                          : "text-gray-700 hover:bg-slate-50"
-                                      }`}
-                                    >
-                                      {t.short_name || t.name}
-                                    </button>
-                                  );
-                                  if (filteredTitles.length === 0) return (
-                                    <div className="px-3 py-4 text-xs text-gray-400 text-center">ไม่พบคำนำหน้า</div>
-                                  );
-                                  return (
-                                    <>
-                                      {common.length > 0 && (
-                                        <>
-                                          <div className="px-3 py-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wide bg-emerald-50 border-y border-emerald-100">
-                                            ใช้บ่อย
-                                          </div>
-                                          {common.map((t) => <TitleBtn key={t.title_code} t={t} />)}
-                                        </>
-                                      )}
-                                      {common.length > 0 && others.length > 0 && (
-                                        <div className="border-t border-slate-100 my-0.5" />
-                                      )}
-                                      {others.length > 0 && (
-                                        <>
-                                          {common.length > 0 && (
-                                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide bg-slate-50 border-y border-slate-100">
-                                              ทั้งหมด
-                                            </div>
-                                          )}
-                                          {others.map((t) => <TitleBtn key={t.title_code} t={t} />)}
-                                        </>
-                                      )}
-                                    </>
-                                  );
-                                })()}
+                                {filteredTitles.length === 0 ? (
+                                  <div className="px-3 py-4 text-xs text-gray-400 text-center">ไม่พบคำนำหน้า</div>
+                                ) : filteredTitles.map((t) => (
+                                  <button
+                                    key={t.title_code}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { handleExternalFormChange("titleCode", t.title_code); setIsTitleOpen(false); setTitleSearch(""); }}
+                                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                                      externalForm.titleCode === t.title_code
+                                        ? "bg-blue-50 text-blue-700 font-semibold"
+                                        : "text-gray-700 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {t.short_name || t.name}
+                                  </button>
+                                ))}
                               </div>
                             </div>,
                             document.body
@@ -1302,33 +1260,43 @@ export default function BorrowCartModal({
                       <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสาร</span>
                       <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB · สูงสุด 5 ไฟล์</span>
                     </div>
-                    <div className="p-4 space-y-2">
+                    <div className="px-4 pb-3 pt-2 space-y-0">
                       {/* File list */}
-                      {externalForm.documents.map((file, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                          {file.type === "application/pdf" ? (
-                            <div className="w-10 h-10 bg-red-50 border border-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <FileText className="w-5 h-5 text-red-500" />
-                            </div>
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-blue-100">
-                              <img src={URL.createObjectURL(file)} alt="preview" className="w-full h-full object-cover" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-800 truncate">{file.name}</p>
-                            <p className="text-[10px] text-gray-500">{formatFileSize(file.size)}</p>
+                      {externalForm.documents.map((file, idx) => {
+                        const isPdf = file.type === "application/pdf";
+                        const isImage = file.type.startsWith("image/");
+                        return (
+                          <div key={idx} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-b-0">
+                            {/* File type icon */}
+                            {isPdf ? (
+                              <div className="w-7 h-7 bg-red-50 border border-red-100 rounded-md flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-3.5 h-3.5 text-red-500" />
+                              </div>
+                            ) : isImage ? (
+                              <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 border border-slate-200">
+                                <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-7 h-7 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                              </div>
+                            )}
+                            <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">{file.name}</span>
+                            <span className="text-xs text-gray-500 flex-shrink-0 w-16 text-right">{formatFileSize(file.size)}</span>
+                            <button
+                              onClick={() => removeFile(idx)}
+                              disabled={isSubmitting}
+                              className="p-0.5 text-gray-400 hover:text-red-500 transition disabled:opacity-50 flex-shrink-0"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
-                          <button onClick={() => removeFile(idx)} disabled={isSubmitting}
-                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {/* Upload button — hide when max reached */}
                       {externalForm.documents.length < MAX_DOC_COUNT && (
-                        <label className={`flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
-                          fileError ? "border-red-300 bg-red-50" : "border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/30"
+                        <label className={`flex items-center gap-3 mt-2 p-3 border border-dashed rounded-lg cursor-pointer transition-all ${
+                          fileError ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-blue-400 hover:bg-blue-50/30"
                         }`}>
                           <input
                             ref={fileInputRef}
@@ -1339,17 +1307,15 @@ export default function BorrowCartModal({
                             multiple
                             className="sr-only"
                           />
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center ${fileError ? "bg-red-100" : "bg-blue-100"}`}>
-                            {fileError ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Upload className="w-5 h-5 text-blue-600" />}
-                          </div>
-                          <div className="text-center">
-                            <p className={`text-sm font-semibold ${fileError ? "text-red-600" : "text-gray-700"}`}>
-                              {fileError || "คลิกเพื่อเพิ่มไฟล์"}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {externalForm.documents.length}/{MAX_DOC_COUNT} ไฟล์ · PDF, JPG, PNG, WEBP, HEIC
-                            </p>
-                          </div>
+                          {fileError
+                            ? <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            : <Upload className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+                          <span className={`text-sm ${fileError ? "text-red-600" : "text-gray-500"}`}>
+                            {fileError || "คลิกเพื่อเพิ่มไฟล์"}
+                          </span>
+                          <span className="ml-auto text-xs text-gray-400">
+                            {externalForm.documents.length}/{MAX_DOC_COUNT}
+                          </span>
                         </label>
                       )}
                     </div>

@@ -42,18 +42,8 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
-const DEPT_TH: Record<string, string> = {
-  "Emergency":      "แผนกฉุกเฉิน",
-  "Dental":         "แผนกทันตกรรม",
-  "Palliative":     "ศูนย์ชีวาภิบาล",
-  "OPD":            "แผนกผู้ป่วยนอก",
-  "IPD":            "แผนกผู้ป่วยใน",
-  "MedicalRecords": "แผนกเวชระเบียน",
-  "Pharmacy":       "ห้องจ่ายยา",
-  "Warehouse":      "คลังหลัก",
-};
-/** Returns the Thai name, or null if the department is not in the clinical mapping. */
-const deptTh = (name?: string | null): string | null => (name ? (DEPT_TH[name] ?? null) : null);
+/** Returns the display name for a department (already Thai from DB). */
+const deptTh = (name?: string | null): string => name || "ไม่ระบุ";
 
 export default function CartModal({
   isOpen,
@@ -68,8 +58,8 @@ export default function CartModal({
 }: CartModalProps) {
   const [isDeptOpen, setIsDeptOpen] = useState(false);
 
-  // Only show departments that have a Thai clinical name in the mapping
-  const mappedDepts = departments.filter((d) => DEPT_TH[d.name] !== undefined);
+  // Show all departments from role, translate name if available
+  const mappedDepts = departments;
 
   // ตัวจัดการ click-outside สำหรับปิด dropdown
   React.useEffect(() => {
@@ -93,7 +83,8 @@ export default function CartModal({
     }
   }, [isOpen]);
 
-  const selectedDeptName = deptTh(departments.find((d) => d.id === selectedDeptId)?.name) ?? "-- กรุณาเลือกแผนก --";
+  const selectedDept = departments.find((d) => d.id === selectedDeptId);
+  const selectedDeptName = selectedDept ? deptTh(selectedDept.name) : "-- กรุณาเลือกแผนก --";
 
   const handleSubmit = async (): Promise<void> => {
     if (!selectedDeptId || selectedItems.length === 0) {
@@ -116,14 +107,28 @@ export default function CartModal({
       html: `เบิกในนามแผนก: <b class="text-indigo-600">${deptDisplayName}</b>`,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#4f46e5",
-      cancelButtonColor: "#f1f5f9",
+      confirmButtonColor: "#0055FF",
+      cancelButtonColor: "#ef4444",
       confirmButtonText: "ยืนยันส่งข้อมูล",
       cancelButtonText: "ตรวจสอบอีกครั้ง",
       reverseButtons: true,
     });
 
     if (!confirm.isConfirmed) return;
+
+    // Show loading
+    MySwal.fire({
+      html: `<div style="display:flex;justify-content:center;align-items:center;padding:24px 0">
+        <div style="width:52px;height:52px;border-radius:50%;border:5px solid transparent;border-top-color:#0055FF;animation:spin 0.8s linear infinite"></div>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`,
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      background: "transparent",
+      backdrop: "rgba(0,0,0,0.1)",
+      customClass: { popup: "shadow-none" },
+    });
 
     try {
       const payload: RequisitionPayload = {
@@ -179,10 +184,8 @@ export default function CartModal({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
-
-          {/* Department Selection - Dropdown Style */}
+        {/* Department Selection - outside scroll area so dropdown can overflow */}
+        <div className="px-6 pt-6 pb-0">
           <div className="border border-slate-300 rounded-lg p-4">
             <div className="relative" data-dept-dropdown>
               <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">
@@ -205,7 +208,7 @@ export default function CartModal({
                         <button
                           type="button"
                           onClick={() => {
-                            onDeptChange(d.id); 
+                            onDeptChange(d.id);
                             setIsDeptOpen(false);
                           }}
                           className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-l-4 ${d.id === selectedDeptId
@@ -219,7 +222,13 @@ export default function CartModal({
                     ))}
                   </ul>
                 </div>
-              )}            </div>          </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-4">
 
           {/* Table */}
           <div className="border border-slate-200 rounded-lg overflow-hidden">
