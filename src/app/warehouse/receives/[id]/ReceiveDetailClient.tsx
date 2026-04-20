@@ -308,15 +308,15 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
   const isMixedBatch = batch.headers.length > 1;
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 p-6 gap-5">
+    <div className="flex flex-col min-h-screen bg-white p-6 gap-5">
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">รายละเอียดการรับเข้า</h1>
         <button
           onClick={() => router.back()}
-          className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors"
+          className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
         >
-          ← ย้อนกลับ
+          ย้อนกลับ
         </button>
       </div>
 

@@ -146,7 +146,7 @@ export default function ReceiveClient() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-white p-6">
+        <div className="flex flex-col min-h-screen bg-white p-8">
             <Toaster position="top-right" />
 
             {apiError && (
@@ -161,8 +161,8 @@ export default function ReceiveClient() {
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-                <h2 className="text-2xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
                 <button onClick={() => router.push("/warehouse/receives/createform")}
                     className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-sm">
                     <Plus className="w-4 h-4" /> สร้างใบรับสินค้า
@@ -170,7 +170,7 @@ export default function ReceiveClient() {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-wrap gap-2 mb-5 items-center">
+            <div className="flex flex-wrap gap-3 mb-6 items-center">
                 <div className="relative w-60">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <input type="text" placeholder="ค้นหา Batch / เลขที่ / ผู้จำหน่าย..." value={keyword}
@@ -181,7 +181,7 @@ export default function ReceiveClient() {
                 {/* Type dropdown */}
                 <div className="relative" data-filter-type>
                     <button type="button" onClick={() => { setIsTypeOpen(!isTypeOpen); setIsStatusOpen(false); }}
-                        className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-slate-400 shadow-sm w-[170px] justify-between">
+                        className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between">
                         <span className="text-slate-700 font-medium truncate">{typeOptions.find(t => t.value === typeFilter)?.label}</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isTypeOpen ? "rotate-180" : ""}`} />
                     </button>
@@ -201,7 +201,7 @@ export default function ReceiveClient() {
                 {/* Status dropdown */}
                 <div className="relative" data-filter-status>
                     <button type="button" onClick={() => { setIsStatusOpen(!isStatusOpen); setIsTypeOpen(false); }}
-                        className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-slate-400 shadow-sm w-[170px] justify-between">
+                        className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between">
                         <span className="text-slate-700 font-medium truncate">{statusOptions.find(s => s.value === statusFilter)?.label}</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
                     </button>
@@ -249,24 +249,48 @@ export default function ReceiveClient() {
             </div>
 
             {/* Table */}
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm relative flex flex-col flex-1" style={{ minHeight: "400px" }}>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col flex-1 max-h-[65vh]">
                 {isFetching && (
                     <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
                         <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
                     </div>
                 )}
-                <div className="overflow-x-auto overflow-y-auto flex-1">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wide border-b border-slate-200 sticky top-0 z-10">
+                <div 
+                  className="flex-1" 
+                  style={{
+                    overflowX: 'auto',
+                    overflowY: 'auto',
+                    scrollbarWidth: 'auto',
+                    msOverflowStyle: 'auto',
+                  } as React.CSSProperties}
+                >
+                  <style>{`
+                    div::-webkit-scrollbar {
+                      width: 0;
+                      height: 8px;
+                    }
+                    div::-webkit-scrollbar-track {
+                      background: #f1f5f9;
+                    }
+                    div::-webkit-scrollbar-thumb {
+                      background: #cbd5e1;
+                      border-radius: 4px;
+                    }
+                    div::-webkit-scrollbar-thumb:hover {
+                      background: #94a3b8;
+                    }
+                  `}</style>
+                  <table className="w-full text-sm text-left table-fixed">
+                        <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                             <tr>
-                                <th className="px-5 py-3.5 w-10">#</th>
-                                <th className="px-5 py-3.5">Batch No.</th>
-                                <th className="px-5 py-3.5 w-44">วันที่รับ</th>
-                                <th className="px-5 py-3.5 w-56">ประเภท</th>
-                                <th className="px-5 py-3.5">ผู้จำหน่าย / ผู้บริจาค</th>
-                                <th className="px-5 py-3.5 w-24 text-center">รายการ</th>
-                                <th className="px-5 py-3.5 w-32">สถานะ</th>
-                                <th className="px-5 py-3.5 w-20 text-center">ดู</th>
+                                <th className="px-6 py-4 w-[50px]">#</th>
+                                <th className="px-6 py-4 w-[140px]">Batch No.</th>
+                                <th className="px-6 py-4 w-[180px]">วันที่รับ</th>
+                                <th className="px-6 py-4 w-[200px]">ประเภท</th>
+                                <th className="px-6 py-4 w-[200px]">ผู้จำหน่าย / ผู้บริจาค</th>
+                                <th className="px-6 py-4 w-[100px] text-center">รายการ</th>
+                                <th className="px-6 py-4 w-[150px]">สถานะ</th>
+                                <th className="px-6 py-4 w-[100px] text-center">ดู</th>
                             </tr>
                         </thead>
                         <tbody className="text-slate-600">
@@ -277,20 +301,20 @@ export default function ReceiveClient() {
 
                                 return (
                                     <tr key={batch.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                                        <td className="px-5 py-2.5 text-slate-400 text-xs">{(page - 1) * limit + idx + 1}</td>
-                                        <td className="px-5 py-2.5 font-mono text-xs text-slate-700 font-semibold">{batch.batch_no}</td>
-                                        <td className="px-5 py-2.5 text-xs text-slate-600 whitespace-nowrap">{fmtDate(batch.receive_date)}</td>
-                                        <td className="px-5 py-2.5">
+                                        <td className="px-6 py-3 text-slate-400 text-sm">{(page - 1) * limit + idx + 1}</td>
+                                        <td className="px-6 py-3 font-mono text-sm text-slate-700 font-semibold">{batch.batch_no}</td>
+                                        <td className="px-6 py-3 text-sm text-slate-600 whitespace-nowrap">{fmtDate(batch.receive_date)}</td>
+                                        <td className="px-6 py-3">
                                             <div className="flex flex-wrap gap-1">
                                                 {uniqueTypes.map(t => <TypeBadge key={t} type={t} />)}
                                             </div>
                                         </td>
-                                        <td className="px-5 py-2.5 text-sm text-slate-700 truncate max-w-[200px]">
+                                        <td className="px-6 py-3 text-sm text-slate-700 truncate">
                                             {batch.supplier_name || batch.donor_name || "-"}
                                         </td>
-                                        <td className="px-5 py-2.5 text-center text-sm font-medium">{itemCount}</td>
-                                        <td className="px-5 py-2.5"><StatusBadge status={status} /></td>
-                                        <td className="px-5 py-2.5 text-center">
+                                        <td className="px-6 py-3 text-center text-sm font-medium">{itemCount}</td>
+                                        <td className="px-6 py-3"><StatusBadge status={status} /></td>
+                                        <td className="px-6 py-3 text-center">
                                             <button onClick={() => viewBatch(batch.id)}
                                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                                 <Eye className="w-4 h-4" />
@@ -314,8 +338,8 @@ export default function ReceiveClient() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-slate-500">แสดง {records.length} จาก {total} Batch</p>
+            <div className="flex items-center justify-between mt-6">
+                <p className="text-sm text-slate-500">แสดง {records.length} จาก {total} รายการ</p>
                 <div className="flex items-center gap-2">
                     <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
                         className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50">

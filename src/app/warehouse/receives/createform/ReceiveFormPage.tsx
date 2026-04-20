@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CheckCircle2, ChevronLeft, Loader2, Printer, Search, Trash2, X, Zap,
+  Loader2, Search, Trash2, X, Plus, Save, CheckCircle2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
@@ -17,7 +17,7 @@ import { printLabels } from "@/lib/printLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ReceiveSource = "purchase" | "donation" | "transfer";
+type ReceiveSource = "purchase" | "donation";
 type ItemKind = "CONSUMABLE" | "REUSABLE" | "MED_ASSET";
 
 interface CatalogItem {
@@ -66,7 +66,6 @@ const KIND_CFG: Record<ItemKind, {
 const SOURCE_OPTIONS: { val: ReceiveSource; icon: string; label: string }[] = [
   { val: "purchase", icon: "🛒", label: "จัดซื้อ" },
   { val: "donation", icon: "🎁", label: "บริจาค" },
-  { val: "transfer", icon: "🔄", label: "รับโอน" },
 ];
 
 const INIT_DOC: DocMeta = {
@@ -87,7 +86,6 @@ function docNoPrefix(source: ReceiveSource, kind: ItemKind): string {
   if (kind === "REUSABLE") return "RUI";
   if (kind === "MED_ASSET") return "ASSET";
   if (source === "donation") return "DON";
-  if (source === "transfer") return "TRF";
   return "REC";
 }
 
@@ -120,13 +118,9 @@ export default function ReceiveFormPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Scanner state
-  const scanRef  = useRef<HTMLInputElement>(null);
-  const flashRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const scannedRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [scanInput,  setScanInput]  = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  const [flashState, setFlashState] = useState<"idle" | "ok" | "err">("idle");
-  const [lastScanned, setLastScanned] = useState<CatalogItem | null>(null);
+  const [pendingLine, setPendingLine] = useState<LineItem | null>(null);
 
   // Catalog manual search
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -180,25 +174,49 @@ export default function ReceiveFormPage() {
 
   // ── Scanner helpers ───────────────────────────────────────────────────────
 
-  const refocus = useCallback(() => setTimeout(() => scanRef.current?.focus(), 60), []);
-
-  const flash = useCallback((type: "ok" | "err") => {
-    setFlashState(type);
-    clearTimeout(flashRef.current);
-    flashRef.current = setTimeout(() => setFlashState("idle"), 700);
-  }, []);
+  const refocus = useCallback(() => setTimeout(() => {
+    const input = document.querySelector('input[data-scan-input]') as HTMLInputElement;
+    input?.focus();
+  }, 60), []);
 
   const addItem = useCallback((item: CatalogItem) => {
-    setLines(prev => [...prev, makeLine(item)]);
-    setLastScanned(item);
-    clearTimeout(scannedRef.current);
-    scannedRef.current = setTimeout(() => setLastScanned(null), 2500);
-    flash("ok");
+    if (lines.some(l => l.itemId === item.id)) {
+      Swal.fire({
+        icon: "warning",
+        title: "ซ้ำแล้ว",
+        text: "รายการนี้มีในรายการแล้ว",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#3b82f6",
+      });
+      return;
+    }
+    setPendingLine(makeLine(item));
     setScanInput("");
     setCatalogSearch("");
     setIsCatalogOpen(false);
+  }, [lines]);
+
+  const patchPending = useCallback((p: Partial<LineItem>) => {
+    setPendingLine(prev => prev ? { ...prev, ...p } : null);
+  }, []);
+
+  const confirmPendingLine = useCallback(() => {
+    if (!pendingLine) return;
+    if (pendingLine.expectedQty <= 0) { toast.error("จำนวนในใบกำกับต้องมากกว่า 0"); return; }
+    if (pendingLine.qty < 0) { toast.error("จำนวนรับจริงต้องไม่ติดลบ"); return; }
+    if (pendingLine.kind === "CONSUMABLE") {
+      if (!pendingLine.lotCode.trim()) { toast.error("กรุณาระบุ Lot Code"); return; }
+      if (!pendingLine.expiryDate) { toast.error("กรุณาระบุวันหมดอายุ"); return; }
+    }
+    setLines(prev => [...prev, pendingLine]);
+    setPendingLine(null);
     refocus();
-  }, [flash, refocus]);
+  }, [pendingLine, refocus]);
+
+  const cancelPendingLine = useCallback(() => {
+    setPendingLine(null);
+    refocus();
+  }, [refocus]);
 
   const handleScan = useCallback(async () => {
     const raw = scanInput.trim();
@@ -207,7 +225,6 @@ export default function ReceiveFormPage() {
     try {
       const result = await resolveBarcode(raw);
       if (!result) {
-        flash("err");
         toast.error(`ไม่พบรหัส "${raw}"`);
         setScanInput("");
         refocus();
@@ -220,7 +237,6 @@ export default function ReceiveFormPage() {
 
       const found = itemId ? catalog.find(c => c.id === itemId) : null;
       if (!found) {
-        flash("err");
         toast.error("พบบาร์โค้ด แต่ไม่มีสินค้านี้ในแคตตาล็อก");
         setScanInput("");
         refocus();
@@ -228,12 +244,11 @@ export default function ReceiveFormPage() {
       }
       addItem(found);
     } catch {
-      flash("err");
       toast.error("เกิดข้อผิดพลาดในการสแกน");
     } finally {
       setIsScanning(false);
     }
-  }, [scanInput, catalog, addItem, flash, refocus]);
+  }, [scanInput, catalog, addItem, refocus]);
 
   // ── Lines ─────────────────────────────────────────────────────────────────
 
@@ -271,7 +286,6 @@ export default function ReceiveFormPage() {
       : new Date().toISOString();
 
     const noteStr = [
-      source === "transfer" && docMeta.transferFrom ? `รับโอนจาก: ${docMeta.transferFrom}` : null,
       docMeta.note || null,
     ].filter(Boolean).join(" — ") || null;
 
@@ -286,7 +300,7 @@ export default function ReceiveFormPage() {
 
     try {
       // Step 1: Create the batch record
-      const acquisitionType = isDonation ? "DONATION" : source === "transfer" ? "TRANSFER" : "PURCHASE";
+      const acquisitionType = isDonation ? "DONATION" : "PURCHASE";
       const batch = await ReceiveSvc.createBatch({
         batch_no:         batchNo,
         acquisition_type: acquisitionType,
@@ -403,21 +417,15 @@ export default function ReceiveFormPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const selectedSupplierName = useMemo(
-    () => suppliers.find(s => s.id === docMeta.supplierId)?.name || "",
-    [suppliers, docMeta.supplierId]
-  );
-  const filteredSuppliers = useMemo(
-    () => suppliers.filter(s => s.name.toLowerCase().includes(supplierSearch.toLowerCase())),
-    [suppliers, supplierSearch]
-  );
-  const filteredCatalog = useMemo(() => {
+  const selectedSupplierName = suppliers.find(s => s.id === docMeta.supplierId)?.name || "";
+  const filteredSuppliers = suppliers.filter(s => s.name.toLowerCase().includes(supplierSearch.toLowerCase()));
+  const filteredCatalog = (() => {
     const q = catalogSearch.trim().toLowerCase();
     if (!q) return catalog.slice(0, 60);
     return catalog.filter(c =>
       c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
     ).slice(0, 60);
-  }, [catalog, catalogSearch]);
+  })();
 
   const totalQty      = lines.reduce((a, l) => a + l.expectedQty, 0);
   const isMixedBatch  = new Set(lines.map(l => l.kind)).size > 1;
@@ -425,276 +433,280 @@ export default function ReceiveFormPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex flex-col min-h-screen bg-white">
       <Toaster position="top-right" />
 
-      {/* ── Sticky Top Bar ── */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-6 py-3 flex items-center gap-4">
-        <button onClick={() => router.back()}
-          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors shrink-0">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-slate-900 leading-tight">รับพัสดุเข้าคลัง</h1>
-          {isMixedBatch && (
-            <p className="text-xs text-violet-600 font-semibold">Mixed Batch — หลายประเภทในคราวเดียว</p>
-          )}
+      <div className="w-full p-6 flex flex-col flex-1">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-3xl font-semibold text-gray-800">รับพัสดุเข้าคลัง</h2>
+            {isMixedBatch && (
+              <p className="text-xs text-violet-600 font-semibold mt-1">Mixed Batch — หลายประเภทในคราวเดียว</p>
+            )}
+          </div>
+          <button onClick={() => router.back()}
+            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">
+            ย้อนกลับ
+          </button>
         </div>
-        {lines.length > 0 && (
-          <span className="text-sm text-slate-500 shrink-0">
-            <span className="font-bold text-slate-800">{lines.length}</span> รายการ ·{" "}
-            <span className="font-bold text-slate-800">{totalQty}</span> ชิ้น
-          </span>
-        )}
-        <button onClick={handleSave}
-          disabled={lines.length === 0 || isSaving}
-          className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 transition-colors shrink-0 shadow-sm">
-          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-          ยืนยันรับเข้า
-        </button>
-      </div>
 
-      <div className="max-w-6xl mx-auto p-5 space-y-4 pb-16">
+        <div className="space-y-6 w-full flex-1 flex flex-col">
 
-        {/* ── Doc Header Card ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-
-          {/* Segmented Source Control */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit mb-5">
-            {SOURCE_OPTIONS.map(opt => (
-              <button key={opt.val}
-                onClick={() => { setSource(opt.val); setDocMeta(INIT_DOC); setLines([]); refocus(); }}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
-                  source === opt.val
-                    ? "bg-white shadow-sm text-blue-700 border border-blue-100"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}>
-                <span>{opt.icon}</span>{opt.label}
-              </button>
-            ))}
+          {/* ── ประเภทการรับเข้า ── */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+            <p className="text-base font-medium text-slate-600 mb-3">ประเภทการรับเข้า</p>
+            <div className="flex flex-wrap gap-2">
+              {SOURCE_OPTIONS.map(opt => (
+                <button key={opt.val}
+                  onClick={() => { setSource(opt.val); setDocMeta(INIT_DOC); setLines([]); setPendingLine(null); refocus(); }}
+                  className={`px-4 py-2 rounded-lg border font-medium text-sm transition-all flex items-center ${
+                    source === opt.val
+                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
+                      : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Dynamic fields grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="flex gap-6 w-full">
+            {/* ── ข้อมูลเอกสาร (Left) ── */}
+            <div className="flex-1 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+              <p className="text-base font-medium text-slate-600 mb-3">ข้อมูลเอกสาร</p>
+              <div className="grid grid-cols-1 gap-4">
 
-            <FieldBox label="วันที่รับ">
-              <input type="date" value={docMeta.receiveDate}
-                onChange={e => patchDoc({ receiveDate: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-            </FieldBox>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">วันที่รับ</label>
+                  <input type="date" value={docMeta.receiveDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => patchDoc({ receiveDate: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
 
-            {source === "purchase" && (<>
-              <FieldBox label="เลขที่ PO">
-                <input type="text" value={docMeta.poNumber}
-                  onChange={e => patchDoc({ poNumber: e.target.value })}
-                  placeholder="PO-XXXX"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-              </FieldBox>
-              <FieldBox label="ผู้จำหน่าย">
-                <div className="relative" data-supplier-dd>
-                  <input type="text"
-                    value={docMeta.supplierId ? selectedSupplierName : supplierSearch}
-                    onChange={e => { setSupplierSearch(e.target.value); setIsSupplierOpen(true); if (docMeta.supplierId) patchDoc({ supplierId: "" }); }}
-                    onFocus={() => setIsSupplierOpen(true)}
-                    placeholder="ค้นหาผู้จำหน่าย..."
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 pr-8" />
-                  {docMeta.supplierId && (
-                    <button type="button"
-                      onClick={() => { patchDoc({ supplierId: "" }); setSupplierSearch(""); refocus(); }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X className="w-3.5 h-3.5" />
+                {source === "purchase" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-600 mb-2">เลขที่ PO</label>
+                      <input type="text" value={docMeta.poNumber}
+                        onChange={e => patchDoc({ poNumber: e.target.value })}
+                        placeholder="PO-XXXX"
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div data-supplier-dd>
+                      <label className="block text-sm font-medium text-slate-600 mb-2">ผู้จำหน่าย</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                        <input type="text"
+                          value={docMeta.supplierId ? selectedSupplierName : supplierSearch}
+                          onChange={e => { setSupplierSearch(e.target.value); setIsSupplierOpen(true); if (docMeta.supplierId) patchDoc({ supplierId: "" }); }}
+                          onFocus={() => setIsSupplierOpen(true)}
+                          placeholder="ค้นหาผู้จำหน่าย..."
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        {docMeta.supplierId && (
+                          <button type="button"
+                            onClick={() => { patchDoc({ supplierId: "" }); setSupplierSearch(""); refocus(); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                        {isSupplierOpen && !docMeta.supplierId && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-40 max-h-48 overflow-y-auto">
+                            {filteredSuppliers.length > 0
+                              ? filteredSuppliers.map(s => (
+                                <button key={s.id} type="button"
+                                  onClick={() => { patchDoc({ supplierId: s.id }); setSupplierSearch(""); setIsSupplierOpen(false); refocus(); }}
+                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50">{s.name}</button>
+                              ))
+                              : <p className="px-4 py-3 text-sm text-slate-400 text-center">ไม่พบผู้จำหน่าย</p>
+                            }
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {source === "donation" && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-2">
+                      ชื่อผู้บริจาค <span className="text-red-500">*</span>
+                    </label>
+                    <input type="text" value={docMeta.donorName}
+                      onChange={e => patchDoc({ donorName: e.target.value })}
+                      placeholder="ระบุชื่อผู้บริจาค"
+                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">หมายเหตุ</label>
+                  <input type="text" value={docMeta.note}
+                    onChange={e => patchDoc({ note: e.target.value })}
+                    placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* ── เพิ่มรายการสินค้า (Right) ── */}
+            <div className="flex-1 bg-white rounded-lg border border-slate-200 p-6 overflow-visible shadow-sm">
+              <p className="text-base font-medium text-slate-600 mb-3">เพิ่มรายการสินค้า</p>
+
+              <div className="space-y-4 overflow-visible">
+
+                {/* Barcode Quick Scan */}
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                  <label className="block text-sm font-semibold text-indigo-900 mb-2">สแกนบาร์โค้ดด่วน</label>
+                  <div className="flex gap-2">
+                    <input
+                      data-scan-input
+                      type="text" autoFocus value={scanInput}
+                      onChange={e => setScanInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleScan(); } }}
+                      placeholder="สแกนรหัสเพื่อเติมข้อมูลสินค้า"
+                      className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                    <button type="button" onClick={() => void handleScan()}
+                      disabled={isScanning || !scanInput.trim()}
+                      className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                      {isScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : "สแกน"}
                     </button>
-                  )}
-                  {isSupplierOpen && !docMeta.supplierId && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-40 max-h-48 overflow-y-auto">
-                      {filteredSuppliers.length > 0
-                        ? filteredSuppliers.map(s => (
-                          <button key={s.id} type="button"
-                            onClick={() => { patchDoc({ supplierId: s.id }); setSupplierSearch(""); setIsSupplierOpen(false); refocus(); }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50">{s.name}</button>
+                  </div>
+                </div>
+
+                {/* Manual catalog search */}
+                <div className="relative overflow-visible" data-catalog-dd>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">ค้นหาสินค้าจากรายการ</label>
+                  <div className={`flex items-center gap-2 border rounded-lg px-3 py-2 transition-colors ${
+                    isCatalogOpen ? "bg-white border-blue-300 ring-2 ring-blue-100" : "bg-slate-50 border-slate-200"
+                  }`}>
+                    <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                    <input type="text" value={catalogSearch}
+                      onChange={e => { setCatalogSearch(e.target.value); setIsCatalogOpen(true); }}
+                      onFocus={() => setIsCatalogOpen(true)}
+                      placeholder="ค้นหาสินค้า (ชื่อ / รหัส)..."
+                      className="flex-1 text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
+                    {catalogSearch && (
+                      <button type="button" onClick={() => { setCatalogSearch(""); setIsCatalogOpen(false); }}
+                        className="text-slate-400 hover:text-slate-600 shrink-0">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {isCatalogOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+                      {filteredCatalog.length > 0
+                        ? filteredCatalog.map(item => (
+                          <button key={item.id} type="button" onClick={() => addItem(item)}
+                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-b-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${KIND_CFG[item.kind].badgeCls}`}>
+                                {KIND_CFG[item.kind].label}
+                              </span>
+                              <span className="font-medium text-slate-900 truncate text-sm">{item.name}</span>
+                              <span className="text-xs text-slate-400 font-mono shrink-0 ml-auto">{item.code}</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5 pl-0.5">{item.category}</p>
+                          </button>
                         ))
-                        : <p className="px-4 py-3 text-sm text-slate-400 text-center">ไม่พบผู้จำหน่าย</p>
+                        : (
+                          <p className="px-4 py-5 text-sm text-slate-400 text-center">
+                            {isLoading ? "กำลังโหลด..." : catalogSearch ? "ไม่พบสินค้า" : "พิมพ์ชื่อหรือรหัสสินค้าเพื่อค้นหา"}
+                          </p>
+                        )
                       }
                     </div>
                   )}
                 </div>
-              </FieldBox>
-            </>)}
-
-            {source === "donation" && (
-              <FieldBox label={<>ชื่อผู้บริจาค <span className="text-red-500">*</span></>}>
-                <input type="text" value={docMeta.donorName}
-                  onChange={e => patchDoc({ donorName: e.target.value })}
-                  placeholder="ระบุชื่อผู้บริจาค"
-                  className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${
-                    !docMeta.donorName.trim() ? "border-red-300 bg-red-50" : "border-slate-300"
-                  }`} />
-              </FieldBox>
-            )}
-
-            {source === "transfer" && (
-              <FieldBox label="หน่วยงานต้นทาง">
-                <input type="text" value={docMeta.transferFrom}
-                  onChange={e => patchDoc({ transferFrom: e.target.value })}
-                  placeholder="ชื่อหน่วยงาน / แผนก"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-              </FieldBox>
-            )}
-
-            <div className={source === "purchase" ? "md:col-span-3" : "col-span-2"}>
-              <FieldBox label="หมายเหตุ">
-                <input type="text" value={docMeta.note}
-                  onChange={e => patchDoc({ note: e.target.value })}
-                  placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-              </FieldBox>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Command Center ── */}
-        <div className={`rounded-2xl border-2 p-4 transition-all duration-300 shadow-sm ${
-          flashState === "ok"  ? "border-green-400 bg-green-50 shadow-green-100/50" :
-          flashState === "err" ? "border-red-400 bg-red-50 shadow-red-100/50"       :
-          "border-slate-200 bg-white"
-        }`}>
-          <div className="flex items-center gap-2 mb-3">
-            <Zap className={`w-4 h-4 shrink-0 transition-colors ${
-              flashState === "ok" ? "text-green-500" : flashState === "err" ? "text-red-500" : "text-blue-500"
-            }`} />
-            <span className="text-sm font-bold text-slate-700">Command Center</span>
-            <span className="text-xs text-slate-400 hidden sm:inline">— สแกนบาร์โค้ดหรือพิมพ์รหัสแล้วกด Enter</span>
-            {isLoading && (
-              <span className="ml-auto text-xs text-slate-400 flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" />กำลังโหลด...
-              </span>
-            )}
-          </div>
+          {/* ── Pending Line Form ── */}
+          {pendingLine && (
+            <PendingLineForm
+              line={pendingLine}
+              departments={departments}
+              onPatch={patchPending}
+              onConfirm={confirmPendingLine}
+              onCancel={cancelPendingLine}
+            />
+          )}
 
-          {/* Hero scanner input */}
-          <div className="flex gap-2 mb-3">
-            <input ref={scanRef} autoFocus type="text" value={scanInput}
-              onChange={e => setScanInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleScan(); } }}
-              placeholder="สแกนบาร์โค้ด หรือพิมพ์รหัสสินค้า..."
-              disabled={isLoading}
-              className={`flex-1 text-base font-medium px-4 py-3 rounded-xl border-2 outline-none transition-colors placeholder:font-normal ${
-                flashState === "ok"  ? "border-green-300 bg-green-50 text-green-900"   :
-                flashState === "err" ? "border-red-300 bg-red-50 text-red-900"         :
-                "border-slate-200 bg-white text-slate-900 focus:border-blue-400"
-              }`} />
-            <button type="button" onClick={() => void handleScan()}
-              disabled={isScanning || !scanInput.trim() || isLoading}
-              className="px-5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 disabled:opacity-40 flex items-center gap-2 transition-colors shrink-0">
-              {isScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              สแกน
-            </button>
-          </div>
-
-          {/* Last scanned toast */}
-          {lastScanned && (
-            <div className="mb-3 flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${KIND_CFG[lastScanned.kind].badgeCls}`}>
-                {KIND_CFG[lastScanned.kind].label}
-              </span>
-              <span className="font-semibold text-green-800 text-sm truncate">{lastScanned.name}</span>
-              <span className="text-xs text-green-500 font-mono shrink-0 ml-auto">{lastScanned.code}</span>
+          {/* ── Item Table ── */}
+          {lines.length > 0 && (
+            <div className="rounded-lg overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-700">รายการสินค้า</p>
+                <span className="text-xs font-semibold px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg">
+                  {lines.length} รายการ
+                </span>
+              </div>
+              <div style={{ overflowX: 'auto', overflowY: 'auto' } as React.CSSProperties}>
+                <style>{`
+                  div::-webkit-scrollbar {
+                    width: 0;
+                    height: 8px;
+                  }
+                  div::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                  }
+                  div::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 4px;
+                  }
+                  div::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                `}</style>
+                <table className="w-full text-sm text-left table-fixed">
+                  <thead className="bg-slate-50 text-slate-700 font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                    <tr>
+                      <th className="px-6 py-4 w-[40px] text-center">#</th>
+                      <th className="px-6 py-4 w-[120px]">รหัส</th>
+                      <th className="px-6 py-4 w-[180px]">สินค้า</th>
+                      <th className="px-6 py-4 w-[180px]">ประเภท</th>
+                      <th className="px-6 py-4 w-[200px]">รายละเอียด</th>
+                      <th className="px-6 py-4 w-[100px]">ใบกำกับ</th>
+                      <th className="px-6 py-4 w-[100px]">รับจริง</th>
+                      <th className="px-6 py-4 w-[80px]">หน่วย</th>
+                      <th className="px-6 py-4 w-[120px]">ต้นทุน</th>
+                      <th className="px-6 py-4 w-[50px] text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-600">
+                    {lines.map((line, idx) => (
+                      <LineRow key={line.lineId} line={line} idx={idx}
+                        departments={departments}
+                        onUpdate={updateLine} onRemove={removeLine} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* Manual catalog search */}
-          <div className="relative" data-catalog-dd>
-            <div className={`flex items-center gap-2 border rounded-xl px-3 py-2 transition-colors ${
-              isCatalogOpen ? "bg-white border-blue-300 ring-2 ring-blue-100" : "bg-slate-50 border-slate-200"
-            }`}>
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <input type="text" value={catalogSearch}
-                onChange={e => { setCatalogSearch(e.target.value); setIsCatalogOpen(true); }}
-                onFocus={() => setIsCatalogOpen(true)}
-                placeholder="ค้นหาสินค้าจากรายการ (ทุกประเภท)..."
-                className="flex-1 text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
-              {catalogSearch && (
-                <button type="button" onClick={() => { setCatalogSearch(""); setIsCatalogOpen(false); }}
-                  className="text-slate-400 hover:text-slate-600 shrink-0">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+          {/* Empty state */}
+          {lines.length === 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center gap-3 py-20 bg-white rounded-lg border border-dashed border-slate-200 text-slate-400">
+              <Search className="w-10 h-10 text-slate-200" />
+              <p className="text-sm font-medium">ยังไม่มีรายการ — เริ่มสแกนบาร์โค้ดหรือค้นหาจากรายการด้านบน</p>
             </div>
-            {isCatalogOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-64 overflow-y-auto">
-                {filteredCatalog.length > 0
-                  ? filteredCatalog.map(item => (
-                    <button key={item.id} type="button" onClick={() => addItem(item)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-b-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${KIND_CFG[item.kind].badgeCls}`}>
-                          {KIND_CFG[item.kind].label}
-                        </span>
-                        <span className="font-medium text-slate-900 truncate text-sm">{item.name}</span>
-                        <span className="text-xs text-slate-400 font-mono shrink-0 ml-auto">{item.code}</span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-0.5 pl-0.5">{item.category}</p>
-                    </button>
-                  ))
-                  : (
-                    <p className="px-4 py-5 text-sm text-slate-400 text-center">
-                      {isLoading ? "กำลังโหลด..." : catalogSearch ? "ไม่พบสินค้า" : "พิมพ์ชื่อหรือรหัสสินค้าเพื่อค้นหา"}
-                    </p>
-                  )
-                }
-              </div>
-            )}
+          )}
+
+          {/* Save Button */}
+          <div className="flex justify-end mt-auto pt-6">
+            <button onClick={handleSave}
+              disabled={lines.length === 0 || isSaving}
+              className="flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium shadow disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              บันทึกรับพัสดุ
+            </button>
           </div>
+
         </div>
-
-        {/* ── Item Table ── */}
-        {lines.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 flex items-center justify-between bg-slate-50 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-700 text-sm">รายการรับพัสดุ</span>
-                {isMixedBatch && (
-                  <span className="text-xs bg-violet-100 text-violet-700 font-bold px-2 py-0.5 rounded-full">Mixed</span>
-                )}
-              </div>
-              <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
-                {lines.length} รายการ
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[860px]">
-                <thead className="bg-slate-50 text-[11px] text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-100">
-                  <tr>
-                    <th className="px-4 py-3 w-9 text-center">#</th>
-                    <th className="px-4 py-3 w-48">สินค้า</th>
-                    <th className="px-4 py-3">รายละเอียด</th>
-                    <th className="px-4 py-3 w-20 text-center">ใบกำกับ</th>
-                    <th className="px-4 py-3 w-20 text-center">รับจริง</th>
-                    <th className="px-4 py-3 w-28">ต้นทุน</th>
-                    <th className="px-4 py-3 w-12 text-center">🖨️</th>
-                    <th className="px-4 py-3 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {lines.map((line, idx) => (
-                    <LineRow key={line.lineId} line={line} idx={idx}
-                      departments={departments}
-                      onUpdate={updateLine} onRemove={removeLine} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {lines.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center gap-3 py-20 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
-            <Zap className="w-10 h-10 text-slate-200" />
-            <p className="text-sm font-medium">ยังไม่มีรายการ — เริ่มสแกนบาร์โค้ดหรือค้นหาจากรายการด้านบน</p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -705,7 +717,7 @@ export default function ReceiveFormPage() {
 function FieldBox({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+      <label className="block text-sm font-medium text-slate-600 mb-2">
         {label}
       </label>
       {children}
@@ -725,144 +737,333 @@ interface LineRowProps {
 
 function LineRow({ line, idx, departments, onUpdate, onRemove }: LineRowProps) {
   const cfg = KIND_CFG[line.kind];
-  const up  = (p: Partial<LineItem>) => onUpdate(line.lineId, p);
 
   return (
-    <tr className="group hover:bg-slate-50/70 transition-colors align-middle">
+    <tr className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
 
       {/* # */}
-      <td className="px-4 py-2.5 text-center text-xs text-slate-400">{idx + 1}</td>
+      <td className="px-6 py-3 text-center text-sm text-slate-400 font-mono">{idx + 1}</td>
 
-      {/* Item info */}
-      <td className="px-4 py-2.5">
-        <div className="flex items-start gap-2">
-          <span className={`inline-flex shrink-0 mt-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${cfg.badgeCls}`}>
-            {cfg.label}
-          </span>
-          <div className="min-w-0">
-            <p className="font-semibold text-slate-900 text-sm leading-snug truncate" title={line.itemName}>
-              {line.itemName}
-            </p>
-            <p className="text-[11px] text-slate-400 font-mono">{line.itemCode}</p>
-          </div>
-        </div>
+      {/* Item code */}
+      <td className="px-6 py-3">
+        <p className="text-sm text-slate-600 font-mono">{line.itemCode}</p>
       </td>
 
-      {/* Dynamic extra fields */}
-      <td className="px-4 py-2">
+      {/* Item name */}
+      <td className="px-6 py-3">
+        <p className="text-slate-900 text-sm leading-snug" title={line.itemName}>
+          {line.itemName}
+        </p>
+      </td>
 
+      {/* Type/Kind */}
+      <td className="px-6 py-3">
+        <span className={`inline-flex px-2.5 py-1 rounded text-sm ${cfg.badgeCls}`}>
+          {cfg.label}
+        </span>
+      </td>
+
+      {/* Dynamic details - Display Only */}
+      <td className="px-6 py-3">
         {line.kind === "CONSUMABLE" && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <input type="text" value={line.lotCode}
-              onChange={e => up({ lotCode: e.target.value })}
-              placeholder="Lot Code *"
-              className={`w-24 text-xs px-2.5 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-300 font-mono ${
-                !line.lotCode ? "border-red-200 bg-red-50 placeholder:text-red-400" : "border-slate-200"
-              }`} />
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-slate-400 shrink-0">Exp</span>
-              <input type="date" value={line.expiryDate}
-                onChange={e => up({ expiryDate: e.target.value })}
-                className={`text-xs px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-300 ${
-                  !line.expiryDate ? "border-red-200 bg-red-50" : "border-slate-200"
-                }`} />
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-slate-400 shrink-0">Mfg</span>
-              <input type="date" value={line.mfgDate}
-                onChange={e => up({ mfgDate: e.target.value })}
-                className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
+          <div className="flex flex-col gap-1">
+            {line.lotCode && (
+              <div className="text-sm">
+                <span className="text-slate-400">เลขลอต: </span>
+                <span className="font-mono text-slate-900">{line.lotCode}</span>
+              </div>
+            )}
+            {line.mfgDate && (
+              <div className="text-sm">
+                <span className="text-slate-400">วันผลิต: </span>
+                <span className="font-mono text-slate-900">{new Date(line.mfgDate).toLocaleDateString("th-TH")}</span>
+              </div>
+            )}
+            {line.expiryDate && (
+              <div className="text-sm">
+                <span className="text-slate-400">วันหมดอายุ: </span>
+                <span className="font-mono text-slate-900">{new Date(line.expiryDate).toLocaleDateString("th-TH")}</span>
+              </div>
+            )}
           </div>
         )}
 
         {line.kind === "REUSABLE" && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border shrink-0 ${cfg.bgCls} ${cfg.colorCls} border-violet-200`}>
-              Auto Unit Code × {line.qty}
-            </span>
-            {line.qty < line.expectedQty && (
-              <span className="text-[11px] text-amber-600 font-semibold">
-                (ใบกำกับ {line.expectedQty})
+          <div className="flex flex-col gap-1">
+            {line.departmentId && (
+              <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
+                {departments.find(d => d.id === line.departmentId)?.name || "—"}
               </span>
             )}
-            <select value={line.departmentId ?? ""}
-              onChange={e => up({ departmentId: e.target.value ? Number(e.target.value) : null })}
-              className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-violet-300 max-w-[160px]">
-              <option value="">ส่วนกลาง / ไม่ระบุ</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
           </div>
         )}
 
         {line.kind === "MED_ASSET" && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border shrink-0 ${cfg.bgCls} ${cfg.colorCls} border-amber-200`}>
-              Auto Asset Code × {line.qty}
-            </span>
-            {line.qty < line.expectedQty && (
-              <span className="text-[11px] text-amber-600 font-semibold">
-                (ใบกำกับ {line.expectedQty})
+          <div className="flex flex-col gap-1">
+            {line.warrantyDate && (
+              <div className="text-sm">
+                <span className="text-slate-400">ประกัน: </span>
+                <span className="text-slate-900">{new Date(line.warrantyDate).toLocaleDateString("th-TH")}</span>
+              </div>
+            )}
+            {line.departmentId && (
+              <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
+                {departments.find(d => d.id === line.departmentId)?.name || "—"}
               </span>
             )}
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-slate-400 shrink-0">ประกัน</span>
-              <input type="date" value={line.warrantyDate}
-                onChange={e => up({ warrantyDate: e.target.value })}
-                className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-amber-300" />
-            </div>
-            <select value={line.departmentId ?? ""}
-              onChange={e => up({ departmentId: e.target.value ? Number(e.target.value) : null })}
-              className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-amber-300 max-w-[150px]">
-              <option value="">ส่วนกลาง / ไม่ระบุ</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
           </div>
         )}
       </td>
 
-      {/* Expected Qty (invoice) */}
-      <td className="px-4 py-2.5 text-center">
-        <input type="number" min="1" value={line.expectedQty}
-          onChange={e => {
-            const v = Math.max(1, Number(e.target.value));
-            up({ expectedQty: v, qty: Math.min(line.qty, v) });
-          }}
-          className="w-16 text-center text-sm font-bold px-2 py-1.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-300" />
+      {/* Expected Qty - Display Only */}
+      <td className="px-6 py-3">
+        <span className="text-sm text-slate-900">
+          {line.expectedQty}
+        </span>
       </td>
 
-      {/* Actual Qty (received) */}
-      <td className="px-4 py-2.5 text-center">
-        <input type="number" min="0" max={line.expectedQty} value={line.qty}
-          onChange={e => up({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-          className={`w-16 text-center text-sm font-bold px-2 py-1.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-300 ${
-            line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200"
-          }`} />
+      {/* Actual Qty - Display Only */}
+      <td className="px-6 py-3">
+        <span className="text-sm text-slate-900">
+          {line.qty}
+        </span>
       </td>
 
-      {/* Cost */}
-      <td className="px-4 py-2.5">
-        <input type="number" min="0" step="0.01" value={line.costPrice}
-          onChange={e => up({ costPrice: Number(e.target.value) })}
-          className="w-full text-sm px-2 py-1.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-300" />
+      {/* Unit */}
+      <td className="px-6 py-3">
+        <span className="text-sm text-slate-600">{line.unit}</span>
       </td>
 
-      {/* Print */}
-      <td className="px-4 py-2.5 text-center">
-        <button type="button" title="พิมพ์สติกเกอร์"
-          onClick={() => printLabels([{ name: line.itemName, code: line.itemCode }])}
-          className="p-1.5 text-slate-300 group-hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
-          <Printer className="w-4 h-4" />
-        </button>
+      {/* Cost - Display Only */}
+      <td className="px-6 py-3">
+        <span className="text-sm text-slate-900 font-mono">
+          {line.costPrice ? `฿${line.costPrice.toFixed(2)}` : "—"}
+        </span>
       </td>
 
       {/* Remove */}
-      <td className="px-4 py-2.5 text-center">
+      <td className="px-6 py-3 text-center">
         <button type="button" onClick={() => onRemove(line.lineId)}
-          className="p-1.5 text-slate-200 group-hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+          className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
           <Trash2 className="w-4 h-4" />
         </button>
       </td>
     </tr>
+  );
+}
+
+// ── PendingLineForm ───────────────────────────────────────────────────────────
+
+interface PendingLineFormProps {
+  line: LineItem;
+  departments: DepartmentOption[];
+  onPatch: (p: Partial<LineItem>) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function PendingLineForm({ line, departments, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
+  const cfg = KIND_CFG[line.kind];
+  const borderCls =
+    line.kind === "CONSUMABLE" ? "border-blue-400"   :
+    line.kind === "REUSABLE"   ? "border-violet-400" : "border-amber-400";
+  const headerBgCls =
+    line.kind === "CONSUMABLE" ? "bg-blue-50"   :
+    line.kind === "REUSABLE"   ? "bg-violet-50" : "bg-amber-50";
+  const confirmBtnCls =
+    line.kind === "CONSUMABLE" ? "bg-blue-600 hover:bg-blue-700"     :
+    line.kind === "REUSABLE"   ? "bg-violet-600 hover:bg-violet-700" : "bg-amber-600 hover:bg-amber-700";
+
+  return (
+    <div className={`rounded-lg border-2 ${borderCls} bg-white shadow-md overflow-hidden`}>
+      {/* Header */}
+      <div className={`${headerBgCls} px-6 py-4 flex items-center justify-between border-b border-slate-200 gap-3`}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 ${cfg.badgeCls}`}>
+            {cfg.label}
+          </span>
+          <p className="font-semibold text-slate-900 text-sm truncate">{line.itemName}</p>
+          <p className="font-semibold text-slate-900 text-sm shrink-0">{line.itemCode}</p>
+        </div>
+        <button type="button" onClick={onCancel}
+          className="p-1.5 rounded-lg hover:bg-white/70 text-slate-600 hover:text-slate-700 transition-colors shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Fields */}
+      <div className="p-6">
+        {line.kind === "CONSUMABLE" && (
+          <div className="grid grid-cols-6 gap-3 mb-4">
+            <FieldBox label="ใบกำกับ (ชิ้น)">
+              <input
+                type="number" min="1" value={line.expectedQty}
+                autoFocus={false}
+                onChange={e => {
+                  const v = Math.max(1, Number(e.target.value));
+                  onPatch({ expectedQty: v, qty: Math.min(line.qty, v) });
+                }}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="รับจริง (ชิ้น)">
+              <input
+                type="number" min="0" max={line.expectedQty} value={line.qty}
+                onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
+                className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300 ${
+                  line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300"
+                }`}
+              />
+            </FieldBox>
+
+            <FieldBox label={<>Lot Code <span className="text-red-500">*</span></>}>
+              <input
+                type="text" value={line.lotCode} autoFocus
+                onChange={e => onPatch({ lotCode: e.target.value })}
+                placeholder="LOT-XXXX"
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="ต้นทุน/ชิ้น (บาท)">
+              <input
+                type="number" min="0" step="0.01" value={line.costPrice}
+                onChange={e => onPatch({ costPrice: Number(e.target.value) })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="วันผลิต">
+              <input
+                type="date" value={line.mfgDate}
+                onChange={e => onPatch({ mfgDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+
+            <FieldBox label={<>วันหมดอายุ <span className="text-red-500">*</span></>}>
+              <input
+                type="date" value={line.expiryDate}
+                min={line.mfgDate}
+                onChange={e => onPatch({ expiryDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+          </div>
+        )}
+
+        {line.kind === "REUSABLE" && (
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <FieldBox label="ใบกำกับ (ชิ้น)">
+              <input
+                type="number" min="1" value={line.expectedQty}
+                autoFocus={true}
+                onChange={e => {
+                  const v = Math.max(1, Number(e.target.value));
+                  onPatch({ expectedQty: v, qty: Math.min(line.qty, v) });
+                }}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-violet-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="รับจริง (ชิ้น)">
+              <input
+                type="number" min="0" max={line.expectedQty} value={line.qty}
+                onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
+                className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-violet-300 ${
+                  line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300"
+                }`}
+              />
+            </FieldBox>
+
+            <FieldBox label="ต้นทุน/ชิ้น (บาท)">
+              <input
+                type="number" min="0" step="0.01" value={line.costPrice}
+                onChange={e => onPatch({ costPrice: Number(e.target.value) })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="แผนก">
+              <select
+                value={line.departmentId ?? ""}
+                onChange={e => onPatch({ departmentId: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-300"
+              >
+                <option value="">ส่วนกลาง / ไม่ระบุ</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </FieldBox>
+          </div>
+        )}
+
+        {line.kind === "MED_ASSET" && (
+          <div className="grid grid-cols-5 gap-3 mb-4">
+            <FieldBox label="ใบกำกับ (ชิ้น)">
+              <input
+                type="number" min="1" value={line.expectedQty}
+                autoFocus={true}
+                onChange={e => {
+                  const v = Math.max(1, Number(e.target.value));
+                  onPatch({ expectedQty: v, qty: Math.min(line.qty, v) });
+                }}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="รับจริง (ชิ้น)">
+              <input
+                type="number" min="0" max={line.expectedQty} value={line.qty}
+                onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
+                className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300 ${
+                  line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300"
+                }`}
+              />
+            </FieldBox>
+
+            <FieldBox label="ต้นทุน/ชิ้น (บาท)">
+              <input
+                type="number" min="0" step="0.01" value={line.costPrice}
+                onChange={e => onPatch({ costPrice: Number(e.target.value) })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="วันหมดประกัน">
+              <input
+                type="date" value={line.warrantyDate}
+                onChange={e => onPatch({ warrantyDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </FieldBox>
+
+            <FieldBox label="แผนก">
+              <select
+                value={line.departmentId ?? ""}
+                onChange={e => onPatch({ departmentId: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+              >
+                <option value="">ส่วนกลาง / ไม่ระบุ</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </FieldBox>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+          <button type="button" onClick={onCancel}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
+            ยกเลิก
+          </button>
+          <button type="button" onClick={onConfirm}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold text-sm text-white shadow-sm transition-colors ${confirmBtnCls}`}>
+            <CheckCircle2 className="w-4 h-4" />
+            เพิ่มรายการ
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
