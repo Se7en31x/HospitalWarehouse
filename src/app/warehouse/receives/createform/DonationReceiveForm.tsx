@@ -249,11 +249,17 @@ export default function DonationReceiveForm({ onChangeType }: Props) {
 
     setIsSaving(true);
     try {
-      const createdReceive = await ReceiveSvc.createReceive({
-        doc_no: `REC-${Date.now()}`,
-        type: "DONATION",
+      const ts = Date.now();
+      const batch = await ReceiveSvc.createBatch({
+        batch_no: `RCV-${ts}`,
+        acquisition_type: "DONATION",
         donor_name: donorName,
+      });
+      await ReceiveSvc.createReceive({
+        doc_no: `REC-${ts}`,
+        type: "DONATION",
         status: "COMPLETED",
+        batch_id: batch.id,
         note: "บริจาค",
         items: items.map((item) => ({
           item_id: item.itemId,
@@ -266,15 +272,9 @@ export default function DonationReceiveForm({ onChangeType }: Props) {
         })),
       });
       toast.success("บันทึกรับบริจาคสำเร็จ");
-
       setItems([]);
       setTimeout(() => {
-        const idNum = Number(createdReceive?.id);
-        if (idNum && Number.isFinite(idNum) && idNum > 0) {
-          router.push(`/warehouse/receives/${idNum}`);
-        } else {
-          router.push("/warehouse/receives");
-        }
+        router.push(`/warehouse/receives/${batch.id}`);
       }, 1500);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";

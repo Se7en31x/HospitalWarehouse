@@ -274,12 +274,18 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
 
     setIsSaving(true);
     try {
-      const createdReceive = await ReceiveSvc.createReceive({
-        doc_no: `REC-${Date.now()}`,
-        type: "PURCHASE_ASSET",
+      const ts = Date.now();
+      const batch = await ReceiveSvc.createBatch({
+        batch_no: `RCV-${ts}`,
+        acquisition_type: "PURCHASE",
         supplier_id: formData.supplierId || null,
-        status: "PENDING",
         receive_date: receiveDate ? new Date(receiveDate).toISOString() : new Date().toISOString(),
+      });
+      await ReceiveSvc.createReceive({
+        doc_no: `REC-${ts}`,
+        type: "PURCHASE_ASSET",
+        status: "PENDING",
+        batch_id: batch.id,
         note: selectedDepartmentId
           ? `แผนก: ${departments.find((d) => d.id === selectedDepartmentId)?.name ?? selectedDepartmentId}`
           : "รับครุภัณฑ์/สินทรัพย์",
@@ -298,15 +304,9 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
         timer: 1500,
         showConfirmButton: false,
       });
-
       setItems([]);
       setTimeout(() => {
-        const idNum = Number(createdReceive?.id);
-        if (idNum && Number.isFinite(idNum) && idNum > 0) {
-          router.push(`/warehouse/receives/${idNum}`);
-        } else {
-          router.push("/warehouse/receives");
-        }
+        router.push(`/warehouse/receives/${batch.id}`);
       }, 1500);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -457,7 +457,7 @@ export default function AssetReceiveForm({ onChangeType }: Props) {
                   type="text"
                   value={formData.poNumber}
                   onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
-                  placeholder="หมายเลข PO (ถ้ามี)"
+                  placeholder="เลขที่ใบส่งของ"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

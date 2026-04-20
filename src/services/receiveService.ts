@@ -1,9 +1,10 @@
-import { api, PaginatedResponse } from "@/lib/apiClient";
+import { api } from "@/lib/apiClient";
 
-// ============ Types ============
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 export type ReceiveType = "PURCHASE" | "DONATION" | "PURCHASE_ASSET" | "REUSABLE_UNIT";
 export type ReceiveStatus = "PENDING" | "COMPLETED" | "CANCELLED";
+export type AcquisitionType = "PURCHASE" | "DONATION" | "TRANSFER";
 
 export interface ReceiveItem {
     id: number;
@@ -18,11 +19,23 @@ export interface ReceiveItem {
     expired_at: string | null;
 }
 
-export interface ReceiveHeader {
+export interface ReceiveBatchHeader {
     id: number;
     doc_no: string;
     type: ReceiveType;
     status: ReceiveStatus;
+    note: string | null;
+    batch_id: number | null;
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+    receive_item: ReceiveItem[];
+}
+
+export interface ReceiveBatch {
+    id: number;
+    batch_no: string;
+    acquisition_type: AcquisitionType;
     supplier_id: string | null;
     supplier_name: string | null;
     donor_name: string | null;
@@ -31,11 +44,11 @@ export interface ReceiveHeader {
     created_by: string | null;
     created_at: string;
     updated_at: string;
-    receive_item: ReceiveItem[];
+    headers: ReceiveBatchHeader[];
 }
 
 export interface ReceiveListResponse {
-    items: ReceiveHeader[];
+    items: ReceiveBatch[];
     total: number;
     page: number;
     limit: number;
@@ -52,14 +65,29 @@ export interface GetReceivesParams {
     status?: string;
     start_date?: string;
     end_date?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
-// ============ API Functions ============
+// ── Batch API ──────────────────────────────────────────────────────────────────
+
+export async function createBatch(payload: {
+    batch_no: string;
+    acquisition_type: AcquisitionType;
+    supplier_id?: string | null;
+    donor_name?: string | null;
+    receive_date?: string | null;
+    note?: string | null;
+}): Promise<ReceiveBatch> {
+    return api.post<ReceiveBatch>("/v1/receives/batch", payload);
+}
+
+export async function getBatchById(batchId: number): Promise<ReceiveBatch> {
+    return api.get<ReceiveBatch>(`/v1/receives/batch/${batchId}`);
+}
 
 export async function getAllReceives(params: GetReceivesParams = {}): Promise<ReceiveListResponse> {
-    const res = await api.list<ReceiveHeader>(`/v1/receives`, params as Record<string, unknown>);
-    
+    const res = await api.list<ReceiveBatch>(`/v1/receives`, params as Record<string, unknown>);
+
     return {
         items: res.data || [],
         total: res.meta?.total || 0,
@@ -71,33 +99,13 @@ export async function getAllReceives(params: GetReceivesParams = {}): Promise<Re
     };
 }
 
-export async function getAllReceivesPages(params: GetReceivesParams = {}): Promise<ReceiveHeader[]> {
-    const firstPage = await getAllReceives({ ...params, page: 1, limit: params.limit || 100 });
-    const items = [...firstPage.items];
-
-    for (let page = 2; page <= Math.max(1, firstPage.totalPages || 1); page += 1) {
-        const nextPage = await getAllReceives({
-            ...params,
-            page,
-            limit: firstPage.limit || 100,
-        });
-        items.push(...nextPage.items);
-    }
-
-    return items;
-}
-
-export async function getReceiveById(id: number): Promise<ReceiveHeader> {
-    return api.get<ReceiveHeader>(`/v1/receives/${id}`);
-}
+// ── Header API ─────────────────────────────────────────────────────────────────
 
 export async function createReceive(payload: {
     doc_no: string;
     type: ReceiveType;
     status: "PENDING" | "COMPLETED";
-    supplier_id?: string | null;
-    donor_name?: string | null;
-    receive_date?: string | null;
+    batch_id: number;
     note?: string | null;
     items: Array<{
         item_id: string;
@@ -107,9 +115,11 @@ export async function createReceive(payload: {
         lot_code?: string | null;
         expired_at?: string | null;
         warehouse_id?: string | null;
+        department_id?: number | null;
+        note?: string | null;
     }>;
-}): Promise<ReceiveHeader> {
-    return api.post<ReceiveHeader>("/v1/receives", payload);
+}): Promise<ReceiveBatchHeader> {
+    return api.post<ReceiveBatchHeader>("/v1/receives", payload);
 }
 
 export async function confirmReceive(
@@ -126,17 +136,19 @@ export async function confirmReceive(
             note?: string;
         }>;
     }>
-): Promise<ReceiveHeader> {
-    return api.patch<ReceiveHeader>(`/v1/receives/${headerId}/confirm`, { items });
+): Promise<ReceiveBatchHeader> {
+    return api.patch<ReceiveBatchHeader>(`/v1/receives/${headerId}/confirm`, { items });
 }
 
-export async function cancelReceive(headerId: number, reason?: string): Promise<ReceiveHeader> {
-    return api.patch<ReceiveHeader>(`/v1/receives/${headerId}/cancel`, { reason: reason || "" });
+export async function cancelReceive(headerId: number, reason?: string): Promise<ReceiveBatchHeader> {
+    return api.patch<ReceiveBatchHeader>(`/v1/receives/${headerId}/cancel`, { reason: reason || "" });
 }
 
 export async function getSuppliers(): Promise<Array<{ id: string; name: string }>> {
     return api.get<Array<{ id: string; name: string }>>("/v1/suppliers/option");
 }
+
+// ── Reusable API ───────────────────────────────────────────────────────────────
 
 export interface ReusableUnitInput {
     unit_code?: string;
@@ -149,9 +161,7 @@ export interface ReusableUnitInput {
 
 export interface ReusableReceivePayload {
     doc_no: string;
-    supplier_id?: string | null;
-    donor_name?: string | null;
-    receive_date?: string | null;
+    batch_id: number;
     note?: string | null;
     items: Array<{
         item_id: string;

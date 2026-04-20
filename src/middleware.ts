@@ -65,11 +65,11 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Debug Log (ดูใน Terminal ฝั่ง Server)
-  console.log("------------------------------------------");
-  console.log("✅ [User]:", user.email);
-  console.log("👤 [Role]:", userRole);
-  console.log("🛠️ [Systems]:", allowedSystems);
-  console.log("📍 [Path]:", path);
+  // console.log("------------------------------------------");
+  // console.log("✅ [User]:", user.email);
+  // console.log("👤 [Role]:", userRole);
+  // console.log("🛠️ [Systems]:", allowedSystems);
+  // console.log("📍 [Path]:", path);
 
   // 3. Logic การตรวจสอบสิทธิ์ (Access Control)
 

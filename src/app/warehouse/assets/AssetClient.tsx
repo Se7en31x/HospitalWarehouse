@@ -41,7 +41,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
     setIsFetching(true);
     try {
       const result = await ItemSvc.getInventoryItemsPage({
-        type: "ASSET",
+        type: "MED_ASSET",
         page,
         limit: ASSET_PAGE_LIMIT,
         ...(keyword ? { keyword } : {}),
@@ -489,7 +489,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
                   <td className="px-6 py-3">
                     {registeredCounts[item.id] !== undefined
                       ? registeredCounts[item.id]
-                      : <span className="text-slate-300 text-xs">—</span>}
+                      : <span className="text-slate-600 text-xs">0</span>}
                   </td>
                    <td className="px-6 py-3">{item.unit}</td>
                   <td className="px-6 py-3 w-[150px]"><Badge status={item.status} /></td>

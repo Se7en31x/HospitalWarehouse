@@ -269,41 +269,38 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
 
     setIsSaving(true);
     try {
-      let createdReceive: ReceiveSvc.ReceiveHeader | null = null;
-
-
-        createdReceive = await ReceiveSvc.createReceive({
-          doc_no: `REC-${Date.now()}`,
-          type: "PURCHASE",
-          supplier_id: formData.supplierId || null,
-          status: "COMPLETED",
-          note: "รับพัสดุเข้าคลัง",
-          items: items.map((item) => ({
-            item_id: item.itemId,
-            warehouse_id: item.warehouseId,
-            expected_qty: item.quantityReceived,
-            qty: item.quantityReceived,
-            lot_code: item.lotCode || null,
-            cost_price: item.costPrice || 0,
-            expired_at: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
-          })),
-        });
-        Swal.fire({
-          title: "สำเร็จ",
-          text: "บันทึกรับพัสดุเข้าคลังสำเร็จ",
-          icon: "success",
-          timer: 1500,
-          showConfirmButton: false,
-        });
-
+      const ts = Date.now();
+      const batch = await ReceiveSvc.createBatch({
+        batch_no: `RCV-${ts}`,
+        acquisition_type: "PURCHASE",
+        supplier_id: formData.supplierId || null,
+      });
+      await ReceiveSvc.createReceive({
+        doc_no: `REC-${ts}`,
+        type: "PURCHASE",
+        status: "COMPLETED",
+        batch_id: batch.id,
+        note: "รับพัสดุเข้าคลัง",
+        items: items.map((item) => ({
+          item_id: item.itemId,
+          warehouse_id: item.warehouseId,
+          expected_qty: item.quantityReceived,
+          qty: item.quantityReceived,
+          lot_code: item.lotCode || null,
+          cost_price: item.costPrice || 0,
+          expired_at: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
+        })),
+      });
+      Swal.fire({
+        title: "สำเร็จ",
+        text: "บันทึกรับพัสดุเข้าคลังสำเร็จ",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
       setItems([]);
       setTimeout(() => {
-        const idNum = Number(createdReceive?.id);
-        if (idNum && Number.isFinite(idNum) && idNum > 0) {
-          router.push(`/warehouse/receives/${idNum}`);
-        } else {
-          router.push("/warehouse/receives");
-        }
+        router.push(`/warehouse/receives/${batch.id}`);
       }, 1500);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -381,7 +378,7 @@ export default function PurchaseReceiveForm({ onChangeType }: Props) {
                   type="text"
                   value={formData.poNumber}
                   onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
-                  placeholder="หมายเลข PO (ถ้ามี)"
+                  placeholder="เลขที่ใบส่งของ"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

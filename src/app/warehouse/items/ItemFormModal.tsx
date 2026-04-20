@@ -76,7 +76,7 @@ const getItemTypeLabel = (type?: string) => {
   if (!type || !type.toString().trim()) return "ยังไม่ได้เลือกหมวดหมู่";
   const normalized = normalizeItemType(type);
   if (normalized === "REUSABLE") return "ของใช้ซ้ำรายชิ้น";
-  if (normalized === "MED_ASSET") return "ครุภัณฑ์ภายในองค์กร (Med Asset)";
+  if (normalized === "MED_ASSET") return "ครุภัณฑ์ภายในองค์กร";
   return "วัสดุสิ้นเปลือง";
 };
 
@@ -127,6 +127,7 @@ export default function ItemFormModal({
   const [warehouseSearchQuery, setWarehouseSearchQuery] = useState("");
   const [isWarehouseDropdownOpen, setIsWarehouseDropdownOpen] = useState(false);
   const isReusableType = normalizeItemType(formData.type) === "REUSABLE";
+  const isMedAssetType = normalizeItemType(formData.type) === "MED_ASSET";
 
   // Fetch options on mount
   useEffect(() => {
@@ -207,7 +208,10 @@ export default function ItemFormModal({
     if (!isReusableType && formData.allowed_borrow) {
       setFormData((prev) => ({ ...prev, allowed_borrow: false }));
     }
-  }, [isReusableType, formData.allowed_borrow]);
+    if (isMedAssetType && (formData.allowed_req || formData.allowed_borrow)) {
+      setFormData((prev) => ({ ...prev, allowed_req: false, allowed_borrow: false }));
+    }
+  }, [isReusableType, isMedAssetType, formData.allowed_borrow, formData.allowed_req]);
 
   const validateForm = (): FormErrors => {
     const errors: FormErrors = {};
@@ -561,8 +565,8 @@ export default function ItemFormModal({
                                           ...formData,
                                           category_id: c.id,
                                           type: nextType,
-                                          allowed_borrow:
-                                            nextType === "REUSABLE" ? formData.allowed_borrow : false,
+                                          allowed_req: nextType === "MED_ASSET" ? false : formData.allowed_req,
+                                          allowed_borrow: nextType === "REUSABLE" ? formData.allowed_borrow : false,
                                         });
                                         setCategorySearchQuery("");
                                         setIsCategoryDropdownOpen(false);
@@ -884,12 +888,23 @@ export default function ItemFormModal({
                 <div>
                   <label className="block text-sm font-semibold mb-3 text-slate-700">สิทธิ์การใช้งาน</label>
                   <div className="flex gap-6">
+                    {isMedAssetType && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 w-full">
+                        ครุภัณฑ์ประจำแผนก (MED_ASSET) ไม่อนุญาตให้เบิกหรือยืม — เป็นครุภัณฑ์ที่ประจำแผนกโดยเฉพาะ
+                      </p>
+                    )}
                     {[
-                      { key: "allowed_req" as const, label: "อนุญาตให้เบิก", desc: "ผู้ใช้สามารถสร้างคำขอเบิกได้" },
+                      {
+                        key: "allowed_req" as const,
+                        label: "อนุญาตให้เบิก",
+                        desc: isMedAssetType ? "ปิดสำหรับครุภัณฑ์ประจำแผนก" : "ผู้ใช้สามารถสร้างคำขอเบิกได้",
+                      },
                       {
                         key: "allowed_borrow" as const,
                         label: "อนุญาตให้ยืม",
-                        desc: isReusableType
+                        desc: isMedAssetType
+                          ? "ปิดสำหรับครุภัณฑ์ประจำแผนก"
+                          : isReusableType
                           ? "ผู้ใช้สามารถสร้างคำขอยืมได้"
                           : "ใช้ได้เฉพาะของใช้ซ้ำ (REUSABLE)",
                       },
@@ -898,10 +913,11 @@ export default function ItemFormModal({
                         key={key}
                         type="button"
                         onClick={() => {
+                          if (isMedAssetType) return;
                           if (key === "allowed_borrow" && !isReusableType) return;
                           setFormData({ ...formData, [key]: !formData[key] });
                         }}
-                        disabled={key === "allowed_borrow" && !isReusableType}
+                        disabled={isMedAssetType || (key === "allowed_borrow" && !isReusableType)}
                         className="flex items-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className={`w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 relative ${formData[key] ? "bg-[#0055FF]" : "bg-gray-200"}`}>

@@ -215,10 +215,16 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
 
     setIsSaving(true);
     try {
-      const created = await ReceiveSvc.createReusableReceive({
-        doc_no: `RUI-${Date.now()}`,
+      const ts = Date.now();
+      const batch = await ReceiveSvc.createBatch({
+        batch_no: `RCV-${ts}`,
+        acquisition_type: "PURCHASE",
         supplier_id: formData.supplierId || null,
         receive_date: receiveDate ? new Date(receiveDate).toISOString() : new Date().toISOString(),
+      });
+      const created = await ReceiveSvc.createReusableReceive({
+        doc_no: `RUI-${ts}`,
+        batch_id: batch.id,
         note: note || null,
         items: items.map((item) => ({
           item_id: item.itemId,
@@ -238,7 +244,7 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
         timer: 1500,
         showConfirmButton: false,
       });
-      setTimeout(() => router.push("/warehouse/receives"), 1700);
+      setTimeout(() => router.push(`/warehouse/receives/${batch.id}`), 1700);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       toast.error("เกิดข้อผิดพลาด: " + errorMsg);
