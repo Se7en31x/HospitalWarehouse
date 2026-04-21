@@ -25,7 +25,7 @@ const typeOptions: { v: StockMovementType | ""; l: string }[] = [
   { v: "OUT", l: "เบิกจ่าย" },
   { v: "ADJUST_IN", l: "ปรับเพิ่ม" },
   { v: "ADJUST_OUT", l: "ปรับลด" },
-  { v: "UPDATE", l: "อัปเดต" },
+  { v: "UPDATE", l: "อัปเดต Lot" },
 ];
 
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -34,7 +34,7 @@ const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
   OUT:            { label: "เบิกออก",    cls: "bg-amber-100 text-amber-700 border border-amber-200" },
   ADJUST_IN:      { label: "ปรับเพิ่ม",  cls: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
   ADJUST_OUT:     { label: "ปรับลด",    cls: "bg-slate-100 text-slate-600 border border-slate-200" },
-  UPDATE:         { label: "อัปเดต",    cls: "bg-indigo-100 text-indigo-700 border border-indigo-200" },
+  UPDATE:         { label: "อัปเดต Lot",    cls: "bg-indigo-100 text-indigo-700 border border-indigo-200" },
 };
 
 const OUT_TYPES = new Set(["OUT", "RECEIVE_CANCEL", "ADJUST_OUT"]);
@@ -394,6 +394,7 @@ const StockMovementClient = () => {
           onClose={() => setSelectedMovement(null)}
         />
       )}
+      
     </div>
   );
 };

@@ -84,8 +84,8 @@ export interface ReusableReturnRequest {
   department_id: string;
   department_name: string | null;
   preferred_pickup_at: string | null;
-  contact_name: string | null;
-  contact_phone: string | null;
+  requested_by: string | null;
+  requested_by_name: string | null;
   status: string;
   note: string | null;
   created_at: string;

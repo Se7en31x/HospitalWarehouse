@@ -105,6 +105,7 @@ export default function WithdrawClient({ initialItems }: Props) {
       const filters: Record<string, unknown> = {
         page,
         limit: itemsPerPage,
+        allowed_req: true,
       };
       
       if (category !== "หมวดหมู่ทั้งหมด") {
@@ -351,47 +352,6 @@ export default function WithdrawClient({ initialItems }: Props) {
     },
     [items]
   );
-
-  const handleScan = useCallback(async () => {
-    const raw = scanInput.trim();
-    if (!raw) return;
-    setIsScanning(true);
-    setScanMsg(null);
-    try {
-      const result = await resolveBarcode(raw, selectedDeptId);
-      if (!result) {
-        setScanMsg(`❌ ไม่พบรหัส: ${raw}`);
-        return;
-      }
-      const itemId =
-        result.type === "ITEM" ? result.item.id
-        : result.type === "LOT" ? result.lot.item_id
-        : result.unit.item_id;
-
-      let found = items.find((i) => i.id === itemId);
-      if (!found) {
-        const itemCode =
-          result.type === "ITEM" ? result.item.code
-          : result.type === "LOT" ? result.lot.item_code
-          : result.unit.item_code;
-        if (itemCode) {
-          const res = await ItemSvc.getInventoryItemsPage({ keyword: itemCode, limit: 1, page: 1 });
-          found = res.items?.[0];
-        }
-      }
-      if (found) {
-        setScanMsg(`✓ ${found.name}`);
-        setScanInput("");
-        openItemDetail(found);
-      } else {
-        setScanMsg("❌ ไม่พบสินค้าในระบบ");
-      }
-    } catch {
-      setScanMsg("❌ เกิดข้อผิดพลาด");
-    } finally {
-      setIsScanning(false);
-    }
-  }, [scanInput, selectedDeptId, items, openItemDetail]);
 
   const handleCartSuccess = () => {
     setSelectedItems([]);

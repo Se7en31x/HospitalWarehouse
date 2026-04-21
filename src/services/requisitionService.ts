@@ -202,9 +202,9 @@ export interface ReturnItemPayload {
 }
 
 /**
- * บันทึกการรับคืนของยืม
+ * ส่งคืนของยืม (ผู้ยืมส่งคืน → รอคลังตรวจรับ)
  */
-export const processReturn = async (
+export const submitReturn = async (
   headerId: number,
   items: ReturnItemPayload[]
 ): Promise<ApiResponse<RequisitionHeader | null>> => {
@@ -212,6 +212,20 @@ export const processReturn = async (
     const data = await api.put<RequisitionHeader>(`/v1/borrows/return/${headerId}`, { items });
     return { success: true, data: data ?? null };
   } catch (err: any) {
-    return { success: false, data: null, message: err?.message || "บันทึกการรับคืนไม่สำเร็จ" };
+    return { success: false, data: null, message: err?.message || "ส่งคืนไม่สำเร็จ" };
+  }
+};
+
+/**
+ * ยืนยันการรับคืน (คลังกดตรวจรับ → อัปเดตสต็อก/ปิดงาน)
+ */
+export const verifyReturn = async (
+  headerId: number
+): Promise<ApiResponse<RequisitionHeader | null>> => {
+  try {
+    const data = await api.put<RequisitionHeader>(`/v1/borrows/return/verify/${headerId}`);
+    return { success: true, data: data ?? null };
+  } catch (err: any) {
+    return { success: false, data: null, message: err?.message || "ยืนยันการรับคืนไม่สำเร็จ" };
   }
 };

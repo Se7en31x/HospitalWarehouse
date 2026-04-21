@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -1040,8 +1040,7 @@ export default function BorrowCartModal({
                             )}
                             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isAddressOpen ? 'rotate-180' : ''}`} />
                           </div>
-                        </button>
-
+                        </button>   
                         {/* Inline picker panel — flows in document, never clipped */}
                         {isAddressOpen && (
                           <div className="mt-2 border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">

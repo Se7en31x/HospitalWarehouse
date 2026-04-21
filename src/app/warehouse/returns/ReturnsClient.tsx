@@ -3,9 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
-  CheckCircle, Clock, X, Building2, User, Eye, FileText, MapPin, Phone,
-  Calendar, Package, Loader2,
+  Search, ChevronLeft, ChevronRight, ChevronDown,
+  X, Eye, Package,
 } from "lucide-react";
 import { getAllRequisitions } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
@@ -25,6 +24,7 @@ const mapUiStatus = (header: RequisitionHeader): UiStatus => {
     if (header.due_date && new Date(header.due_date) < new Date()) return "ค้างคืน";
     return "รอการคืน";
   }
+  if (header.status === "PENDING_RETURN_CHECK") return "รออนุมัติ";
   if (header.status === "COMPLETED") return "คืนแล้ว";
   if (header.status === "PENDING") return "รออนุมัติ";
   if (header.status === "CANCELLED") return "ยกเลิก";
@@ -70,22 +70,14 @@ const StatusBadge = ({ status }: { status: UiStatus }) => {
   );
 };
 
-const getStatusIcon = (status: UiStatus) => {
-  switch (status) {
-    case "รอการคืน": return <Clock className="w-3 h-3" />;
-    case "ค้างคืน": return <AlertCircle className="w-3 h-3" />;
-    case "คืนแล้ว": return <CheckCircle className="w-3 h-3" />;
-    case "รออนุมัติ": return <Loader2 className="w-3 h-3 animate-spin" />;
-    case "ยกเลิก": return <X className="w-3 h-3" />;
-    default: return null;
-  }
-};
-
-const fmtDate = (dateStr?: string | null): string => {
+const fmtDateTime = (dateStr?: string | null): string => {
   if (!dateStr) return "-";
   return new Date(dateStr).toLocaleString("th-TH", {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -96,59 +88,18 @@ const fmtDateOnly = (dateStr?: string | null): string => {
   });
 };
 
-// ─── Return Action Modal ──────────────────────────────────────────────────────
-
-type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
-
-interface ReturnRowState {
-  req_item_id: number;
-  qty_returned: number;
-  condition: ReturnCondition;
-  note: string;
-  max: number;
-  name: string;
-  code: string;
-  issued: number;
-  returned: number;
-}
-
-const conditionOptions: { value: ReturnCondition; label: string; color: string }[] = [
-  { value: "GOOD", label: "สภาพดี", color: "text-green-700 bg-green-50" },
-  { value: "DAMAGED", label: "ชำรุด/เสียหาย", color: "text-amber-700 bg-amber-50" },
-  { value: "LOST", label: "สูญหาย", color: "text-red-700 bg-red-50" },
-  { value: "INCOMPLETE", label: "คืนไม่ครบ", color: "text-purple-700 bg-purple-50" },
-];
-
-// ─── Helper sub-components ────────────────────────────────────────────────────
-
-function InfoRow({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="flex items-start gap-2 text-sm">
-      <span className="text-gray-400 mt-0.5 flex-shrink-0">{icon}</span>
-      <span className="text-gray-500 flex-shrink-0 w-24">{label}</span>
-      <span className={`font-medium flex-1 ${highlight ? "text-emerald-700" : "text-gray-800"}`}>{value}</span>
-    </div>
-  );
-}
-
-function MiniCell({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-2.5">
-      <p className="text-[10px] text-gray-400 uppercase font-bold">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 ${alert ? "text-red-600" : "text-gray-800"}`}>{value}</p>
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 type StatusFilter = "สถานะทั้งหมด" | "รอการคืน" | "ค้างคืน" | "คืนแล้ว" | "รออนุมัติ" | "ยกเลิก";
 
 const STATUS_FILTER_OPTIONS: StatusFilter[] = ["สถานะทั้งหมด", "รอการคืน", "ค้างคืน", "คืนแล้ว", "รออนุมัติ", "ยกเลิก"];
 
+type ReturnsTab = "PENDING" | "HISTORY";
+
 export default function ReturnsClient() {
   const router = useRouter();
   const [records, setRecords] = useState<RequisitionHeader[]>([]);
+  const [activeTab, setActiveTab] = useState<ReturnsTab>("PENDING");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("สถานะทั้งหมด");
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -185,8 +136,8 @@ export default function ReturnsClient() {
         } else if (Array.isArray((result as unknown as { items: RequisitionHeader[] }).items)) {
           data = (result as unknown as { items: RequisitionHeader[] }).items;
         }
-        // แสดงเฉพาะรายการที่ผ่านการอนุมัติแล้ว
-        setRecords(data.filter(r => r.status === "BORROWING" || r.status === "COMPLETED"));
+        // เก็บรายการทั้งหมด แล้วค่อยกรองตาม Tab ฝั่ง client
+        setRecords(data);
         setServerTotal(result.total || 0);
         const totalPages = result.limit ? Math.ceil((result.total || 0) / result.limit) : 0;
         setServerTotalPages(totalPages);
@@ -203,10 +154,6 @@ export default function ReturnsClient() {
       setIsFetching(false);
     }
   }, []);
-
-  const refreshData = useCallback(async () => {
-    fetchPage(pageRef.current, keywordRef.current);
-  }, [fetchPage]);
 
   useEffect(() => {
     if (isMounted) fetchPage(1, "");
@@ -242,8 +189,14 @@ export default function ReturnsClient() {
     fetchPage(newPage, keywordRef.current);
   };
 
+  const tabbedRecords = records.filter((r) => {
+    if (activeTab === "PENDING") return r.status === "PENDING_RETURN_CHECK";
+    // History per requirement: completed + borrowing (ย้อนหลัง)
+    return r.status === "COMPLETED" || r.status === "BORROWING";
+  });
+
   // Client-side secondary filters (status/date) applied to current page's items
-  const filteredRecords = records.filter(r => {
+  const filteredRecords = tabbedRecords.filter(r => {
     const uiStatus = mapUiStatus(r);
     const matchesStatus = selectedStatus === "สถานะทั้งหมด" || uiStatus === selectedStatus;
     const matchDate =
@@ -272,6 +225,32 @@ export default function ReturnsClient() {
         <div>
           <h2 className="text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => { setActiveTab("PENDING"); setCurrentPage(1); pageRef.current = 1; }}
+          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            activeTab === "PENDING"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          รอดำเนินการ
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveTab("HISTORY"); setCurrentPage(1); pageRef.current = 1; }}
+          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            activeTab === "HISTORY"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          ประวัติการคืน
+        </button>
       </div>
 
       {/* Filters */}
@@ -393,7 +372,9 @@ export default function ReturnsClient() {
                 <th className="px-6 py-4 w-[160px]">ผู้ยืม</th>
                 <th className="px-6 py-4 w-[150px]">เบอร์ติดต่อ</th>
                 <th className="px-6 py-4 w-[80px]">รายการ</th>
+                <th className="px-6 py-4 w-[170px]">วันที่ทำรายการ</th>
                 <th className="px-6 py-4 w-[120px]">กำหนดคืน</th>
+                <th className="px-6 py-4 w-[170px]">วันที่คืนสำเร็จ</th>
                 <th className="px-6 py-4 w-[120px]">สถานะ</th>
                 <th className="px-6 py-4 text-center w-[110px]">จัดการ</th>
               </tr>
@@ -437,10 +418,16 @@ export default function ReturnsClient() {
                     </td>
                     <td className="px-6 py-2.5 text-slate-600">{r.item_count ?? 0}</td>
                     <td className="px-6 py-2.5">
+                      <div className="text-sm text-slate-700">{fmtDateTime(r.request_date)}</div>
+                    </td>
+                    <td className="px-6 py-2.5">
                       <div className="text-sm text-slate-700">{fmtDateOnly(r.due_date)}</div>
                       {overdue > 0 && (
                         <div className="text-xs text-red-600 font-bold">ค้าง {overdue} วัน</div>
                       )}
+                    </td>
+                    <td className="px-6 py-2.5">
+                      <div className="text-sm text-slate-700">{fmtDateTime(r.return_date ?? null)}</div>
                     </td>
                     <td className="px-6 py-2.5">
                       <StatusBadge status={uiStatus} />
@@ -461,7 +448,7 @@ export default function ReturnsClient() {
               })}
               {displayRecords.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={12}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">ไม่พบข้อมูล</p>

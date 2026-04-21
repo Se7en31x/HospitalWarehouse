@@ -48,6 +48,12 @@ const StatusBadge = ({ overdue }: { overdue: boolean }) => {
   );
 };
 
+const PendingCheckBadge = () => (
+  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200">
+    <Clock className="w-3 h-3" /> รอตรวจรับคืน
+  </span>
+);
+
 // === Main Component ===
 
 export default function ReturnItemClient() {
@@ -465,7 +471,9 @@ export default function ReturnItemClient() {
                         {fmtDate(r.due_date)}
                       </span>
                     </td>
-                    <td className="px-5 py-4"><StatusBadge overdue={overdue} /></td>
+                    <td className="px-5 py-4">
+                      {r.status === "PENDING_RETURN_CHECK" ? <PendingCheckBadge /> : <StatusBadge overdue={overdue} />}
+                    </td>
                     <td className="px-5 py-4 text-center">
                       <button
                         onClick={() => openDetail(r.id)}

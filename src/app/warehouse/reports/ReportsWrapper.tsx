@@ -9,6 +9,7 @@ import LowStockReportClient from "./LowStockReportClient";
 import AssetReportClient from "./AssetReportClient";
 import ReusableItemsReportClient from "./ReusableItemsReportClient";
 import InventoryBalanceReportClient from "./InventoryBalanceReportClient";
+import ReceiveReportClient from "./ReceiveReportClient";
 import { type Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
@@ -20,6 +21,7 @@ import {
   ReceiptText,      // requisition — request document
   Cpu,              // assets — hardware / fixed assets
   RotateCcw,        // reusable-items — reuse / cycle
+  PackagePlus,      // receive-report — incoming stock
   ArrowUpRight,
   FileBarChart,
 } from "lucide-react";
@@ -112,6 +114,22 @@ const reportGroups: ReportGroup[] = [
     ],
   },
   {
+    title: "การรับพัสดุเข้าคลัง",
+    reports: [
+      {
+        id: "receive-report",
+        label: "รายงานการรับพัสดุเข้าคลัง",
+        description: "ดูรายการรับพัสดุทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
+        icon: PackagePlus,
+        iconBg: "bg-blue-50",
+        iconColor: "text-blue-600",
+        countKey: "totalReceives",
+        badgeBg: "bg-blue-50",
+        badgeText: "text-blue-700",
+      },
+    ],
+  },
+  {
     title: "การเบิกจ่ายและเบิกยืม",
     reports: [
       {
@@ -196,6 +214,8 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
         return <AssetReportClient onBack={handleBackToSelector} />;
       case "reusable-items":
         return <ReusableItemsReportClient onBack={handleBackToSelector} />;
+      case "receive-report":
+        return <ReceiveReportClient onBack={handleBackToSelector} />;
       default:
         return null;
     }

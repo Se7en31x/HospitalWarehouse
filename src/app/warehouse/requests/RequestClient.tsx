@@ -177,7 +177,7 @@ const RequestClient = () => {
     REJECTED:  "ปฏิเสธ",
     PENDING:   "รออนุมัติ",
     CANCELLED: "ยกเลิก",
-    BORROWING: "อยู่ระหว่างยืม",
+    BORROWING: "อยู่ระหว่างการยืม",
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -353,6 +353,7 @@ const RequestClient = () => {
           { v: 'COMPLETED', l: 'เสร็จสิ้น' },
           { v: 'REJECTED',  l: 'ปฏิเสธ' },
           { v: 'CANCELLED', l: 'ยกเลิก' },
+          { v: 'BORROWING', l: 'อยุ่ระหว่างการยืม' },
         ].map(tab => (
           <button
             key={tab.v}

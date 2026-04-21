@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
-import { getRequisitionById, processReturn, ReturnItemPayload } from "@/services/requisitionService";
+import { getRequisitionById, submitReturn, ReturnItemPayload } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
@@ -24,6 +24,7 @@ const mapUiStatus = (header: RequisitionHeader): UiStatus => {
     if (header.due_date && new Date(header.due_date) < new Date()) return "ค้างคืน";
     return "รอการคืน";
   }
+  if (header.status === "PENDING_RETURN_CHECK") return "รออนุมัติ";
   if (header.status === "COMPLETED") return "คืนแล้ว";
   if (header.status === "PENDING") return "รออนุมัติ";
   if (header.status === "CANCELLED") return "ยกเลิก";
@@ -235,12 +236,12 @@ function DetailContent({
 
     setIsSubmitting(true);
     try {
-      const result = await processReturn(header.id, payload);
+      const result = await submitReturn(header.id, payload);
       if (!result.success) throw new Error(result.message);
 
       await MySwal.fire({
         title: "บันทึกสำเร็จ",
-        text: "รับคืนพัสดุเรียบร้อยแล้ว",
+        text: "ส่งคืนสำเร็จ (รอคลังตรวจรับคืน)",
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
@@ -565,7 +566,7 @@ function DetailContent({
               className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              บันทึกการรับคืน
+              ส่งคืน (รอตรวจรับ)
             </button>
           </div>
         )}

@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FileText, PackageCheck, Building2, User, Loader2, Minus, Plus, ScanLine,
+  FileText, PackageCheck, User, Loader2, Minus, Plus, ScanLine,
   Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import {
   getRequisitionById,
   approveRequisition,
@@ -87,8 +87,8 @@ const getStatusLabel = (status?: RequisitionHeader["status"]): string => {
   switch (status) {
     case "PENDING": return "รออนุมัติ";
     case "APPROVED": return "รอนำส่ง";
-    case "COMPLETED": return "อนุมัติการเบิก";
-    case "BORROWING": return "อนุมัติการยืม";
+    case "COMPLETED": return "เสร็จสิ้น";
+    case "BORROWING": return "อยุ่ระหว่างการยืม";
     case "REJECTED": return "ปฏิเสธ";
     case "DRAFT": return "ร่าง";
     case "CANCELLED": return "ยกเลิก";
@@ -131,7 +131,8 @@ export default function RequisitionDetailsPage({
 
   const isPending = requisition?.status === "PENDING";
   const isApproved = requisition?.status === "APPROVED";
-  const canCompleteDelivery = isApproved && requisition?.type === "WITHDRAW";
+  const canCompleteDelivery =
+    isApproved && (requisition?.type === "WITHDRAW" || requisition?.type === "BORROW");
 
   // ── Data fetching ───────────────────────────────────────────────────────────
 
@@ -343,7 +344,14 @@ export default function RequisitionDetailsPage({
 
   const handleCompleteDelivery = async () => {
     if (!requisition) return;
-    const confirmed = await SweetAlertUtils.confirm("ยืนยันการนำส่ง", `ยืนยันนำส่งใบ ${requisition.doc_no} แล้วใช่หรือไม่?`);
+    const isBorrow = requisition.type === "BORROW";
+    const confirmTitle = isBorrow ? "ยืนยันการส่งมอบ" : "ยืนยันการนำส่ง";
+    const confirmText = isBorrow
+      ? `ยืนยันการส่งมอบใบ ${requisition.doc_no} แล้วใช่หรือไม่?`
+      : `ยืนยันการนำส่งใบ ${requisition.doc_no} แล้วใช่หรือไม่?`;
+    const successText = isBorrow ? "บันทึกการส่งมอบเรียบร้อย" : "บันทึกการนำส่งเรียบร้อย";
+
+    const confirmed = await SweetAlertUtils.confirm(confirmTitle, confirmText);
     if (!confirmed.isConfirmed) return;
 
     Swal.fire({ allowOutsideClick: false, allowEscapeKey: false, background: 'transparent', html: '', didOpen: () => Swal.showLoading() });
@@ -352,7 +360,7 @@ export default function RequisitionDetailsPage({
       const res = await completeRequisitionDelivery(requisition.id);
       if (res.success) {
         Swal.close();
-        await SweetAlertUtils.success("สำเร็จ", "บันทึกการนำส่งเรียบร้อย");
+        await SweetAlertUtils.success("สำเร็จ", successText);
         router.push("/warehouse/requests");
       } else throw new Error(res.message || "ไม่สามารถบันทึกการนำส่งได้");
     } catch (err: unknown) {
@@ -961,7 +969,7 @@ export default function RequisitionDetailsPage({
                 className="px-7 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
               >
                 {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <PackageCheck size={18} />}
-                ปิดงานนำส่งเรียบร้อย
+                {requisition.type === "BORROW" ? "ยืนยันการส่งมอบ" : "ยืนยันการนำส่ง"}
               </button>
             )}
           </div>

@@ -28,7 +28,7 @@ export interface BorrowerDetails {
 export interface RequisitionFilters {
   // แก้ไข: เปลี่ยนจาก department_codes (string[]) เป็น IDs (number[]) หรือเดี่ยว
   department_id?: number; 
-  status?: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED" | "BORROWING";
+  status?: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "DRAFT" | "CANCELLED" | "BORROWING" | "PENDING_RETURN_CHECK";
   type?: "WITHDRAW" | "BORROW";
   page?: number;
   limit?: number;
@@ -86,6 +86,7 @@ export interface RequisitionHeader {
   id: number;
   doc_no: string;
   request_date: string;
+  return_date?: string | null;
   due_date?: string | null;
   department_id: number; 
   department_name?: string; 
@@ -93,7 +94,7 @@ export interface RequisitionHeader {
   requester?: string;
   approver?: string | null;
   item_count?: number;
-  status: "PENDING" | "COMPLETED" | "BORROWING" | "APPROVED" | "REJECTED" | "DRAFT" | "CANCELLED";
+  status: "PENDING" | "COMPLETED" | "BORROWING" | "APPROVED" | "REJECTED" | "DRAFT" | "CANCELLED" | "PENDING_RETURN_CHECK";
   type: "WITHDRAW" | "BORROW";
   items: RequisitionItem[];
   note?: string;

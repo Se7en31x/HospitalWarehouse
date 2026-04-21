@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Loader2, Search, Trash2, X, Plus, Save, CheckCircle2,
+  Loader2, Search, Trash2, X, Plus, CheckCircle2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
@@ -701,8 +701,8 @@ export default function ReceiveFormPage() {
             <button onClick={handleSave}
               disabled={lines.length === 0 || isSaving}
               className="flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium shadow disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              บันทึกรับพัสดุ
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              ยืนยันรับเข้า
             </button>
           </div>
 

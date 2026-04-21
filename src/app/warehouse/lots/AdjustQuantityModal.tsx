@@ -96,12 +96,12 @@ export default function AdjustQuantityModal({
                   <p className="text-sm font-semibold text-slate-800 truncate">{lot.itemName || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400 mb-0.5">หมวดหมู่</p>
-                  <p className="text-sm font-semibold text-slate-800 truncate">{lot.category || "—"}</p>
+                  <p className="text-xs text-slate-400 mb-0.5">Lot No.</p>
+                  <p className="text-sm font-semibold text-slate-800 truncate">{lot.lotCode || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400 mb-0.5">คลัง</p>
-                  <p className="text-sm font-semibold text-slate-800 truncate">{lot.warehouse || "—"}</p>
+                  <p className="text-xs text-slate-400 mb-0.5">หมวดหมู่</p>
+                  <p className="text-sm font-semibold text-slate-800 truncate">{lot.category || "—"}</p>
                 </div>
               </div>
             </div>

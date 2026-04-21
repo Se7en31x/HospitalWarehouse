@@ -13,6 +13,7 @@ export interface StockMovementItem {
   image_url?: string | null;
   category?: string | null;
   unit?: string | null;
+  type?: string | null;
 }
 
 export interface StockMovement {

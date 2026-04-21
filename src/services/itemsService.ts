@@ -73,7 +73,13 @@ export async function getInventoryItemById(id: string, token?: string): Promise<
 // ดึงรายการพัสดุพร้อมตัวกรอง
 // token — ส่งมาจาก Server Component เพื่อใช้ใน SSR (ไม่ต้องส่งตอนเรียกจาก Client)
 export async function getInventoryItems(filters: GetItemsFilters = {}, token?: string): Promise<Item.UiItem[]> {
-    const data = await api.get<Item.ApiItem[]>(`/v1/items`, filters as Record<string, unknown>, token);
+   const params = {
+        ...filters,
+        allowed_req: filters.allowed_req !== undefined ? String(filters.allowed_req) : undefined,
+        allowed_borrow: filters.allowed_borrow !== undefined ? String(filters.allowed_borrow) : undefined,
+    };
+
+    const data = await api.get<Item.ApiItem[]>(`/v1/items`, params as Record<string, unknown>, token);
     return (data || []).map(mapApiToUi);
 }
 

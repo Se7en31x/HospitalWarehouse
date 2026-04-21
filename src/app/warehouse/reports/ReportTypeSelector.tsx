@@ -11,7 +11,8 @@ export type ReportPage =
 	| "inventory-balance"
 	| "low-stock"
 	| "assets"
-	| "reusable-items";
+	| "reusable-items"
+	| "receive-report";
 
 interface ReportTypeSelectorProps {
 	onSelectType: (type: ReportPage) => void;
@@ -95,6 +96,15 @@ const reportTypeOptions: {
 		countBg: "bg-teal-50",
 		countText: "text-teal-700",
 		ringColor: "ring-teal-300",
+	},
+	{
+		id: "receive-report",
+		label: "รายงานการรับพัสดุเข้าคลัง",
+		description: "ดูรายการรับพัสดุทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
+		countBg: "bg-blue-50",
+		countText: "text-blue-700",
+		ringColor: "ring-blue-300",
+		countKey: "totalReceives",
 	},
 ];
 

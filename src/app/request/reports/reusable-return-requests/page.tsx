@@ -37,6 +37,7 @@ export default function ReusableReturnRequestsReportPage() {
       const matchesSearch =
         row.doc_no.toLowerCase().includes(keyword) ||
         (row.department_name || "").toLowerCase().includes(keyword) ||
+        (row.requested_by_name || "").toLowerCase().includes(keyword) ||
         row.items.some((item) => (item.item_name || "").toLowerCase().includes(keyword));
 
       const matchesStatus = statusFilter === "ทั้งหมด" || row.status === statusFilter;
@@ -45,10 +46,12 @@ export default function ReusableReturnRequestsReportPage() {
   }, [rows, searchTerm, statusFilter]);
 
   const exportCSV = () => {
-    const headers = ["เลขที่คำขอ", "แผนก", "นัดรับ", "สถานะ", "จำนวนรายการ", "จำนวนที่ขอคืนรวม"];
+    const headers = ["เลขที่คำขอ", "แผนก", "ผู้ขอ", "วันที่ขอ", "นัดรับ", "สถานะ", "จำนวนรายการ", "จำนวนที่ขอคืนรวม"];
     const csvRows = filtered.map((row) => [
       row.doc_no,
       row.department_name || "-",
+      row.requested_by_name || "-",
+      new Date(row.created_at).toLocaleString("th-TH"),
       row.preferred_pickup_at ? new Date(row.preferred_pickup_at).toLocaleString("th-TH") : "-",
       STATUS_LABEL[row.status] || row.status,
       String(row.items.length),
@@ -113,30 +116,34 @@ export default function ReusableReturnRequestsReportPage() {
           <table className="w-full text-sm table-fixed">
             <thead className="bg-amber-50 text-amber-900">
               <tr>
-                <th className="px-4 py-3 text-left w-[160px]">เลขที่คำขอ</th>
-                <th className="px-4 py-3 text-left w-[180px]">แผนก</th>
-                <th className="px-4 py-3 text-left w-[190px]">นัดรับของ</th>
-                <th className="px-4 py-3 text-left w-[130px]">สถานะ</th>
-                <th className="px-4 py-3 text-center w-[120px]">จำนวนรายการ</th>
-                <th className="px-4 py-3 text-center w-[150px]">จำนวนที่ขอคืนรวม</th>
+                <th className="px-4 py-3 text-left w-[150px]">เลขที่คำขอ</th>
+                <th className="px-4 py-3 text-left w-[150px]">แผนก</th>
+                <th className="px-4 py-3 text-left w-[150px]">ผู้ขอ</th>
+                <th className="px-4 py-3 text-left w-[160px]">วันที่ขอ</th>
+                <th className="px-4 py-3 text-left w-[160px]">นัดรับของ</th>
+                <th className="px-4 py-3 text-left w-[120px]">สถานะ</th>
+                <th className="px-4 py-3 text-center w-[100px]">รายการ</th>
+                <th className="px-4 py-3 text-center w-[100px]">ขอคืนรวม</th>
                 <th className="px-4 py-3 text-left">รายการที่ขอคืน</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">กำลังโหลด...</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">กำลังโหลด...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">ไม่พบข้อมูลรายงาน</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-slate-400">ไม่พบข้อมูลรายงาน</td>
                 </tr>
               ) : (
                 filtered.map((row) => (
                   <tr key={row.id} className="border-t border-slate-100 align-top">
                     <td className="px-4 py-3 font-semibold">{row.doc_no}</td>
                     <td className="px-4 py-3">{row.department_name || "-"}</td>
-                    <td className="px-4 py-3">{row.preferred_pickup_at ? new Date(row.preferred_pickup_at).toLocaleString("th-TH") : "-"}</td>
+                    <td className="px-4 py-3">{row.requested_by_name || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{new Date(row.created_at).toLocaleString("th-TH")}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{row.preferred_pickup_at ? new Date(row.preferred_pickup_at).toLocaleString("th-TH") : "-"}</td>
                     <td className="px-4 py-3">{STATUS_LABEL[row.status] || row.status}</td>
                     <td className="px-4 py-3 text-center">{row.items.length}</td>
                     <td className="px-4 py-3 text-center">{row.items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0)}</td>

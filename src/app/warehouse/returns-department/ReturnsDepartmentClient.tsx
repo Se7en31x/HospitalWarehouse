@@ -6,6 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Save, Trash2, X, Packa
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
+import { deptDisplayName } from "@/utils/departmentUtils";
 import { socket } from "@/lib/socket";
 import {
   UnitFormTable,
@@ -59,6 +60,7 @@ export default function ReturnsDepartmentClient() {
   const [serverTotalPages, setServerTotalPages] = useState(0);
 
   // State - Filters & UI
+  const [activeTab, setActiveTab] = useState<"REQUESTED" | "COMPLETED">("REQUESTED");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [isDeptOpen, setIsDeptOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,14 +88,14 @@ export default function ReturnsDepartmentClient() {
   const isVisibleRef = useRef(true);
 
   // Fetch Data
-  const fetchData = useCallback(async (page: number = 1) => {
+  const fetchData = useCallback(async (page: number = 1, tabStatus?: "REQUESTED" | "COMPLETED") => {
     setIsFetching(true);
     try {
       const response = await reusableSvc.getReusableReturnRequests({
         page,
         limit: 10,
         department_id: departmentFilter || undefined,
-        status: "REQUESTED",
+        status: tabStatus ?? activeTab,
       });
       setRecords(response.items || []);
       setServerTotal(response.total || 0);
@@ -104,7 +106,7 @@ export default function ReturnsDepartmentClient() {
     } finally {
       setIsFetching(false);
     }
-  }, [departmentFilter]);
+  }, [departmentFilter, activeTab]);
 
   // Initialize & Load Options
   useEffect(() => {
@@ -177,7 +179,8 @@ export default function ReturnsDepartmentClient() {
   // Computed Values
   const selectedDeptLabel = useMemo(() => {
     if (!departmentFilter) return "แผนกทั้งหมด";
-    return departments.find((d) => String(d.id) === departmentFilter)?.name || "แผนกทั้งหมด";
+    const d = departments.find((dept) => String(dept.id) === departmentFilter);
+    return d ? deptDisplayName(d.name || "") : "แผนกทั้งหมด";
   }, [departmentFilter, departments]);
 
   const filteredRecords = useMemo(() => {
@@ -186,7 +189,7 @@ export default function ReturnsDepartmentClient() {
       const matchesSearch =
         (rec.doc_no || "").toLowerCase().includes(term) ||
         (rec.department_name || "").toLowerCase().includes(term) ||
-        (rec.contact_name || "").toLowerCase().includes(term);
+        (rec.requested_by_name || "").toLowerCase().includes(term);
       const matchDate =
         !startDate && !endDate
           ? true
@@ -219,17 +222,15 @@ export default function ReturnsDepartmentClient() {
       setActiveRequest(detail);
 
       const unitRows: ProcessUnitForm[] = (detail.items || []).flatMap((item) =>
-        (item.requested_units || [])
-          .filter((unit) => Boolean(unit.id))
-          .map((unit) => ({
-            unit_id: String(unit.id),
-            unit_code: unit.unit_code || "-",
-            serial_no: unit.serial_no || "-",
-            item_id: item.item_id,
-            item_name: item.item_name || "-",
-            condition: "GOOD",
-            note: "",
-          }))
+        (item.requested_units || []).map((unit) => ({
+          unit_id: unit.id ? String(unit.id) : `CODE:${unit.unit_code}`,
+          unit_code: unit.unit_code || "-",
+          serial_no: unit.serial_no || "-",
+          item_id: item.item_id,
+          item_name: item.item_name || "-",
+          condition: "GOOD",
+          note: "",
+        }))
       );
 
       if (unitRows.length) {
@@ -395,15 +396,58 @@ export default function ReturnsDepartmentClient() {
     }
   }, [fetchData]);
 
+  // Switch tab handler
+  const handleTabChange = useCallback((tab: "REQUESTED" | "COMPLETED") => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    pageRef.current = 1;
+    setSearchTerm("");
+    fetchData(1, tab);
+  }, [fetchData]);
+
   // Render
   return (
     <div className="flex flex-col min-h-screen bg-white p-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        {(["REQUESTED", "COMPLETED"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => handleTabChange(tab)}
+            className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
+              activeTab === tab
+                ? tab === "REQUESTED"
+                  ? "border-amber-500 text-amber-600 bg-amber-50"
+                  : "border-green-500 text-green-600 bg-green-50"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {tab === "REQUESTED" ? (
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                รอดำเนินการ
+                {activeTab === "REQUESTED" && serverTotal > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                    {serverTotal}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-400" />
+                เสร็จสิ้น
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -412,7 +456,7 @@ export default function ReturnsDepartmentClient() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหา เลขที่ / แผนก / ผู้ประสานงาน..."
+            placeholder="ค้นหา เลขที่ / แผนก / ผู้ขอ..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
@@ -457,7 +501,7 @@ export default function ReturnsDepartmentClient() {
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${departmentFilter === String(d.id) ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
-                      {d.name}
+                      {deptDisplayName(d.name || "")}
                     </button>
                   </li>
                 ))}
@@ -560,12 +604,13 @@ export default function ReturnsDepartmentClient() {
               <tr>
                 <th className="px-6 py-4 w-[50px]">#</th>
                 <th className="px-6 py-4 w-[140px]">เลขที่คำขอ</th>
-                <th className="px-6 py-4 w-[160px]">แผนก</th>
-                <th className="px-6 py-4 w-[140px]">ผู้ประสานงาน</th>
-                <th className="px-6 py-4 w-[150px]">นัดรับของ</th>
-                <th className="px-6 py-4 w-[100px]">จำนวนรายการ</th>
-                <th className="px-6 py-4 w-[120px]">สถานะ</th>
-                <th className="px-6 py-4 w-[140px] text-center">จัดการ</th>
+                <th className="px-6 py-4 w-[150px]">แผนก</th>
+                <th className="px-6 py-4 w-[140px]">ผู้ขอ</th>
+                <th className="px-6 py-4 w-[155px]">เวลาคำขอ</th>
+                <th className="px-6 py-4 w-[155px]">นัดรับของ</th>
+                <th className="px-6 py-4 w-[90px]">รายการ</th>
+                <th className="px-6 py-4 w-[110px]">สถานะ</th>
+                <th className="px-6 py-4 w-[120px] text-center">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -573,9 +618,10 @@ export default function ReturnsDepartmentClient() {
                 <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-2.5 text-slate-700 text-xs">{idx + 1}</td>
                   <td className="px-6 py-2.5 font-mono text-sm text-black">{rec.doc_no}</td>
-                  <td className="px-6 py-2.5 text-slate-700 text-sm">{rec.department_name || "-"}</td>
-                  <td className="px-6 py-2.5 text-slate-700 text-sm">{rec.contact_name || "-"}</td>
-                  <td className="px-6 py-2.5 text-slate-700 text-sm text-left">{fmtDateTime(rec.preferred_pickup_at)}</td>
+                  <td className="px-6 py-2.5 text-slate-700 text-sm">{deptDisplayName(rec.department_name || "")}</td>
+                  <td className="px-6 py-2.5 text-slate-700 text-sm">{rec.requested_by_name || "-"}</td>
+                  <td className="px-6 py-2.5 text-slate-600 text-xs">{fmtDateTime(rec.created_at)}</td>
+                  <td className="px-6 py-2.5 text-slate-600 text-xs">{fmtDateTime(rec.preferred_pickup_at)}</td>
                   <td className="px-6 py-2.5 text-slate-700 text-sm text-left">{getTotalItems(rec.items)}</td>
                   <td className="px-6 py-2.5">
                     <StatusBadge status={rec.status} />
@@ -589,25 +635,27 @@ export default function ReturnsDepartmentClient() {
                       >
                         <Eye className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => handleDeleteRequest(rec)}
-                        disabled={deletingRequestId === rec.id}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                        title="ลบ"
-                      >
-                        {deletingRequestId === rec.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-5 h-5" />
-                        )}
-                      </button>
+                      {activeTab === "REQUESTED" && (
+                        <button
+                          onClick={() => handleDeleteRequest(rec)}
+                          disabled={deletingRequestId === rec.id}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                          title="ลบ"
+                        >
+                          {deletingRequestId === rec.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-5 h-5" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
               {filteredRecords.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">{searchTerm ? "ไม่พบผลการค้นหา" : "ไม่พบใบคำขอคืนที่รอคลังดำเนินการ"}</p>
@@ -663,11 +711,19 @@ export default function ReturnsDepartmentClient() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-              <h3 className="text-lg font-bold text-slate-900">ตรวจรับคืนใบ {activeRequest.doc_no}</h3>
+            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900">ตรวจรับคืนใบ {activeRequest.doc_no}</h3>
+                <div className="mt-2 space-y-1 text-sm text-slate-600">
+                  <p><span className="font-medium">แผนก:</span> {deptDisplayName(activeRequest.department_name || "") || "-"}</p>
+                  <p><span className="font-medium">ผู้ขอ:</span> {activeRequest.requested_by_name || '-'}</p>
+                  <p><span className="font-medium">เวลาคำขอ:</span> {fmtDateTime(activeRequest.created_at)}</p>
+                  <p><span className="font-medium">นัดรับ:</span> {fmtDateTime(activeRequest.preferred_pickup_at)}</p>
+                </div>
+              </div>
               <button 
                 onClick={closeProcessModal} 
-                className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+                className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -680,6 +736,31 @@ export default function ReturnsDepartmentClient() {
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   กำลังโหลดรายละเอียด...
                 </div>
+              )}
+
+              {!isLoadingDetail && (
+                <>
+                  {/* Request Summary */}
+                  <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-semibold text-blue-900 mb-2">สรุปคำขอ</p>
+                    <div className="grid grid-cols-2 gap-3 text-xs text-blue-800">
+                      <div>
+                        <span className="font-medium">เลขที่:</span> {activeRequest?.doc_no}
+                      </div>
+                      <div>
+                        <span className="font-medium">สถานะ:</span> <StatusBadge status={activeRequest?.status || "REQUESTED"} />
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-medium">จำนวนรายการ:</span> {getTotalItems(activeRequest?.items || [])} หน่วย
+                      </div>
+                      {activeRequest?.note && (
+                        <div className="col-span-2">
+                          <span className="font-medium">หมายเหตุ:</span> {activeRequest.note}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
               {!isLoadingDetail && unitForms.length > 0 && (
@@ -755,16 +836,18 @@ export default function ReturnsDepartmentClient() {
                 onClick={closeProcessModal}
                 className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition font-medium"
               >
-                ยกเลิก
+                {activeRequest.status === "COMPLETED" ? "ปิด" : "ยกเลิก"}
               </button>
-              <button
-                onClick={handleProcess}
-                disabled={isSaving || isLoadingDetail}
-                className="px-5 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-300 transition flex items-center gap-2 font-medium"
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                บันทึกผลตรวจรับ
-              </button>
+              {activeRequest.status !== "COMPLETED" && (
+                <button
+                  onClick={handleProcess}
+                  disabled={isSaving || isLoadingDetail}
+                  className="px-5 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-300 transition flex items-center gap-2 font-medium"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  บันทึกผลตรวจรับ
+                </button>
+              )}
             </div>
           </div>
         </div>

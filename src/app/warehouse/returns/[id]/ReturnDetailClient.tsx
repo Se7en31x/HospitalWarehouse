@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
-import { getRequisitionById, processReturn, ReturnItemPayload } from "@/services/requisitionService";
+import { getRequisitionById, verifyReturn } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
@@ -24,6 +24,7 @@ const mapUiStatus = (header: RequisitionHeader): UiStatus => {
     if (header.due_date && new Date(header.due_date) < new Date()) return "ค้างคืน";
     return "รอการคืน";
   }
+  if (header.status === "PENDING_RETURN_CHECK") return "รออนุมัติ";
   if (header.status === "COMPLETED") return "คืนแล้ว";
   if (header.status === "PENDING") return "รออนุมัติ";
   if (header.status === "CANCELLED") return "ยกเลิก";
@@ -190,6 +191,7 @@ function DetailContent({
   const ext = isExternal(header);
   const uiStatus = mapUiStatus(header);
   const canReturn = header.status === "BORROWING";
+  const canVerify = header.status === "PENDING_RETURN_CHECK";
 
   const returnable = useMemo<ReturnRowState[]>(() =>
     (header.items || [])
@@ -223,29 +225,25 @@ function DetailContent({
     }));
   };
 
-  const handleSubmitReturn = async () => {
-    const payload: ReturnItemPayload[] = rows
-      .filter(r => r.qty_returned > 0)
-      .map(r => ({
-        req_item_id: r.req_item_id,
-        qty_returned: r.qty_returned,
-        condition: r.condition,
-        note: r.note || undefined,
-      }));
-
-    if (payload.length === 0) {
-      MySwal.fire({ title: "กรุณาระบุจำนวนที่คืน", icon: "warning", timer: 2000, showConfirmButton: false });
-      return;
-    }
+  const handleVerifyReturn = async () => {
+    const confirmed = await MySwal.fire({
+      title: "ยืนยันการรับคืน",
+      text: `ยืนยันการรับคืนเอกสาร ${header.doc_no} ใช่หรือไม่?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "ยืนยัน",
+      cancelButtonText: "ยกเลิก",
+    });
+    if (!confirmed.isConfirmed) return;
 
     setIsSubmitting(true);
     try {
-      const result = await processReturn(header.id, payload);
+      const result = await verifyReturn(header.id);
       if (!result.success) throw new Error(result.message);
 
       await MySwal.fire({
-        title: "บันทึกสำเร็จ",
-        text: "รับคืนพัสดุเรียบร้อยแล้ว",
+        title: "สำเร็จ",
+        text: "ยืนยันการรับคืนเรียบร้อย",
         icon: "success",
         timer: 2000,
         showConfirmButton: false,
@@ -567,7 +565,7 @@ function DetailContent({
         </section>
 
         {/* Action Buttons */}
-        {canReturn && (
+        {canVerify && (
           <div className="flex gap-3 justify-end mt-6">
             <button
               onClick={() => router.back()}
@@ -576,12 +574,12 @@ function DetailContent({
               ปิด
             </button>
             <button
-              onClick={handleSubmitReturn}
-              disabled={isSubmitting || rows.every(r => r.qty_returned === 0)}
+              onClick={handleVerifyReturn}
+              disabled={isSubmitting}
               className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              บันทึกการรับคืน
+              ยืนยันการรับคืน
             </button>
           </div>
         )}
