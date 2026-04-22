@@ -604,7 +604,7 @@ export default function BorrowClient({ initialItems }: Props) {
                 <th className="px-6 py-4 w-[50px]">รูป</th>
                 <th className="px-6 py-4 w-[100px]">รหัส</th>
                 <th className="px-6 py-4 w-[180px]">ชื่อรายการ</th>
-                <th className="px-6 py-4 w-[100px]">หมวดหมู่</th>
+                <th className="px-6 py-4 w-[120px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[110px]">ประเภท</th>
                 <th className="px-6 py-4 w-[100px]">ตำแหน่ง</th>
                 <th className="px-6 py-4 w-[100px]">คงเหลือ</th>

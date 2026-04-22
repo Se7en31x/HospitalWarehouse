@@ -1,7 +1,6 @@
-export const dynamic = "force-dynamic";
 
-import ReturnRequestsClient from "./ReturnRequestsClient";
+import ReturnItemClient from "./ReturnItemClient";
 
-export default function ReturnRequestsPage() {
-  return <ReturnRequestsClient />;
+export default function Page() {
+  return <ReturnItemClient />;
 }

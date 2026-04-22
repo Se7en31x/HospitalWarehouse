@@ -448,11 +448,11 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     title="เลือกทั้งหมดในหน้านี้"
                   />
                 </th>
-                <th className="px-6 py-4 w-[100px]">รูป</th>
-                <th className="px-6 py-4 w-[150px]">รหัส</th>
+                <th className="px-6 py-4 w-[80px]">รูป</th>
+                <th className="px-6 py-4 w-[120px]">รหัส</th>
                 <th className="px-6 py-4 w-[250px]">ชื่อพัสดุ</th>
-                <th className="px-6 py-4 w-[150px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[150px]">ประเภท</th>
+                <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
+                <th className="px-6 py-4 w-[160px]">ประเภท</th>
                 <th className="px-6 py-4 w-[100px]">สต็อก</th>
                 <th className="px-6 py-4 w-[120px]">หน่วย</th>
                 <th className="px-6 py-4 w-[120px]">สถานะ</th>

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Loader2, Search, Trash2, X, Plus, CheckCircle2,
+  Loader2, Search, Trash2, X, Plus, CheckCircle2, Pencil,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
@@ -100,6 +100,38 @@ function makeLine(item: CatalogItem): LineItem {
   };
 }
 
+// ── LocalStorage helpers ──────────────────────────────────────────────────────
+
+const STORAGE_KEY = "receive_form_draft";
+
+function loadDraft() {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(source: ReceiveSource, docMeta: DocMeta, lines: LineItem[], pendingLine: LineItem | null) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ source, docMeta, lines, pendingLine }, null, 2));
+  } catch {
+    // Silent fail
+  }
+}
+
+function clearDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Silent fail
+  }
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ReceiveFormPage() {
@@ -116,11 +148,13 @@ export default function ReceiveFormPage() {
 
   const [lines, setLines]     = useState<LineItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Scanner state
   const [scanInput,  setScanInput]  = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [pendingLine, setPendingLine] = useState<LineItem | null>(null);
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
 
   // Catalog manual search
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -130,7 +164,19 @@ export default function ReceiveFormPage() {
   const [supplierSearch, setSupplierSearch] = useState("");
   const [isSupplierOpen, setIsSupplierOpen] = useState(false);
 
-  // ── Bootstrap ─────────────────────────────────────────────────────────────
+  // ── Bootstrap & Hydration ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    // Load from localStorage on mount
+    const draft = loadDraft();
+    if (draft) {
+      setSource(draft.source || "purchase");
+      setDocMeta(draft.docMeta || INIT_DOC);
+      setLines(draft.lines || []);
+      setPendingLine(draft.pendingLine || null);
+    }
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -160,6 +206,44 @@ export default function ReceiveFormPage() {
       }
     })();
   }, []);
+
+  // ── Save to localStorage ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    saveDraft(source, docMeta, lines, pendingLine);
+  }, [source, docMeta, lines, pendingLine, isHydrated]);
+
+  // ── Handle source change ──────────────────────────────────────────────────
+
+  const handleSourceChange = useCallback(async (newSource: ReceiveSource) => {
+    if (newSource === source) return;
+    if (lines.length === 0) {
+      setSource(newSource);
+      setDocMeta(INIT_DOC);
+      return;
+    }
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "เปลี่ยนประเภท",
+      text: `คุณมีรายการ ${lines.length} รายการแล้ว ต้องการจะลบหรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: "ลบและเปลี่ยน",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+    });
+    if (result.isConfirmed) {
+      setSource(newSource);
+      setDocMeta(INIT_DOC);
+      setLines([]);
+      setPendingLine(null);
+      setTimeout(() => {
+        const input = document.querySelector('input[data-scan-input]') as HTMLInputElement;
+        input?.focus();
+      }, 60);
+    }
+  }, [source, lines.length]);
 
   // Outside-click — close dropdowns
   useEffect(() => {
@@ -208,15 +292,29 @@ export default function ReceiveFormPage() {
       if (!pendingLine.lotCode.trim()) { toast.error("กรุณาระบุ Lot Code"); return; }
       if (!pendingLine.expiryDate) { toast.error("กรุณาระบุวันหมดอายุ"); return; }
     }
-    setLines(prev => [...prev, pendingLine]);
+    if (editingLineId) {
+      updateLine(editingLineId, pendingLine);
+      setEditingLineId(null);
+    } else {
+      setLines(prev => [...prev, pendingLine]);
+    }
     setPendingLine(null);
     refocus();
-  }, [pendingLine, refocus]);
+  }, [pendingLine, editingLineId, refocus]);
 
   const cancelPendingLine = useCallback(() => {
     setPendingLine(null);
+    setEditingLineId(null);
     refocus();
   }, [refocus]);
+
+  const editLine = useCallback((id: string) => {
+    const line = lines.find(l => l.lineId === id);
+    if (line) {
+      setPendingLine(line);
+      setEditingLineId(id);
+    }
+  }, [lines]);
 
   const handleScan = useCallback(async () => {
     const raw = scanInput.trim();
@@ -407,6 +505,7 @@ export default function ReceiveFormPage() {
 
       setLines([]);
       setDocMeta(INIT_DOC);
+      clearDraft();
       router.push(`/warehouse/receives/${batch.id}`);
     } catch (err) {
       toast.error("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : String(err)));
@@ -442,9 +541,6 @@ export default function ReceiveFormPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-3xl font-semibold text-gray-800">รับพัสดุเข้าคลัง</h2>
-            {isMixedBatch && (
-              <p className="text-xs text-violet-600 font-semibold mt-1">Mixed Batch — หลายประเภทในคราวเดียว</p>
-            )}
           </div>
           <button onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">
@@ -460,7 +556,7 @@ export default function ReceiveFormPage() {
             <div className="flex flex-wrap gap-2">
               {SOURCE_OPTIONS.map(opt => (
                 <button key={opt.val}
-                  onClick={() => { setSource(opt.val); setDocMeta(INIT_DOC); setLines([]); setPendingLine(null); refocus(); }}
+                  onClick={() => handleSourceChange(opt.val)}
                   className={`px-4 py-2 rounded-lg border font-medium text-sm transition-all flex items-center ${
                     source === opt.val
                       ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
@@ -629,6 +725,7 @@ export default function ReceiveFormPage() {
             <PendingLineForm
               line={pendingLine}
               departments={departments}
+              isEditing={editingLineId !== null}
               onPatch={patchPending}
               onConfirm={confirmPendingLine}
               onCancel={cancelPendingLine}
@@ -680,7 +777,7 @@ export default function ReceiveFormPage() {
                     {lines.map((line, idx) => (
                       <LineRow key={line.lineId} line={line} idx={idx}
                         departments={departments}
-                        onUpdate={updateLine} onRemove={removeLine} />
+                        onUpdate={updateLine} onRemove={removeLine} onEdit={editLine} />
                     ))}
                   </tbody>
                 </table>
@@ -733,9 +830,10 @@ interface LineRowProps {
   departments: DepartmentOption[];
   onUpdate: (id: string, p: Partial<LineItem>) => void;
   onRemove:  (id: string) => void;
+  onEdit:    (id: string) => void;
 }
 
-function LineRow({ line, idx, departments, onUpdate, onRemove }: LineRowProps) {
+function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRowProps) {
   const cfg = KIND_CFG[line.kind];
 
   return (
@@ -841,12 +939,18 @@ function LineRow({ line, idx, departments, onUpdate, onRemove }: LineRowProps) {
         </span>
       </td>
 
-      {/* Remove */}
+      {/* Actions */}
       <td className="px-6 py-3 text-center">
-        <button type="button" onClick={() => onRemove(line.lineId)}
-          className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center justify-center gap-1">
+          <button type="button" onClick={() => onEdit(line.lineId)}
+            className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="แก้ไข">
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={() => onRemove(line.lineId)}
+            className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors" title="ลบ">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -857,12 +961,13 @@ function LineRow({ line, idx, departments, onUpdate, onRemove }: LineRowProps) {
 interface PendingLineFormProps {
   line: LineItem;
   departments: DepartmentOption[];
+  isEditing: boolean;
   onPatch: (p: Partial<LineItem>) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-function PendingLineForm({ line, departments, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
+function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
   const cfg = KIND_CFG[line.kind];
   const borderCls =
     line.kind === "CONSUMABLE" ? "border-blue-400"   :
@@ -937,6 +1042,7 @@ function PendingLineForm({ line, departments, onPatch, onConfirm, onCancel }: Pe
             <FieldBox label="วันผลิต">
               <input
                 type="date" value={line.mfgDate}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={e => onPatch({ mfgDate: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
               />
@@ -1060,7 +1166,7 @@ function PendingLineForm({ line, departments, onPatch, onConfirm, onCancel }: Pe
           <button type="button" onClick={onConfirm}
             className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold text-sm text-white shadow-sm transition-colors ${confirmBtnCls}`}>
             <CheckCircle2 className="w-4 h-4" />
-            เพิ่มรายการ
+            {isEditing ? "บันทึกแก้ไข" : "เพิ่มรายการ"}
           </button>
         </div>
       </div>

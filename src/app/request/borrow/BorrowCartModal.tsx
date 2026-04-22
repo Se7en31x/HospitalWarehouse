@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -399,7 +399,7 @@ export default function BorrowCartModal({
   }, [externalForm.province, externalForm.district, externalForm.subdistrict]);
 
   const ALLOWED_DOC_TYPES = new Set([
-    "application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
+    "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
   ]);
   const MAX_DOC_SIZE = 10 * 1024 * 1024;
   const MAX_DOC_COUNT = 5;
@@ -419,7 +419,7 @@ export default function BorrowCartModal({
 
     for (const file of incoming) {
       if (!ALLOWED_DOC_TYPES.has(file.type)) {
-        setFileError("รองรับ PDF, JPG, PNG, WEBP, HEIC/HEIF เท่านั้น");
+        setFileError("รองรับ JPG, PNG, WEBP, HEIC/HEIF เท่านั้น");
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
@@ -1033,11 +1033,6 @@ export default function BorrowCartModal({
                             {loadingProvinces && (
                               <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
                             )}
-                            {externalForm.postalCode && !loadingProvinces && (
-                              <span className="text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                {externalForm.postalCode}
-                              </span>
-                            )}
                             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isAddressOpen ? 'rotate-180' : ''}`} />
                           </div>
                         </button>   
@@ -1048,17 +1043,17 @@ export default function BorrowCartModal({
                             {/* Breadcrumb chips */}
                             <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-0 flex-wrap">
                               {externalForm.province && (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 px-2 py-0.5">
                                   {externalForm.province}
                                 </span>
                               )}
                               {externalForm.district && (
                                 <>
                                   <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 px-2 py-0.5">
                                     {externalForm.district}
                                     {externalForm.postalCode && (
-                                      <span className="text-blue-500">{externalForm.postalCode}</span>
+                                      <span className="text-slate-500">{externalForm.postalCode}</span>
                                     )}
                                   </span>
                                 </>
@@ -1066,7 +1061,7 @@ export default function BorrowCartModal({
                               {externalForm.subdistrict && (
                                 <>
                                   <ChevronRight className="w-3 h-3 text-slate-300 flex-shrink-0" />
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 px-2 py-0.5">
                                     {externalForm.subdistrict}
                                   </span>
                                 </>
@@ -1207,19 +1202,21 @@ export default function BorrowCartModal({
                         )}
 
                         {/* Summary chip — shown after full address picked */}
-                        {!isAddressOpen && externalForm.postalCode && (
-                          <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-                            <MapPin className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                            <span className="text-xs text-blue-700 flex-1 truncate">
-                              {[externalForm.subdistrict, externalForm.district, externalForm.province].filter(Boolean).join(' › ')}
-                            </span>
-                            <span className="text-xs font-bold text-blue-800 bg-blue-200 px-2 py-0.5 rounded-full flex-shrink-0">
-                              {externalForm.postalCode}
-                            </span>
-                          </div>
-                        )}
                       </div>
 
+                      {/* Postal Code */}
+                      <div>
+                        <label className={labelClass}>รหัสไปรษณีย์</label>
+                        <input
+                          type="text"
+                          placeholder="เช่น 10110"
+                          maxLength={5}
+                          value={externalForm.postalCode}
+                          onChange={(e) => handleExternalFormChange("postalCode", e.target.value.replace(/\D/g, ""))}
+                          disabled={isSubmitting}
+                          className={inputClass}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1257,21 +1254,16 @@ export default function BorrowCartModal({
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
                       <FileText className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสาร</span>
-                      <span className="ml-auto text-[10px] text-gray-400 font-medium">PDF / JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB · สูงสุด 5 ไฟล์</span>
+                      <span className="ml-auto text-[10px] text-gray-400 font-medium">JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB · สูงสุด 5 ไฟล์</span>
                     </div>
                     <div className="px-4 pb-3 pt-2 space-y-0">
                       {/* File list */}
                       {externalForm.documents.map((file, idx) => {
-                        const isPdf = file.type === "application/pdf";
                         const isImage = file.type.startsWith("image/");
                         return (
                           <div key={idx} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-b-0">
                             {/* File type icon */}
-                            {isPdf ? (
-                              <div className="w-7 h-7 bg-red-50 border border-red-100 rounded-md flex items-center justify-center flex-shrink-0">
-                                <FileText className="w-3.5 h-3.5 text-red-500" />
-                              </div>
-                            ) : isImage ? (
+                            {isImage ? (
                               <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 border border-slate-200">
                                 <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
                               </div>
@@ -1300,7 +1292,7 @@ export default function BorrowCartModal({
                           <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                             onChange={handleFileChange}
                             disabled={isSubmitting}
                             multiple

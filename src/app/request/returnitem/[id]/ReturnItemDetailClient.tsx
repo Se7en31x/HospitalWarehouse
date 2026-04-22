@@ -53,7 +53,7 @@ const getStatusBadgeColor = (status: UiStatus) => {
   switch (status) {
     case "รอการคืน":  return "bg-amber-50 text-amber-700 border-amber-200";
     case "ค้างคืน":   return "bg-red-50 text-red-700 border-red-200";
-    case "คืนแล้ว":   return "bg-green-50 text-green-700 border-green-200";
+    case "คืนแล้ว":   return "bg-blue-50 text-blue-700 border-blue-200";
     case "รออนุมัติ": return "bg-blue-50 text-blue-700 border-blue-200";
     case "ยกเลิก":    return "bg-gray-50 text-gray-600 border-gray-200";
     case "ถูกปฏิเสธ": return "bg-rose-50 text-rose-700 border-rose-200";
@@ -97,7 +97,7 @@ interface ReturnRowState {
 }
 
 const conditionOptions: { value: ReturnCondition; label: string; color: string }[] = [
-  { value: "GOOD",       label: "สภาพดี",       color: "text-green-700 bg-green-50" },
+  { value: "GOOD",       label: "สภาพดี",       color: "text-blue-700 bg-blue-50" },
   { value: "DAMAGED",    label: "ชำรุด/เสียหาย", color: "text-amber-700 bg-amber-50" },
   { value: "LOST",       label: "สูญหาย",       color: "text-red-700 bg-red-50" },
   { value: "INCOMPLETE", label: "คืนไม่ครบ",    color: "text-purple-700 bg-purple-50" },
@@ -364,29 +364,29 @@ function DetailContent({
         </section>
 
         {/* Items Table */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col" style={{ height: "400px" }}>
+        <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-visible flex flex-col" style={{ height: "400px" }}>
           <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
             <Package className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold">รายการพัสดุ ({header.items?.length || 0} รายการ)</h2>
           </div>
 
-          <div className="flex-1 border border-slate-200 rounded-lg overflow-auto">
-            <table className="w-full text-base text-left table-fixed">
+          <div className="flex-1 border border-slate-200 rounded-lg overflow-visible relative">
+            <table className="w-full text-sm text-left table-fixed">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
                 <tr>
-                  <th className="px-6 py-5 w-[60px] text-center">#</th>
-                  <th className="px-6 py-5 w-[70px] text-center">รูป</th>
-                  <th className="px-6 py-5 w-[140px]">รหัสพัสดุ</th>
-                  <th className="px-6 py-5 w-[200px]">รายการพัสดุ</th>
-                  <th className="px-6 py-5 w-[120px]">จำนวนยืม</th>
-                  <th className="px-6 py-5 w-[120px]">จ่ายจริง</th>
-                  <th className="px-6 py-5 w-[120px]">คืนแล้ว</th>
-                  <th className="px-6 py-5 w-[70px]">คงเหลือ</th>
+                  <th className="px-6 py-4 w-[60px] text-center">#</th>
+                  <th className="px-6 py-4 w-[70px] text-center">รูป</th>
+                  <th className="px-6 py-4 w-[120px]">รหัสพัสดุ</th>
+                  <th className="px-6 py-4 w-[200px]">รายการพัสดุ</th>
+                  <th className="px-6 py-4 w-[120px]">จำนวนยืม</th>
+                  <th className="px-6 py-4 w-[120px]">จ่ายจริง</th>
+                  <th className="px-6 py-4 w-[80px]">คืนแล้ว</th>
+                  <th className="px-6 py-4 w-[90px]">คงเหลือ</th>
                   {canReturn && (
                     <>
-                      <th className="px-6 py-5 w-[110px] text-center">คืนครั้งนี้</th>
-                      <th className="px-6 py-5 w-[200px] text-center">สภาพ</th>
-                      <th className="px-6 py-5 w-[140px]">หมายเหตุ</th>
+                      <th className="px-6 py-4 w-[110px] text-center">คืนครั้งนี้</th>
+                      <th className="px-6 py-4 w-[200px] text-center">สภาพ</th>
+                      <th className="px-6 py-4 w-[140px]">หมายเหตุ</th>
                     </>
                   )}
                 </tr>
@@ -397,8 +397,8 @@ function DetailContent({
                     if (row.max === 0) return null;
                     return (
                       <tr key={row.req_item_id} className="hover:bg-slate-50">
-                        <td className="px-6 py-5 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
-                        <td className="px-6 py-5">
+                        <td className="px-6 py-4 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
+                        <td className="px-6 py-4">
                           {header.items?.find(i => i.id === row.req_item_id)?.image_url ? (
                             <img
                               src={header.items.find(i => i.id === row.req_item_id)?.image_url || ""}
@@ -411,23 +411,23 @@ function DetailContent({
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-5">
-                          <p className="text-xs text-black font-mono">{row.code}</p>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-black font-mono">{row.code}</p>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-6 py-4">
                           <p className="text-slate-800 text-sm">{row.name}</p>
                         </td>
-                        <td className="px-6 py-5 font-medium text-slate-600 text-base">
+                        <td className="px-6 py-4 font-medium text-slate-600 text-sm">
                           {header.items?.find(i => i.id === row.req_item_id)?.qty}
                         </td>
-                        <td className="px-6 py-5 font-medium text-indigo-600 text-base">{row.issued}</td>
-                        <td className="px-6 py-5 font-medium text-green-600 text-base">{row.returned}</td>
-                        <td className="px-6 py-5">
+                        <td className="px-6 py-4 font-medium text-indigo-600 text-sm">{row.issued}</td>
+                        <td className="px-6 py-4 font-medium text-blue-600 text-sm">{row.returned}</td>
+                        <td className="px-6 py-4">
                           <span className="font-bold text-sm text-amber-600">{row.max}</span>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-6 py-4">
                           <div className="flex items-center justify-center">
-                            <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm focus-within:border-green-500">
+                            <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm focus-within:border-blue-500">
                               <button
                                 type="button"
                                 onClick={() => adjustQty(idx, -1)}
@@ -444,24 +444,24 @@ function DetailContent({
                                   const v = Math.max(0, Math.min(row.max, Number(e.target.value)));
                                   updateRow(idx, { qty_returned: v });
                                 }}
-                                className="w-9 bg-transparent text-center font-bold text-sm outline-none text-green-600"
+                                className="w-9 bg-transparent text-center font-bold text-sm outline-none text-blue-600"
                               />
                               <button
                                 type="button"
                                 onClick={() => adjustQty(idx, 1)}
-                                className="p-1 hover:bg-slate-50 rounded text-green-600"
+                                className="p-1 hover:bg-slate-50 rounded text-blue-600"
                               >
                                 <Plus size={12} strokeWidth={3} />
                               </button>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-6 py-4">
                           <div className="relative">
                             <button
                               type="button"
                               onClick={() => updateRow(idx, { isConditionOpen: !row.isConditionOpen })}
-                              className="w-full flex items-center gap-2 border border-slate-200 rounded px-3 py-2.5 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm justify-between focus:outline-none focus:ring-1 focus:ring-green-500"
+                              className="w-full flex items-center gap-2 border border-slate-200 rounded px-3 py-2.5 text-sm bg-white hover:border-slate-300 transition-colors shadow-sm justify-between focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
                               <span className="font-semibold text-slate-800">
                                 {conditionOptions.find(opt => opt.value === row.condition)?.label || "สภาพดี"}
@@ -478,7 +478,7 @@ function DetailContent({
                                         onClick={() => updateRow(idx, { condition: opt.value, isConditionOpen: false })}
                                         className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                                           row.condition === opt.value
-                                            ? "bg-green-50 text-green-700 font-medium"
+                                            ? "bg-blue-50 text-blue-700 font-medium"
                                             : "text-slate-700 hover:bg-slate-50"
                                         }`}
                                       >
@@ -491,13 +491,13 @@ function DetailContent({
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-6 py-4">
                           <input
                             type="text"
                             value={row.note}
                             onChange={e => updateRow(idx, { note: e.target.value })}
                             placeholder="หมายเหตุ"
-                            className="w-full border border-slate-200 rounded px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 bg-slate-50"
+                            className="w-full border border-slate-200 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50"
                           />
                         </td>
                       </tr>
@@ -519,14 +519,14 @@ function DetailContent({
                           )}
                         </td>
                         <td className="px-6 py-5">
-                          <p className="text-xs text-black font-mono">{item.code}</p>
+                          <p className="text-sm text-black font-mono">{item.code}</p>
                         </td>
                         <td className="px-6 py-5">
                           <p className="text-slate-800 text-sm">{item.name}</p>
                         </td>
-                        <td className="px-6 py-5 font-medium text-slate-600 text-base">{item.qty}</td>
-                        <td className="px-6 py-5 font-medium text-indigo-600 text-base">{item.issued || 0}</td>
-                        <td className="px-6 py-5 font-medium text-green-600 text-base">{item.returned || 0}</td>
+                        <td className="px-6 py-5 font-medium text-slate-600 text-sm">{item.qty}</td>
+                        <td className="px-6 py-5 font-medium text-indigo-600 text-sm">{item.issued || 0}</td>
+                        <td className="px-6 py-5 font-medium text-blue-600 text-sm">{item.returned || 0}</td>
                         <td className="px-6 py-5">
                           <span className={`font-bold text-sm ${pending > 0 ? "text-amber-600" : "text-slate-400"}`}>
                             {pending > 0 ? pending : "ครบแล้ว"}

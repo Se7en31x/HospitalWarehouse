@@ -120,11 +120,11 @@ export default function ItemDetailModal({
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
                   จำนวนที่ต้องการเบิก
                 </label>
-                <div className="flex-1 flex items-center gap-2">
-                  <div className="flex items-center border border-slate-200 rounded overflow-hidden">
+                <div className="flex-1 flex items-center">
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1">
                     <button
                       onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
-                      className="px-2 py-2 text-slate-600 hover:bg-slate-100 transition-colors"
+                      className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-500"
                     >
                       <Minus size={18} />
                     </button>
@@ -134,17 +134,17 @@ export default function ItemDetailModal({
                       max={item.stock}
                       value={quantity}
                       onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
-                      className="w-16 text-center px-2 py-2 border-0 text-lg font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleConfirm(); } }}
+                      className="w-6 text-center font-bold text-lg text-indigo-600 border-0 outline-none focus:ring-0 bg-transparent [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0"
                     />
                     <button
                       onClick={() => handleQuantityChange(Math.min(item.stock, quantity + 1))}
-                      className="px-2 py-2 text-slate-600 hover:bg-slate-100 transition-colors"
+                      className="p-1 hover:bg-slate-100 rounded transition-colors text-indigo-600"
                     >
                       <Plus size={18} />
                     </button>
                   </div>
-
-                  <span className="text-sm font-medium text-slate-600 min-w-max">{item.unit}</span>
+                  <span className="text-slate-500 font-medium text-xs ml-1">{item.unit}</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
                   สูงสุด: {item.stock} {item.unit}

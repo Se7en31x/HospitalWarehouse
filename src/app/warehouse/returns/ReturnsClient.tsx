@@ -228,29 +228,30 @@ export default function ReturnsClient() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => { setActiveTab("PENDING"); setCurrentPage(1); pageRef.current = 1; }}
-          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
-            activeTab === "PENDING"
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-          }`}
-        >
-          รอดำเนินการ
-        </button>
-        <button
-          type="button"
-          onClick={() => { setActiveTab("HISTORY"); setCurrentPage(1); pageRef.current = 1; }}
-          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
-            activeTab === "HISTORY"
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-          }`}
-        >
-          ประวัติการคืน
-        </button>
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        {(["PENDING", "HISTORY"] as const).map((tab) => {
+          const tabLabel = tab === "PENDING" ? "รอดำเนินการ" : "ประวัติการคืน";
+          const isActive = activeTab === tab;
+          const isPending = tab === "PENDING";
+          return (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setCurrentPage(1); pageRef.current = 1; }}
+              className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
+                isActive
+                  ? isPending
+                    ? "border-amber-500 text-amber-600 bg-amber-50"
+                    : "border-green-500 text-green-600 bg-green-50"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span className={`inline-block w-2 h-2 rounded-full ${isPending ? "bg-amber-400" : "bg-green-400"}`} />
+                {tabLabel}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -296,11 +297,7 @@ export default function ReturnsClient() {
         <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            startDate || startDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันที่เริ่มต้น</label>
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่เริ่มต้น</label>
           <input
             type="date"
             value={startDate}
@@ -308,17 +305,13 @@ export default function ReturnsClient() {
             onFocus={() => setStartDateFocused(true)}
             onBlur={() => setStartDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
         <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            endDate || endDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันที่สิ้นสุด</label>
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่สิ้นสุด</label>
           <input
             type="date"
             value={endDate}
@@ -326,7 +319,7 @@ export default function ReturnsClient() {
             onFocus={() => setEndDateFocused(true)}
             onBlur={() => setEndDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
 
@@ -365,18 +358,18 @@ export default function ReturnsClient() {
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[50px]">#</th>
-                <th className="px-6 py-4 w-[150px]">เลขที่เอกสาร</th>
-                <th className="px-6 py-4 w-[120px]">ประเภท</th>
-                <th className="px-6 py-4 w-[160px]">ผู้ดำเนินเรื่องยืม</th>
-                <th className="px-6 py-4 w-[160px]">ผู้ยืม</th>
-                <th className="px-6 py-4 w-[150px]">เบอร์ติดต่อ</th>
-                <th className="px-6 py-4 w-[80px]">รายการ</th>
-                <th className="px-6 py-4 w-[170px]">วันที่ทำรายการ</th>
-                <th className="px-6 py-4 w-[120px]">กำหนดคืน</th>
-                <th className="px-6 py-4 w-[170px]">วันที่คืนสำเร็จ</th>
-                <th className="px-6 py-4 w-[120px]">สถานะ</th>
-                <th className="px-6 py-4 text-center w-[110px]">จัดการ</th>
+                <th className="px-4 py-4 w-[50px]">#</th>
+                <th className="px-4 py-4 w-[150px]">เลขที่เอกสาร</th>
+                <th className="px-4 py-4 w-[120px]">ประเภท</th>
+                <th className="px-4 py-4 w-[160px]">ผู้ดำเนินเรื่องยืม</th>
+                <th className="px-4 py-4 w-[160px]">ผู้ยืม</th>
+                <th className="px-4 py-4 w-[150px]">เบอร์ติดต่อ</th>
+                <th className="px-4 py-4 w-[80px]">รายการ</th>
+                <th className="px-4 py-4 w-[170px]">วันที่ทำรายการ</th>
+                <th className="px-4 py-4 w-[120px]">กำหนดคืน</th>
+                <th className="px-4 py-4 w-[170px]">วันที่คืนสำเร็จ</th>
+                <th className="px-4 py-4 w-[120px]">สถานะ</th>
+                <th className="px-4 py-4 text-center w-[110px]">จัดการ</th>
               </tr>
             </thead>
             <tbody className="text-slate-700">
@@ -387,24 +380,24 @@ export default function ReturnsClient() {
 
                 return (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                    <td className="px-6 py-2.5 text-slate-700">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
-                    <td className="px-6 py-2.5 font-mono text-sm text-black">{r.doc_no}</td>
-                    <td className="px-6 py-2.5 text-slate-600 text-sm">
+                    <td className="px-4 py-2.5 text-slate-700">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
+                    <td className="px-4 py-2.5 font-mono text-sm text-black">{r.doc_no}</td>
+                    <td className="px-4 py-2.5 text-slate-600 text-sm">
                       {ext ? "ภายนอก" : "ภายใน"}
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm text-slate-700 truncate">{r.requester || "-"}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm text-slate-700 truncate">
                           {getBorrowerDisplay(r)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       {r.borrower_details?.phone ? (
                         <a
                           href={`tel:${r.borrower_details.phone}`}
@@ -416,23 +409,23 @@ export default function ReturnsClient() {
                         <span className="text-sm text-slate-400">-</span>
                       )}
                     </td>
-                    <td className="px-6 py-2.5 text-slate-600">{r.item_count ?? 0}</td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5 text-slate-600">{r.item_count ?? 0}</td>
+                    <td className="px-4 py-2.5">
                       <div className="text-sm text-slate-700">{fmtDateTime(r.request_date)}</div>
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       <div className="text-sm text-slate-700">{fmtDateOnly(r.due_date)}</div>
                       {overdue > 0 && (
                         <div className="text-xs text-red-600 font-bold">ค้าง {overdue} วัน</div>
                       )}
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       <div className="text-sm text-slate-700">{fmtDateTime(r.return_date ?? null)}</div>
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       <StatusBadge status={uiStatus} />
                     </td>
-                    <td className="px-6 py-2.5">
+                    <td className="px-4 py-2.5">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => openDetail(r.id)}

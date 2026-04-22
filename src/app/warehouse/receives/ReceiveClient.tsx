@@ -14,7 +14,7 @@ import type { ReceiveBatch, ReceiveBatchHeader, ReceiveStatus, ReceiveType } fro
 
 const TYPE_LABEL: Record<ReceiveType, string> = {
     PURCHASE:       "จัดซื้อ",
-    DONATION:       "บริจาค",
+    DONATION:       "รับบริจาคมา",
     PURCHASE_ASSET: "ครุภัณฑ์",
     REUSABLE_UNIT:  "ของใช้ซ้ำ",
 };
@@ -125,7 +125,13 @@ export default function ReceiveClient() {
                 start_date: startDate  || undefined,
                 end_date:   endDate    || undefined,
             });
-            setRecords(res.items);
+            // Sort by created_at in descending order (most recent first)
+            const sortedItems = res.items.sort((a, b) => {
+                const dateA = new Date(a.created_at || 0).getTime();
+                const dateB = new Date(b.created_at || 0).getTime();
+                return dateB - dateA;
+            });
+            setRecords(sortedItems);
             setTotal(res.total);
             setTotalPages(res.totalPages);
         } catch (err) {
@@ -219,25 +225,34 @@ export default function ReceiveClient() {
                 </div>
 
                 {/* Date range */}
-                {(["start", "end"] as const).map(which => {
-                    const val     = which === "start" ? startDate : endDate;
-                    const setVal  = which === "start" ? setStartDate : setEndDate;
-                    const focused = which === "start" ? startFocused : endFocused;
-                    const setFoc  = which === "start" ? setStartFocused : setEndFocused;
-                    return (
-                        <div key={which}
-                            className={`relative border rounded-lg px-3 shadow-sm w-[145px] h-[38px] flex items-center bg-white transition-colors ${focused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"}`}>
-                            <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${val || focused ? "-top-2 text-[10px] text-blue-500 bg-white px-1" : "top-1/2 -translate-y-1/2 text-sm text-slate-400"}`}>
-                                {which === "start" ? "วันที่เริ่ม" : "วันที่สิ้นสุด"}
-                            </label>
-                            <input type="date" value={val}
-                                onChange={e => setVal(e.target.value)}
-                                onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
-                                className="w-full text-sm outline-none border-none bg-transparent"
-                                style={{ opacity: val || focused ? 1 : 0 }} />
-                        </div>
-                    );
-                })}
+                <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+                  startFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+                }`}>
+                  <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่เริ่มต้น</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    onFocus={() => setStartFocused(true)}
+                    onBlur={() => setStartFocused(false)}
+                    className="w-full text-sm outline-none border-none bg-transparent"
+                    style={{ colorScheme: "light" }}
+                  />
+                </div>
+                <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+                  endFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+                }`}>
+                  <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่สิ้นสุด</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    onFocus={() => setEndFocused(true)}
+                    onBlur={() => setEndFocused(false)}
+                    className="w-full text-sm outline-none border-none bg-transparent"
+                    style={{ colorScheme: "light" }}
+                  />
+                </div>
 
                 {(keyword || typeFilter || statusFilter || startDate || endDate) && (
                     <button type="button"
@@ -295,7 +310,7 @@ export default function ReceiveClient() {
                         </thead>
                         <tbody className="text-slate-600">
                             {records.map((batch, idx) => {
-                                const uniqueTypes = [...new Set(batch.headers.map(h => h.type))];
+                                const uniqueTypes = [batch.acquisition_type];
                                 const itemCount   = batchItemCount(batch.headers);
                                 const status      = batchStatus(batch.headers);
 
@@ -303,7 +318,7 @@ export default function ReceiveClient() {
                                     <tr key={batch.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                                         <td className="px-6 py-3 text-slate-400 text-sm">{(page - 1) * limit + idx + 1}</td>
                                         <td className="px-6 py-3 font-mono text-sm text-slate-700 font-semibold">{batch.batch_no}</td>
-                                        <td className="px-6 py-3 text-sm text-slate-600 whitespace-nowrap">{fmtDate(batch.receive_date)}</td>
+                                        <td className="px-6 py-3 text-sm text-slate-600 whitespace-nowrap">{fmtDate(batch.created_at)}</td>
                                         <td className="px-6 py-3">
                                             <div className="flex flex-wrap gap-1">
                                                 {uniqueTypes.map(t => <TypeBadge key={t} type={t} />)}

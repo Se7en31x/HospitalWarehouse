@@ -8,13 +8,11 @@ import {
   Settings,
   Warehouse as WarehouseIcon,
   Truck,
-  Edit2,
+  Pencil,
   Trash2,
   ChevronLeft,
   ChevronRight,
   Landmark,
-  Building2,
-  UserRound,
 } from "lucide-react";
 import SettingsModals from "./SettingsModals";
 import { formatThaiDateTime } from "@/utils/formatters";
@@ -515,9 +513,9 @@ export default function SettingsPage() {
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[200px]">ชื่อประเภท</th>
-                  <th className="px-6 py-4 w-[120px]">Prefix</th>
-                  <th className="px-6 py-4 w-[150px]">ผูกประเภท</th>
+                  <th className="px-6 py-4 w-[160px]">ชื่อประเภท</th>
+                  <th className="px-6 py-4 w-[100px]">Prefix</th>
+                  <th className="px-6 py-4 w-[150px]">ประเภท</th>
                   <th className="px-6 py-4 w-[250px]">รายละเอียด</th>
                   <th className="px-6 py-4 w-[100px]">สร้าง</th>
                   <th className="px-6 py-4 w-[100px]">แก้ไข</th>
@@ -529,8 +527,8 @@ export default function SettingsPage() {
                   pagedCategories.map((cat, idx) => (
                     <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.categories - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
-                      <td className="px-6 py-4 w-[200px]">{cat.name}</td>
-                      <td className="px-6 py-4 w-[120px]">
+                      <td className="px-6 py-4 w-[160px]">{cat.name}</td>
+                      <td className="px-6 py-4 w-[100px]">
                         <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">
                           {cat.code_prefix}
                         </span>
@@ -539,7 +537,13 @@ export default function SettingsPage() {
                         {getItemTypeLabel(cat.item_type || "CONSUMABLE")}
                       </td>
                       <td className="px-6 py-4 w-[250px]">
-                        {cat.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
+                        {cat.description ? (
+                          <div className="line-clamp-2 text-slate-700">
+                            {cat.description}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 w-[100px]">
                         {formatThaiDateTime(cat.created_at)}
@@ -563,7 +567,7 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-5 h-5" />
+                            <Pencil className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(cat.id, "categories", cat.name)}
@@ -596,7 +600,7 @@ export default function SettingsPage() {
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[250px]">ชื่อหน่วยนับ</th>
+                  <th className="px-6 py-4 w-[100px]">ชื่อหน่วยนับ</th>
                   <th className="px-6 py-4 w-[350px]">รายละเอียด</th>
                   <th className="px-6 py-4 w-[100px]">สร้าง</th>
                   <th className="px-6 py-4 w-[100px]">แก้ไข</th>
@@ -608,7 +612,7 @@ export default function SettingsPage() {
                   pagedUnits.map((unit, idx) => (
                     <tr key={unit.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.units - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
-                      <td className="px-6 py-4 w-[250px]">{unit.name}</td>
+                      <td className="px-6 py-4 w-[100px]">{unit.name}</td>
                       <td className="px-6 py-4 w-[350px]">
                         {unit.description || <span className="text-slate-400 italic">ไม่มีรายละเอียด</span>}
                       </td>
@@ -632,7 +636,7 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-5 h-5" />
+                            <Pencil className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(unit.id, "units", unit.name)}
@@ -665,8 +669,8 @@ export default function SettingsPage() {
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[180px]">ชื่อคลังสินค้า</th>
-                  <th className="px-6 py-4 w-[180px]">สถานที่ตั้ง</th>
+                  <th className="px-6 py-4 w-[150px]">ชื่อคลังสินค้า</th>
+                  <th className="px-6 py-4 w-[150px]">สถานที่ตั้ง</th>
                   <th className="px-6 py-4 w-[250px]">รายละเอียด</th>
                   <th className="px-6 py-4 w-[100px]">สร้าง</th>
                   <th className="px-6 py-4 w-[100px]">แก้ไข</th>
@@ -704,7 +708,7 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-5 h-5" />
+                            <Pencil className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(wh.id, "warehouses", wh.name)}
@@ -737,13 +741,14 @@ export default function SettingsPage() {
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 w-[50px]">#</th>
-                  <th className="px-4 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
+                  <th className="px-1 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
                   <th className="px-4 py-4 w-[170px]">อีเมล</th>
                   <th className="px-4 py-4 w-[140px]">ผู้ติดต่อ</th>
-                  <th className="px-4 py-4 w-[120px]">โทรศัพท์</th>
+                  <th className="px-4 py-4 w-[150px]">เบอร์โทรศัพท์บริษัท</th>
+                  <th className="px-4 py-4 w-[150px]">เบอร์ติดต่อส่วนตัว</th>
                   <th className="px-4 py-4 w-[140px]">เลขผู้เสียภาษี</th>
-                  <th className="px-4 py-4 w-[200px]">ข้อมูลธนาคาร</th>
-                  <th className="px-4 py-4 w-[100px] text-center">จัดการ</th>
+                  <th className="px-4 py-4 w-[140px]">ข้อมูลธนาคาร</th>
+                  <th className="px-2 py-4 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-500">
@@ -751,7 +756,7 @@ export default function SettingsPage() {
                   pagedSuppliers.map((sup, idx) => (
                     <tr key={sup.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-4 w-[50px]">{((pageByTabSafe.suppliers - 1) * ITEMS_PER_PAGE) + idx + 1}</td>
-                      <td className="px-4 py-4 w-[180px] font-medium text-slate-800">{sup.name}</td>
+                      <td className="px-1 py-4 w-[180px] font-medium text-slate-800">{sup.name}</td>
                       <td className="px-4 py-4 w-[170px]">
                         {sup.email
                           ? <span className="text-blue-600">{sup.email}</span>
@@ -759,19 +764,14 @@ export default function SettingsPage() {
                       </td>
                       <td className="px-4 py-4 w-[140px]">{sup.contact || <span className="text-slate-400">-</span>}</td>
                       <td className="px-4 py-4 w-[120px]">
-                        {!sup.phone && !sup.contact_phone && <span className="text-slate-400">-</span>}
-                        {sup.phone && (
-                          <div className="flex items-center gap-1 text-slate-700">
-                            <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{sup.phone}</span>
-                          </div>
-                        )}
-                        {sup.contact_phone && (
-                          <div className="flex items-center gap-1 text-slate-700 mt-0.5">
-                            <UserRound className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{sup.contact_phone}</span>
-                          </div>
-                        )}
+                        {sup.phone ? (
+                          <span className="text-slate-700">{sup.phone}</span>
+                        ) : <span className="text-slate-400">-</span>}
+                      </td>
+                      <td className="px-4 py-4 w-[120px]">
+                        {sup.contact_phone ? (
+                          <span className="text-slate-700">{sup.contact_phone}</span>
+                        ) : <span className="text-slate-400">-</span>}
                       </td>
                       <td className="px-4 py-4 w-[140px]">{sup.tax_id || <span className="text-slate-400">-</span>}</td>
                       <td className="px-4 py-4 w-[200px]">
@@ -808,7 +808,7 @@ export default function SettingsPage() {
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-5 h-5" />
+                            <Pencil className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => confirmDelete(sup.id, "suppliers", sup.name)}
@@ -822,7 +822,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />

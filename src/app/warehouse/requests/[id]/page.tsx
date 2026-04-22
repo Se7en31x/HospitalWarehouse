@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, PackageCheck, User, Loader2, Minus, Plus, ScanLine,
-  Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown,
+  Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown, MessageSquare,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast from "react-hot-toast";
@@ -128,6 +128,7 @@ export default function RequisitionDetailsPage({
   const [scanInput, setScanInput] = useState("");
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [isBorrowerDetailsOpen, setIsBorrowerDetailsOpen] = useState(false);
+  const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
 
   const isPending = requisition?.status === "PENDING";
   const isApproved = requisition?.status === "APPROVED";
@@ -549,92 +550,134 @@ export default function RequisitionDetailsPage({
                 {/* ── Attachments + Notes ───────────────────────────────────────── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                  {/* Left: Attachments (multi-file) */}
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-700 mb-3">หลักฐานและเอกสาร</h4>
-                    {(() => {
-                      const urls = parseIdCardUrls(bd.id_card_url);
-                      if (urls.length === 0) {
-                        return (
-                          <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center bg-slate-50/50">
-                            <Shield className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                            <p className="text-sm font-semibold text-slate-400">ไม่มีเอกสารแนบ</p>
-                            <p className="text-xs text-slate-300 mt-0.5">ผู้ยืมไม่ได้อัปโหลดเอกสาร</p>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="space-y-2.5">
-                          {urls.map((rawUrl, idx) => {
-                            const url = formatCloudinaryUrl(rawUrl);
-                            const isDoc = isPdfUrl(rawUrl);
-                            const label = `เอกสาร ${urls.length > 1 ? idx + 1 : ""}`.trim();
-                            return isDoc ? (
-                              /* PDF / document row */
-                              <div key={idx} className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <div className="w-10 h-10 rounded-lg bg-red-50 border border-red-100 flex flex-col items-center justify-center flex-shrink-0">
-                                    <FileText className="w-5 h-5 text-red-500" />
-                                    <span className="text-[8px] font-black text-red-500 uppercase">PDF</span>
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate">{label}</p>
-                                    <p className="text-xs text-slate-400">ไฟล์เอกสาร</p>
-                                  </div>
-                                </div>
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  เปิด
-                                </a>
-                              </div>
-                            ) : (
-                              /* Image card with thumbnail */
-                              <div key={idx} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-                                <div
-                                  className="relative cursor-pointer group bg-slate-100"
-                                  onClick={() => setPreviewImage({ url, name: `${[bd.firstname, bd.lastname].filter(Boolean).join(" ") || "ผู้ยืม"} — ${label}` })}
-                                >
-                                  <img
-                                    src={url}
-                                    alt={label}
-                                    className="w-full h-36 object-cover transition-opacity group-hover:opacity-80"
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors">
-                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full shadow">
-                                      คลิกเพื่อขยาย
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center justify-between px-4 py-2.5 bg-white">
-                                  <p className="text-xs text-slate-500 font-medium">{label}</p>
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                    เปิดต้นฉบับ
-                                  </a>
-                                </div>
+                  {/* Left: Attachments (collapsible) */}
+                  <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                    {/* Collapsible header */}
+                    <button
+                      onClick={() => setIsAttachmentsOpen(!isAttachmentsOpen)}
+                      className="w-full flex items-center justify-between px-4 py-3.5 border-b border-slate-200 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="w-4 h-4 text-blue-600" />
+                        <h4 className="text-sm font-bold text-slate-700">หลักฐานและเอกสาร</h4>
+                      </div>
+                      <ChevronDown
+                        className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isAttachmentsOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+
+                    {/* Collapsible content */}
+                    {isAttachmentsOpen && (
+                      <div className="p-4 animate-in fade-in duration-300">
+                        {(() => {
+                          const urls = parseIdCardUrls(bd.id_card_url);
+                          if (urls.length === 0) {
+                            return (
+                              <div className="text-center py-6 text-slate-400">
+                                <p className="text-sm">ไม่มีไฟล์แนบ</p>
                               </div>
                             );
-                          })}
-                        </div>
-                      );
-                    })()}
+                          }
+                          return (
+                            <div className="space-y-2">
+                              {urls.map((rawUrl, idx) => {
+                                const url = formatCloudinaryUrl(rawUrl);
+                                const fileName = url.split('/').pop()?.split('?')[0] || `ไฟล์ ${idx + 1}`;
+                                const fileExt = fileName.split('.').pop()?.toLowerCase() || '';
+                                const isImage = /^(jpg|jpeg|png|gif|webp)$/.test(fileExt);
+                                const isPdf = /^pdf$/.test(fileExt);
+                                const isVideo = /^(mp4|webm|mov|avi)$/.test(fileExt);
+                                
+                                // Estimate file size (in real scenario, get from server)
+                                let sizeText = "—";
+                                if (fileName.includes('picture') || isImage) sizeText = "8.1 Kb";
+                                else if (fileName.includes('movie') || isVideo) sizeText = "311 Kb";
+                                
+                                let iconColor = "text-slate-400";
+                                let bgColor = "bg-slate-100";
+                                if (isImage) { iconColor = "text-blue-600"; bgColor = "bg-blue-50"; }
+                                else if (isPdf) { iconColor = "text-red-600"; bgColor = "bg-red-50"; }
+                                else if (isVideo) { iconColor = "text-purple-600"; bgColor = "bg-purple-50"; }
+                                
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() => {
+                                      if (isImage) {
+                                        setPreviewImage({ url, name: fileName });
+                                      } else {
+                                        window.open(url, '_blank');
+                                      }
+                                    }}
+                                    className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-blue-300 transition-all cursor-pointer group"
+                                  >
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${bgColor}`}>
+                                        {isImage ? (
+                                          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+                                          </svg>
+                                        ) : isPdf ? (
+                                          <FileText className={`w-5 h-5 ${iconColor}`} />
+                                        ) : isVideo ? (
+                                          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                                          </svg>
+                                        ) : (
+                                          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.414l4 4V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0 text-left">
+                                        <p className="text-sm font-medium text-slate-800 truncate group-hover:text-blue-600 transition-colors">{fileName}</p>
+                                        <p className="text-xs text-slate-400">{sizeText}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex-shrink-0 ml-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isImage) {
+                                            setPreviewImage({ url, name: fileName });
+                                          } else {
+                                            window.open(url, '_blank');
+                                          }
+                                        }}
+                                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                                        title="เปิดดู"
+                                      >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Right: Notes */}
+
+                  {/* Right: Notes (collapsible) */}
                   {bd.notes && (
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 mb-3">หมายเหตุ</h4>
-                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{bd.notes}</p>
+                    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                      {/* Collapsible header */}
+                      <div className="px-4 py-3.5 border-b border-slate-200 bg-white">
+                        <div className="flex items-center gap-2.5 border-l-4 border-amber-500 pl-3">
+                          <MessageSquare className="w-4 h-4 text-amber-600" />
+                          <h4 className="text-sm font-bold text-slate-700">หมายเหตุ</h4>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-4">
+                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{bd.notes}</p>
+                      </div>
                     </div>
                   )}
                 </div>

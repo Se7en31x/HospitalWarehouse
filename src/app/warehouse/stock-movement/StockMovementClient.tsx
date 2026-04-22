@@ -187,11 +187,7 @@ const StockMovementClient = () => {
         <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            startDate || startDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันที่เริ่มต้น</label>
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่เริ่มต้น</label>
           <input
             type="date"
             value={startDate}
@@ -199,17 +195,13 @@ const StockMovementClient = () => {
             onFocus={() => setStartDateFocused(true)}
             onBlur={() => setStartDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
         <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            endDate || endDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันที่สิ้นสุด</label>
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่สิ้นสุด</label>
           <input
             type="date"
             value={endDate}
@@ -217,7 +209,7 @@ const StockMovementClient = () => {
             onFocus={() => setEndDateFocused(true)}
             onBlur={() => setEndDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
 
@@ -279,11 +271,11 @@ const StockMovementClient = () => {
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4  w-[50px]">#</th>
-                <th className="px-6 py-4 w-[150px]">รหัสสินค้า</th>
+                <th className="px-6 py-4 w-[50px]">#</th>
+                <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
                 <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
                 <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[120px]">หน่วยนับ</th>
+                <th className="px-6 py-4 w-[100px]">หน่วยนับ</th>
                 <th className="px-6 py-4 w-[100px]">จำนวน</th>
                 <th className="px-6 py-4 w-[180px]">ยอดคงเหลือ</th>
                 <th className="px-6 py-4 w-[120px]">ประเภท</th>
@@ -303,13 +295,13 @@ const StockMovementClient = () => {
                     <td className="px-6 py-[18px] text-slate-500 font-mono">
                       {mv.item?.code ?? "-"}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-700 font-medium">
+                    <td className="px-6 py-[18px] text-slate-600">
                       {mv.item?.name ?? "ไม่ระบุ"}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-500">
+                    <td className="px-6 py-[18px] text-slate-600">
                       {mv.item?.category ?? "-"}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-500">
+                    <td className="px-6 py-[18px] text-slate-600">
                       {mv.item?.unit ?? "-"}
                     </td>
                     <td className="px-6 py-[18px]">

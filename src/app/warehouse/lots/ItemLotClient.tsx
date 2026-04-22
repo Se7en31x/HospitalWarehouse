@@ -179,7 +179,23 @@ export default function LotClient({
         end_date: endDateRef.current || undefined,
         expiry_days: expiryDaysRef.current > 0 ? expiryDaysRef.current : undefined,
       });
-      setLots(result.items);
+      // Sort by status priority first (expired > near expiry > normal), then by createdAt descending
+      const getStatusPriority = (lot: LotInterface.UiLot) => {
+        const expiryStatus = calculateStatus(lot.expiryDate);
+        if (expiryStatus === "หมดอายุ") return 0; // expired - highest priority
+        if (expiryStatus === "ใกล้หมด") return 1; // near expiry
+        return 2; // normal - lowest priority
+      };
+      
+      const sortedLots = result.items.sort((a, b) => {
+        const priorityA = getStatusPriority(a);
+        const priorityB = getStatusPriority(b);
+        if (priorityA !== priorityB) return priorityA - priorityB; // Sort by status priority
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA; // Then by createdAt descending
+      });
+      setLots(sortedLots);
       setServerTotal(result.meta.total);
       setServerTotalPages(result.meta.totalPages);
     } catch (error: any) {
@@ -584,11 +600,7 @@ export default function LotClient({
         <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            startDate || startDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันรับเข้า (เริ่มต้น)</label>
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันรับเข้า (เริ่มต้น)</label>
           <input
             type="date"
             value={startDate}
@@ -601,17 +613,13 @@ export default function LotClient({
             onFocus={() => setStartDateFocused(true)}
             onBlur={() => setStartDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
         <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            endDate || endDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันรับเข้า (สิ้นสุด)</label>
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันรับเข้า (สิ้นสุด)</label>
           <input
             type="date"
             value={endDate}
@@ -624,7 +632,7 @@ export default function LotClient({
             onFocus={() => setEndDateFocused(true)}
             onBlur={() => setEndDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
 
@@ -714,7 +722,7 @@ export default function LotClient({
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </th>
-                  <th className="px-6 py-4 w-[120px]">วันที่รับเข้า</th>
+                  <th className="px-6 py-4 w-[140px]">วันที่รับเข้า</th>
                   <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
                   <th className="px-6 py-4 w-[100px]">รหัส LOT</th>
                   <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
@@ -750,16 +758,30 @@ export default function LotClient({
                           className="w-4 h-4 accent-blue-600 cursor-pointer"
                         />
                       </td>
-                      <td className="px-6 py-2.5 text-slate-600 text-xs">{formatDateTime(lot.createdAt)}</td>
-                      <td className="px-6 py-2.5 font-mono text-sm text-slate-600">{enrichedData.itemCode}</td>
-                      <td className="px-6 py-2.5 font-mono font-medium text-slate-600">{lot.lotCode || lot.id}</td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={formatDateTime(lot.createdAt)}>{formatDateTime(lot.createdAt)}</div>
+                      </td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={enrichedData.itemCode}>{enrichedData.itemCode}</div>
+                      </td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={lot.lotCode || lot.id}>{lot.lotCode || lot.id}</div>
+                      </td>
                       <td className="px-6 py-2.5">
                         <div className="text-slate-600 line-clamp-2" title={enrichedData.itemName}>{enrichedData.itemName}</div>
                       </td>
-                      <td className="px-6 py-2.5 text-slate-600">{enrichedData.category}</td>
-                      <td className="px-6 py-2.5 text-slate-600">{lot.quantity.toLocaleString()}</td>
-                      <td className="px-6 py-2.5 text-slate-600">{enrichedData.unit}</td>
-                      <td className={`px-6 py-2.5 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : ''}`}>{formatDate(lot.expiryDate)}</td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={enrichedData.category}>{enrichedData.category}</div>
+                      </td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={lot.quantity.toLocaleString()}>{lot.quantity.toLocaleString()}</div>
+                      </td>
+                      <td className="px-6 py-2.5">
+                        <div className="text-slate-600 line-clamp-2" title={enrichedData.unit}>{enrichedData.unit}</div>
+                      </td>
+                      <td className="px-6 py-2.5">
+                        <div className={`line-clamp-2 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : 'text-slate-600'}`} title={formatDate(lot.expiryDate)}>{formatDate(lot.expiryDate)}</div>
+                      </td>
                       <td className="px-6 py-2.5">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${lot.status !== 'ACTIVE' ? 'bg-red-100 text-red-500' : currentStatus === 'ปกติ' ? 'bg-green-100 text-green-500' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-500' : 'bg-amber-100 text-amber-500'}`}>
                           {lot.status !== 'ACTIVE' ? 'ระงับการใช้งาน' : (currentStatus === 'ปกติ' ? 'ใช้งานได้' : currentStatus)}

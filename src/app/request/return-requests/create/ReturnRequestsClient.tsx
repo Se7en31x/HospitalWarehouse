@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { Loader2, Plus, Search, X, ChevronDown } from "lucide-react";
+import { Loader2, Plus, Search, X, ChevronDown, ArrowLeft } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
@@ -22,6 +23,7 @@ const toInputDateTimeLocal = (date = new Date()) => {
 };
 
 export default function ReturnRequestsClient() {
+  const router = useRouter();
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [departmentId, setDepartmentId] = useState("");
   const [summaryItems, setSummaryItems] = useState<reusableSvc.ReturnableSummaryItem[]>([]);
@@ -81,6 +83,14 @@ export default function ReturnRequestsClient() {
 
   const totalReturnable = useMemo(() => {
     return (summaryItems || []).reduce((sum, item) => sum + Number(item.in_use_qty || 0), 0);
+  }, [summaryItems]);
+
+  const sortedSummaryItems = useMemo(() => {
+    return [...(summaryItems || [])].sort((a, b) => {
+      const nameCompare = (a.item_name || "").localeCompare(b.item_name || "", "th");
+      if (nameCompare !== 0) return nameCompare;
+      return (a.item_code || "").localeCompare(b.item_code || "", "th");
+    });
   }, [summaryItems]);
 
   const summaryMap = useMemo(() => {
@@ -190,7 +200,7 @@ export default function ReturnRequestsClient() {
     setIsSubmitting(true);
     try {
       const created = await reusableSvc.createReusableReturnRequest({
-        department_id: Number(departmentId),
+        department_id: departmentId,
         preferred_pickup_at: preferredPickupAt ? new Date(preferredPickupAt).toISOString() : undefined,
         note: note || undefined,
         items: selectedList.map((item) => ({
@@ -215,8 +225,15 @@ export default function ReturnRequestsClient() {
     <div className="flex flex-col min-h-screen bg-white p-8 gap-6">
       <Toaster position="top-right" />
 
-      <div>
+      <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-gray-800">ส่งคืนคลัง</h2>
+        <button
+          type="button"
+          onClick={() => router.push("/request/return-requests")}
+          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
+        >
+          ย้อนกลับ
+        </button>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
@@ -265,8 +282,8 @@ export default function ReturnRequestsClient() {
           <table className="w-full text-sm">
             <thead className="bg-slate-100 border-b border-slate-200">
               <tr>
+                <th className="text-left px-4 py-3 w-[48px] font-bold text-slate-700">#</th>
                 <th className="text-left px-4 py-3 w-[200px] font-bold text-slate-700">รายการ</th>
-                <th className="text-left px-4 py-3 w-[160px] font-bold text-slate-700">รหัสรายการ</th>
                 <th className="text-left px-4 py-3 w-[120px] font-bold text-slate-700">ถือใช้งานอยู่</th>
                 <th className="text-left px-4 py-3 w-[160px] font-bold text-slate-700">เลือกรายการย่อย</th>
               </tr>
@@ -284,7 +301,7 @@ export default function ReturnRequestsClient() {
                 </tr>
               )}
 
-              {departmentId && !isLoadingSummary && summaryItems.length === 0 && (
+              {departmentId && !isLoadingSummary && sortedSummaryItems.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-slate-400">ไม่มีรายการ Reusable ที่กำลังใช้งานจากการเบิกจ่าย</td>
                 </tr>
@@ -292,12 +309,12 @@ export default function ReturnRequestsClient() {
 
               {departmentId &&
                 !isLoadingSummary &&
-                summaryItems.map((item) => (
+                sortedSummaryItems.map((item, idx) => (
                   <tr key={item.item_id} className="border-b border-slate-100 last:border-b-0">
+                    <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{item.item_name || "-"}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{item.item_code || "-"}</td>
                     <td className="px-4 py-3 font-semibold text-slate-700">{item.in_use_qty}</td>
                     <td className="px-4 py-3">
                       <button
@@ -364,7 +381,6 @@ export default function ReturnRequestsClient() {
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">เลือกรายการย่อยที่จะส่งคืน</h3>
-                <p className="text-xs text-slate-500 mt-0.5">{pickerItem.item_name || "-"} ({pickerItem.item_code || "-"})</p>
               </div>
               <button onClick={() => setPickerOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
                 <X className="w-4 h-4" />
@@ -388,8 +404,10 @@ export default function ReturnRequestsClient() {
                   <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
                     <tr>
                       <th className="text-left px-4 py-3 w-[48px] font-bold text-slate-700"></th>
+                      <th className="text-left px-4 py-3 w-[200px] font-bold text-slate-700">รายการพัสดุ</th>
+                      <th className="text-left px-4 py-3 w-[120px] font-bold text-slate-700">รหัส</th>
                       <th className="text-left px-4 py-3 w-[220px] font-bold text-slate-700">Unit Code</th>
-                      <th className="text-left px-4 py-3 font-bold text-slate-700">Serial</th>
+                      <th className="text-left px-4 py-3 w-[220px] font-bold text-slate-700">Serial</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -407,7 +425,9 @@ export default function ReturnRequestsClient() {
                             <td className="px-4 py-3">
                               <input type="checkbox" checked={checked} onChange={() => toggleUnitSelection(unit)} />
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs">{unit.unit_code}</td>
+                            <td className="px-4 py-3">{unit.item_name || "-"}</td>
+                            <td className="px-4 py-3 text-sm">{unit.item_code || "-"}</td>
+                            <td className="px-4 py-3 text-sm">{unit.unit_code}</td>
                             <td className="px-4 py-3">{unit.serial_no || "-"}</td>
                           </tr>
                         );
@@ -415,7 +435,7 @@ export default function ReturnRequestsClient() {
 
                     {!pickerLoading && filteredPickerUnits.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="px-4 py-8 text-center text-slate-400">ไม่พบรายการย่อยที่ตรงเงื่อนไข</td>
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400">ไม่พบรายการย่อยที่ตรงเงื่อนไข</td>
                       </tr>
                     )}
                   </tbody>
