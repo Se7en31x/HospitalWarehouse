@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Minus, Plus, ShoppingCart, X, ChevronDown, Package, RefreshCw } from "lucide-react";
+import { Minus, Plus, ShoppingCart, X, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 // ✅ ใช้ Path Alias และชื่อไฟล์ตัวเล็กตามที่ตกลงกัน
@@ -172,12 +172,12 @@ export default function CartModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-2xl shadow-xl flex flex-col max-h-[85vh]">
+      <div className="bg-white rounded-xl w-full max-w-[min(100%,46.2rem)] shadow-xl flex flex-col max-h-[93.5vh]">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center rounded-t-xl">
+        <div className="px-[1.65rem] py-[1.1rem] border-b border-slate-200 bg-slate-50 flex justify-between items-center rounded-t-xl">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
-            <ShoppingCart size={20} className="text-indigo-600" /> ตะกร้าของฉัน
+            ตะกร้าของฉัน
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={20} />
@@ -185,8 +185,8 @@ export default function CartModal({
         </div>
 
         {/* Department Selection - outside scroll area so dropdown can overflow */}
-        <div className="px-6 pt-6 pb-0">
-          <div className="border border-slate-300 rounded-lg p-4">
+        <div className="px-[1.65rem] pt-[1.65rem] pb-0">
+          <div className="border border-slate-300 rounded-lg p-[1.1rem]">
             <div className="relative" data-dept-dropdown>
               <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">
                 ระบุแผนกที่เบิก
@@ -201,7 +201,7 @@ export default function CartModal({
               </button>
 
               {isDeptOpen && (
-                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "242px" }}>
                   <ul className="py-1">
                     {mappedDepts.map((d) => (
                       <li key={d.id}>
@@ -227,94 +227,88 @@ export default function CartModal({
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        {/* Content — กล่องตารางล็อคสูงพอ ~4 แถว (เลื่อนเมื่อรายการเกิน) */}
+        <div className="p-[1.65rem] flex-1 min-h-0 flex flex-col overflow-y-auto">
 
-          {/* Table */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <div className="max-h-[300px] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-bold text-slate-700 w-16">รูป</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-700">ชื่อรายการ</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-700 w-32">ประเภท</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-700 w-60">จำนวนที่ต้องการเบิก</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 w-16">
-                        <div className="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden">
-                          {item.imageUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-800">{item.name}</div>
-                        <div className="text-xs text-slate-500 font-mono">{item.code}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.type === "REUSABLE" ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                            <RefreshCw className="w-3 h-3" />ครุภัณฑ์
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
-                            <Package className="w-3 h-3" />วัสดุ
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1">
-                            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1">
-                              <button onClick={() => onUpdateQty(item.id, -1)} className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-500">
-                                <Minus size={14} />
-                              </button>
-                              <span className="w-6 text-center font-bold text-sm text-indigo-600">
-                                {item.quantity}
-                              </span>
-                              <button onClick={() => onUpdateQty(item.id, 1)} className="p-1 hover:bg-slate-100 rounded transition-colors text-indigo-600">
-                                <Plus size={14} />
-                              </button>
-                            </div>
-                            <span className="text-slate-500 font-medium text-xs ml-1">{item.unit}</span>
-                          </div>
-                          <button onClick={() => onRemoveItem(item.id)} className="p-1 text-slate-300 hover:text-rose-500 transition-colors">
-                            <X size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {selectedItems.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 bg-slate-50 border-t border-slate-200">
+          <div className="border border-slate-200 rounded-lg overflow-hidden h-[24.2rem] min-h-[24.2rem] max-h-[24.2rem] flex flex-col bg-white">
+            {selectedItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 min-h-0 gap-3 text-slate-400 bg-slate-50 px-4">
                 <ShoppingCart size={40} className="text-slate-300" />
                 <div className="text-center">
                   <p className="font-semibold text-slate-600">ตะกร้าว่างเปล่า</p>
                   <p className="text-xs text-slate-500 mt-1">กรุณาเลือกรายการที่ต้องการเบิก</p>
                 </div>
               </div>
+            ) : (
+              <div className="overflow-y-auto min-h-0 flex-1">
+                <table className="w-full text-sm table-fixed">
+                  <thead className="bg-slate-100 border-b border-slate-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700 w-20">รูป</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700">ชื่อรายการ</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700 w-[9.5rem]">หมวดหมู่</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700 w-52">จำนวนที่ต้องการเบิก</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 w-20 align-top">
+                          <div className="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden shrink-0">
+                            {item.imageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top min-w-0">
+                          <div className="font-semibold text-slate-800 break-words">{item.name}</div>
+                          <div className="text-xs text-slate-500 font-mono break-all">{item.code}</div>
+                        </td>
+                        <td className="px-4 py-3 align-top w-[9.5rem]">
+                          <span className="text-slate-700 line-clamp-2" title={item.category?.trim() || undefined}>
+                            {item.category?.trim() ? item.category : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top w-52">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1 shrink-0">
+                                <button onClick={() => onUpdateQty(item.id, -1)} className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-500">
+                                  <Minus size={14} />
+                                </button>
+                                <span className="w-6 text-center font-bold text-sm text-indigo-600">
+                                  {item.quantity}
+                                </span>
+                                <button onClick={() => onUpdateQty(item.id, 1)} className="p-1 hover:bg-slate-100 rounded transition-colors text-indigo-600">
+                                  <Plus size={14} />
+                                </button>
+                              </div>
+                              <span className="text-slate-500 font-medium text-xs ml-1 truncate">{item.unit}</span>
+                            </div>
+                            <button onClick={() => onRemoveItem(item.id)} className="p-1 text-slate-300 hover:text-rose-500 transition-colors shrink-0">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+        <div className="px-[1.65rem] py-[1.1rem] border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm">
             ยกเลิก
           </button>
           <button
             onClick={handleSubmit}
             disabled={!selectedDeptId || selectedItems.length === 0}
-            className="px-8 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
+            className="px-8 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
           >
             ยืนยันใบเบิก
           </button>
