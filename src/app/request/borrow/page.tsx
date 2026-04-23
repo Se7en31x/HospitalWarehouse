@@ -1,13 +1,13 @@
 import React from 'react';
 import BorrowClient from './BorrowClient';
-import { getInventoryItems } from '@/services/itemsService';
+import { getInventoryItems, UiItem } from '@/services/itemsService';
 
 export const metadata = {
   title: "ระบบยืม-คืน ครุภัณฑ์ (Borrow System)",
 };
 
 export default async function BorrowPage() {
-  let items = [];
+  let items: UiItem[] = [];
   
   try {
     // พยายามดึงข้อมูลที่ Server (จะสำเร็จถ้า Token ใน Cookie พร้อม)

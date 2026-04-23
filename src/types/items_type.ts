@@ -27,7 +27,7 @@ export interface ApiItem {
 	warehouse_name?: string | null;
 	/** บาง response ส่งเป็น object เดียว บาง response ส่งเป็น array ของ option */
 	categories?: Option | Option[] | null;
-	category?: Option | null;
+	category?: Option | string | null;
 	unit?: Option | null;
 	warehouse?: Option | null;
 	warehouses?: Option | null;

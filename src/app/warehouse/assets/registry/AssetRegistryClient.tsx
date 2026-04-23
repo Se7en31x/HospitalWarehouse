@@ -211,7 +211,7 @@ export default function AssetRegistryClient({
         try {
             await assetService.updateAsset(editingAsset.id, {
                 serial_no: editSerialNo || null,
-                department_id: editDeptId && editDeptId !== "0" ? Number(editDeptId) : null,
+                department_id: editDeptId && editDeptId !== "0" ? editDeptId : null,
                 status: editStatus,
                 note: editNote || null,
                 warranty_expire: editWarranty || null,

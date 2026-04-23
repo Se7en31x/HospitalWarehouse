@@ -5,6 +5,7 @@ export interface ApiResponse<T = unknown> {
   total?: number;
   page?: number;
   limit?: number;
+  totalPages?: number;
 }
 
 // --- เพิ่มข้อมูลคนยืม ---

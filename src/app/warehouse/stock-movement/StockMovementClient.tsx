@@ -378,15 +378,6 @@ const StockMovementClient = () => {
           </button>
         </div>
       </div>
-
-      {/* Detail Modal */}
-      {selectedMovement && (
-        <MovementDetailModal
-          movement={selectedMovement}
-          onClose={() => setSelectedMovement(null)}
-        />
-      )}
-      
     </div>
   );
 };

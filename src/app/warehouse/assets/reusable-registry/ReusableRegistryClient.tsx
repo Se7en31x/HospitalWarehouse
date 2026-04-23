@@ -75,7 +75,7 @@ function ConditionBadge({ condition }: { condition: string }) {
 function StatusBadge({ unit }: { unit: reusableSvc.ReusableUnit }) {
   const label = getStatusLabel(unit);
   
-  const getStatusColor = (status: string, usage_context?: string): string => {
+  const getStatusColor = (status: string, usage_context?: string | null): string => {
     if (status === "AVAILABLE") return "bg-green-100 text-green-500";
     if (status === "IN_USE") return "bg-blue-100 text-blue-500";
     if (status === "REPAIR") return "bg-amber-100 text-amber-500";
@@ -304,7 +304,7 @@ export default function ReusableRegistryClient({
     try {
       await reusableSvc.updateReusableUnit(editingUnit.id, {
         serial_no: editSerialNo || null,
-        department_id: editDeptId && editDeptId !== "0" ? Number(editDeptId) : null,
+        department_id: editDeptId && editDeptId !== "0" ? editDeptId : null,
         status: editStatus,
         condition: editCondition,
         note: editNote || null,

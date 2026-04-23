@@ -52,7 +52,7 @@ export function resolveApiItemCategory(item: Item.ApiItem): string {
         }
       }
     } else if (typeof cats === "object" && cats !== null) {
-      const rec = cats as Record<string, unknown>;
+      const rec = cats as any as Record<string, unknown>;
       if (typeof rec.name === "string" && rec.name.trim()) return pick(rec.name);
       // envelope เช่น { data: { name } }
       const d = rec.data;

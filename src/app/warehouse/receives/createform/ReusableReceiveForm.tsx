@@ -230,7 +230,7 @@ export default function ReusableReceiveForm({ onChangeType }: Props) {
           item_id: item.itemId,
           cost_price: item.costPrice || 0,
           units: Array.from({ length: Number(item.quantityOrdered || 0) }).map(() => ({
-            department_id: selectedDepartmentId || undefined,
+            department_id: selectedDepartmentId ? String(selectedDepartmentId) : null,
             status: "AVAILABLE",
             condition: "GOOD",
           })),
