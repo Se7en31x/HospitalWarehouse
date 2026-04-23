@@ -33,6 +33,20 @@ const getEffectiveStock = (item: Item.UiItem): number =>
     ? (typeof item.availableStock === "number" ? item.availableStock : 0)
     : item.stock;
 
+const formatUpdatedAt = (iso: string | null | undefined): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("th-TH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
 // No stock override — item.stock stays as current_stock so ItemDetailModal
 // and tooltip can show the raw total. Display always calls getEffectiveStock().
 const mapRequestableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
@@ -327,15 +341,6 @@ export default function WithdrawClient({ initialItems }: Props) {
     setSelectedItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
-  const getTypeDisplay = (type: string): string => {
-    const typeMap: Record<string, string> = {
-      "MED_ASSET": "ครุภัณฑ์ภายในองค์กร",
-      "REUSABLE": "ของใช้ซ้ำรายชิ้น",
-      "CONSUMABLE": "วัสดุสิ้นเปลือง",
-    };
-    return typeMap[type] || type;
-  };
-
   const updateQty = useCallback(
     (id: string, delta: number) => {
       setSelectedItems((prev) =>
@@ -372,7 +377,7 @@ export default function WithdrawClient({ initialItems }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">เบิกพัสดุ</h2>
+          <h2 className="text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -593,11 +598,11 @@ export default function WithdrawClient({ initialItems }: Props) {
                 <th className="px-4 py-4 w-[50px]">รูป</th>
                 <th className="px-5 py-4 w-[100px]">รหัส</th>
                 <th className="px-5 py-4 w-[180px]">ชื่อรายการ</th>
-                <th className="px-5 py-4 w-[100px]">หมวดหมู่</th>
-                <th className="px-5 py-4 w-[110px]">ประเภท</th>
-                <th className="px-5 py-4 w-[100px]">ตำแหน่ง</th>
-                <th className="px-5 py-4 w-[100px]">สต็อก</th>
+                <th className="px-5 py-4 w-[140px]">หมวดหมู่</th>
+                <th className="px-5 py-4 w-[140px]">ตำแหน่ง</th>
+                <th className="px-5 py-4 w-[80px]">คงเหลือ</th>
                 <th className="px-5 py-4 w-[80px]">หน่วย</th>
+                <th className="px-5 py-4 w-[128px]">อัปเดตเมื่อ</th>
                 <th className="px-5 py-4 text-right w-[80px]">จัดการ</th>
               </tr>
             </thead>
@@ -622,14 +627,11 @@ export default function WithdrawClient({ initialItems }: Props) {
                   <td className="px-5 py-2 w-[100px]">{item.code}</td>
                   <td className="px-5 py-2 w-[180px]">{item.name}</td>
                   <td className="px-5 py-2 w-[100px]">{item.category}</td>
-                  <td className="px-5 py-2 w-[110px]">
-                    {getTypeDisplay(item.type)}
-                  </td>
                   <td className="px-5 py-2 w-[100px]">{item.location}</td>
                   <td className="px-5 py-2 w-[100px]">
                     {item.type === "REUSABLE" ? (
                       <div className="relative group inline-block cursor-help">
-                        <span className={`font-bold text-base ${
+                        <span className={`font-normal ${
                           getEffectiveStock(item) <= 0 ? "text-red-500" :
                           getEffectiveStock(item) <= item.minStock ? "text-orange-500" :
                           "text-emerald-600"
@@ -643,18 +645,24 @@ export default function WithdrawClient({ initialItems }: Props) {
                       </div>
                     ) : (
                       <div className="flex flex-col">
-                        <span className={`font-bold ${
+                        <span className={`font-normal ${
                           item.stock <= 0 ? "text-red-500" :
                           item.stock <= item.minStock ? "text-orange-500" :
-                          "text-blue-600"
+                          "text-emerald-600"
                         }`}>
                           {item.stock}
                         </span>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-2 w-[80px]">{item.unit}</td>
-                  <td className="px-6 py-2 w-[80px] text-right">
+                  <td className="px-5 py-2 w-[80px]">{item.unit}</td>
+                  <td
+                    className="px-5 py-2 w-[128px] text-slate-600 tabular-nums"
+                    title={item.updatedAt ? new Date(item.updatedAt).toISOString() : undefined}
+                  >
+                    {formatUpdatedAt(item.updatedAt)}
+                  </td>
+                  <td className="px-5 py-2 w-[80px] text-right">
                     <button
                       onClick={() => openItemDetail(item)}
                       disabled={getEffectiveStock(item) <= 0}

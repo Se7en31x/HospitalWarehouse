@@ -37,13 +37,48 @@ export interface PagedItems {
   };
 }
 
+/** รวม label หมวดจาก API: category_name, categories.name (object หรือ array) */
+export function resolveApiItemCategory(item: Item.ApiItem): string {
+  const pick = (v: string | null | undefined) => (v && String(v).trim()) || "";
+  if (pick(item.category_name)) return pick(item.category_name);
+
+  const cats = item.categories;
+  if (cats) {
+    if (Array.isArray(cats)) {
+      for (const el of cats) {
+        if (el && typeof el === "object") {
+          const n = pick((el as { name?: string | null }).name);
+          if (n) return n;
+        }
+      }
+    } else if (typeof cats === "object" && cats !== null) {
+      const rec = cats as Record<string, unknown>;
+      if (typeof rec.name === "string" && rec.name.trim()) return pick(rec.name);
+      // envelope เช่น { data: { name } }
+      const d = rec.data;
+      if (d && typeof d === "object" && d !== null && "name" in d) {
+        const n = pick((d as { name?: string | null }).name);
+        if (n) return n;
+      }
+    }
+  }
+
+  const c = item.category;
+  if (c && typeof c === "string" && c.trim()) return c.trim();
+  if (c && typeof c === "object" && "name" in c) {
+    const n = pick(c.name);
+    if (n) return n;
+  }
+  return "";
+}
+
 // Mapper: แปลงข้อมูลจาก API (Snake Case) เป็น UI (Camel Case)
 export const mapApiToUi = (item: Item.ApiItem): Item.UiItem => ({
     id: String(item.id),
     code: item.code || "-",
     name: item.name || "ไม่ระบุชื่อ",
     categoryId: item.category_id || "",
-    category: item.category_name || item.categories?.name || item.category?.name || "-",
+    category: resolveApiItemCategory(item) || "-",
     unitId: item.unit_id || "",
     unit: item.unit_name || item.unit?.name || "ชิ้น",
     warehouseId: item.warehouse_id || "",
@@ -70,17 +105,32 @@ export async function getInventoryItemById(id: string, token?: string): Promise<
     return api.get<Item.ApiItem>(`/v1/items/${id}`, undefined, token);
 }
 
+const buildItemsListParams = (filters: GetItemsFilters) => ({
+  ...filters,
+  allowed_req: filters.allowed_req !== undefined ? String(filters.allowed_req) : undefined,
+  allowed_borrow: filters.allowed_borrow !== undefined ? String(filters.allowed_borrow) : undefined,
+});
+
+/**
+ * ดึง raw จาก /v1/items สำหรับ map เอง (เช่น อ่าน categories.name ผ่าน resolveApiItemCategory)
+ */
+export async function getInventoryApiItems(
+  filters: GetItemsFilters = {},
+  token?: string
+): Promise<Item.ApiItem[]> {
+  const data = await api.get<Item.ApiItem[]>(
+    `/v1/items`,
+    buildItemsListParams(filters) as Record<string, unknown>,
+    token
+  );
+  return data || [];
+}
+
 // ดึงรายการพัสดุพร้อมตัวกรอง
 // token — ส่งมาจาก Server Component เพื่อใช้ใน SSR (ไม่ต้องส่งตอนเรียกจาก Client)
 export async function getInventoryItems(filters: GetItemsFilters = {}, token?: string): Promise<Item.UiItem[]> {
-   const params = {
-        ...filters,
-        allowed_req: filters.allowed_req !== undefined ? String(filters.allowed_req) : undefined,
-        allowed_borrow: filters.allowed_borrow !== undefined ? String(filters.allowed_borrow) : undefined,
-    };
-
-    const data = await api.get<Item.ApiItem[]>(`/v1/items`, params as Record<string, unknown>, token);
-    return (data || []).map(mapApiToUi);
+  const data = await getInventoryApiItems(filters, token);
+  return (data || []).map(mapApiToUi);
 }
 
 // ดึงรายการพัสดุแบบ paginated — คืน items + meta สำหรับ server-side pagination

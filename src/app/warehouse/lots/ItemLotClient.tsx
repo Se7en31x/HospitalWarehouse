@@ -10,8 +10,9 @@ import {
 
 import { socket } from "../../../lib/socket";
 import AdjustQuantityModal from "@/app/warehouse/lots/AdjustQuantityModal";
-import { getLots, deleteLot, toggleLotStatus, adjustLot } from "@/services/lotservice";
+import { getLots, toggleLotStatus, adjustLot } from "@/services/lotservice";
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
+import { getSystemSettings } from "@/services/settingsService";
 import { saveLots } from "@/services/stockInService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printLabels, type LabelData } from "@/lib/printLabel";
@@ -25,6 +26,8 @@ interface LotClientProps {
   initialItems: ItemInterface.UiItem[];
   initialWarehouses: ItemInterface.Option[];
   initialSuppliers: LotInterface.MasterSupplier[];
+  /** จาก GET /v1/settings → notify_expiring_days (แจ้งเตือนล็อตหมดอายุล่วงหน้ากี่วัน) */
+  initialNotifyExpiringDays?: number;
 }
 
 interface StockinFormData {
@@ -52,16 +55,6 @@ const formatDate = (dateStr?: string | null): string => {
   if (!dateStr) return "-";
   const date = new Date(dateStr);
   return date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
-};
-
-const calculateStatus = (expiryDateStr: string | null): string => {
-  if (!expiryDateStr) return "ปกติ";
-  const now = new Date();
-  const expiry = new Date(expiryDateStr);
-  const diffDays = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 3600 * 24));
-  if (diffDays < 0) return "หมดอายุ";
-  if (diffDays <= 30) return "ใกล้หมด";
-  return "ปกติ";
 };
 
 // Helper: Get enriched lot data by joining with master lists is no longer necessary as data comes enriched from API
@@ -92,8 +85,16 @@ const INITIAL_STOCKIN_FORM: StockinFormData = {
 // 2. Main Client Component
 // =======================
 export default function LotClient({
-  initialLots, initialItems, initialWarehouses, initialSuppliers
+  initialLots,
+  initialItems,
+  initialWarehouses,
+  initialSuppliers,
+  initialNotifyExpiringDays = 30,
 }: LotClientProps) {
+
+  const nearExpiryThresholdRef = React.useRef(
+    Math.max(0, Math.min(3650, Number(initialNotifyExpiringDays) || 30))
+  );
 
   const [lots, setLots] = useState<LotInterface.UiLot[]>(initialLots);
   const [itemsMaster, setItemsMaster] = useState<ItemInterface.UiItem[]>(initialItems);
@@ -161,6 +162,17 @@ export default function LotClient({
     }
   }, [isCategoryOpen, isStatusOpen, isExpiryOpen]);
 
+  const calculateStatus = (expiryDateStr: string | null) => {
+    if (!expiryDateStr) return "ปกติ";
+    const now = new Date();
+    const expiry = new Date(expiryDateStr);
+    const diffDays = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 3600 * 24));
+    const threshold = nearExpiryThresholdRef.current;
+    if (diffDays < 0) return "หมดอายุ";
+    if (diffDays <= threshold) return "ใกล้หมด";
+    return "ปกติ";
+  };
+
   const fetchLotsPage = async (
     page: number,
     search: string,
@@ -179,21 +191,11 @@ export default function LotClient({
         end_date: endDateRef.current || undefined,
         expiry_days: expiryDaysRef.current > 0 ? expiryDaysRef.current : undefined,
       });
-      // Sort by status priority first (expired > near expiry > normal), then by createdAt descending
-      const getStatusPriority = (lot: LotInterface.UiLot) => {
-        const expiryStatus = calculateStatus(lot.expiryDate);
-        if (expiryStatus === "หมดอายุ") return 0; // expired - highest priority
-        if (expiryStatus === "ใกล้หมด") return 1; // near expiry
-        return 2; // normal - lowest priority
-      };
-      
-      const sortedLots = result.items.sort((a, b) => {
-        const priorityA = getStatusPriority(a);
-        const priorityB = getStatusPriority(b);
-        if (priorityA !== priorityB) return priorityA - priorityB; // Sort by status priority
+      // เรียงตามวันที่รับเข้า (created_at) — ล่าสุดก่อน (สอดคล้องกับ orderBy ฝั่ง API)
+      const sortedLots = [...result.items].sort((a, b) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
-        return dateB - dateA; // Then by createdAt descending
+        return dateB - dateA;
       });
       setLots(sortedLots);
       setServerTotal(result.meta.total);
@@ -242,11 +244,25 @@ export default function LotClient({
   };
 
   useEffect(() => {
-    const isItemsMissing = !itemsMaster || itemsMaster.length === 0;
-    const isWarehousesMissing = !warehousesMaster || warehousesMaster.length === 0;
-    if (isItemsMissing || isWarehousesMissing) fetchAllData();
-    // Always fetch page 1 on mount to get server meta
-    fetchLotsPage(1, "", "ทั้งหมด", "ทั้งหมด", "ALL");
+    const boot = async () => {
+      try {
+        const settings = await getSystemSettings();
+        const raw = settings?.notify_expiring_days?.value;
+        const n = Number(raw);
+        if (!Number.isNaN(n)) {
+          nearExpiryThresholdRef.current = Math.max(0, Math.min(3650, n));
+        }
+      } catch {
+        /* keep SSR / default threshold */
+      }
+
+      const isItemsMissing = !itemsMaster || itemsMaster.length === 0;
+      const isWarehousesMissing = !warehousesMaster || warehousesMaster.length === 0;
+      if (isItemsMissing || isWarehousesMissing) await fetchAllData();
+      // Always fetch page 1 on mount to get server meta
+      await fetchLotsPage(1, "", "ทั้งหมด", "ทั้งหมด", "ALL");
+    };
+    void boot();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -332,6 +348,14 @@ export default function LotClient({
   };
 
   const handleToggleStatus = async (lot: LotInterface.UiLot) => {
+    if (calculateStatus(lot.expiryDate) === "หมดอายุ") {
+      await SweetAlertUtils.warning(
+        "ล็อตหมดอายุ",
+        "ล็อตนี้หมดอายุแล้วและถูกระงับการใช้งาน กรุณาปรับวันหมดอายุผ่านการรับของ/ปรับข้อมูลก่อนจึงจะเปิดใช้งานได้"
+      );
+      return;
+    }
+
     const isCurrentlyActive = lot.status === "ACTIVE";
     const nextActionText = isCurrentlyActive ? 'ระงับการใช้งาน' : 'เปิดใช้งาน';
 
@@ -349,33 +373,6 @@ export default function LotClient({
         SweetAlertUtils.error('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถทำการเปลี่ยนสถานะได้');
       }
     }
-  };
-
-  const handleDelete = async (lot: LotInterface.UiLot) => {
-    const confirmResult = await SweetAlertUtils.delete(
-      'ยืนยันการยกเลิก?',
-      `คุณต้องการยกเลิก Lot: ${lot.lotCode || lot.id} ใช่หรือไม่? สต็อกจะถูกตัดออกตามจำนวนคงเหลือ`
-    );
-
-    if (confirmResult.isConfirmed) {
-      try {
-        await deleteLot(lot.id);
-        SweetAlertUtils.success('ยกเลิกสำเร็จ!', 'ข้อมูล Lot ถูกยกเลิกเรียบร้อยแล้ว');
-        setLots(prev => prev.filter(l => l.id !== lot.id));
-      } catch (error: any) {
-        SweetAlertUtils.error('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถยกเลิกข้อมูลได้');
-      }
-    }
-  };
-
-  const calculateStatus = (expiryDateStr: string | null) => {
-    if (!expiryDateStr) return "ปกติ";
-    const now = new Date();
-    const expiry = new Date(expiryDateStr);
-    const diffDays = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 3600 * 24));
-    if (diffDays < 0) return "หมดอายุ";
-    if (diffDays <= 30) return "ใกล้หมด";
-    return "ปกติ";
   };
 
   // Server already filters; lots is the current page's data
@@ -737,6 +734,23 @@ export default function LotClient({
               <tbody className="text-slate-600">
                 {currentItems.map((lot, idx) => {
                   const currentStatus = calculateStatus(lot.expiryDate);
+                  const isExpiredLot = currentStatus === "หมดอายุ";
+                  const statusLabel = isExpiredLot
+                    ? "หมดอายุ"
+                    : lot.status !== "ACTIVE"
+                      ? "ระงับการใช้งาน"
+                      : currentStatus === "ปกติ"
+                        ? "ใช้งานได้"
+                        : currentStatus;
+                  const statusBadgeClass = isExpiredLot
+                    ? "bg-red-100 text-red-600"
+                    : lot.status !== "ACTIVE"
+                      ? "bg-red-100 text-red-500"
+                      : currentStatus === "ปกติ"
+                        ? "bg-green-100 text-green-500"
+                        : currentStatus === "ใกล้หมด"
+                          ? "bg-amber-100 text-amber-500"
+                          : "bg-slate-100 text-slate-600";
                   const enrichedData = getEnrichedLotData(lot);
                   const rowNumber = (currentPage - 1) * LOT_PAGE_LIMIT + idx + 1;
                   return (
@@ -783,17 +797,28 @@ export default function LotClient({
                         <div className={`line-clamp-2 ${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : 'text-slate-600'}`} title={formatDate(lot.expiryDate)}>{formatDate(lot.expiryDate)}</div>
                       </td>
                       <td className="px-6 py-2.5">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${lot.status !== 'ACTIVE' ? 'bg-red-100 text-red-500' : currentStatus === 'ปกติ' ? 'bg-green-100 text-green-500' : currentStatus === 'หมดอายุ' ? 'bg-red-100 text-red-500' : 'bg-amber-100 text-amber-500'}`}>
-                          {lot.status !== 'ACTIVE' ? 'ระงับการใช้งาน' : (currentStatus === 'ปกติ' ? 'ใช้งานได้' : currentStatus)}
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${statusBadgeClass}`}>
+                          {statusLabel}
                         </span>
                       </td>
                       <td className="px-6 py-2.5 text-center">
                         <div className="flex justify-center gap-1">
-                          <button onClick={() => handleToggleStatus(lot)} className={`p-2 rounded-lg transition-colors ${lot.status === 'ACTIVE' ? 'text-green-500 hover:bg-green-50' : 'text-red-400 hover:bg-red-50'}`} title={lot.status === 'ACTIVE' ? 'กดเพื่อระงับการใช้งาน' : 'กดเพื่อเปิดใช้งาน'}>
-                            {lot.status === 'ACTIVE' ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                          <button
+                            type="button"
+                            disabled={isExpiredLot}
+                            onClick={() => handleToggleStatus(lot)}
+                            className={`p-2 rounded-lg transition-colors ${isExpiredLot ? "text-slate-300 cursor-not-allowed opacity-50" : lot.status === "ACTIVE" ? "text-green-500 hover:bg-green-50" : "text-red-400 hover:bg-red-50"}`}
+                            title={
+                              isExpiredLot
+                                ? "ล็อตหมดอายุ — แก้วันหมดอายุก่อนจึงจะเปิดใช้งานได้"
+                                : lot.status === "ACTIVE"
+                                  ? "กดเพื่อระงับการใช้งาน"
+                                  : "กดเพื่อเปิดใช้งาน"
+                            }
+                          >
+                            {lot.status === "ACTIVE" ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
                           </button>
                           <button onClick={() => openAdjustModal(lot)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Wrench className="w-5 h-5" /></button>
-                          <button onClick={() => handleDelete(lot)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </td>
                     </tr>

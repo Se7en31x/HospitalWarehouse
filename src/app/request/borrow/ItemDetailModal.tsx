@@ -45,9 +45,9 @@ export default function ItemDetailModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+      <div className="bg-white rounded-xl w-full max-w-[min(100%,42rem)] shadow-xl overflow-hidden">
+        {/* Header — กว้างตาม max-w-2xl (~672px) บนจอใหญ่ */}
+        <div className="px-[1.65rem] py-[1.1rem] border-b border-slate-200 bg-slate-50 flex justify-between items-center">
           <h2 className="font-bold text-slate-800">รายละเอียดสินค้า</h2>
           <button
             onClick={onClose}
@@ -58,58 +58,58 @@ export default function ItemDetailModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-[1.65rem] space-y-[1.65rem]">
           {/* Product Image & Info Container */}
-          <div className="flex gap-6">
+          <div className="flex gap-[1.65rem]">
             {/* Image Left */}
             <div className="flex-shrink-0">
-              <div className="w-28 h-28 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-300">
+              <div className="w-[7.7rem] h-[7.7rem] rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-300">
                 {item.imageUrl ? (
                   <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
                 ) : (
-                  <PackagePlus className="w-14 h-14 text-slate-300" />
+                  <PackagePlus className="w-[3.85rem] h-[3.85rem] text-slate-300" />
                 )}
               </div>
             </div>
 
             {/* Info Right - 2 Column Grid */}
-            <div className="flex-1 grid grid-cols-2 gap-4">
+            <div className="flex-1 grid grid-cols-2 gap-[1.1rem]">
               {/* Left Column */}
-              <div className="space-y-4">
+              <div className="space-y-[1.1rem]">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase">รหัสพัสดุ</label>
-                  <p className="text-sm font-medium text-slate-800">{item.code}</p>
+                  <label className="text-xs font-bold text-slate-500 uppercase">รหัสพัสดุ</label>
+                  <p className="text-sm font-normal text-slate-800">{item.code}</p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase">ประเภท</label>
-                  <p className="text-sm text-slate-600">{item.category}</p>
+                  <label className="text-xs font-bold text-slate-500 uppercase">หมวดหมู่</label>
+                  <p className="text-sm font-normal text-slate-600">{item.category}</p>
                 </div>
               </div>
 
               {/* Right Column */}
-              <div className="space-y-4">
+              <div className="space-y-[1.1rem]">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase">ชื่อรายการ</label>
-                  <p className="text-sm font-medium text-slate-800 line-clamp-3">{item.name}</p>
+                  <label className="text-xs font-bold text-slate-500 uppercase">ชื่อรายการ</label>
+                  <p className="text-sm font-normal text-slate-800 line-clamp-3">{item.name}</p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase">ตำแหน่ง</label>
-                  <p className="text-sm text-slate-600">{item.location}</p>
+                  <label className="text-xs font-bold text-slate-500 uppercase">ตำแหน่ง</label>
+                  <p className="text-sm font-normal text-slate-600">{item.location}</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Stock & Quantity Selection */}
-          <div className="border-t border-slate-200 pt-6">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-t border-slate-200 pt-[1.65rem]">
+            <div className="grid grid-cols-2 gap-[1.1rem]">
               {/* Stock Info Left */}
               <div className="flex flex-col">
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
                   คงเหลือ
                 </label>
                 <div className="flex-1 flex items-center">
-                  <p className="text-lg font-bold text-blue-600">
+                  <p className="text-lg font-bold text-emerald-600">
                     {item.stock} {item.unit}
                   </p>
                 </div>
@@ -126,7 +126,7 @@ export default function ItemDetailModal({
                       onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
                       className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-500"
                     >
-                      <Minus size={18} />
+                      <Minus size={20} />
                     </button>
                     <input
                       type="number"
@@ -141,7 +141,7 @@ export default function ItemDetailModal({
                       onClick={() => handleQuantityChange(Math.min(item.stock, quantity + 1))}
                       className="p-1 hover:bg-slate-100 rounded transition-colors text-indigo-600"
                     >
-                      <Plus size={18} />
+                      <Plus size={20} />
                     </button>
                   </div>
                   <span className="text-slate-500 font-medium text-xs ml-1">{item.unit}</span>
@@ -155,10 +155,10 @@ export default function ItemDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+        <div className="px-[1.65rem] py-[1rem] border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm"
           >
             ยกเลิก
           </button>

@@ -8,6 +8,7 @@ import {
   getUnreadCount,
   markAllNotificationsRead,
   markNotificationRead,
+  NOTIFICATIONS_UI_REFRESH,
   type NotificationItem,
 } from "@/services/notificationService";
 import { socket } from "@/lib/socket";
@@ -109,6 +110,16 @@ export default function NotificationBell({ title = "การแจ้งเต�
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
   useEffect(() => { loadUnreadCount(); }, [loadUnreadCount]);
+
+  useEffect(() => {
+    const onUIFresh = (ev: Event) => {
+      const t = (ev as CustomEvent<{ entityType?: string }>).detail?.entityType;
+      if (t != null && t !== entityType) return;
+      loadUnreadCount();
+    };
+    window.addEventListener(NOTIFICATIONS_UI_REFRESH, onUIFresh);
+    return () => window.removeEventListener(NOTIFICATIONS_UI_REFRESH, onUIFresh);
+  }, [entityType, loadUnreadCount]);
   useEffect(() => { if (isOpen) loadItems(); }, [isOpen, loadItems]);
 
   useEffect(() => {

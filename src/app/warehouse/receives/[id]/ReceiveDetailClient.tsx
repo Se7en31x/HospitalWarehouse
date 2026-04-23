@@ -2,29 +2,28 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Layers, Loader2 } from "lucide-react";
+import {
+  FileText, Layers, Loader2, Package, CheckCircle, Clock, X,
+} from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import * as receiveService from "@/services/receiveService";
-import type { ReceiveBatch, ReceiveBatchHeader, ReceiveStatus, ReceiveType } from "@/services/receiveService";
+import type {
+  AcquisitionType,
+  ReceiveBatch,
+  ReceiveBatchHeader,
+  ReceiveStatus,
+} from "@/services/receiveService";
 
 const MySwal = withReactContent(Swal);
 const getErrorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TYPE_LABEL: Record<ReceiveType, string> = {
-  PURCHASE:       "จัดซื้อ (สิ้นเปลือง)",
-  DONATION:       "บริจาค",
-  PURCHASE_ASSET: "ครุภัณฑ์",
-  REUSABLE_UNIT:  "ของใช้ซ้ำรายชิ้น",
-};
-
-const TYPE_BADGE: Record<ReceiveType, string> = {
-  PURCHASE:       "bg-emerald-100 text-emerald-700",
-  DONATION:       "bg-purple-100 text-purple-700",
-  PURCHASE_ASSET: "bg-orange-100 text-orange-700",
-  REUSABLE_UNIT:  "bg-sky-100 text-sky-700",
+const ACQUISITION_LABEL: Record<AcquisitionType, string> = {
+  PURCHASE: "จัดซื้อ",
+  DONATION: "บริจาค",
+  TRANSFER: "โอนย้าย",
 };
 
 const STATUS_LABEL: Record<ReceiveStatus, string> = {
@@ -34,9 +33,18 @@ const STATUS_LABEL: Record<ReceiveStatus, string> = {
 };
 
 const STATUS_CLS: Record<ReceiveStatus, string> = {
-  PENDING:   "bg-amber-100 text-amber-700",
-  COMPLETED: "bg-emerald-100 text-emerald-700",
-  CANCELLED: "bg-red-100 text-red-700",
+  PENDING:   "bg-amber-50 text-amber-700 border-amber-200",
+  COMPLETED: "bg-green-50 text-green-700 border-green-200",
+  CANCELLED: "bg-red-50 text-red-700 border-red-200",
+};
+
+const getReceiveStatusIcon = (s: ReceiveStatus) => {
+  switch (s) {
+    case "PENDING":   return <Clock className="w-3 h-3" />;
+    case "COMPLETED": return <CheckCircle className="w-3 h-3" />;
+    case "CANCELLED": return <X className="w-3 h-3" />;
+    default:          return null;
+  }
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -133,126 +141,157 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
     }
   };
 
+  const colSpan = showLot ? 8 : 6;
+
+  const itemCategory = (row: { category?: string | null; category_name?: string | null }) =>
+    row.category_name?.trim() || row.category?.trim() || "—";
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      {/* Section header */}
-      <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${TYPE_BADGE[doc.type] ?? "bg-slate-100 text-slate-600"}`}>
-            {TYPE_LABEL[doc.type] ?? doc.type}
-          </span>
-          <span className="font-mono text-sm font-semibold text-slate-700">{doc.doc_no}</span>
-          <span className="text-xs text-slate-400">{doc.receive_item?.length ?? 0} รายการ</span>
+    <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-slate-800 border-b border-slate-200 pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <FileText className="h-5 w-5 text-indigo-600 shrink-0" />
+          <h2 className="text-lg font-semibold">เอกสารรับเข้า</h2>
         </div>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600"}`}>
+        <span
+          className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
+        >
+          {getReceiveStatusIcon(doc.status)}
           {STATUS_LABEL[doc.status] ?? doc.status}
         </span>
       </div>
 
-      {/* Items table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-slate-400 text-xs uppercase border-b border-slate-100">
-            <tr>
-              <th className="px-4 py-3 w-10">#</th>
-              <th className="px-4 py-3 w-28">รหัสสินค้า</th>
-              <th className="px-4 py-3">ชื่อสินค้า</th>
-              <th className="px-4 py-3 w-20 text-center">สั่ง</th>
-              <th className="px-4 py-3 w-24 text-center">รับ</th>
-              {showLot && (
-                <>
-                  <th className="px-4 py-3 w-32">Lot Code</th>
-                  <th className="px-4 py-3 w-32">วันหมดอายุ</th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50 text-slate-700">
-            {(doc.receive_item ?? []).map((item, idx) => (
-              <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.item_code ?? item.item_id}</td>
-                <td className="px-4 py-3 font-semibold text-slate-800">{item.item_name ?? "-"}</td>
-                <td className="px-4 py-3 text-center">{item.expected_qty ?? 0}</td>
-                {isPending ? (
+      <div
+        className="receive-doc-scroll flex-1 border border-slate-200 rounded-lg overflow-hidden"
+        style={{
+          maxHeight: "400px",
+          overflowX: "auto",
+          overflowY: "auto",
+          scrollbarWidth: "auto",
+          msOverflowStyle: "auto",
+        } as React.CSSProperties}
+      >
+        <style>{`
+          .receive-doc-scroll::-webkit-scrollbar { width: 0; height: 8px; }
+          .receive-doc-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+          .receive-doc-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+          .receive-doc-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        `}</style>
+        <table className="w-full min-w-[1000px] text-left text-sm table-fixed">
+            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
+              <tr>
+                <th className="px-6 py-5 w-[56px] text-center">#</th>
+                <th className="px-6 py-5 w-[120px]">รหัสสินค้า</th>
+                <th className="px-6 py-5 w-[200px]">ชื่อสินค้า</th>
+                <th className="px-6 py-5 w-[180px]">หมวดหมู่</th>
+                <th className="px-6 py-5 w-[88px] text-center">สั่ง</th>
+                <th className="px-6 py-5 w-[100px] text-center">รับ</th>
+                {showLot && (
                   <>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-center">
-                        <input
-                          type="number" min="0" max={item.expected_qty ?? 0}
-                          className="w-20 rounded border border-slate-300 px-2 py-1 text-right text-sm focus:border-indigo-500 focus:outline-none"
-                          value={inputs[item.id]?.qty?.toString() ?? "0"}
-                          onChange={e => {
-                            let v = Number(e.target.value.replace(/^0+/, "") || "0");
-                            if (v > (item.expected_qty ?? 0)) v = item.expected_qty ?? 0;
-                            patch(item.id, { qty: v });
-                          }}
-                        />
-                      </div>
-                    </td>
-                    {showLot && (
-                      <>
-                        <td className="px-4 py-3">
-                          <input
-                            title="Lot Code" type="text" placeholder="Lot Code"
-                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none"
-                            value={inputs[item.id]?.lot_code ?? ""}
-                            onChange={e => patch(item.id, { lot_code: e.target.value })}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            title="Expiry date" type="date"
-                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none"
-                            value={inputs[item.id]?.expired_at ?? ""}
-                            onChange={e => patch(item.id, { expired_at: e.target.value })}
-                          />
-                        </td>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-3 text-center">{item.qty ?? 0}</td>
-                    {showLot && (
-                      <>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.lot_code ?? "-"}</td>
-                        <td className="px-4 py-3 text-slate-600">{fmtD(item.expired_at)}</td>
-                      </>
-                    )}
+                    <th className="px-6 py-5 w-[140px]">Lot Code</th>
+                    <th className="px-6 py-5 w-[120px]">วันหมดอายุ</th>
                   </>
                 )}
               </tr>
-            ))}
-            {(!doc.receive_item || doc.receive_item.length === 0) && (
-              <tr>
-                <td colSpan={showLot ? 7 : 5} className="px-4 py-10 text-center text-slate-400 text-sm">
-                  ไม่พบรายการสินค้า
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-800 text-sm">
+              {(doc.receive_item ?? []).map((item, idx) => (
+                <tr key={item.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-5 w-[56px] text-center text-slate-500 font-medium tabular-nums align-middle">{idx + 1}</td>
+                  <td className="px-6 py-5 w-[120px] align-middle min-w-0">
+                    <p className="text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>{item.item_code ?? String(item.item_id)}</p>
+                  </td>
+                  <td className="px-6 py-5 w-[200px] align-middle min-w-0">
+                    <p className="text-slate-800 leading-snug line-clamp-2" title={item.item_name ?? ""}>{item.item_name ?? "—"}</p>
+                  </td>
+                  <td className="px-6 py-5 w-[180px] align-middle min-w-0">
+                    <p className="text-slate-800 leading-snug truncate" title={itemCategory(item)}>{itemCategory(item)}</p>
+                  </td>
+                  <td className="px-6 py-5 w-[88px] text-center font-medium text-slate-700 tabular-nums align-middle">{item.expected_qty ?? 0}</td>
+                  {isPending ? (
+                    <>
+                      <td className="px-6 py-5 w-[100px] align-middle">
+                        <div className="flex justify-center">
+                          <input
+                            type="number" min="0" max={item.expected_qty ?? 0}
+                            className="w-20 rounded border border-slate-200 px-2 py-2 text-right text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                            value={inputs[item.id]?.qty?.toString() ?? "0"}
+                            onChange={e => {
+                              let v = Number(e.target.value.replace(/^0+/, "") || "0");
+                              if (v > (item.expected_qty ?? 0)) v = item.expected_qty ?? 0;
+                              patch(item.id, { qty: v });
+                            }}
+                          />
+                        </div>
+                      </td>
+                      {showLot && (
+                        <>
+                          <td className="px-6 py-5 w-[140px] align-middle">
+                            <input
+                              title="Lot Code" type="text" placeholder="Lot Code"
+                              className="w-full max-w-[132px] rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                              value={inputs[item.id]?.lot_code ?? ""}
+                              onChange={e => patch(item.id, { lot_code: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-6 py-5 w-[120px] align-middle">
+                            <input
+                              title="Expiry date" type="date"
+                              className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                              value={inputs[item.id]?.expired_at ?? ""}
+                              onChange={e => patch(item.id, { expired_at: e.target.value })}
+                            />
+                          </td>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-6 py-5 w-[100px] text-center font-medium text-indigo-600 tabular-nums align-middle">{item.qty ?? 0}</td>
+                      {showLot && (
+                        <>
+                          <td className="px-6 py-5 w-[140px] align-middle">
+                            <p className="text-xs font-mono text-slate-700 truncate" title={item.lot_code ?? ""}>{item.lot_code ?? "—"}</p>
+                          </td>
+                          <td className="px-6 py-5 w-[120px] font-medium text-slate-800 tabular-nums align-middle">{fmtD(item.expired_at)}</td>
+                        </>
+                      )}
+                    </>
+                  )}
+                </tr>
+              ))}
+              {(!doc.receive_item || doc.receive_item.length === 0) && (
+                <tr>
+                  <td colSpan={colSpan} className="p-0">
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+                      <Package className="w-16 h-16 text-slate-300" strokeWidth={1.25} />
+                      <p className="text-base font-medium">ไม่พบรายการสินค้า</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
       </div>
 
-      {/* PENDING actions */}
       {isPending && (doc.receive_item?.length ?? 0) > 0 && (
-        <div className="flex gap-3 justify-end px-5 py-4 bg-amber-50 border-t border-amber-100">
+        <div className="flex gap-3 justify-end mt-6 pt-2">
           <button
             onClick={handleCancel} disabled={busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60 active:scale-95 transition-all"
+            className="px-6 py-2.5 text-sm font-bold text-red-600 bg-white border border-red-200 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-60"
           >
             ยกเลิกเอกสารนี้
           </button>
           <button
             onClick={handleConfirm} disabled={busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 active:scale-95 transition-all"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "ยืนยันการรับเข้า"}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            ยืนยันการรับเข้า
           </button>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -295,23 +334,21 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <div className="animate-spin">
+          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full" />
+        </div>
       </div>
     );
   }
 
   if (!batch) return null;
 
-  const uniqueTypes  = [...new Set(batch.headers.map(h => h.type))];
-  const totalItems   = batch.headers.reduce((s, h) => s + (h.receive_item?.length ?? 0), 0);
   const hasPending   = batch.headers.some(h => h.status === "PENDING");
-  const isMixedBatch = batch.headers.length > 1;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-6 gap-5">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">รายละเอียดการรับเข้า</h1>
+    <div className="flex flex-col min-h-screen bg-white p-8">
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-3xl font-bold text-gray-800">รายละเอียดการรับเข้า</h2>
         <button
           onClick={() => router.back()}
           className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
@@ -320,73 +357,62 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
         </button>
       </div>
 
-      {/* Batch banner */}
-      <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-5 py-4 flex flex-wrap items-center gap-3">
-        <Layers className="h-5 w-5 text-indigo-500 shrink-0" />
-        <span className="font-mono text-sm font-bold text-indigo-700">{batch.batch_no}</span>
-        <span className="text-sm text-indigo-600">
-          {batch.headers.length} เอกสาร · {totalItems} รายการ
-        </span>
-        <div className="flex gap-1.5 flex-wrap">
-          {uniqueTypes.map(t => (
-            <span key={t} className={`text-xs font-bold px-2 py-0.5 rounded-full ${TYPE_BADGE[t] ?? "bg-slate-100 text-slate-600"}`}>
-              {TYPE_LABEL[t] ?? t}
-            </span>
-          ))}
-        </div>
-        {hasPending && (
-          <span className="ml-auto text-xs font-semibold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
-            มีเอกสารรอยืนยัน
-          </span>
-        )}
-      </div>
-
-      {/* Batch metadata */}
-      <section className="rounded-xl bg-white border border-slate-200 p-5">
-        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-          <FileText className="h-4 w-4 text-indigo-500" />
-          <h2 className="text-sm font-semibold text-slate-700">ข้อมูล Batch</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">Batch No.</p>
-            <p className="font-mono text-sm font-bold text-indigo-700">{batch.batch_no}</p>
+      <div className="space-y-6 flex-1">
+        <section className="rounded-lg bg-white border border-slate-300 p-6">
+          <div className="mb-6 flex flex-wrap items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
+            <Layers className="h-5 w-5 text-indigo-600 shrink-0" />
+            <h2 className="text-lg font-semibold">ข้อมูลเลขที่นำเข้า</h2>
+            {hasPending && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800">
+                <Clock className="w-3 h-3" />
+                มีเอกสารรอยืนยัน
+              </span>
+            )}
           </div>
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">วันที่รับ</p>
-            <p className="text-sm text-slate-700">{fmtDT(batch.receive_date)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">ผู้จำหน่าย / ผู้บริจาค</p>
-            <p className="text-sm text-slate-700">{batch.supplier_name ?? batch.donor_name ?? "-"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">ผู้บันทึก</p>
-            <p className="text-sm text-slate-700">{batch.created_by ?? "-"}</p>
-          </div>
-          {!isMixedBatch && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
-              <p className="text-xs text-slate-400 mb-0.5">เลขที่เอกสาร</p>
-              <p className="font-mono text-sm text-slate-700">{batch.headers[0]?.doc_no ?? "-"}</p>
+              <p className="text-xs text-slate-500">เลขที่นำเข้า</p>
+              <p className="font-mono text-base font-semibold text-slate-800">{batch.batch_no}</p>
             </div>
-          )}
-          <div className="col-span-2 md:col-span-4">
-            <p className="text-xs text-slate-400 mb-0.5">หมายเหตุ</p>
-            <p className="text-sm text-slate-700">{batch.note ?? "-"}</p>
+            <div>
+              <p className="text-xs text-slate-500">ประเภทการรับเข้า</p>
+              <p className="text-base font-medium text-slate-800">
+                {batch.acquisition_type
+                  ? (ACQUISITION_LABEL[batch.acquisition_type] ?? String(batch.acquisition_type))
+                  : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">วันที่รับ</p>
+              <p className="text-base text-slate-800">{fmtDT(batch.receive_date)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">ผู้จำหน่าย / ผู้บริจาค</p>
+              <p className="text-base text-slate-800">{batch.supplier_name ?? batch.donor_name ?? "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">ผู้บันทึก</p>
+              <p className="text-base text-slate-800">
+                {batch.created_by_name?.trim() || "—"}
+              </p>
+            </div>
+            <div className="md:col-span-3">
+              <p className="text-xs text-slate-500">หมายเหตุ</p>
+              <p className="text-base text-slate-800">{batch.note ?? "-"}</p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* One DocSection per header in the batch */}
-      <div className="space-y-4">
-        {batch.headers.map(header => (
-          <DocSection key={header.id} doc={header} onRefresh={loadData} />
-        ))}
-        {batch.headers.length === 0 && (
-          <div className="rounded-xl bg-white border border-slate-200 p-10 text-center text-slate-400 text-sm">
-            ไม่พบเอกสารใน Batch นี้
-          </div>
-        )}
+        <div className="space-y-6">
+          {batch.headers.map(header => (
+            <DocSection key={header.id} doc={header} onRefresh={loadData} />
+          ))}
+          {batch.headers.length === 0 && (
+            <section className="rounded-lg bg-white border border-slate-300 p-6 text-center text-slate-500">
+              <p className="text-base">ไม่พบเอกสารใน Batch นี้</p>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );

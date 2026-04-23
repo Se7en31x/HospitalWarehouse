@@ -3,5 +3,5 @@
 export const dynamic = 'force-dynamic';
 
 export default function NotificationsPage() {
-  return <NotificationCenterClient title="การแจ้งเตือนคลัง" />;
+  return <NotificationCenterClient title="การแจ้งเตือนคลัง" entityType="WAREHOUSE" />;
 }

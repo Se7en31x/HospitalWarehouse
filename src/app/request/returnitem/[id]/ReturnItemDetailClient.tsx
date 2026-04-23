@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import {
-  X, FileText, Package,
-  Loader2, Minus, Plus, CheckCircle, Clock, AlertCircle, ChevronDown,
+  FileText, Package,
+  Loader2, Minus, Plus, CheckCircle, ChevronDown,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -17,14 +17,14 @@ const getErrorMessage = (error: unknown): string =>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
+type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "รอตรวจรับคืน" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
 
 const mapUiStatus = (header: RequisitionHeader): UiStatus => {
   if (header.status === "BORROWING") {
     if (header.due_date && new Date(header.due_date) < new Date()) return "ค้างคืน";
     return "รอการคืน";
   }
-  if (header.status === "PENDING_RETURN_CHECK") return "รออนุมัติ";
+  if (header.status === "PENDING_RETURN_CHECK") return "รอตรวจรับคืน";
   if (header.status === "COMPLETED") return "คืนแล้ว";
   if (header.status === "PENDING") return "รออนุมัติ";
   if (header.status === "CANCELLED") return "ยกเลิก";
@@ -55,20 +55,10 @@ const getStatusBadgeColor = (status: UiStatus) => {
     case "ค้างคืน":   return "bg-red-50 text-red-700 border-red-200";
     case "คืนแล้ว":   return "bg-blue-50 text-blue-700 border-blue-200";
     case "รออนุมัติ": return "bg-blue-50 text-blue-700 border-blue-200";
+    case "รอตรวจรับคืน": return "bg-sky-50 text-sky-800 border-sky-200";
     case "ยกเลิก":    return "bg-gray-50 text-gray-600 border-gray-200";
     case "ถูกปฏิเสธ": return "bg-rose-50 text-rose-700 border-rose-200";
     default:           return "bg-gray-50 text-gray-600 border-gray-200";
-  }
-};
-
-const getStatusIcon = (status: UiStatus) => {
-  switch (status) {
-    case "รอการคืน":  return <Clock className="w-3 h-3" />;
-    case "ค้างคืน":   return <AlertCircle className="w-3 h-3" />;
-    case "คืนแล้ว":   return <CheckCircle className="w-3 h-3" />;
-    case "รออนุมัติ": return <Loader2 className="w-3 h-3 animate-spin" />;
-    case "ยกเลิก":    return <X className="w-3 h-3" />;
-    default:           return null;
   }
 };
 
@@ -269,8 +259,8 @@ function DetailContent({
 
       <div className="space-y-6 flex-1">
         {/* Document Info */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
+        <section className="rounded-lg bg-white border border-slate-200 p-6 shadow-sm shadow-slate-200/30">
+          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200/90 pb-4">
             <FileText className="h-5 w-5 text-indigo-600" />
             <h2 className="text-lg font-semibold">ข้อมูลการยืม</h2>
           </div>
@@ -286,8 +276,7 @@ function DetailContent({
             </div>
             <div>
               <p className="text-xs text-slate-500">สถานะ</p>
-              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold items-center gap-1 ${getStatusBadgeColor(uiStatus)}`}>
-                {getStatusIcon(uiStatus)}
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold items-center ${getStatusBadgeColor(uiStatus)}`}>
                 {uiStatus}
               </span>
             </div>
@@ -310,8 +299,8 @@ function DetailContent({
         </section>
 
         {/* Borrower Info */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
+        <section className="rounded-lg bg-white border border-slate-200 p-6 shadow-sm shadow-slate-200/30">
+          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200/90 pb-4">
             <FileText className="h-5 w-5 text-emerald-600" />
             <h2 className="text-lg font-semibold">ข้อมูลผู้ยืม</h2>
           </div>
@@ -364,27 +353,27 @@ function DetailContent({
         </section>
 
         {/* Items Table */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-visible flex flex-col" style={{ height: "400px" }}>
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
+        <section className="rounded-lg bg-white border border-slate-200 p-6 overflow-visible flex flex-col shadow-sm shadow-slate-200/30" style={{ height: "400px" }}>
+          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200/90 pb-4">
             <Package className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold">รายการพัสดุ ({header.items?.length || 0} รายการ)</h2>
           </div>
 
-          <div className="flex-1 border border-slate-200 rounded-lg overflow-visible relative">
+          <div className="flex-1 border border-slate-200/90 rounded-lg overflow-visible relative">
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
+              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10 tracking-wide text-sm">
                 <tr>
                   <th className="px-6 py-4 w-[60px] text-center">#</th>
-                  <th className="px-6 py-4 w-[70px] text-center">รูป</th>
+                  <th className="px-3 py-4 w-24 min-w-[5.5rem] text-center">รูป</th>
                   <th className="px-6 py-4 w-[120px]">รหัสพัสดุ</th>
                   <th className="px-6 py-4 w-[200px]">รายการพัสดุ</th>
                   <th className="px-6 py-4 w-[120px]">จำนวนยืม</th>
-                  <th className="px-6 py-4 w-[120px]">จ่ายจริง</th>
-                  <th className="px-6 py-4 w-[80px]">คืนแล้ว</th>
-                  <th className="px-6 py-4 w-[90px]">คงเหลือ</th>
+                  {!canReturn && (
+                    <th className="px-6 py-4 w-[80px]">คืนแล้ว</th>
+                  )}
                   {canReturn && (
                     <>
-                      <th className="px-6 py-4 w-[110px] text-center">คืนครั้งนี้</th>
+                      <th className="px-3 py-4 w-[128px] text-center min-w-[7.5rem]">จำนวนที่คืน</th>
                       <th className="px-6 py-4 w-[200px] text-center">สภาพ</th>
                       <th className="px-6 py-4 w-[140px]">หมายเหตุ</th>
                     </>
@@ -398,16 +387,16 @@ function DetailContent({
                     return (
                       <tr key={row.req_item_id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           {header.items?.find(i => i.id === row.req_item_id)?.image_url ? (
                             <img
                               src={header.items.find(i => i.id === row.req_item_id)?.image_url || ""}
                               alt={row.name}
-                              className="w-16 h-16 rounded-lg object-cover mx-auto"
+                              className="w-14 h-14 rounded-lg object-cover mx-auto"
                             />
                           ) : (
-                            <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
-                              <Package className="w-6 h-6 text-slate-400" />
+                            <div className="w-14 h-14 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
+                              <Package className="w-5 h-5 text-slate-400" />
                             </div>
                           )}
                         </td>
@@ -420,20 +409,16 @@ function DetailContent({
                         <td className="px-6 py-4 font-medium text-slate-600 text-sm">
                           {header.items?.find(i => i.id === row.req_item_id)?.qty}
                         </td>
-                        <td className="px-6 py-4 font-medium text-indigo-600 text-sm">{row.issued}</td>
-                        <td className="px-6 py-4 font-medium text-blue-600 text-sm">{row.returned}</td>
-                        <td className="px-6 py-4">
-                          <span className="font-bold text-sm text-amber-600">{row.max}</span>
-                        </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <div className="flex items-center justify-center">
-                            <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm focus-within:border-blue-500">
+                            <div className="inline-flex items-center min-h-9 bg-white p-0.5 rounded-lg border border-slate-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
                               <button
                                 type="button"
                                 onClick={() => adjustQty(idx, -1)}
-                                className="p-1 hover:bg-slate-50 rounded text-slate-500"
+                                className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 active:scale-95"
+                                aria-label="ลดจำนวน"
                               >
-                                <Minus size={12} strokeWidth={3} />
+                                <Minus className="w-4 h-4" strokeWidth={2.5} />
                               </button>
                               <input
                                 type="number"
@@ -444,14 +429,15 @@ function DetailContent({
                                   const v = Math.max(0, Math.min(row.max, Number(e.target.value)));
                                   updateRow(idx, { qty_returned: v });
                                 }}
-                                className="w-9 bg-transparent text-center font-bold text-sm outline-none text-blue-600"
+                                className="w-10 min-w-[2.25rem] py-1 bg-slate-50/80 rounded-md text-center text-sm font-bold tabular-nums text-blue-700 outline-none focus:bg-white"
                               />
                               <button
                                 type="button"
                                 onClick={() => adjustQty(idx, 1)}
-                                className="p-1 hover:bg-slate-50 rounded text-blue-600"
+                                className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600 active:scale-95"
+                                aria-label="เพิ่มจำนวน"
                               >
-                                <Plus size={12} strokeWidth={3} />
+                                <Plus className="w-4 h-4" strokeWidth={2.5} />
                               </button>
                             </div>
                           </div>
@@ -504,41 +490,36 @@ function DetailContent({
                     );
                   })
                 ) : (
-                  (header.items || []).map((item, idx) => {
-                    const pending = (item.issued || 0) - (item.returned || 0);
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-5 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
-                        <td className="px-6 py-5">
-                          {item.image_url ? (
-                            <img src={item.image_url} alt={item.name} className="w-12 h-12 rounded-lg object-cover mx-auto" />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
-                              <Package className="w-6 h-6 text-slate-400" />
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-5">
-                          <p className="text-sm text-black font-mono">{item.code}</p>
-                        </td>
-                        <td className="px-6 py-5">
-                          <p className="text-slate-800 text-sm">{item.name}</p>
-                        </td>
-                        <td className="px-6 py-5 font-medium text-slate-600 text-sm">{item.qty}</td>
-                        <td className="px-6 py-5 font-medium text-indigo-600 text-sm">{item.issued || 0}</td>
-                        <td className="px-6 py-5 font-medium text-blue-600 text-sm">{item.returned || 0}</td>
-                        <td className="px-6 py-5">
-                          <span className={`font-bold text-sm ${pending > 0 ? "text-amber-600" : "text-slate-400"}`}>
-                            {pending > 0 ? pending : "ครบแล้ว"}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  (header.items || []).map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-5 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
+                      <td className="px-3 py-5">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-14 h-14 rounded-lg object-cover mx-auto"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-lg bg-slate-100 flex items-center justify-center mx-auto">
+                            <Package className="w-5 h-5 text-slate-400" />
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="text-sm text-black font-mono">{item.code}</p>
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="text-slate-800 text-sm">{item.name}</p>
+                      </td>
+                      <td className="px-6 py-5 font-medium text-slate-600 text-sm">{item.qty}</td>
+                      <td className="px-6 py-5 font-medium text-blue-600 text-sm">{item.returned || 0}</td>
+                    </tr>
+                  ))
                 )}
                 {(!header.items || header.items.length === 0) && (
                   <tr>
-                    <td colSpan={canReturn ? 11 : 8}>
+                    <td colSpan={canReturn ? 8 : 6}>
                       <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                         <Package className="w-16 h-16 text-slate-300" />
                         <p className="text-base font-medium">ไม่พบรายการพัสดุ</p>

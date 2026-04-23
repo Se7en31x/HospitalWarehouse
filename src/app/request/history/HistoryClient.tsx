@@ -23,6 +23,7 @@ const STATUS_BADGE: Record<string, string> = {
   BORROWING: "bg-green-100 text-green-700 border-green-200",
   APPROVED:  "bg-blue-100 text-blue-700 border-blue-200",
   PENDING:   "bg-amber-100 text-amber-700 border-amber-200",
+  PENDING_RETURN_CHECK: "bg-sky-100 text-sky-800 border-sky-200",
   REJECTED:  "bg-red-100 text-red-700 border-red-200",
   CANCELLED: "bg-slate-100 text-slate-600 border-slate-200",
 };
@@ -32,6 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
   APPROVED:  "รอนำส่ง",
   COMPLETED: "เสร็จสิ้น",
   BORROWING: "กำลังยืม",
+  PENDING_RETURN_CHECK: "รอตรวจรับคืน",
   REJECTED:  "ปฏิเสธ",
   CANCELLED: "ยกเลิก",
 };
@@ -52,6 +54,7 @@ const STATUS_TABS = [
   { v: "all",       l: "รวมทั้งหมด" },
   { v: "PENDING",   l: "รออนุมัติ" },
   { v: "APPROVED",  l: "รอนำส่ง" },
+  { v: "PENDING_RETURN_CHECK", l: "รอตรวจรับคืน" },
   { v: "COMPLETED", l: "เสร็จสิ้น" },
   { v: "REJECTED",  l: "ปฏิเสธ" },
   { v: "CANCELLED", l: "ยกเลิก" },
@@ -195,36 +198,38 @@ export default function HistoryClient() {
             <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
           </div>
         )}
-        <div className="flex-1 overflow-auto">
-          <table className="w-full text-sm text-left">
+        <div className="flex-1 overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <table className="w-full table-fixed text-sm text-left">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10 text-xs">
               <tr>
-                <th className="px-5 py-4 w-12">#</th>
-                <th className="px-5 py-4">เลขที่เอกสาร</th>
-                <th className="px-5 py-4">ประเภท</th>
+                <th className="px-5 py-4 w-[48px]">#</th>
+                <th className="px-5 py-4 w-[150px]">เลขที่เอกสาร</th>
+                <th className="px-5 py-4 w-[96px]">ประเภท</th>
                 <th className="px-5 py-4 hidden sm:table-cell w-[180px]">แผนก</th>
-                <th className="px-5 py-4">วันที่ขอ</th>
-                <th className="px-5 py-4 text-center">จำนวนรายการ</th>
-                <th className="px-5 py-4">สถานะ</th>
-                <th className="px-5 py-4 text-center">จัดการ</th>
+                <th className="px-5 py-4 w-[220px]">วันที่ทำรายการ</th>
+                <th className="px-5 py-4 w-[112px]">จำนวนรายการ</th>
+                <th className="px-5 py-4 w-[148px]">สถานะ</th>
+                <th className="px-5 py-4 w-[72px] text-center">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
               {displayed.map((r, idx) => (
                 <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-5 py-3 font-mono font-medium text-slate-700">{r.doc_no}</td>
-                  <td className="px-5 py-3"><TypeBadge type={r.type} /></td>
-                  <td className="px-5 py-3 hidden sm:table-cell max-w-[180px]">
-                    <p className="text-slate-600 text-sm truncate" title={r.department_name ?? ""}>{r.department_name ?? "-"}</p>
+                  <td className="px-5 py-3 w-[48px] text-slate-600">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-5 py-3 w-[150px] text-slate-600 truncate" title={r.doc_no}>{r.doc_no}</td>
+                  <td className="px-5 py-3 w-[96px] text-slate-600"><TypeBadge type={r.type} /></td>
+                  <td className="px-5 py-3 hidden sm:table-cell w-[180px] min-w-0 text-slate-600">
+                    <p className="truncate" title={r.department_name ?? ""}>{r.department_name ?? "-"}</p>
                   </td>
-                  <td className="px-5 py-3">
-                    <p className="text-slate-700">{fmtDate(r.request_date)}</p>
-                    <p className="text-xs text-slate-400">{fmtTime(r.request_date)}</p>
+                  <td className="px-5 py-3 w-[220px] text-slate-600">
+                    <span className="whitespace-nowrap">
+                      {fmtDate(r.request_date)}
+                      {r.request_date && ` ${fmtTime(r.request_date)}`}
+                    </span>
                   </td>
-                  <td className="px-5 py-3 text-center font-medium text-slate-600">{r.item_count ?? 0}</td>
-                  <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 w-[112px] text-slate-600">{r.item_count ?? 0}</td>
+                  <td className="px-5 py-3 w-[148px] text-slate-600"><StatusBadge status={r.status} /></td>
+                  <td className="px-5 py-3 w-[72px] text-slate-600">
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => router.push(`/request/history/${r.id}`)}
@@ -240,9 +245,9 @@ export default function HistoryClient() {
               {displayed.length === 0 && !isFetching && (
                 <tr>
                   <td colSpan={8}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
-                      <Package className="w-12 h-12 text-slate-300" />
-                      <p className="text-sm font-medium">ไม่พบรายการ</p>
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-600">
+                      <Package className="w-12 h-12 text-slate-400" />
+                      <p className="text-sm">ไม่พบรายการ</p>
                     </div>
                   </td>
                 </tr>

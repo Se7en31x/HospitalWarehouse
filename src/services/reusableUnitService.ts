@@ -50,6 +50,7 @@ export interface ReturnableSummaryItem {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
+  category_name?: string | null;
   in_use_qty: number;
 }
 
@@ -63,6 +64,7 @@ export interface ReusableReturnRequestItem {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
+  category_name?: string | null;
   requested_qty: number;
   note: string | null;
   requested_unit_codes?: string[];

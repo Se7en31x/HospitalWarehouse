@@ -7,6 +7,7 @@ import {
   getUnreadCount,
   markAllNotificationsRead,
   markNotificationRead,
+  emitNotificationsUIRefresh,
   type NotificationItem,
 } from "@/services/notificationService";
 import { socket } from "@/lib/socket";
@@ -15,6 +16,8 @@ type ReadFilter = "all" | "unread" | "read";
 
 interface NotificationCenterClientProps {
   title: string;
+  /** ให้สอดคล้องกับ NotificationBell (กรองรายการและนับยังไม่อ่านตาม context เดียวกัน) */
+  entityType?: string;
 }
 
 /** Returns a Thai relative timestamp string e.g. "5 นาทีที่แล้ว" */
@@ -26,7 +29,7 @@ const relativeTimeTh = (value?: string | null): string => {
   const hr   = Math.floor(min  / 60);
   const day  = Math.floor(hr   / 24);
 
-  if (sec  < 60)  return "เมื่อกี้";
+  if (sec  < 60)  return "เมื่อสักครู่";
   if (min  < 60)  return `${min} นาทีที่แล้ว`;
   if (hr   < 24)  return `${hr} ชั่วโมงที่แล้ว`;
   if (day  < 7)   return `${day} วันที่แล้ว`;
@@ -96,7 +99,7 @@ const NotifBadge = ({ n }: { n: NotificationItem }) => {
   );
 };
 
-export default function NotificationCenterClient({ title }: NotificationCenterClientProps) {
+export default function NotificationCenterClient({ title, entityType }: NotificationCenterClientProps) {
   const [items, setItems]               = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading]       = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
@@ -116,9 +119,10 @@ export default function NotificationCenterClient({ title }: NotificationCenterCl
         getNotifications({
           page: 1,
           limit: 200,
+          ...(entityType ? { entity_type: entityType } : {}),
           ...(rf === "unread" ? { unread: true } : rf === "read" ? { read: true } : {}),
         }),
-        getUnreadCount(),
+        getUnreadCount(entityType),
       ]);
       setItems(result.items || []);
       setTotalUnread(unread);
@@ -127,7 +131,7 @@ export default function NotificationCenterClient({ title }: NotificationCenterCl
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [entityType]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -164,25 +168,43 @@ export default function NotificationCenterClient({ title }: NotificationCenterCl
   }, [loadData]);
 
   const handleMarkAllRead = useCallback(async () => {
+    if (totalUnread === 0) return;
     setIsMarkingAll(true);
+    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setTotalUnread(0);
     try {
       await markAllNotificationsRead();
-      await loadData();
+      emitNotificationsUIRefresh(entityType);
     } catch {
-      // silent
+      await loadData();
     } finally {
       setIsMarkingAll(false);
     }
-  }, [loadData]);
+  }, [loadData, entityType, totalUnread]);
 
-  const handleMarkRead = useCallback(async (id: number) => {
-    try {
-      await markNotificationRead(id);
-      await loadData();
-    } catch {
-      // silent
-    }
-  }, [loadData]);
+  const handleMarkRead = useCallback(
+    async (id: number) => {
+      let wasUnread = false;
+      setItems((prev) => {
+        const t = prev.find((n) => n.id === id);
+        wasUnread = !!t && !t.is_read;
+        if (!wasUnread) return prev;
+        return prev.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+      });
+      if (wasUnread) {
+        setTotalUnread((c) => Math.max(0, c - 1));
+      }
+      if (!wasUnread) return;
+      try {
+        await markNotificationRead(id);
+        emitNotificationsUIRefresh(entityType);
+      } catch {
+        setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: false } : n)));
+        setTotalUnread((c) => c + 1);
+      }
+    },
+    [entityType]
+  );
 
   const newItems = items.filter((n) => {
     const ts = n.created_at || n.delivered_at;
@@ -200,8 +222,9 @@ export default function NotificationCenterClient({ title }: NotificationCenterCl
 
   const NotifRow = ({ n }: { n: NotificationItem }) => (
     <button
+      type="button"
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors ${!n.is_read ? "bg-blue-50/70" : ""}`}
-      onClick={() => { if (!n.is_read) handleMarkRead(n.id); }}
+      onClick={() => { handleMarkRead(n.id); }}
     >
       {/* Avatar with badge */}
       <div className="relative flex-shrink-0">

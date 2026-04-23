@@ -16,16 +16,26 @@ const STATUS_LABEL: Record<string, string> = {
   AVAILABLE: "พร้อมใช้งาน",
   IN_USE: "กำลังใช้งาน",
   REPAIR: "ส่งซ่อม",
-  DISPOSED: "จำหน่ายออก",
+  DISPOSED: "ไม่พร้อมใช้งาน",
 };
 
 const CONDITION_LABEL: Record<string, string> = {
   GOOD: "ปกติ",
   DAMAGED: "ชำรุด",
-  INCOMPLETE: "ไม่ครบ",
+  INCOMPLETE: "ชำรุด",
   LOST: "สูญหาย",
-  BROKEN: "ชำรุดหนัก",
+  BROKEN: "ชำรุด",
 };
+
+/** ประเภทสภาพที่โมดัลแก้ไขรวมเป็นรายการเดียวว่า "ชำรุด" */
+const DAMAGED_LIKE_CONDITIONS = new Set(["DAMAGED", "INCOMPLETE", "BROKEN"]);
+
+/** ตัวเลือกสภาพในโมดัลแก้ไข — ชำรุดแสดงแถวเดียว (บันทึกเป็น DAMAGED เมื่อเลือก) */
+const EDIT_MODAL_CONDITION_OPTIONS: { value: string; label: string }[] = [
+  { value: "GOOD", label: "ปกติ" },
+  { value: "DAMAGED", label: "ชำรุด" },
+  { value: "LOST", label: "สูญหาย" },
+];
 
 // ============ Helpers ============
 
@@ -48,7 +58,7 @@ function ConditionBadge({ condition }: { condition: string }) {
     switch (c) {
       case "GOOD": return "bg-green-100 text-green-500";
       case "DAMAGED": return "bg-amber-100 text-amber-500";
-      case "INCOMPLETE": return "bg-purple-100 text-purple-500";
+      case "INCOMPLETE": return "bg-amber-100 text-amber-500";
       case "LOST": return "bg-red-100 text-red-500";
       case "BROKEN": return "bg-red-100 text-red-500";
       default: return "bg-slate-100 text-slate-500";
@@ -250,6 +260,46 @@ export default function ReusableRegistryClient({
 
   const handleSaveEdit = async () => {
     if (!editingUnit) return;
+    if (
+      (editStatus === "AVAILABLE" || editStatus === "IN_USE") &&
+      editCondition === "LOST"
+    ) {
+      SweetAlertUtils.error(
+        "ข้อมูลไม่ถูกต้อง",
+        "สถานะพร้อมใช้งานหรือกำลังใช้งานใช้ร่วมกับสภาพสูญหายไม่ได้ กรุณาปรับสถานะหรือสภาพให้สอดคล้องกัน"
+      );
+      return;
+    }
+    if (editStatus === "DISPOSED" && editCondition !== "LOST") {
+      SweetAlertUtils.error(
+        "ข้อมูลไม่ถูกต้อง",
+        "สถานะไม่พร้อมใช้งานใช้ได้เฉพาะสภาพสูญหายเท่านั้น"
+      );
+      return;
+    }
+    if (DAMAGED_LIKE_CONDITIONS.has(editCondition) && editStatus !== "REPAIR") {
+      SweetAlertUtils.error(
+        "ข้อมูลไม่ถูกต้อง",
+        "เมื่อสภาพเป็นชำรุด สามารถบันทึกได้เฉพาะสถานะส่งซ่อมเท่านั้น"
+      );
+      return;
+    }
+    if (editStatus === "REPAIR") {
+      if (editCondition === "GOOD") {
+        SweetAlertUtils.error(
+          "ข้อมูลไม่ถูกต้อง",
+          "สถานะส่งซ่อมต้องเป็นสภาพชำรุด ไม่สามารถบันทึกเมื่อสภาพเป็นปกติได้"
+        );
+        return;
+      }
+      if (editCondition === "LOST") {
+        SweetAlertUtils.error(
+          "ข้อมูลไม่ถูกต้อง",
+          "สถานะส่งซ่อมไม่สามารถใช้คู่กับสภาพสูญหายได้"
+        );
+        return;
+      }
+    }
     setIsSaving(true);
     try {
       await reusableSvc.updateReusableUnit(editingUnit.id, {
@@ -326,7 +376,7 @@ export default function ReusableRegistryClient({
     { value: "AVAILABLE", label: "พร้อมใช้งาน" },
     { value: "IN_USE", label: "กำลังใช้งาน/ถูกยืม" },
     { value: "REPAIR", label: "ส่งซ่อม" },
-    { value: "DISPOSED", label: "จำหน่ายออก" },
+    { value: "DISPOSED", label: "ไม่พร้อมใช้งาน" },
   ];
 
   // Filter data (server handles keyword filtering, client handles additional filters)
@@ -601,7 +651,7 @@ export default function ReusableRegistryClient({
             {/* Header */}
             <div className="bg-white border-b border-slate-300 px-8 py-6 flex items-center justify-between sticky top-0 z-10">
               <h2 className="text-2xl font-bold text-slate-900">
-                แก้ไขข้อมูลรายชิ้น
+                แก้ไขข้อมูล
               </h2>
               <button
                 onClick={closeEditModal}
@@ -701,8 +751,17 @@ export default function ReusableRegistryClient({
                               <li key={k}>
                                 <button
                                   type="button"
-                                  onClick={() => { setEditStatus(k); setIsEditStatusOpen(false); }}
-                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${editStatus === k ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                                  onClick={() => {
+                                    setEditStatus(k);
+                                    setIsEditStatusOpen(false);
+                                    if (k === "REPAIR") setEditCondition("DAMAGED");
+                                    if (k === "DISPOSED") setEditCondition("LOST");
+                                  }}
+                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                    editStatus === k
+                                      ? "bg-blue-50 text-blue-700 font-medium"
+                                      : "text-slate-700 hover:bg-slate-50"
+                                  }`}
                                 >
                                   {v}
                                 </button>
@@ -727,17 +786,58 @@ export default function ReusableRegistryClient({
                     {isEditConditionOpen && (
                       <div className="absolute mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-[250px] max-h-64 overflow-y-auto">
                         <ul className="py-1">
-                          {Object.entries(CONDITION_LABEL).map(([k, v]) => (
-                            <li key={k}>
+                          {EDIT_MODAL_CONDITION_OPTIONS.map((opt) => {
+                            const disableNonLostForDisposed =
+                              editStatus === "DISPOSED" && opt.value !== "LOST";
+                            const disableLostWhenInUseOrAvailable =
+                              (editStatus === "AVAILABLE" || editStatus === "IN_USE") &&
+                              opt.value === "LOST";
+                            const disableLostForRepair =
+                              editStatus === "REPAIR" && opt.value === "LOST";
+                            const disableGoodForRepair =
+                              editStatus === "REPAIR" && opt.value === "GOOD";
+                            const disabled =
+                              disableNonLostForDisposed ||
+                              disableLostWhenInUseOrAvailable ||
+                              disableLostForRepair ||
+                              disableGoodForRepair;
+                            const disabledTitle = disableNonLostForDisposed
+                              ? "สถานะไม่พร้อมใช้งานใช้ได้เฉพาะสภาพสูญหาย"
+                              : disableLostWhenInUseOrAvailable
+                                ? "สถานะพร้อมใช้งานหรือกำลังใช้งานไม่สามารถเลือกสูญหายได้"
+                                : disableLostForRepair
+                                  ? "สถานะส่งซ่อมไม่สามารถเลือกสูญหายได้"
+                                  : disableGoodForRepair
+                                    ? "สถานะส่งซ่อมต้องเป็นสภาพชำรุด ไม่สามารถเลือกปกติได้"
+                                    : undefined;
+                            const isSelected =
+                              opt.value === "DAMAGED"
+                                ? DAMAGED_LIKE_CONDITIONS.has(editCondition)
+                                : editCondition === opt.value;
+                            return (
+                            <li key={opt.value}>
                               <button
                                 type="button"
-                                onClick={() => { setEditCondition(k); setIsEditConditionOpen(false); }}
-                                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${editCondition === k ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                                disabled={disabled}
+                                title={disabledTitle}
+                                onClick={() => {
+                                  if (disabled) return;
+                                  setEditCondition(opt.value);
+                                  setIsEditConditionOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                  disabled
+                                    ? "text-slate-300 cursor-not-allowed bg-slate-50"
+                                    : isSelected
+                                      ? "bg-blue-50 text-blue-700 font-medium"
+                                      : "text-slate-700 hover:bg-slate-50"
+                                }`}
                               >
-                                {v}
+                                {opt.label}
                               </button>
                             </li>
-                          ))}
+                          );
+                          })}
                         </ul>
                       </div>
                     )}
@@ -759,7 +859,7 @@ export default function ReusableRegistryClient({
 
             {/* Footer */}
             <div className="px-8 py-5 bg-white border-t border-slate-300 flex justify-end gap-3">
-              <button onClick={closeEditModal} className="px-6 py-2.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200 transition-colors">
+              <button onClick={closeEditModal} className="px-6 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors shadow-sm">
                 ยกเลิก
               </button>
               <button onClick={handleSaveEdit} disabled={isSaving} className="flex items-center gap-2 px-8 py-2.5 bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-md hover:bg-blue-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">

@@ -3,5 +3,5 @@ import NotificationCenterClient from "@/components/notifications/NotificationCen
 export const dynamic = "force-dynamic";
 
 export default function RequestNotificationsPage() {
-  return <NotificationCenterClient title="การแจ้งเตือนของฉัน" />;
+  return <NotificationCenterClient title="การแจ้งเตือนของฉัน" entityType="REQUEST_HISTORY" />;
 }

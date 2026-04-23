@@ -19,13 +19,6 @@ const TYPE_LABEL: Record<ReceiveType, string> = {
     REUSABLE_UNIT:  "ของใช้ซ้ำ",
 };
 
-const TYPE_BADGE: Record<ReceiveType, string> = {
-    PURCHASE:       "bg-blue-100 text-blue-700",
-    DONATION:       "bg-green-100 text-green-700",
-    PURCHASE_ASSET: "bg-amber-100 text-amber-700",
-    REUSABLE_UNIT:  "bg-violet-100 text-violet-700",
-};
-
 const STATUS_CFG: Record<ReceiveStatus, { color: string; label: string }> = {
     COMPLETED: { color: "bg-emerald-100 text-emerald-700", label: "เสร็จสมบูรณ์" },
     PENDING:   { color: "bg-amber-100 text-amber-600",    label: "รอดำเนินการ" },
@@ -35,16 +28,15 @@ const STATUS_CFG: Record<ReceiveStatus, { color: string; label: string }> = {
 function StatusBadge({ status }: { status: string }) {
     const cfg = STATUS_CFG[status as ReceiveStatus] ?? { color: "bg-slate-100 text-slate-600", label: status };
     return (
-        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${cfg.color}`}>
+        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm ${cfg.color}`}>
             {cfg.label}
         </span>
     );
 }
 
 function TypeBadge({ type }: { type: string }) {
-    const cls   = TYPE_BADGE[type as ReceiveType] ?? "bg-slate-100 text-slate-600";
     const label = TYPE_LABEL[type as ReceiveType] ?? type;
-    return <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{label}</span>;
+    return <span>{label}</span>;
 }
 
 function fmtDate(iso: string | null | undefined) {
@@ -299,16 +291,16 @@ export default function ReceiveClient() {
                         <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                             <tr>
                                 <th className="px-6 py-4 w-[50px]">#</th>
-                                <th className="px-6 py-4 w-[140px]">Batch No.</th>
+                                <th className="px-6 py-4 w-[140px]">เลขที่นำเข้า</th>
                                 <th className="px-6 py-4 w-[180px]">วันที่รับ</th>
                                 <th className="px-6 py-4 w-[200px]">ประเภท</th>
                                 <th className="px-6 py-4 w-[200px]">ผู้จำหน่าย / ผู้บริจาค</th>
                                 <th className="px-6 py-4 w-[100px] text-center">รายการ</th>
                                 <th className="px-6 py-4 w-[150px]">สถานะ</th>
-                                <th className="px-6 py-4 w-[100px] text-center">ดู</th>
+                                <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody className="text-slate-600">
+                        <tbody className="text-slate-700">
                             {records.map((batch, idx) => {
                                 const uniqueTypes = [batch.acquisition_type];
                                 const itemCount   = batchItemCount(batch.headers);
@@ -316,18 +308,18 @@ export default function ReceiveClient() {
 
                                 return (
                                     <tr key={batch.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                                        <td className="px-6 py-3 text-slate-400 text-sm">{(page - 1) * limit + idx + 1}</td>
-                                        <td className="px-6 py-3 font-mono text-sm text-slate-700 font-semibold">{batch.batch_no}</td>
-                                        <td className="px-6 py-3 text-sm text-slate-600 whitespace-nowrap">{fmtDate(batch.created_at)}</td>
-                                        <td className="px-6 py-3">
+                                        <td className="px-6 py-3 text-sm">{(page - 1) * limit + idx + 1}</td>
+                                        <td className="px-6 py-3 text-sm truncate">{batch.batch_no}</td>
+                                        <td className="px-6 py-3 text-sm whitespace-nowrap">{fmtDate(batch.created_at)}</td>
+                                        <td className="px-6 py-3 text-sm">
                                             <div className="flex flex-wrap gap-1">
                                                 {uniqueTypes.map(t => <TypeBadge key={t} type={t} />)}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-3 text-sm text-slate-700 truncate">
+                                        <td className="px-6 py-3 text-sm truncate">
                                             {batch.supplier_name || batch.donor_name || "-"}
                                         </td>
-                                        <td className="px-6 py-3 text-center text-sm font-medium">{itemCount}</td>
+                                        <td className="px-6 py-3 text-center text-sm">{itemCount}</td>
                                         <td className="px-6 py-3"><StatusBadge status={status} /></td>
                                         <td className="px-6 py-3 text-center">
                                             <button onClick={() => viewBatch(batch.id)}

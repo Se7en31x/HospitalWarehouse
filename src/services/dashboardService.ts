@@ -5,7 +5,6 @@ import { isNearExpiryDate } from "@/utils/nearExpiryUtils";
 
 export interface DashboardSummary {
   totalItems: number;
-  totalItemLots: number;
   totalDepartments: number;
   totalSuppliers: number;
   totalUsers: number;
@@ -99,20 +98,17 @@ async function fetchOptionCount(endpoint: string): Promise<number> {
 // ─── Public API ──────────────────────────────────────────────────────
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const [totalItems, totalItemLots, totalDepartments, totalSuppliers] =
-    await Promise.all([
-      fetchCount("/v1/items"),
-      fetchCount("/v1/lots"),
-      fetchCount("/v1/departments"),
-      fetchOptionCount("/v1/suppliers/option"),
-    ]);
+  const [totalItems, totalDepartments, totalSuppliers] = await Promise.all([
+    fetchCount("/v1/items"),
+    fetchCount("/v1/departments"),
+    fetchOptionCount("/v1/suppliers/option"),
+  ]);
 
-  return { 
-    totalItems, 
-    totalItemLots, 
-    totalDepartments, 
-    totalSuppliers, 
-    totalUsers: 0 // ดึงข้อมูลไม่ได้จาก endpoint ปัจจุบัน
+  return {
+    totalItems,
+    totalDepartments,
+    totalSuppliers,
+    totalUsers: 0, // ดึงข้อมูลไม่ได้จาก endpoint ปัจจุบัน
   };
 }
 

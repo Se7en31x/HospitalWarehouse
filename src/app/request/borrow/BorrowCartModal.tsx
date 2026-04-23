@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useCallback, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus,
@@ -39,6 +39,26 @@ const MySwal = withReactContent(Swal);
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   return String(error);
+};
+
+/** แสดงวันที่ YYYY-MM-DD เป็นวันที่ภาษาไทย (parse เที่ยง กันวันเพี้ยนเพราะ timezone) */
+const formatThaiDateFromYmd = (ymd: string): string => {
+  if (!ymd) return "—";
+  const d = new Date(`${ymd}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  return d.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const todayYmdLocal = (): string => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
 interface CartItem extends ItemSvc.UiItem {
@@ -94,6 +114,109 @@ interface ExternalPersonForm {
   notes: string;
   documents: File[];
 }
+
+/** ร่างฟอร์ม: JSON ใน localStorage, เอกสารแนบใน IndexedDB */
+const BORROW_FORM_DRAFT_KEY = "hpk_borrow_external_draft_v1";
+
+const BORROW_DRAFT_IDB = {
+  db: "hpk-borrow-workspace",
+  version: 1,
+  store: "draft",
+} as const;
+const BORROW_DRAFT_IDB_KEY_FILES = "external_attachments_v1";
+
+type IdbDraftFile = { name: string; type: string; lastModified: number; data: ArrayBuffer };
+
+function idbOpen(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("no idb"));
+      return;
+    }
+    const req = indexedDB.open(BORROW_DRAFT_IDB.db, BORROW_DRAFT_IDB.version);
+    req.onerror = () => reject(req.error ?? new Error("idb open"));
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(BORROW_DRAFT_IDB.store)) {
+        db.createObjectStore(BORROW_DRAFT_IDB.store);
+      }
+    };
+  });
+}
+
+async function idbSaveDraftFiles(files: File[]): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const parts: IdbDraftFile[] = await Promise.all(
+    files.map(async (f) => ({
+      name: f.name,
+      type: f.type,
+      lastModified: f.lastModified,
+      data: await f.arrayBuffer(),
+    }))
+  );
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BORROW_DRAFT_IDB.store, "readwrite");
+    const st = tx.objectStore(BORROW_DRAFT_IDB.store);
+    st.put(parts, BORROW_DRAFT_IDB_KEY_FILES);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbLoadDraftFiles(): Promise<File[]> {
+  if (typeof indexedDB === "undefined") return [];
+  let db: IDBDatabase;
+  try {
+    db = await idbOpen();
+  } catch {
+    return [];
+  }
+  const parts = await new Promise<IdbDraftFile[] | undefined>((resolve, reject) => {
+    const tx = db.transaction(BORROW_DRAFT_IDB.store, "readonly");
+    const st = tx.objectStore(BORROW_DRAFT_IDB.store);
+    const g = st.get(BORROW_DRAFT_IDB_KEY_FILES);
+    g.onsuccess = () => resolve(g.result as IdbDraftFile[] | undefined);
+    g.onerror = () => reject(g.error);
+  });
+  if (!Array.isArray(parts) || parts.length === 0) return [];
+  return parts.map(
+    (p) =>
+      new File([p.data], p.name, {
+        type: p.type || "application/octet-stream",
+        lastModified: p.lastModified,
+      })
+  );
+}
+
+async function idbClearDraftFiles(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  try {
+    const db = await idbOpen();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(BORROW_DRAFT_IDB.store, "readwrite");
+      tx.objectStore(BORROW_DRAFT_IDB.store).delete(BORROW_DRAFT_IDB_KEY_FILES);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+interface BorrowFormDraftV1 {
+  v: 1;
+  form: Omit<ExternalPersonForm, "documents">;
+  externalStep: 1 | 2 | 3;
+  externalOperatorDeptId: number | null;
+  savedAt: string;
+}
+
+const formFieldsForDraft = (form: ExternalPersonForm): Omit<ExternalPersonForm, "documents"> => {
+  const { documents: _d, ...rest } = form;
+  return rest;
+};
 
 interface BorrowCartModalProps {
   showCartModal: boolean;
@@ -233,6 +356,113 @@ export default function BorrowCartModal({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isAddressOpen]);
+
+  // ── ฉบับร่าง: JSON ใน localStorage + เอกสารแนบใน IndexedDB ─────────────────
+  const clearBorrowDraft = useCallback(() => {
+    try {
+      localStorage.removeItem(BORROW_FORM_DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+    void idbClearDraftFiles();
+  }, []);
+
+  const flushBorrowDraft = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const payload: BorrowFormDraftV1 = {
+      v: 1,
+      form: formFieldsForDraft(externalForm),
+      externalStep,
+      externalOperatorDeptId,
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(BORROW_FORM_DRAFT_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.warn("[BorrowCartModal] ไม่สามารถบันทึกร่างได้", e);
+    }
+    try {
+      await idbSaveDraftFiles(externalForm.documents);
+    } catch (e) {
+      console.warn("[BorrowCartModal] ไม่สามารถบันทึกไฟล์ร่าง (IndexedDB)", e);
+    }
+  }, [externalForm, externalStep, externalOperatorDeptId]);
+
+  const handleCloseModal = useCallback(() => {
+    if (isSubmitting) return;
+    void flushBorrowDraft()
+      .then(() => {
+        if (externalForm.returnDate) {
+          setGlobalReturnDate(externalForm.returnDate);
+        }
+        setShowCartModal(false);
+      })
+      .catch(() => {
+        if (externalForm.returnDate) {
+          setGlobalReturnDate(externalForm.returnDate);
+        }
+        setShowCartModal(false);
+      });
+  }, [
+    isSubmitting,
+    flushBorrowDraft,
+    externalForm.returnDate,
+    setGlobalReturnDate,
+    setShowCartModal,
+  ]);
+
+  const wasModalOpenRef = useRef(false);
+  useEffect(() => {
+    if (showCartModal && !wasModalOpenRef.current) {
+      const raw = localStorage.getItem(BORROW_FORM_DRAFT_KEY);
+      if (raw) {
+        try {
+          const d = JSON.parse(raw) as BorrowFormDraftV1;
+          if (d?.v === 1 && d.form && typeof d.form === "object") {
+            setExternalForm({ ...initialExternalForm, ...d.form, documents: [] });
+            if (d.externalStep === 1 || d.externalStep === 2 || d.externalStep === 3) {
+              setExternalStep(d.externalStep);
+            }
+            setExternalOperatorDeptId(
+              d.externalOperatorDeptId === null || d.externalOperatorDeptId === undefined
+                ? null
+                : d.externalOperatorDeptId
+            );
+            if (d.form.returnDate) {
+              setGlobalReturnDate(d.form.returnDate);
+            }
+            void idbLoadDraftFiles().then((restored) => {
+              if (restored.length > 0) {
+                setExternalForm((prev) => ({ ...prev, documents: restored }));
+              }
+            });
+          }
+        } catch {
+          /* bad draft */
+        }
+      }
+    }
+    wasModalOpenRef.current = showCartModal;
+  }, [showCartModal, setGlobalReturnDate]);
+
+  const flushBorrowDraftRef = useRef(flushBorrowDraft);
+  flushBorrowDraftRef.current = flushBorrowDraft;
+  useEffect(() => {
+    if (!showCartModal) return;
+    const t = window.setTimeout(() => {
+      void flushBorrowDraftRef.current();
+    }, 500);
+    return () => clearTimeout(t);
+  }, [showCartModal, externalForm, externalStep, externalOperatorDeptId]);
+
+  useEffect(() => {
+    if (!showCartModal) return;
+    const onBeforeUnload = () => {
+      void flushBorrowDraftRef.current();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [showCartModal]);
 
   // --- [Helper Actions] ---
   const removeFromCart = useCallback(
@@ -473,7 +703,7 @@ export default function BorrowCartModal({
     if (!globalReturnDate) {
       MySwal.fire({
         title: "แจ้งเตือน",
-        text: "กรุณาระบุวันที่คืนครุภัณฑ์",
+        text: "กรุณาระบุวันที่คืน",
         icon: "warning",
       });
       return;
@@ -522,6 +752,7 @@ export default function BorrowCartModal({
         setGlobalReturnDate("");
         localStorage.removeItem("borrow_cart");
         localStorage.removeItem("borrow_return_date");
+        clearBorrowDraft();
         setShowCartModal(false);
       } else {
         throw new Error(res.message || "เกิดข้อผิดพลาดในการสร้างใบยืม");
@@ -539,15 +770,20 @@ export default function BorrowCartModal({
 
   // --- [Submit: ยืมบุคคลภายนอก] ---
   const submitExternalBorrow = async () => {
-    const { firstname, lastname, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
+    const { titleCode, firstname, lastname, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
 
     if (externalOperatorDeptId === null) {
       MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาระบุแผนกของผู้ดำเนินการ", icon: "warning" });
       return;
     }
 
+    if (!titleCode) {
+      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาเลือกคำนำหน้า", icon: "warning" });
+      return;
+    }
+
     if (!firstname || !lastname || !address || !subdistrict || !district || !province || !postalCode || !phone || !returnDate) {
-      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (รวมถึงวันที่คืนครุภัณฑ์)", icon: "warning" });
+      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (รวมถึงวันที่คืน)", icon: "warning" });
       return;
     }
 
@@ -565,7 +801,7 @@ export default function BorrowCartModal({
         items: selectedItems.map((i) => ({ item_id: i.id, qty: i.quantity, note: "" })),
         note: externalForm.notes || "ยืมโดยบุคคลภายนอก",
         borrower: {
-          title_code: externalForm.titleCode || undefined,
+          title_code: titleCode,
           firstname,
           lastname,
           id_card: externalForm.idCard || undefined,
@@ -604,8 +840,10 @@ export default function BorrowCartModal({
       setExternalForm(initialExternalForm);
       setExternalOperatorDeptId(null);
       setSelectedItems([]);
+      setGlobalReturnDate("");
       localStorage.removeItem("borrow_cart");
       localStorage.removeItem("borrow_return_date");
+      clearBorrowDraft();
       setShowCartModal(false);
       setExternalStep(1);
     } catch (error) {
@@ -627,8 +865,17 @@ export default function BorrowCartModal({
   const labelClass = "block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[650px] flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      onClick={handleCloseModal}
+      role="presentation"
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl h-[min(80vh,760px)] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 flex-shrink-0 px-5 py-4 bg-white">
@@ -636,9 +883,11 @@ export default function BorrowCartModal({
             ยืมบุคคลภายนอก
           </h2>
           <button
-            onClick={() => setShowCartModal(false)}
+            type="button"
+            onClick={handleCloseModal}
             disabled={isSubmitting}
             className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            aria-label="ปิด"
           >
             <X className="w-6 h-6" />
           </button>
@@ -680,8 +929,8 @@ export default function BorrowCartModal({
                   {/* Return Date Section */}
                   <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <Clock className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">วันที่คืนครุภัณฑ์ (สูงสุด 90 วัน) <span className="text-red-500">*</span></span>
+                      <Clock className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">วันที่คืน (สูงสุด 90 วัน) <span className="text-red-500">*</span></span>
                     </div>
                     <div className="p-4 space-y-3">
                       <input
@@ -720,8 +969,8 @@ export default function BorrowCartModal({
                   {/* Items Table */}
                   <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden flex flex-col flex-1">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-blue-100 bg-blue-50/40">
-                      <ShoppingCart className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">รายการที่ต้องการยืม</span>
+                      <ShoppingCart className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">รายการที่ต้องการยืม</span>
                       <span className="ml-auto text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">{selectedItems.length} รายการ</span>
                     </div>
                     {selectedItems.length === 0 ? (
@@ -738,7 +987,7 @@ export default function BorrowCartModal({
                             <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase">
                               <th className="px-3 py-2.5 text-left w-14">รูป</th>
                               <th className="px-3 py-2.5 text-left">ชื่อรายการ</th>
-                              <th className="px-3 py-2.5 text-left w-28">หมวดหมู่</th>
+                              <th className="px-3 py-2.5 text-left w-40">หมวดหมู่</th>
                               <th className="px-3 py-2.5 text-center w-32">จำนวน</th>
                               <th className="px-3 py-2.5 w-10"></th>
                             </tr>
@@ -796,21 +1045,21 @@ export default function BorrowCartModal({
               {externalStep === 2 && (
                 <>
                   {/* Header */}
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="w-9 h-9 bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
                       <User className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <p className="font-bold text-blue-800 text-sm">ยืมสำหรับบุคคลภายนอก</p>
-                      <p className="text-xs text-blue-600">กรุณากรอกข้อมูลผู้ขอยืมให้ครบถ้วน</p>
+                      <p className="font-bold text-slate-800 text-sm">ยืมสำหรับบุคคลภายนอก</p>
+                      <p className="text-xs text-slate-600">กรุณากรอกข้อมูลผู้ขอยืมให้ครบถ้วน</p>
                     </div>
                   </div>
 
                   {/* Operator Department Section */}
                   <div className="border border-slate-200 rounded-xl bg-white shadow-sm">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
-                      <User className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-slate-700">
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">
                         แผนกของผู้ดำเนินการ <span className="text-red-500">*</span>
                       </span>
                     </div>
@@ -868,21 +1117,23 @@ export default function BorrowCartModal({
                   {/* Personal Info Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <User className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">ข้อมูลส่วนตัว</span>
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">ข้อมูลส่วนตัว</span>
                     </div>
                     <div className="p-4 space-y-3">
                       {/* Title + Name row */}
                       <div className="grid grid-cols-3 gap-2">
                         <div ref={titleTriggerRef}>
-                          <label className={labelClass}>คำนำหน้า</label>
+                          <label className={labelClass}>
+                            คำนำหน้า <span className="text-red-500">*</span>
+                          </label>
                           {/* Searchable input trigger */}
                           <div className={`flex items-center border rounded-lg bg-white transition-colors ${
                             isTitleOpen ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
                           } ${isSubmitting ? "opacity-60 bg-slate-100" : ""}`}>
                             <input
                               type="text"
-                              placeholder="-"
+                              placeholder="เลือกคำนำหน้า"
                               disabled={isSubmitting}
                               value={isTitleOpen ? titleSearch : (selectedTitle ? (selectedTitle.short_name || selectedTitle.name) : "")}
                               onFocus={() => { if (!isTitleOpen) openTitleDropdown(); }}
@@ -981,8 +1232,8 @@ export default function BorrowCartModal({
                   {/* Address Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">ที่อยู่</span>
+                      <MapPin className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">ที่อยู่</span>
                     </div>
                     <div className="p-4 space-y-3">
                       <div>
@@ -1223,8 +1474,8 @@ export default function BorrowCartModal({
                   {/* Contact Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <Phone className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">ช่องทางติดต่อ</span>
+                      <Phone className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">ช่องทางติดต่อ</span>
                     </div>
                     <div className="p-4 space-y-3">
                       <div>
@@ -1252,9 +1503,9 @@ export default function BorrowCartModal({
                   {/* Document Upload Section */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">อัปโหลดเอกสาร</span>
-                      <span className="ml-auto text-[10px] text-gray-400 font-medium">JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB · สูงสุด 5 ไฟล์</span>
+                      <FileText className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">อัปโหลดเอกสาร</span>
+                      <span className="ml-auto text-[10px] font-medium text-red-600 shrink-0 text-right">JPG / PNG / WEBP / HEIC · ไม่เกิน 10 MB · สูงสุด 5 ไฟล์</span>
                     </div>
                     <div className="px-4 pb-3 pt-2 space-y-0">
                       {/* File list */}
@@ -1315,8 +1566,8 @@ export default function BorrowCartModal({
                   {/* Notes Section - EXTERNAL */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-bold text-gray-700">หมายเหตุ</span>
+                      <FileText className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-bold text-slate-800">หมายเหตุ</span>
                     </div>
                     <div className="p-4">
                       <textarea
@@ -1335,31 +1586,46 @@ export default function BorrowCartModal({
               {/* Step 3: Confirmation Summary */}
               {externalStep === 3 && (
                 <>
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="w-9 h-9 bg-slate-700 rounded-lg flex items-center justify-center flex-shrink-0">
                       <CheckCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <p className="font-bold text-blue-800 text-sm">ตรวจสอบข้อมูล</p>
-                      <p className="text-xs text-blue-600">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยันการยืม</p>
+                      <p className="font-bold text-slate-800 text-sm">ตรวจสอบข้อมูล</p>
+                      <p className="text-xs text-slate-600">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยันการยืม</p>
                     </div>
                   </div>
 
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
                     <div>
-                      <h4 className="text-sm font-bold text-gray-700 border-b pb-2 mb-3">ข้อมูลผู้ยืม</h4>
-                      <div className="space-y-2">
-                        <p className="text-sm flex gap-2">
-                          <span className="text-gray-500 w-24 flex-shrink-0">ชื่อ-นามสกุล:</span>
-                          <span className="font-semibold text-gray-800">
-                            {[titles.find(t => t.title_code === externalForm.titleCode)?.short_name, externalForm.firstname, externalForm.lastname].filter(Boolean).join(" ")}
-                          </span>
-                        </p>
-                        {externalForm.idCard && (
-                          <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">บัตรประชาชน:</span> <span className="font-mono text-gray-800">{externalForm.idCard}</span></p>
-                        )}
-                        <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">เบอร์โทรศัพท์:</span> <span className="font-semibold text-gray-800">{externalForm.phone}</span></p>
-                        <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">ที่อยู่:</span> <span className="text-gray-800">{externalForm.address} อ.{externalForm.district} จ.{externalForm.province} {externalForm.postalCode}</span></p>
+                      <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-3">ข้อมูลผู้ยืม</h4>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          <p className="flex gap-2 min-w-0">
+                            <span className="text-gray-500 w-24 flex-shrink-0">ชื่อ-นามสกุล:</span>
+                            <span className="text-gray-800 min-w-0 break-words">
+                              {[titles.find(t => t.title_code === externalForm.titleCode)?.short_name, externalForm.firstname, externalForm.lastname].filter(Boolean).join(" ")}
+                            </span>
+                          </p>
+                          <p className="flex gap-2 min-w-0">
+                            <span className="text-gray-500 w-24 flex-shrink-0">บัตรประชาชน:</span>
+                            <span className="text-gray-800 min-w-0 break-all">
+                              {externalForm.idCard?.trim() ? externalForm.idCard : "—"}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm items-start">
+                          <p className="flex gap-2 min-w-0">
+                            <span className="text-gray-500 w-24 flex-shrink-0">เบอร์โทรศัพท์:</span>
+                            <span className="text-gray-800 min-w-0 break-words">{externalForm.phone}</span>
+                          </p>
+                          <p className="flex gap-2 min-w-0">
+                            <span className="text-gray-500 w-24 flex-shrink-0">ที่อยู่:</span>
+                            <span className="text-gray-800 min-w-0 break-words">
+                              {externalForm.address} อ.{externalForm.district} จ.{externalForm.province} {externalForm.postalCode}
+                            </span>
+                          </p>
+                        </div>
                         {externalForm.documents.length > 0 && (
                           <p className="text-sm flex gap-2">
                             <span className="text-gray-500 w-24 flex-shrink-0">เอกสารแนบ:</span>
@@ -1370,10 +1636,15 @@ export default function BorrowCartModal({
                     </div>
                     
                     <div>
-                      <h4 className="text-sm font-bold text-gray-700 border-b pb-2 mb-3">รายละเอียดการยืม</h4>
+                      <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-3">รายละเอียดการยืม</h4>
                       <div className="space-y-2">
                         <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">รายการทั้งหมด:</span> <span className="font-semibold text-indigo-600">{selectedItems.length} รายการ ({selectedItems.reduce((a, b) => a + b.quantity, 0)} ชิ้น)</span></p>
-                        <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">วันที่คืน:</span> <span className="font-semibold text-emerald-600">{externalForm.returnDate}</span></p>
+                        <p className="text-sm flex gap-2">
+                          <span className="text-gray-500 w-24 flex-shrink-0">ระยะเวลายืม:</span>
+                          <span className="font-semibold text-emerald-600">
+                            {formatThaiDateFromYmd(todayYmdLocal())} ถึง {formatThaiDateFromYmd(externalForm.returnDate)}
+                          </span>
+                        </p>
                         {externalForm.notes && (
                           <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">หมายเหตุ:</span> <span className="text-gray-800">{externalForm.notes}</span></p>
                         )}
@@ -1395,7 +1666,7 @@ export default function BorrowCartModal({
                   return;
                 }
                 if (!externalForm.returnDate) {
-                  MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาระบุวันที่คืนครุภัณฑ์", icon: "warning" });
+                  MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาระบุวันที่คืน", icon: "warning" });
                   return;
                 }
                 setExternalStep(2);
@@ -1409,38 +1680,42 @@ export default function BorrowCartModal({
         )}
 
         {externalStep === 2 && (
-          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex gap-3">
+          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between gap-3">
             <button
               onClick={() => setExternalStep(1)}
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+              className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
             >
               <ChevronLeft className="w-4 h-4" />
               ย้อนกลับ
             </button>
             <button
               onClick={() => {
-                const { firstname, lastname, address, subdistrict, district, province, postalCode, phone } = externalForm;
+                const { titleCode, firstname, lastname, address, subdistrict, district, province, postalCode, phone } = externalForm;
+                if (!titleCode) {
+                  MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาเลือกคำนำหน้า", icon: "warning" });
+                  return;
+                }
                 if (!firstname || !lastname || !address || !subdistrict || !district || !province || !postalCode || !phone) {
                   MySwal.fire({ title: "แจ้งเตือน", text: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน", icon: "warning" });
                   return;
                 }
                 setExternalStep(3);
               }}
-              className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2"
+              className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition"
             >
               ถัดไป
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         )}
 
         {externalStep === 3 && (
-          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex gap-3">
+          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between gap-3">
             <button
               onClick={() => setExternalStep(2)}
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+              className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
             >
               <ChevronLeft className="w-4 h-4" />
               ย้อนกลับ
@@ -1448,12 +1723,12 @@ export default function BorrowCartModal({
             <button
               onClick={submitExternalBorrow}
               disabled={isSubmitting}
-              className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed text-center leading-tight"
             >
               {isSubmitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
               ) : (
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
               )}
               {isSubmitting ? "กำลังส่งคำขอ..." : "ยืนยันการยืม"}
             </button>

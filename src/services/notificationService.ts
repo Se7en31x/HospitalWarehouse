@@ -83,3 +83,13 @@ export const markNotificationRead = async (id: number): Promise<void> => {
 export const markAllNotificationsRead = async (): Promise<void> => {
   await api.patch("/v1/notifications/read-all", {});
 };
+
+/** แจ้ง client อื่น (เช่น NotificationBell) ให้รีเฟรชจำนวนยังไม่อ่าน หลังอ่านบนหน้าเต็ม */
+export const NOTIFICATIONS_UI_REFRESH = "hpk:notifications-refresh";
+
+export function emitNotificationsUIRefresh(entityType?: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(NOTIFICATIONS_UI_REFRESH, { detail: { entityType } })
+  );
+}

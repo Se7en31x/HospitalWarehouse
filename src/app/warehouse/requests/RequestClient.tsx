@@ -178,6 +178,7 @@ const RequestClient = () => {
     PENDING:   "รออนุมัติ",
     CANCELLED: "ยกเลิก",
     BORROWING: "อยู่ระหว่างการยืม",
+    PENDING_RETURN_CHECK: "รอตรวจรับคืน",
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -190,6 +191,7 @@ const RequestClient = () => {
       PENDING: "bg-amber-100 text-amber-500",
       REJECTED: "bg-red-100 text-red-500",
       CANCELLED: "bg-red-100 text-red-500",
+      PENDING_RETURN_CHECK: "bg-sky-100 text-sky-800",
     };
     
     badgeClass += " " + (statusColorMap[status] || "bg-slate-100 text-slate-700");
@@ -346,6 +348,7 @@ const RequestClient = () => {
           { v: 'REJECTED',  l: 'ปฏิเสธ' },
           { v: 'CANCELLED', l: 'ยกเลิก' },
           { v: 'BORROWING', l: 'อยุ่ระหว่างการยืม' },
+          { v: 'PENDING_RETURN_CHECK', l: 'รอตรวจรับคืน' },
         ].map(tab => (
           <button
             key={tab.v}

@@ -449,14 +449,14 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                   />
                 </th>
                 <th className="px-6 py-4 w-[80px]">รูป</th>
-                <th className="px-6 py-4 w-[120px]">รหัส</th>
+                <th className="px-6 py-4 w-[140px]">รหัส</th>
                 <th className="px-6 py-4 w-[250px]">ชื่อพัสดุ</th>
                 <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
                 <th className="px-6 py-4 w-[160px]">ประเภท</th>
-                <th className="px-6 py-4 w-[100px]">สต็อก</th>
+                <th className="px-6 py-4 w-[100px]">คงเหลือ</th>
+                <th className="px-6 py-4 w-[100px]">ขั้นต่ำ</th>
                 <th className="px-6 py-4 w-[120px]">หน่วย</th>
                 <th className="px-6 py-4 w-[120px]">สถานะ</th>
-                <th className="px-6 py-4 w-[120px]">จำนวนขั้นต่ำ</th>
                 <th className="px-6 py-4 text-center w-[120px]">จัดการ</th>
               </tr>
             </thead>
@@ -511,24 +511,24 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                         <span className={`font-bold ${
                           item.stock <= 0 ? "text-red-500" :
                           item.stock <= item.minStock ? "text-orange-500" :
-                          "text-blue-600"
+                          "text-emerald-600"
                         }`}>
                           {item.stock}
                         </span>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-3">{item.unit}</td>
-                  <td className="px-6 py-3 w-[150px]"><Badge status={item.status} /></td>
-                  <td className="px-6 py-3 w-[130px]">
+                  <td className="px-6 py-3 w-[100px]">
                     {item.minStock > 0 ? (
-                      <span className={getEffectiveStock(item) <= item.minStock ? "text-red-600 font-bold" : "text-slate-700 font-semibold"}>
+                      <span className="text-black font-semibold">
                         {item.minStock}
                       </span>
                     ) : (
-                      <span className="text-slate-400">-</span>
+                      <span className="text-black">-</span>
                     )}
                   </td>
+                  <td className="px-6 py-3">{item.unit}</td>
+                  <td className="px-4 py-3 w-[150px]"><Badge status={item.status} /></td>
                   {/* <td className="px-6 py-3 w-[160px] hidden sm:table-cell">
                     {(() => {
                       const dt = formatThaiDateTime(item.updatedAt);

@@ -27,6 +27,7 @@ interface CatalogItem {
 
 interface LineItem {
   lineId: string; itemId: string; itemName: string; itemCode: string;
+  category: string;
   kind: ItemKind; unit: string; warehouseId: string;
   expectedQty: number; qty: number; costPrice: number;
   // CONSUMABLE
@@ -64,8 +65,8 @@ const KIND_CFG: Record<ItemKind, {
 };
 
 const SOURCE_OPTIONS: { val: ReceiveSource; icon: string; label: string }[] = [
-  { val: "purchase", icon: "🛒", label: "จัดซื้อ" },
-  { val: "donation", icon: "🎁", label: "บริจาค" },
+  { val: "purchase", icon: "🛒", label: "รับเข้าจัดซื้อ" },
+  { val: "donation", icon: "🎁", label: "รับเข้าจากการบริจาค" },
 ];
 
 const INIT_DOC: DocMeta = {
@@ -93,6 +94,7 @@ function makeLine(item: CatalogItem): LineItem {
   return {
     lineId: `${Date.now()}-${Math.random()}`,
     itemId: item.id, itemName: item.name, itemCode: item.code,
+    category: item.category || "",
     kind: item.kind, unit: item.unit, warehouseId: item.warehouseId,
     expectedQty: 1, qty: 1, costPrice: 0,
     lotCode: "", expiryDate: "", mfgDate: "",
@@ -172,8 +174,14 @@ export default function ReceiveFormPage() {
     if (draft) {
       setSource(draft.source || "purchase");
       setDocMeta(draft.docMeta || INIT_DOC);
-      setLines(draft.lines || []);
-      setPendingLine(draft.pendingLine || null);
+      setLines(
+        (draft.lines || []).map((l: LineItem) => ({ ...l, category: l.category ?? "" })),
+      );
+      setPendingLine(
+        draft.pendingLine
+          ? { ...draft.pendingLine, category: draft.pendingLine.category ?? "" }
+          : null,
+      );
     }
     setIsHydrated(true);
   }, []);
@@ -182,21 +190,25 @@ export default function ReceiveFormPage() {
     (async () => {
       setIsLoading(true);
       try {
-        const [items, supps, depts] = await Promise.all([
-          ItemSvc.getInventoryItems(),
+        const [rawItems, supps, depts] = await Promise.all([
+          ItemSvc.getInventoryApiItems(),
           ReceiveSvc.getSuppliers(),
           DeptSvc.getDepartmentOptions(),
         ]);
-        setCatalog((items || []).map(item => ({
-          id: item.id,
-          name: item.name || "ไม่ระบุชื่อ",
-          code: item.code || item.id,
-          kind: normalizeKind(item.type || ""),
-          category: item.category || "",
-          unit: item.unit || "",
-          warehouseId: item.warehouseId || "",
-          warehouseName: item.location || "",
-        })));
+        setCatalog((rawItems || []).map(raw => {
+          const ui = ItemSvc.mapApiToUi(raw);
+          const categoryLabel = ItemSvc.resolveApiItemCategory(raw);
+          return {
+            id: ui.id,
+            name: ui.name || "ไม่ระบุชื่อ",
+            code: ui.code || ui.id,
+            kind: normalizeKind(ui.type || ""),
+            category: categoryLabel || (ui.category !== "-" ? ui.category : ""),
+            unit: ui.unit || "",
+            warehouseId: ui.warehouseId || "",
+            warehouseName: ui.location || "",
+          };
+        }));
         setSuppliers(supps || []);
         setDepartments(depts || []);
       } catch {
@@ -228,7 +240,7 @@ export default function ReceiveFormPage() {
       title: "เปลี่ยนประเภท",
       text: `คุณมีรายการ ${lines.length} รายการแล้ว ต้องการจะลบหรือไม่?`,
       showCancelButton: true,
-      confirmButtonText: "ลบและเปลี่ยน",
+      confirmButtonText: "ตกลง",
       cancelButtonText: "ยกเลิก",
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#6b7280",
@@ -362,8 +374,33 @@ export default function ReceiveFormPage() {
 
   const handleSave = async () => {
     if (lines.length === 0) { toast.error("ไม่มีรายการ"); return; }
+
+    const missingDoc: string[] = [];
+    if (!docMeta.receiveDate.trim()) missingDoc.push("วันที่รับเข้า");
+    if (source === "purchase") {
+      if (!docMeta.poNumber.trim()) missingDoc.push("ใบส่งสินค้า");
+      if (!docMeta.supplierId) missingDoc.push("ผู้จำหน่าย");
+    }
     if (source === "donation" && !docMeta.donorName.trim()) {
-      toast.error("กรุณาระบุชื่อผู้บริจาค"); return;
+      missingDoc.push("ชื่อผู้บริจาค");
+    }
+    if (missingDoc.length > 0) {
+      const listHtml = missingDoc
+        .map(m => `<li style="margin:6px 0">${m}</li>`)
+        .join("");
+      await Swal.fire({
+        title: "ข้อมูลเอกสารไม่ครบ",
+        html: `
+          <p style="font-size:14px;color:#4b5563;margin:0 0 12px">กรุณากรอกรายการต่อไปนี้:</p>
+          <ul style="text-align:left;margin:0;padding:0 0 0 1.25rem;list-style:disc;font-size:14px;color:#111827">
+            ${listHtml}
+          </ul>
+        `,
+        icon: "warning",
+        confirmButtonText: "ตกลง",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
     }
     for (const l of lines) {
       if (l.expectedQty <= 0) { toast.error(`จำนวนในใบกำกับต้องมากกว่า 0 (${l.itemName})`); return; }
@@ -480,15 +517,12 @@ export default function ReceiveFormPage() {
       }
 
       const isMixed = results.length > 1;
-      const summaryRows = results.map(r => {
-        const bg = r.kind === "CONSUMABLE" ? "#dbeafe" : r.kind === "REUSABLE" ? "#ede9fe" : "#fef3c7";
-        const fg = r.kind === "CONSUMABLE" ? "#1d4ed8" : r.kind === "REUSABLE" ? "#6d28d9" : "#b45309";
-        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f1f5f9">
-          <span style="font-size:11px;padding:2px 8px;border-radius:9999px;background:${bg};color:${fg};font-weight:700">${KIND_CFG[r.kind].label}</span>
+      const summaryRows = results.map(r => (
+        `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f1f5f9">
           <code style="font-size:12px;color:#374151;font-family:monospace">${r.docNo}</code>
           <span style="color:#9ca3af;font-size:11px;margin-left:auto">${r.total} ชิ้น</span>
-        </div>`;
-      }).join("");
+        </div>`
+      )).join("");
 
       await Swal.fire({
         title: isMixed ? "Mixed Receive สำเร็จ" : "บันทึกสำเร็จ",
@@ -550,22 +584,24 @@ export default function ReceiveFormPage() {
 
         <div className="space-y-6 w-full flex-1 flex flex-col">
 
-          {/* ── ประเภทการรับเข้า ── */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-            <p className="text-base font-medium text-slate-600 mb-3">ประเภทการรับเข้า</p>
-            <div className="flex flex-wrap gap-2">
-              {SOURCE_OPTIONS.map(opt => (
-                <button key={opt.val}
+          {/* ── แถบเลือกจัดซื้อ / บริจาค (แบบ reusable-unit-client) ── */}
+          <div className="flex border-b border-slate-200">
+            {SOURCE_OPTIONS.map(opt => {
+              const isActive = source === opt.val;
+              return (
+                <button
+                  key={opt.val}
+                  type="button"
                   onClick={() => handleSourceChange(opt.val)}
-                  className={`px-4 py-2 rounded-lg border font-medium text-sm transition-all flex items-center ${
-                    source === opt.val
-                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                      : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                  className={`px-5 py-3.5 text-base font-semibold border-b-2 transition-colors ${
+                    isActive
+                      ? "border-blue-600 text-blue-700"
+                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
                   }`}>
                   {opt.label}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
 
           <div className="flex gap-6 w-full">
@@ -575,7 +611,9 @@ export default function ReceiveFormPage() {
               <div className="grid grid-cols-1 gap-4">
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-2">วันที่รับ</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
+                    วันที่รับ <span className="text-red-500">*</span>
+                  </label>
                   <input type="date" value={docMeta.receiveDate}
                     min={new Date().toISOString().split('T')[0]}
                     onChange={e => patchDoc({ receiveDate: e.target.value })}
@@ -585,14 +623,18 @@ export default function ReceiveFormPage() {
                 {source === "purchase" && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-2">เลขที่ PO</label>
+                      <label className="block text-sm font-medium text-slate-600 mb-2">
+                        ใบส่งสินค้า <span className="text-red-500">*</span>
+                      </label>
                       <input type="text" value={docMeta.poNumber}
                         onChange={e => patchDoc({ poNumber: e.target.value })}
-                        placeholder="PO-XXXX"
+                        placeholder="เลขที่ใบส่งของ"
                         className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div data-supplier-dd>
-                      <label className="block text-sm font-medium text-slate-600 mb-2">ผู้จำหน่าย</label>
+                      <label className="block text-sm font-medium text-slate-600 mb-2">
+                        ผู้จำหน่าย <span className="text-red-500">*</span>
+                      </label>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
                         <input type="text"
@@ -696,15 +738,18 @@ export default function ReceiveFormPage() {
                       {filteredCatalog.length > 0
                         ? filteredCatalog.map(item => (
                           <button key={item.id} type="button" onClick={() => addItem(item)}
-                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-b-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${KIND_CFG[item.kind].badgeCls}`}>
-                                {KIND_CFG[item.kind].label}
+                            className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-b-0">
+                            <div className="flex items-center gap-3 min-w-0 w-full text-sm text-slate-500">
+                              <span className="shrink-0 w-[6.5rem] truncate text-left" title={item.code}>
+                                {item.code}
                               </span>
-                              <span className="font-medium text-slate-900 truncate text-sm">{item.name}</span>
-                              <span className="text-xs text-slate-400 font-mono shrink-0 ml-auto">{item.code}</span>
+                              <span className="min-w-0 flex-1 truncate text-left" title={item.name}>
+                                {item.name}
+                              </span>
+                              <span className="shrink-0 max-w-[40%] min-w-0 truncate text-left" title={item.category || ""}>
+                                {item.category || "—"}
+                              </span>
                             </div>
-                            <p className="text-xs text-slate-400 mt-0.5 pl-0.5">{item.category}</p>
                           </button>
                         ))
                         : (
@@ -763,14 +808,14 @@ export default function ReceiveFormPage() {
                     <tr>
                       <th className="px-6 py-4 w-[40px] text-center">#</th>
                       <th className="px-6 py-4 w-[120px]">รหัส</th>
-                      <th className="px-6 py-4 w-[180px]">สินค้า</th>
-                      <th className="px-6 py-4 w-[180px]">ประเภท</th>
+                      <th className="px-6 py-4 w-[180px] text-left">สินค้า</th>
+                      <th className="px-6 py-4 w-[180px] text-left">หมวดหมู่</th>
                       <th className="px-6 py-4 w-[200px]">รายละเอียด</th>
                       <th className="px-6 py-4 w-[100px]">ใบกำกับ</th>
-                      <th className="px-6 py-4 w-[100px]">รับจริง</th>
+                      <th className="px-6 py-4 w-[80px]">รับจริง</th>
                       <th className="px-6 py-4 w-[80px]">หน่วย</th>
                       <th className="px-6 py-4 w-[120px]">ต้นทุน</th>
-                      <th className="px-6 py-4 w-[50px] text-center"></th>
+                      <th className="px-6 py-4 w-[50px] text-center">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-600">
@@ -834,8 +879,6 @@ interface LineRowProps {
 }
 
 function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRowProps) {
-  const cfg = KIND_CFG[line.kind];
-
   return (
     <tr className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
 
@@ -848,17 +891,17 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
       </td>
 
       {/* Item name */}
-      <td className="px-6 py-3">
-        <p className="text-slate-900 text-sm leading-snug" title={line.itemName}>
+      <td className="px-6 py-3 text-left">
+        <p className="text-sm text-slate-600 leading-snug truncate text-left" title={line.itemName}>
           {line.itemName}
         </p>
       </td>
 
-      {/* Type/Kind */}
-      <td className="px-6 py-3">
-        <span className={`inline-flex px-2.5 py-1 rounded text-sm ${cfg.badgeCls}`}>
-          {cfg.label}
-        </span>
+      {/* Category */}
+      <td className="px-6 py-3 text-left">
+        <p className="text-sm text-slate-600 leading-snug truncate text-left" title={line.category || ""}>
+          {line.category || "—"}
+        </p>
       </td>
 
       {/* Dynamic details - Display Only */}
@@ -944,11 +987,11 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
         <div className="flex items-center justify-center gap-1">
           <button type="button" onClick={() => onEdit(line.lineId)}
             className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="แก้ไข">
-            <Pencil className="w-4 h-4" />
+            <Pencil className="w-5 h-5" />
           </button>
           <button type="button" onClick={() => onRemove(line.lineId)}
             className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors" title="ลบ">
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-5 h-5" />
           </button>
         </div>
       </td>
@@ -983,12 +1026,15 @@ function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onC
     <div className={`rounded-lg border-2 ${borderCls} bg-white shadow-md overflow-hidden`}>
       {/* Header */}
       <div className={`${headerBgCls} px-6 py-4 flex items-center justify-between border-b border-slate-200 gap-3`}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 ${cfg.badgeCls}`}>
-            {cfg.label}
-          </span>
-          <p className="font-semibold text-slate-900 text-sm truncate">{line.itemName}</p>
-          <p className="font-semibold text-slate-900 text-sm shrink-0">{line.itemCode}</p>
+        <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap justify-start text-left">
+          <span className="sr-only">{cfg.label}</span>
+          <p className="text-sm text-slate-500 shrink-0" title={line.itemCode}>{line.itemCode}</p>
+          <p className="text-sm text-slate-500 truncate min-w-0 max-w-lg" title={line.itemName}>
+            {line.itemName}
+          </p>
+          <p className="text-sm text-slate-500 min-w-0 max-w-xs truncate text-left" title={line.category || ""}>
+            {line.category || "—"}
+          </p>
         </div>
         <button type="button" onClick={onCancel}
           className="p-1.5 rounded-lg hover:bg-white/70 text-slate-600 hover:text-slate-700 transition-colors shrink-0">
@@ -1016,9 +1062,7 @@ function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onC
               <input
                 type="number" min="0" max={line.expectedQty} value={line.qty}
                 onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-                className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300 ${
-                  line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300"
-                }`}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
               />
             </FieldBox>
 
@@ -1077,9 +1121,7 @@ function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onC
               <input
                 type="number" min="0" max={line.expectedQty} value={line.qty}
                 onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-                className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-violet-300 ${
-                  line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300"
-                }`}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-violet-300"
               />
             </FieldBox>
 
@@ -1122,9 +1164,7 @@ function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onC
               <input
                 type="number" min="0" max={line.expectedQty} value={line.qty}
                 onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-                className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300 ${
-                  line.qty < line.expectedQty ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-300"
-                }`}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300"
               />
             </FieldBox>
 
@@ -1160,7 +1200,7 @@ function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onC
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
           <button type="button" onClick={onCancel}
-            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
+            className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors">
             ยกเลิก
           </button>
           <button type="button" onClick={onConfirm}

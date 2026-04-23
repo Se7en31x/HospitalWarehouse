@@ -12,6 +12,9 @@ export interface ReceiveItem {
     item_id: string;
     item_code: string | null;
     item_name: string | null;
+    /** ชื่อหมวดหมู่ (ถ้า API ส่งมา) */
+    category?: string | null;
+    category_name?: string | null;
     lot_code: string | null;
     expected_qty: number;
     qty: number;
@@ -42,6 +45,8 @@ export interface ReceiveBatch {
     receive_date: string;
     note: string | null;
     created_by: string | null;
+    /** ชื่อ-นามสกุล จาก public.profiles (ผู้บันทึก batch) */
+    created_by_name?: string | null;
     created_at: string;
     updated_at: string;
     headers: ReceiveBatchHeader[];

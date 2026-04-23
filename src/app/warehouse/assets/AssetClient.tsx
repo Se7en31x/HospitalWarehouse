@@ -258,7 +258,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
     <div className="flex flex-col min-h-screen bg-white p-8">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-3xl font-bold text-gray-800">จัดการครุภัณฑ์</h2>
+          <h2 className="text-3xl font-bold text-gray-800">จัดการครุภัณฑ์ภายในองค์กร</h2>
           {selectedItems.size > 0 && (
             <button
               onClick={() => printLabels(Array.from(selectedItems.values()))}
@@ -274,13 +274,13 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
             onClick={() => router.push('/warehouse/assets?mode=reusable')}
             className="px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
           >
-            ของใช้ซ้ำรายชิ้น (Reusable)
+            อุปกรณ์ทางการแพทย์
           </button>
           <button
             onClick={() => router.push('/warehouse/assets?mode=med-asset')}
             className="px-5 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-700 transition-colors"
           >
-            ครุภัณฑ์ภายในองค์กร (Med Asset)
+            ครุภัณฑ์ภายในองค์กร
           </button>
         </div>
       </div>

@@ -13,7 +13,6 @@ import {
   approveRequisition,
   rejectRequisition,
   completeRequisitionDelivery,
-  cancelRequisition,
 } from "../../../../services/requisitionService";
 import {
   RequisitionHeader,
@@ -89,6 +88,7 @@ const getStatusLabel = (status?: RequisitionHeader["status"]): string => {
     case "APPROVED": return "รอนำส่ง";
     case "COMPLETED": return "เสร็จสิ้น";
     case "BORROWING": return "อยุ่ระหว่างการยืม";
+    case "PENDING_RETURN_CHECK": return "รอตรวจรับคืน";
     case "REJECTED": return "ปฏิเสธ";
     case "DRAFT": return "ร่าง";
     case "CANCELLED": return "ยกเลิก";
@@ -101,6 +101,7 @@ const getStatusBadgeClass = (status?: RequisitionHeader["status"]): string => {
     case "COMPLETED": return "bg-green-100 text-green-500";
     case "APPROVED": return "bg-blue-100 text-blue-500";
     case "BORROWING": return "bg-green-100 text-green-500";
+    case "PENDING_RETURN_CHECK": return "bg-sky-100 text-sky-800";
     case "REJECTED": return "bg-red-100 text-red-500";
     case "PENDING": return "bg-amber-100 text-amber-500";
     case "DRAFT":
@@ -318,31 +319,6 @@ export default function RequisitionDetailsPage({
     }
   };
 
-  const handleCancel = async () => {
-    if (!requisition) return;
-    const confirmed = await SweetAlertUtils.confirm(
-      "ยืนยันการยกเลิก",
-      `คุณต้องการยกเลิกคำขอ ${requisition.doc_no} ใช่หรือไม่?`
-    );
-    if (!confirmed.isConfirmed) return;
-
-    Swal.fire({ allowOutsideClick: false, allowEscapeKey: false, background: "transparent", html: "", didOpen: () => Swal.showLoading() });
-    setIsLoading(true);
-    try {
-      const res = await cancelRequisition(requisition.id);
-      if (res.success) {
-        Swal.close();
-        toast.success("ยกเลิกคำขอเรียบร้อยแล้ว");
-        router.push("/warehouse/requests");
-      } else throw new Error(res.message || "ไม่สามารถยกเลิกได้");
-    } catch (err: unknown) {
-      Swal.close();
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleCompleteDelivery = async () => {
     if (!requisition) return;
     const isBorrow = requisition.type === "BORROW";
@@ -468,11 +444,7 @@ export default function RequisitionDetailsPage({
             </div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ผู้อนุมัติ</p>
-              {requisition.approver ? (
-                <p className="text-sm text-slate-700 font-medium">{requisition.approver}</p>
-              ) : (
-                <p className="text-sm text-slate-400 italic">รอการอนุมัติ</p>
-              )}
+              <p className="text-sm text-slate-700 font-medium">{requisition.approver ?? "-"}</p>
             </div>
             {isBorrow && (
               <div>
@@ -904,7 +876,10 @@ export default function RequisitionDetailsPage({
                             เลือกล็อตที่ต้องการจ่ายออก (ล็อตทั้งหมด {selectedItem.available_lots?.length || 0})
                           </h4>
                           {selectedItem.available_lots && selectedItem.available_lots.length > 0 ? (
-                            <div className="flex flex-col gap-3">
+                            <div
+                              className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1"
+                              style={{ maxHeight: "calc(4 * 5.5rem + 3 * 0.75rem)" }}
+                            >
                               {selectedItem.available_lots.map((lot: RequisitionItemLots) => {
                                 const lotQty = alloc.lots[lot.id.toString()] || 0;
                                 const isExpired = new Date(lot.expired_at) < new Date();
@@ -981,13 +956,6 @@ export default function RequisitionDetailsPage({
           <div className="flex items-center gap-3">
             {isPending && (
               <>
-                <button
-                  onClick={handleCancel}
-                  disabled={isLoading}
-                  className="px-5 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-bold hover:bg-red-50 transition-colors disabled:opacity-50"
-                >
-                  ยกเลิกคำขอ
-                </button>
                 <button
                   onClick={handleReject}
                   disabled={isLoading}

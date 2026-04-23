@@ -23,13 +23,13 @@ const fmtDateTime = (d?: string | null) => {
 
 const getStatusBadgeColor = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: "bg-amber-50 text-amber-700 border-amber-200",
-    APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    REJECTED: "bg-red-50 text-red-700 border-red-200",
-    COMPLETED: "bg-green-50 text-green-700 border-green-200",
-    PENDING_RETURN_CHECK: "bg-blue-50 text-blue-700 border-blue-200",
+    PENDING: "bg-amber-100 text-amber-900 border-amber-200",
+    APPROVED: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    REJECTED: "bg-rose-100 text-rose-800 border-rose-200",
+    COMPLETED: "bg-green-100 text-green-800 border-green-200",
+    PENDING_RETURN_CHECK: "bg-sky-100 text-sky-800 border-sky-200",
   };
-  return map[status] || "bg-slate-50 text-slate-700 border-slate-200";
+  return map[status] || "bg-slate-100 text-slate-800 border-slate-200";
 };
 
 const getStatusLabel = (status: string) => {
@@ -162,26 +162,30 @@ export default function ReturnItemDetailClient() {
             <table className="w-full text-base text-left table-fixed">
               <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
                 <tr>
-                  <th className="px-6 py-5 w-[60px] text-center">#</th>
-                  <th className="px-6 py-5 w-[300px]">ชื่อรายการ</th>
-                  <th className="px-6 py-5 w-[120px] text-center">จำนวน</th>
-                  <th className="px-6 py-5">Unit Codes</th>
+                  <th className="px-6 py-5 w-[48px] text-center">#</th>
+                  <th className="px-6 py-5 w-[100px]">รหัส</th>
+                  <th className="px-6 py-5 min-w-[200px]">ชื่อรายการ</th>
+                  <th className="px-6 py-5 w-[140px]">หมวดหมู่</th>
+                  <th className="px-6 py-5 w-[100px] text-center">จำนวน</th>
+                  <th className="px-6 py-5 min-w-[160px]">Unit Codes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {detail.items.map((item, idx) => (
                   <tr key={item.item_id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-5 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
+                    <td className="px-6 py-5 font-mono text-xs text-slate-700">{item.item_code || "-"}</td>
                     <td className="px-6 py-5">
                       <p className="text-slate-800 text-sm">{item.item_name || "-"}</p>
                     </td>
+                    <td className="px-6 py-5 text-sm text-slate-600">{item.category_name || "-"}</td>
                     <td className="px-6 py-5 text-center font-medium text-indigo-600 text-base">{item.requested_qty}</td>
                     <td className="px-6 py-5 font-mono text-xs text-slate-600">{item.requested_unit_codes?.join(", ") || "-"}</td>
                   </tr>
                 ))}
                 {(!detail.items || detail.items.length === 0) && (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={6}>
                       <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                         <Package className="w-16 h-16 text-slate-300" />
                         <p className="text-base font-medium">ไม่พบรายการ</p>

@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import {
   Package,
-  TrendingUp,
   AlertCircle,
   BarChart3,
   CalendarDays,
-  FileText,
   Layers,
+  CalendarClock,
+  CalendarX,
+  ClipboardList,
+  PackageMinus,
+  Building2,
+  Truck,
+  ArrowDownToLine,
 } from "lucide-react";
 import {
   getDashboardAnalytics,
@@ -50,7 +55,6 @@ export default function WarehouseDashboard() {
 
         setSummary({
           totalItems: analytics.summary?.totalItems ?? 0,
-          totalItemLots: analytics.summary?.totalLots ?? 0,
           totalDepartments: analytics.summary?.totalDepartments ?? 0,
           totalSuppliers: analytics.summary?.totalSuppliers ?? 0,
           totalUsers: analytics.summary?.totalUsers ?? 0,
@@ -235,65 +239,58 @@ export default function WarehouseDashboard() {
           <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนสินค้าทั้งหมด</p>
         </div>
 
-        {/* จำนวนล็อตสินค้าทั้งหมด */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-violet-100 text-violet-600 rounded-lg w-fit mb-2"><Layers className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{(summary?.totalItemLots ?? 0).toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนล็อตสินค้า</p>
-        </div>
-
         {/* จำนวนล็อตทั้งหมด */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg w-fit mb-2"><Package className="w-4 h-4" /></div>
+          <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg w-fit mb-2"><Layers className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-slate-800">{(lotStats?.total ?? 0).toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนล็อตทั้งหมด</p>
         </div>
 
         {/* ล็อตสินค้าใกล้หมดอายุ */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-amber-100 text-amber-600 rounded-lg w-fit mb-2"><AlertCircle className="w-4 h-4" /></div>
+          <div className="p-2 bg-amber-100 text-amber-600 rounded-lg w-fit mb-2"><CalendarClock className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-amber-600">{nearExpiryCount.toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">ล็อตใกล้หมดอายุ</p>
         </div>
 
         {/* ล็อตหมดอายุแล้ว */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-red-100 text-red-600 rounded-lg w-fit mb-2"><AlertCircle className="w-4 h-4" /></div>
+          <div className="p-2 bg-red-100 text-red-600 rounded-lg w-fit mb-2"><CalendarX className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-red-600">{expiredCount.toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">ล็อตหมดอายุแล้ว</p>
         </div>
 
         {/* สถิติการเบิกพัสดุรายสัปดาห์ */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg w-fit mb-2"><TrendingUp className="w-4 h-4" /></div>
+          <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg w-fit mb-2"><ClipboardList className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-slate-800">{currentWeekTotal.toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">เบิกพัสดุรายสัปดาห์</p>
         </div>
 
         {/* สินค้าสต็อกต่ำ */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-orange-100 text-orange-600 rounded-lg w-fit mb-2"><Package className="w-4 h-4" /></div>
+          <div className="p-2 bg-orange-100 text-orange-600 rounded-lg w-fit mb-2"><PackageMinus className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-orange-600">{lowStockCount.toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">สินค้าสต็อกต่ำ</p>
         </div>
 
         {/* จำนวนแผนกทั้งหมด */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-cyan-100 text-cyan-600 rounded-lg w-fit mb-2"><FileText className="w-4 h-4" /></div>
+          <div className="p-2 bg-cyan-100 text-cyan-600 rounded-lg w-fit mb-2"><Building2 className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-slate-800">{(summary?.totalDepartments ?? 0).toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนแผนกทั้งหมด</p>
         </div>
 
         {/* จำนวนผู้จำหน่ายทั้งหมด */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-rose-100 text-rose-600 rounded-lg w-fit mb-2"><Package className="w-4 h-4" /></div>
+          <div className="p-2 bg-rose-100 text-rose-600 rounded-lg w-fit mb-2"><Truck className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-slate-800">{(summary?.totalSuppliers ?? 0).toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนผู้จำหน่ายทั้งหมด</p>
         </div>
 
         {/* รับเข้าเดือนนี้ */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-purple-100 text-purple-600 rounded-lg w-fit mb-2"><Layers className="w-4 h-4" /></div>
+          <div className="p-2 bg-purple-100 text-purple-600 rounded-lg w-fit mb-2"><ArrowDownToLine className="w-4 h-4" /></div>
           <p className="text-2xl font-bold text-slate-800">{stockInThisMonth.toLocaleString()}</p>
           <p className="text-xs text-slate-500 font-medium mt-0.5">รับเข้าเดือนนี้</p>
         </div>

@@ -17,14 +17,14 @@ const getErrorMessage = (error: unknown): string =>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
+type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "รอตรวจรับคืน" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
 
 const mapUiStatus = (header: RequisitionHeader): UiStatus => {
   if (header.status === "BORROWING") {
     if (header.due_date && new Date(header.due_date) < new Date()) return "ค้างคืน";
     return "รอการคืน";
   }
-  if (header.status === "PENDING_RETURN_CHECK") return "รออนุมัติ";
+  if (header.status === "PENDING_RETURN_CHECK") return "รอตรวจรับคืน";
   if (header.status === "COMPLETED") return "คืนแล้ว";
   if (header.status === "PENDING") return "รออนุมัติ";
   if (header.status === "CANCELLED") return "ยกเลิก";
@@ -55,6 +55,7 @@ const getStatusBadgeColor = (status: UiStatus) => {
     case "ค้างคืน": return "bg-red-100 text-red-500";
     case "คืนแล้ว": return "bg-green-100 text-green-500";
     case "รออนุมัติ": return "bg-blue-100 text-blue-500";
+    case "รอตรวจรับคืน": return "bg-sky-100 text-sky-800";
     case "ยกเลิก": return "bg-slate-100 text-slate-500";
     case "ถูกปฏิเสธ": return "bg-red-100 text-red-500";
     default: return "bg-slate-100 text-slate-500";
@@ -90,9 +91,9 @@ const fmtDateOnly = (dateStr?: string | null): string => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type StatusFilter = "สถานะทั้งหมด" | "รอการคืน" | "ค้างคืน" | "คืนแล้ว" | "รออนุมัติ" | "ยกเลิก";
+type StatusFilter = "สถานะทั้งหมด" | "รอการคืน" | "ค้างคืน" | "คืนแล้ว" | "รออนุมัติ" | "รอตรวจรับคืน" | "ยกเลิก";
 
-const STATUS_FILTER_OPTIONS: StatusFilter[] = ["สถานะทั้งหมด", "รอการคืน", "ค้างคืน", "คืนแล้ว", "รออนุมัติ", "ยกเลิก"];
+const STATUS_FILTER_OPTIONS: StatusFilter[] = ["สถานะทั้งหมด", "รอการคืน", "ค้างคืน", "คืนแล้ว", "รออนุมัติ", "รอตรวจรับคืน", "ยกเลิก"];
 
 type ReturnsTab = "PENDING" | "HISTORY";
 

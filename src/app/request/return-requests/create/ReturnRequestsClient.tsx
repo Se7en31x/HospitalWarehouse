@@ -17,9 +17,13 @@ interface SelectedItem {
   selected_unit_codes: string[];
 }
 
-const toInputDateTimeLocal = (date = new Date()) => {
-  const pad = (num: number) => String(num).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+const getNowDateTimeParts = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
 };
 
 export default function ReturnRequestsClient() {
@@ -29,7 +33,8 @@ export default function ReturnRequestsClient() {
   const [summaryItems, setSummaryItems] = useState<reusableSvc.ReturnableSummaryItem[]>([]);
   const [selectedUnitsByItem, setSelectedUnitsByItem] = useState<Record<string, reusableSvc.ReusableUnit[]>>({});
 
-  const [preferredPickupAt, setPreferredPickupAt] = useState(toInputDateTimeLocal());
+  const [pickupDate, setPickupDate] = useState(() => getNowDateTimeParts().date);
+  const [pickupTime, setPickupTime] = useState(() => getNowDateTimeParts().time);
   const [note, setNote] = useState("");
 
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
@@ -189,19 +194,21 @@ export default function ReturnRequestsClient() {
       return;
     }
 
-    if (preferredPickupAt) {
-      const pickupDate = new Date(preferredPickupAt);
-      if (Number.isNaN(pickupDate.getTime())) {
-        toast.error("วันเวลานัดรับของไม่ถูกต้อง");
-        return;
-      }
+    if (!pickupDate?.trim() || !pickupTime?.trim()) {
+      toast.error("กรุณาระบุวันที่และเวลานัดรับของ");
+      return;
+    }
+    const pickupAt = new Date(`${pickupDate}T${pickupTime}`);
+    if (Number.isNaN(pickupAt.getTime())) {
+      toast.error("วันเวลานัดรับของไม่ถูกต้อง");
+      return;
     }
 
     setIsSubmitting(true);
     try {
       const created = await reusableSvc.createReusableReturnRequest({
         department_id: departmentId,
-        preferred_pickup_at: preferredPickupAt ? new Date(preferredPickupAt).toISOString() : undefined,
+        preferred_pickup_at: pickupAt.toISOString(),
         note: note || undefined,
         items: selectedList.map((item) => ({
           item_id: item.item_id,
@@ -213,6 +220,9 @@ export default function ReturnRequestsClient() {
       toast.success(`สร้างคำขอคืนสำเร็จ: ${created.doc_no}`);
       setSelectedUnitsByItem({});
       setNote("");
+      const next = getNowDateTimeParts();
+      setPickupDate(next.date);
+      setPickupTime(next.time);
       await reusableSvc.getReturnableWithdrawSummary(departmentId).then((res) => setSummaryItems(res.items || []));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "สร้างคำขอคืนไม่สำเร็จ");
@@ -226,7 +236,7 @@ export default function ReturnRequestsClient() {
       <Toaster position="top-right" />
 
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-800">ส่งคืนคลัง</h2>
+        <h2 className="text-3xl font-bold text-gray-800">ส่งคืนอุปกรณ์ทางการแพทย์</h2>
         <button
           type="button"
           onClick={() => router.push("/request/return-requests")}
@@ -239,71 +249,117 @@ export default function ReturnRequestsClient() {
       <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">รายการที่ส่งคืนได้</h3>
 
-        <div className="border border-slate-300 rounded-lg p-4 mb-4 max-w-sm">
-          <div className="relative" data-dept-dropdown>
-            <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">แผนก <span className="text-red-500">*</span></label>
-            <button
-              type="button"
-              onClick={() => setIsDeptOpen(!isDeptOpen)}
-              className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm"
-            >
-              <span className="text-slate-800 font-medium">{selectedDeptName}</span>
-              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
-            </button>
-            
-            {isDeptOpen && (
-              <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
-                <ul className="py-1">
-                  {departments.map((d) => (
-                    <li key={d.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDepartmentId(String(d.id));
-                          setIsDeptOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                          String(d.id) === departmentId
-                            ? "bg-blue-50 text-blue-700 font-medium"
-                            : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        {d.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 md:items-stretch">
+          <div className="border border-slate-300 rounded-lg p-4 h-full min-h-0 flex flex-col">
+            <div className="relative flex-1 min-h-0" data-dept-dropdown>
+              <label className="text-sm font-bold text-slate-800 uppercase mb-3 block">แผนก <span className="text-red-500">*</span></label>
+              <button
+                type="button"
+                onClick={() => setIsDeptOpen(!isDeptOpen)}
+                className="flex items-center justify-between gap-2 w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm"
+              >
+                <span className="text-slate-800 font-medium">{selectedDeptName}</span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isDeptOpen && (
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-30 overflow-y-auto" style={{ maxHeight: "220px" }}>
+                  <ul className="py-1">
+                    {departments.map((d) => (
+                      <li key={d.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDepartmentId(String(d.id));
+                            setIsDeptOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                            String(d.id) === departmentId
+                              ? "bg-blue-50 text-blue-700 font-medium"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {d.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-slate-300 rounded-lg p-4 h-full min-h-0 flex flex-col">
+            <p className="text-sm font-bold text-slate-800 uppercase mb-3 shrink-0">วันเวลานัดรับของ</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 min-h-0 content-start">
+              <div>
+                <label htmlFor="return-pickup-date" className="text-xs text-slate-600 font-medium block mb-1.5">วันที่</label>
+                <input
+                  id="return-pickup-date"
+                  type="date"
+                  value={pickupDate}
+                  onChange={(e) => setPickupDate(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors hover:border-slate-400"
+                />
               </div>
-            )}
+              <div>
+                <label htmlFor="return-pickup-time" className="text-xs text-slate-600 font-medium block mb-1.5">เวลา</label>
+                <input
+                  id="return-pickup-time"
+                  type="time"
+                  value={pickupTime}
+                  onChange={(e) => setPickupTime(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors hover:border-slate-400"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
+        <div className="mb-4">
+          <label htmlFor="return-request-note" className="text-sm font-bold text-slate-800 uppercase mb-3 block">หมายเหตุ</label>
+          <textarea
+            id="return-request-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="รายละเอียดเพิ่มเติม"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          />
+        </div>
+
         <div className="border border-slate-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 border-b border-slate-200">
-              <tr>
-                <th className="text-left px-4 py-3 w-[48px] font-bold text-slate-700">#</th>
-                <th className="text-left px-4 py-3 w-[200px] font-bold text-slate-700">รายการ</th>
-                <th className="text-left px-4 py-3 w-[120px] font-bold text-slate-700">ถือใช้งานอยู่</th>
-                <th className="text-left px-4 py-3 w-[160px] font-bold text-slate-700">เลือกรายการย่อย</th>
-              </tr>
-            </thead>
-            <tbody>
+          {/*
+            กรอบสูงพอมองหัว + หลายแถว (~6 แถวข้อมูล); มากกว่านั้นเลื่อนในกรอบ (thead ติดด้านบน)
+          */}
+          <div className="max-h-96 overflow-y-auto overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100 shadow-[0_1px_0_0_#e2e8f0]">
+                <tr>
+                  <th className="text-left px-4 py-3 w-[48px] font-bold text-slate-700 bg-slate-100">#</th>
+                  <th className="text-left px-4 py-3 w-[120px] font-bold text-slate-700 bg-slate-100">รหัส</th>
+                  <th className="text-left px-4 py-3 min-w-[180px] font-bold text-slate-700 bg-slate-100">รายการ</th>
+                  <th className="text-left px-4 py-3 min-w-[140px] font-bold text-slate-700 bg-slate-100">หมวดหมู่</th>
+                  <th className="text-left px-4 py-3 w-[120px] font-bold text-slate-700 bg-slate-100">ถือใช้งานอยู่</th>
+                  <th className="text-left px-4 py-3 w-[160px] font-bold text-slate-700 bg-slate-100">เลือกรายการย่อย</th>
+                </tr>
+              </thead>
+              <tbody>
               {!departmentId && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400">เลือกแผนกก่อน เพื่อแสดงรายการที่ส่งคืนได้</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">เลือกแผนกก่อน เพื่อแสดงรายการที่ส่งคืนได้</td>
                 </tr>
               )}
 
               {departmentId && isLoadingSummary && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">กำลังโหลด...</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">กำลังโหลด...</td>
                 </tr>
               )}
 
               {departmentId && !isLoadingSummary && sortedSummaryItems.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400">ไม่มีรายการ Reusable ที่กำลังใช้งานจากการเบิกจ่าย</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">ไม่มีรายการ Reusable ที่กำลังใช้งานจากการเบิกจ่าย</td>
                 </tr>
               )}
 
@@ -312,9 +368,11 @@ export default function ReturnRequestsClient() {
                 sortedSummaryItems.map((item, idx) => (
                   <tr key={item.item_id} className="border-b border-slate-100 last:border-b-0">
                     <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
+                    <td className="px-4 py-3 text-slate-700 font-mono text-xs">{item.item_code || "-"}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{item.item_name || "-"}</p>
                     </td>
+                    <td className="px-4 py-3 text-slate-600">{item.category_name || "-"}</td>
                     <td className="px-4 py-3 font-semibold text-slate-700">{item.in_use_qty}</td>
                     <td className="px-4 py-3">
                       <button
@@ -327,48 +385,20 @@ export default function ReturnRequestsClient() {
                     </td>
                   </tr>
                 ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-slate-500">
-            รวมทั้งหมดที่ส่งคืนได้: {totalReturnable} ชิ้น | เลือกแล้ว {selectedList.length} รายการใหญ่ ({selectedQtyTotal} รายการย่อย)
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">2) รายละเอียดคำขอคืน</h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="text-xs text-slate-500">วันเวลานัดรับของ</label>
-            <input
-              type="datetime-local"
-              value={preferredPickupAt}
-              onChange={(e) => setPreferredPickupAt(e.target.value)}
-              className="w-full mt-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div className="mb-4">
-          <label className="text-xs text-slate-500">หมายเหตุ</label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            placeholder="รายละเอียดเพิ่มเติม"
-            className="w-full mt-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="mt-4 flex items-center justify-end">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            รวมทั้งหมดที่ส่งคืนได้: {totalReturnable} ชิ้น | เลือกแล้ว {selectedList.length} รายการใหญ่ ({selectedQtyTotal} รายการย่อย)
+          </p>
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || !selectedList.length || !departmentId}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:bg-slate-300 inline-flex items-center gap-2 transition-colors"
+            className="shrink-0 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:bg-slate-300 inline-flex items-center justify-center gap-2 transition-colors"
           >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} ส่งคำขอคืนคลัง
           </button>
@@ -377,7 +407,7 @@ export default function ReturnRequestsClient() {
 
       {pickerOpen && pickerItem && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setPickerOpen(false)}>
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-[52.8rem] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">เลือกรายการย่อยที่จะส่งคืน</h3>
@@ -399,7 +429,7 @@ export default function ReturnRequestsClient() {
                 />
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[50vh] overflow-y-auto">
+              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[55vh] overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
                     <tr>

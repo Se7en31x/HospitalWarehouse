@@ -90,8 +90,9 @@ export const deleteSupplier = (id: string) =>
     api.delete(`${SETTINGS_BASE}/suppliers/${id}`);
 
 // --- System Settings (Notifications/Schedules) ---
-export const getSystemSettings = () => 
-    api.get<SystemSettingsMap>(`${SETTINGS_BASE}/settings`);
+/** Pass `token` from a Server Component for authenticated SSR. */
+export const getSystemSettings = (token?: string) =>
+    api.get<SystemSettingsMap>(`${SETTINGS_BASE}/settings`, undefined, token);
 
 export const updateSystemSettings = (payload: Record<string, string | number | boolean>) =>
     api.put<SystemSettingsMap>(`${SETTINGS_BASE}/settings`, payload);

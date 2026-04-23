@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
-  Clock, Eye, Package, X, Plus,
+  Eye, Package, X, Plus,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import * as reusableSvc from "@/services/reusableUnitService";
@@ -37,7 +37,8 @@ const fmtDateTime = (d?: string | null) => {
 interface ReturnRequest {
   id: number;
   doc_no: string;
-  department_name: string;
+  department_name: string | null;
+  requested_by_name?: string | null;
   status: string;
   created_at: string;
   requester?: string;
@@ -48,16 +49,16 @@ interface ReturnRequest {
 
 const StatusBadge = ({ status }: { status: string }) => {
   const statusMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
-    PENDING: { label: "รอดำเนินการ", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-    APPROVED: { label: "อนุมัติแล้ว", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-    REJECTED: { label: "ปฏิเสธ", bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
-    COMPLETED: { label: "เสร็จสิ้น", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
-    PENDING_RETURN_CHECK: { label: "รอตรวจรับคืน", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+    PENDING: { label: "รอดำเนินการ", bg: "bg-amber-100", text: "text-amber-900", border: "border-amber-200" },
+    APPROVED: { label: "อนุมัติแล้ว", bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200" },
+    REJECTED: { label: "ปฏิเสธ", bg: "bg-rose-100", text: "text-rose-800", border: "border-rose-200" },
+    COMPLETED: { label: "เสร็จสิ้น", bg: "bg-green-100", text: "text-green-800", border: "border-green-200" },
+    PENDING_RETURN_CHECK: { label: "รอตรวจรับคืน", bg: "bg-sky-100", text: "text-sky-800", border: "border-sky-200" },
   };
-  const s = statusMap[status] || { label: status, bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200" };
+  const s = statusMap[status] || { label: status, bg: "bg-slate-100", text: "text-slate-800", border: "border-slate-200" };
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
-      <Clock className="w-3 h-3" /> {s.label}
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
+      {s.label}
     </span>
   );
 };
@@ -200,6 +201,7 @@ export default function ReturnItemClient() {
       if (term && !(
         r.doc_no.toLowerCase().includes(term) ||
         (r.department_name ?? "").toLowerCase().includes(term) ||
+        (r.requested_by_name ?? "").toLowerCase().includes(term) ||
         (r.requester ?? "").toLowerCase().includes(term)
       )) {
         return false;
@@ -253,7 +255,7 @@ export default function ReturnItemClient() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหาเลขที่เอกสาร / แผนก..."
+            placeholder="ค้นหาเลขที่เอกสาร / แผนก / ผู้ทำรายการ..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
@@ -392,6 +394,7 @@ export default function ReturnItemClient() {
                 <th className="px-4 py-4 w-[50px]">#</th>
                 <th className="px-5 py-4 w-[180px]">เลขที่เอกสาร</th>
                 <th className="px-5 py-4 w-[200px]">แผนก</th>
+                <th className="px-5 py-4 w-[200px]">ผู้ทำรายการ</th>
                 <th className="px-5 py-4 w-[180px]">สถานะ</th>
                 <th className="px-5 py-4 w-[200px]">วันที่สร้าง</th>
                 <th className="px-5 py-4 w-[80px] text-center">จัดการ</th>
@@ -402,7 +405,8 @@ export default function ReturnItemClient() {
                 <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                   <td className="px-4 py-2 w-[50px] text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                   <td className="px-5 py-2 w-[180px] font-mono font-medium text-slate-800">{r.doc_no}</td>
-                  <td className="px-5 py-2 w-[200px] text-gray-600">{r.department_name}</td>
+                  <td className="px-5 py-2 w-[200px] text-gray-600">{r.department_name ?? "-"}</td>
+                  <td className="px-5 py-2 w-[200px] text-gray-600">{r.requested_by_name || r.requester || "-"}</td>
                   <td className="px-5 py-2 w-[180px]">
                     <StatusBadge status={r.status} />
                   </td>
@@ -420,7 +424,7 @@ export default function ReturnItemClient() {
               ))}
               {displayed.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">ไม่พบรายการคำขอคืน</p>

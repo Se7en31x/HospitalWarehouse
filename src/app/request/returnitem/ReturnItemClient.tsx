@@ -49,7 +49,7 @@ const StatusBadge = ({ overdue }: { overdue: boolean }) => {
 };
 
 const PendingCheckBadge = () => (
-  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200">
+  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold bg-sky-100 text-sky-800 border-sky-200">
     <Clock className="w-3 h-3" /> รอตรวจรับคืน
   </span>
 );
@@ -437,7 +437,7 @@ export default function ReturnItemClient() {
                 <th className="px-5 py-4">ผู้ยืมภายนอก</th>
                 <th className="px-5 py-4">ช่องทางติดต่อ</th>
                 <th className="px-5 py-4">แผนก</th>
-                <th className="px-5 py-4 text-center">จำนวนสินค้า</th>
+                <th className="px-5 py-4 text-center">จำนวน</th>
                 <th className="px-5 py-4">วันที่ยืม</th>
                 <th className="px-5 py-4">กำหนดคืน</th>
                 <th className="px-5 py-4">สถานะ</th>
@@ -488,10 +488,15 @@ export default function ReturnItemClient() {
               })}
               {displayed.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={10}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
-                      <Package className="w-12 h-12 text-slate-300" />
-                      <p className="text-sm font-medium">ไม่มีรายการยืมภายนอกที่ค้างคืนหรือยังไม่คืน</p>
+                  <td colSpan={10} className="p-0 align-middle">
+                    <div
+                      className="flex min-h-[calc(65vh-3.5rem)] flex-col items-center justify-center gap-3 px-4 py-8 text-center text-slate-400"
+                      aria-live="polite"
+                    >
+                      <Package className="h-12 w-12 shrink-0 text-slate-300" />
+                      <p className="max-w-md text-sm font-medium leading-relaxed">
+                        ไม่พบรายการ
+                      </p>
                     </div>
                   </td>
                 </tr>

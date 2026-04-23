@@ -17,14 +17,14 @@ const getErrorMessage = (error: unknown): string =>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
+type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "รอตรวจรับคืน" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
 
 const mapUiStatus = (header: RequisitionHeader): UiStatus => {
   if (header.status === "BORROWING") {
     if (header.due_date && new Date(header.due_date) < new Date()) return "ค้างคืน";
     return "รอการคืน";
   }
-  if (header.status === "PENDING_RETURN_CHECK") return "รออนุมัติ";
+  if (header.status === "PENDING_RETURN_CHECK") return "รอตรวจรับคืน";
   if (header.status === "COMPLETED") return "คืนแล้ว";
   if (header.status === "PENDING") return "รออนุมัติ";
   if (header.status === "CANCELLED") return "ยกเลิก";
@@ -55,6 +55,7 @@ const getStatusBadgeColor = (status: UiStatus) => {
     case "ค้างคืน":   return "bg-red-50 text-red-700 border-red-200";
     case "คืนแล้ว":   return "bg-green-50 text-green-700 border-green-200";
     case "รออนุมัติ": return "bg-blue-50 text-blue-700 border-blue-200";
+    case "รอตรวจรับคืน": return "bg-sky-50 text-sky-800 border-sky-200";
     case "ยกเลิก":    return "bg-gray-50 text-gray-600 border-gray-200";
     case "ถูกปฏิเสธ": return "bg-rose-50 text-rose-700 border-rose-200";
     default:           return "bg-gray-50 text-gray-600 border-gray-200";
@@ -67,6 +68,7 @@ const getStatusIcon = (status: UiStatus) => {
     case "ค้างคืน":   return <AlertCircle className="w-3 h-3" />;
     case "คืนแล้ว":   return <CheckCircle className="w-3 h-3" />;
     case "รออนุมัติ": return <Loader2 className="w-3 h-3 animate-spin" />;
+    case "รอตรวจรับคืน": return <Loader2 className="w-3 h-3 animate-spin" />;
     case "ยกเลิก":    return <X className="w-3 h-3" />;
     default:           return null;
   }

@@ -55,18 +55,23 @@ const getEffectiveStock = (item: Item.UiItem): number =>
     ? (typeof item.availableStock === "number" ? item.availableStock : 0)
     : item.stock;
 
+const formatUpdatedAt = (iso: string | null | undefined): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("th-TH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
 // No stock override — item.stock stays as current_stock so ItemDetailModal
 // and tooltip can show the raw total. Display always calls getEffectiveStock().
 const mapBorrowableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
-
-const getTypeDisplay = (type: string): string => {
-  const typeMap: Record<string, string> = {
-    "MED_ASSET": "ครุภัณฑ์ภายในองค์กร",
-    "REUSABLE": "ของใช้ซ้ำรายชิ้น",
-    "CONSUMABLE": "วัสดุสิ้นเปลือง",
-  };
-  return typeMap[type] || type;
-};
 
 export default function BorrowClient({ initialItems }: Props) {
   // ดึงข้อมูลแผนกและสถานะการโหลดจาก useAuth ที่แกะจาก Token จริง
@@ -386,7 +391,7 @@ export default function BorrowClient({ initialItems }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">ยืม ครุภัณฑ์</h2>
+          <h2 className="text-3xl font-bold text-gray-800">ยืมอุปกรณ์ทางการแพทย์</h2>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -600,23 +605,23 @@ export default function BorrowClient({ initialItems }: Props) {
           <table className="w-full text-sm text-left table-fixed">
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[20px]">#</th>
-                <th className="px-6 py-4 w-[50px]">รูป</th>
-                <th className="px-6 py-4 w-[100px]">รหัส</th>
-                <th className="px-6 py-4 w-[180px]">ชื่อรายการ</th>
-                <th className="px-6 py-4 w-[120px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[110px]">ประเภท</th>
-                <th className="px-6 py-4 w-[100px]">ตำแหน่ง</th>
-                <th className="px-6 py-4 w-[100px]">คงเหลือ</th>
-                <th className="px-6 py-4 w-[80px]">หน่วย</th>
-                <th className="px-6 py-4 text-right w-[80px]">จัดการ</th>
+                <th className="px-4 py-4 w-[20px]">#</th>
+                <th className="px-4 py-4 w-[50px]">รูป</th>
+                <th className="px-5 py-4 w-[100px]">รหัส</th>
+                <th className="px-5 py-4 w-[180px]">ชื่อรายการ</th>
+                <th className="px-5 py-4 w-[140px]">หมวดหมู่</th>
+                <th className="px-5 py-4 w-[140px]">ตำแหน่ง</th>
+                <th className="px-5 py-4 w-[80px]">คงเหลือ</th>
+                <th className="px-5 py-4 w-[80px]">หน่วย</th>
+                <th className="px-5 py-4 w-[128px]">อัปเดตเมื่อ</th>
+                <th className="px-5 py-4 text-right w-[80px]">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-600">
               {displayItems.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-2 w-[20px]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-6 py-2 w-[50px]">
+                  <td className="px-4 py-2 w-[20px] text-center">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-4 py-2 w-[50px]">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <button
@@ -630,17 +635,14 @@ export default function BorrowClient({ initialItems }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-2 w-[100px]">{item.code}</td>
-                  <td className="px-6 py-2 w-[180px]">{item.name}</td>
-                  <td className="px-6 py-2 w-[100px]">{item.category}</td>
-                  <td className="px-6 py-2 w-[110px]">
-                    {getTypeDisplay(item.type)}
-                  </td>
-                  <td className="px-6 py-2 w-[100px]">{item.location}</td>
-                  <td className="px-6 py-2 w-[100px]">
+                  <td className="px-5 py-2 w-[100px]">{item.code}</td>
+                  <td className="px-5 py-2 w-[180px]">{item.name}</td>
+                  <td className="px-5 py-2 w-[100px]">{item.category}</td>
+                  <td className="px-5 py-2 w-[100px]">{item.location}</td>
+                  <td className="px-5 py-2 w-[100px]">
                     {item.type === "REUSABLE" ? (
                       <div className="relative group inline-block cursor-help">
-                        <span className={`font-bold text-base ${
+                        <span className={`font-normal ${
                           getEffectiveStock(item) <= 0 ? "text-red-500" :
                           getEffectiveStock(item) <= item.minStock ? "text-orange-500" :
                           "text-emerald-600"
@@ -654,18 +656,24 @@ export default function BorrowClient({ initialItems }: Props) {
                       </div>
                     ) : (
                       <div className="flex flex-col">
-                        <span className={`font-bold ${
+                        <span className={`font-normal ${
                           item.stock <= 0 ? "text-red-500" :
                           item.stock <= item.minStock ? "text-orange-500" :
-                          "text-blue-600"
+                          "text-emerald-600"
                         }`}>
                           {item.stock}
                         </span>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-2 w-[80px]">{item.unit}</td>
-                  <td className="px-6 py-2 w-[80px] text-right">
+                  <td className="px-5 py-2 w-[80px]">{item.unit}</td>
+                  <td
+                    className="px-5 py-2 w-[128px] text-slate-600 tabular-nums"
+                    title={item.updatedAt ? new Date(item.updatedAt).toISOString() : undefined}
+                  >
+                    {formatUpdatedAt(item.updatedAt)}
+                  </td>
+                  <td className="px-5 py-2 w-[80px] text-right">
                     <button
                       onClick={() => addToCart(item)}
                       disabled={getEffectiveStock(item) <= 0}
@@ -681,10 +689,8 @@ export default function BorrowClient({ initialItems }: Props) {
                 <tr>
                   <td colSpan={10}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
-                      </svg>
-                      <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                      <Search className="w-12 h-12 text-slate-300" />
+                      <p className="text-sm font-medium">ไม่พบข้อมูลพัสดุ</p>
                     </div>
                   </td>
                 </tr>
