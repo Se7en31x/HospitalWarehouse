@@ -4,6 +4,7 @@ export type StockMovementType =
   | "OUT"
   | "ADJUST_IN"
   | "ADJUST_OUT"
+  | "RETURN_IN"
   | "UPDATE";
 
 export interface StockMovementItem {

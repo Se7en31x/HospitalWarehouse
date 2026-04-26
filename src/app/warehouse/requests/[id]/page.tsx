@@ -812,7 +812,7 @@ export default function RequisitionDetailsPage({
                           {/* Unit list */}
                           <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-3">
                             <div className="mb-2 flex flex-shrink-0 items-center justify-between gap-3">
-                              <p className="text-xs font-bold text-slate-500 ml-1">จิ้มบาร์โค้ดจากรายการที่ว่าง</p>
+                              <p className="text-xs font-bold text-slate-500 ml-1">บาร์โค้ดจากรายการที่ว่าง</p>
                               <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-500">
                                 <Search size={14} className="flex-shrink-0" />
                                 <input
@@ -968,8 +968,8 @@ export default function RequisitionDetailsPage({
                   disabled={isLoading}
                   className="px-7 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <PackageCheck size={18} />}
-                  ยืนยันการอนุมัติ
+                  
+                  อนุมัติ
                 </button>
               </>
             )}

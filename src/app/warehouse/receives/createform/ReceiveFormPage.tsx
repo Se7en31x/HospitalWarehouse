@@ -516,6 +516,9 @@ export default function ReceiveFormPage() {
         }
       }
 
+      // แจ้งเตือนครั้งเดียวรวมทุก header ของ batch นี้
+      ReceiveSvc.notifyBatch(batch.id).catch(() => {/* silent */});
+
       const isMixed = results.length > 1;
       const summaryRows = results.map(r => (
         `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f1f5f9">

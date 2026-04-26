@@ -153,6 +153,10 @@ export async function getSuppliers(): Promise<Array<{ id: string; name: string }
     return api.get<Array<{ id: string; name: string }>>("/v1/suppliers/option");
 }
 
+export async function notifyBatch(batchId: number): Promise<void> {
+    await api.post(`/v1/receives/batch/${batchId}/notify`, {});
+}
+
 // ── Reusable API ───────────────────────────────────────────────────────────────
 
 export interface ReusableUnitInput {

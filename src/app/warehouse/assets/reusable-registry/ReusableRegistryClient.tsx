@@ -260,6 +260,20 @@ export default function ReusableRegistryClient({
 
   const handleSaveEdit = async () => {
     if (!editingUnit) return;
+    if (editingUnit.status === "IN_USE" && editStatus !== "IN_USE") {
+      SweetAlertUtils.error(
+        "ไม่สามารถเปลี่ยนสถานะได้",
+        "รายการนี้กำลังถูกใช้งานหรืออยู่ระหว่างการยืม สถานะจะถูกจัดการผ่านระบบคำขอเท่านั้น"
+      );
+      return;
+    }
+    if (editingUnit.status === "IN_USE" && editCondition !== "GOOD") {
+      SweetAlertUtils.error(
+        "ข้อมูลไม่ถูกต้อง",
+        "รายการที่กำลังใช้งานต้องมีสภาพปกติเสมอ หากพบความชำรุดให้บันทึกในช่องหมายเหตุ"
+      );
+      return;
+    }
     if (
       (editStatus === "AVAILABLE" || editStatus === "IN_USE") &&
       editCondition === "LOST"
@@ -320,7 +334,14 @@ export default function ReusableRegistryClient({
     }
   };
 
-  const handleDelete = async (id: string, unitCode: string) => {
+  const handleDelete = async (id: string, unitCode: string, status: string) => {
+    if (status === "IN_USE") {
+      SweetAlertUtils.error(
+        "ไม่สามารถลบได้",
+        "รายการนี้กำลังถูกใช้งานหรืออยู่ระหว่างการยืม ไม่สามารถลบออกจากระบบได้"
+      );
+      return;
+    }
     const result = await SweetAlertUtils.delete("ลบรายชิ้น", "คุณต้องการลบรายการนี้ใช่หรือไม่?");
     if (!result.isConfirmed) return;
     try {
@@ -337,7 +358,7 @@ export default function ReusableRegistryClient({
     setEditSerialNo(unit.serial_no || "");
     setEditDeptId(unit.department_id ? String(unit.department_id) : "0");
     setEditStatus(unit.status || "AVAILABLE");
-    setEditCondition(unit.condition || "GOOD");
+    setEditCondition(unit.status === "IN_USE" ? "GOOD" : (unit.condition || "GOOD"));
     setEditNote(unit.note || "");
     setIsEditModalOpen(true);
   };
@@ -598,7 +619,7 @@ export default function ReusableRegistryClient({
                         <Edit className="w-5 h-5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(rec.id, rec.unit_code)}
+                        onClick={() => handleDelete(rec.id, rec.unit_code, rec.status)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -663,6 +684,14 @@ export default function ReusableRegistryClient({
 
             {/* Content */}
             <div className="p-8 space-y-6 overflow-y-auto flex-1 bg-slate-50/30">
+              {editingUnit.status === "IN_USE" && (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <span>
+                    รายการนี้{editingUnit.usage_context === "BORROW" ? "อยู่ระหว่างการยืม" : "กำลังถูกใช้งาน"} — สถานะถูกควบคุมโดยระบบคำขอ ไม่สามารถเปลี่ยนสถานะได้จากหน้านี้
+                  </span>
+                </div>
+              )}
               <div className="bg-white rounded-lg p-6 border border-slate-300 shadow-sm">
                 <div className="space-y-6">
                   <div>
@@ -738,13 +767,17 @@ export default function ReusableRegistryClient({
                       <label className="block text-sm font-semibold mb-2 text-slate-700">สถานะ</label>
                       <button
                         type="button"
-                        onClick={() => { setIsEditStatusOpen(!isEditStatusOpen); setIsEditDeptOpen(false); setIsEditConditionOpen(false); }}
-                        className="w-full flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm justify-between"
+                        disabled={editingUnit.status === "IN_USE"}
+                        onClick={() => { if (editingUnit.status === "IN_USE") return; setIsEditStatusOpen(!isEditStatusOpen); setIsEditDeptOpen(false); setIsEditConditionOpen(false); }}
+                        className={`w-full flex items-center gap-2 border rounded-lg px-4 py-2.5 text-sm shadow-sm justify-between transition-colors ${editingUnit.status === "IN_USE" ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed" : "border-slate-300 bg-white hover:border-slate-400"}`}
+                        title={editingUnit.status === "IN_USE" ? "สถานะถูกควบคุมโดยระบบคำขอ" : undefined}
                       >
-                        <span className="text-slate-800 font-medium">{STATUS_LABEL[editStatus] || editStatus}</span>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isEditStatusOpen ? "rotate-180" : ""}`} />
+                        <span className="font-medium">{STATUS_LABEL[editStatus] || editStatus}</span>
+                        {editingUnit.status !== "IN_USE" && (
+                          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isEditStatusOpen ? "rotate-180" : ""}`} />
+                        )}
                       </button>
-                      {isEditStatusOpen && (
+                      {isEditStatusOpen && editingUnit.status !== "IN_USE" && (
                         <div className="absolute mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-[250px] max-h-64 overflow-y-auto">
                           <ul className="py-1">
                             {Object.entries(STATUS_LABEL).map(([k, v]) => (
@@ -777,13 +810,17 @@ export default function ReusableRegistryClient({
                     <label className="block text-sm font-semibold mb-2 text-slate-700">สภาพ</label>
                     <button
                       type="button"
-                      onClick={() => { setIsEditConditionOpen(!isEditConditionOpen); setIsEditStatusOpen(false); setIsEditDeptOpen(false); }}
-                      className="w-full flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm justify-between"
+                      disabled={editingUnit.status === "IN_USE"}
+                      onClick={() => { if (editingUnit.status === "IN_USE") return; setIsEditConditionOpen(!isEditConditionOpen); setIsEditStatusOpen(false); setIsEditDeptOpen(false); }}
+                      className={`w-full flex items-center gap-2 border rounded-lg px-4 py-2.5 text-sm shadow-sm justify-between transition-colors ${editingUnit.status === "IN_USE" ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed" : "border-slate-300 bg-white hover:border-slate-400"}`}
+                      title={editingUnit.status === "IN_USE" ? "สภาพของรายการที่กำลังใช้งานต้องเป็นปกติเสมอ หากชำรุดให้บันทึกในหมายเหตุ" : undefined}
                     >
-                      <span className="text-slate-800 font-medium">{CONDITION_LABEL[editCondition] || editCondition}</span>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isEditConditionOpen ? "rotate-180" : ""}`} />
+                      <span className="font-medium">{CONDITION_LABEL[editCondition] || editCondition}</span>
+                      {editingUnit.status !== "IN_USE" && (
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isEditConditionOpen ? "rotate-180" : ""}`} />
+                      )}
                     </button>
-                    {isEditConditionOpen && (
+                    {isEditConditionOpen && editingUnit.status !== "IN_USE" && (
                       <div className="absolute mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-[250px] max-h-64 overflow-y-auto">
                         <ul className="py-1">
                           {EDIT_MODAL_CONDITION_OPTIONS.map((opt) => {

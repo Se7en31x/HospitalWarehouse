@@ -76,6 +76,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const prevItemCountRef = useRef(4);
+  const seenNotifIdsRef = useRef<Set<number>>(new Set());
 
   const badgeText = useMemo(() => (unreadCount > 99 ? "99+" : String(unreadCount)), [unreadCount]);
 
@@ -90,6 +91,9 @@ export default function NotificationBell({ title = "การแจ้งเต�
 
   const loadItems = useCallback(async () => {
     setIsLoading(true);
+    // After a real fetch the full list replaces optimistic additions, so reset the
+    // dedup registry so future socket pushes are counted correctly.
+    seenNotifIdsRef.current = new Set();
     try {
       const result = await getNotifications({ page: 1, limit: 200, ...(entityType ? { entity_type: entityType } : {}) });
       const fetched = result.items || [];
@@ -166,12 +170,14 @@ export default function NotificationBell({ title = "การแจ้งเต�
 
     const handleNotificationNew = (notif: NotificationItem) => {
       if (entityType && notif.entity_type !== entityType) return;
-      setItems((prev) => {
-        // Guard against duplicate delivery (user is in both USER: and ROLE: rooms)
-        if (notif.id && prev.some((n) => n.id === notif.id)) return prev;
-        setUnreadCount((c) => c + 1);
-        return [notif, ...prev];
-      });
+      // Deduplicate via ref before touching any state — prevents double-counting
+      // when the same notification arrives from both USER: and ROLE: socket rooms.
+      if (notif.id) {
+        if (seenNotifIdsRef.current.has(notif.id)) return;
+        seenNotifIdsRef.current.add(notif.id);
+      }
+      setItems((prev) => [notif, ...prev]);
+      setUnreadCount((c) => c + 1);
     };
 
     socket.on("REFRESH_DATA", handleRefreshSignal);

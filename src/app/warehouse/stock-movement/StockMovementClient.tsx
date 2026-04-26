@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   Package,
-  UserRound,
   X,
 } from "lucide-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -23,6 +22,7 @@ const typeOptions: { v: StockMovementType | ""; l: string }[] = [
   { v: "RECEIVE_IN", l: "รับเข้า" },
   { v: "RECEIVE_CANCEL", l: "ยกเลิกรับ" },
   { v: "OUT", l: "เบิกจ่าย" },
+  { v: "RETURN_IN", l: "รับคืน" },
   { v: "ADJUST_IN", l: "ปรับเพิ่ม" },
   { v: "ADJUST_OUT", l: "ปรับลด" },
   { v: "UPDATE", l: "อัปเดต Lot" },
@@ -32,6 +32,7 @@ const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
   RECEIVE_IN:     { label: "รับเข้า",    cls: "bg-blue-100 text-blue-700 border border-blue-200" },
   RECEIVE_CANCEL: { label: "ยกเลิกรับ",  cls: "bg-rose-100 text-rose-700 border border-rose-200" },
   OUT:            { label: "เบิกออก",    cls: "bg-amber-100 text-amber-700 border border-amber-200" },
+  RETURN_IN:      { label: "รับคืน",     cls: "bg-teal-100 text-teal-700 border border-teal-200" },
   ADJUST_IN:      { label: "ปรับเพิ่ม",  cls: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
   ADJUST_OUT:     { label: "ปรับลด",    cls: "bg-slate-100 text-slate-600 border border-slate-200" },
   UPDATE:         { label: "อัปเดต Lot",    cls: "bg-indigo-100 text-indigo-700 border border-indigo-200" },

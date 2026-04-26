@@ -575,7 +575,6 @@ export default function ProcessReturnClient() {
               disabled={isSaving}
               className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               บันทึกผลตรวจรับ
             </button>
           )}
