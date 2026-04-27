@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Loader2, Search, Trash2, X, Plus, CheckCircle2, Pencil,
+  Loader2, Search, Trash2, X, CheckCircle2, Pencil,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
@@ -13,7 +13,6 @@ import * as ItemSvc from "@/services/itemsService";
 import * as DeptSvc from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
 import { resolveBarcode } from "@/services/barcodeService";
-import { printLabels } from "@/lib/printLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -562,9 +561,6 @@ export default function ReceiveFormPage() {
       c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
     ).slice(0, 60);
   })();
-
-  const totalQty      = lines.reduce((a, l) => a + l.expectedQty, 0);
-  const isMixedBatch  = new Set(lines.map(l => l.kind)).size > 1;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
