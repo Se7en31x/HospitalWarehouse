@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   Search, ChevronLeft, ChevronRight, Eye, Package, Loader2, ChevronDown,
 } from "lucide-react";
@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import { getAllRequisitions, cancelRequisition } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
+import { socket } from "@/lib/socket";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,10 @@ export default function HistoryClient() {
   const [isFetching, setIsFetching] = useState(true);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
@@ -103,6 +108,44 @@ export default function HistoryClient() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current || isRefreshingRef.current) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try {
+          await fetchData();
+        } finally {
+          isRefreshingRef.current = false;
+          refreshTimerRef.current = null;
+        }
+      }, 300);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "REQUISITIONS") scheduleRefresh();
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
