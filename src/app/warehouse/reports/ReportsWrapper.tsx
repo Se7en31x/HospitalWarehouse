@@ -200,7 +200,6 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
       case "low-stock":
         return (
           <LowStockReportClient
-            initialItems={initialLowStockItems}
             onBack={handleBackToSelector}
           />
         );
