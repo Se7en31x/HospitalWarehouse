@@ -1081,7 +1081,7 @@ function DetailContent({
               </div>
             )}
           </div>
-        </section>
+        </div>
 
         {/* ─ Submit bar ─ */}
         {canReturn && (
