@@ -52,6 +52,25 @@ export interface RequisitionItemUnits {
   unit_code: string;
 }
 
+export interface AllocatedLot {
+  lot_id: string | null;
+  lot_code: string | null;
+  qty: number;
+  expired_at: string | null;
+}
+
+export interface IssuedUnit {
+  id: string;           // reusable_item_units.id (UUID)
+  unit_code: string;
+  serial_no: string | null;
+}
+
+export interface OutstandingUnit {
+  id: string;
+  unit_code: string;
+  serial_no: string | null;
+}
+
 export interface RequisitionItem {
   id: number;
   item_id: string;
@@ -70,6 +89,12 @@ export interface RequisitionItem {
   note?: string;
   available_lots?: RequisitionItemLots[];
   available_units?: RequisitionItemUnits[];
+  /** ล็อตที่ตัดสต็อกไปแล้ว (consumable) */
+  allocated_lots?: AllocatedLot[];
+  /** รหัสครุภัณฑ์ที่จ่ายออกไปแล้ว (reusable) */
+  issued_units?: IssuedUnit[];
+  /** รหัสครุภัณฑ์ที่ยังคงค้างอยู่ (IN_USE) สำหรับฟอร์มคืน */
+  outstanding_units?: OutstandingUnit[];
 }
 
 export interface RequisitionPayload {

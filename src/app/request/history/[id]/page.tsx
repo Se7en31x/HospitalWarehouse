@@ -9,7 +9,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import Swal from "sweetalert2";
 import { getRequisitionById, cancelRequisition } from "@/services/requisitionService";
-import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
+import type { RequisitionHeader, RequisitionItem, BorrowerDetails, AllocatedLot, IssuedUnit } from "@/types/requisition_type";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,6 +172,14 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
   const [isFetching, setIsFetching] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
   const [borrowerOpen, setBorrowerOpen] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+
+  const toggleItemExpand = (id: number) =>
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   useEffect(() => {
     const load = async () => {
@@ -458,54 +466,111 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
                   <th className="px-4 py-3 text-center w-24">อนุมัติ</th>
                   <th className="px-4 py-3 text-center w-24">จ่าย</th>
                   {isBorrow && <th className="px-4 py-3 text-center w-24">คืน</th>}
+                  <th className="px-4 py-3 w-10" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(requisition.items ?? []).map((item: RequisitionItem, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-center text-slate-400 text-xs">{idx + 1}</td>
-                    <td className="px-4 py-3 text-center">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-9 h-9 rounded-lg object-cover border border-slate-200 mx-auto"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto">
-                          <Package className="w-4 h-4 text-slate-300" />
-                        </div>
+                {(requisition.items ?? []).map((item: RequisitionItem, idx) => {
+                  const hasAllocInfo =
+                    (item.itemType === "REUSABLE"
+                      ? (item.issued_units ?? []).length > 0
+                      : (item.allocated_lots ?? []).length > 0) && item.issued > 0;
+                  const isExpanded = expandedItems.has(item.id);
+
+                  return (
+                    <React.Fragment key={item.id}>
+                      <tr
+                        className={`transition-colors ${hasAllocInfo ? "cursor-pointer hover:bg-slate-50" : ""}`}
+                        onClick={() => hasAllocInfo && toggleItemExpand(item.id)}
+                      >
+                        <td className="px-4 py-3 text-center text-slate-400 text-xs">{idx + 1}</td>
+                        <td className="px-4 py-3 text-center">
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt={item.name}
+                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 mx-auto"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto">
+                              <Package className="w-4 h-4 text-slate-300" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-mono text-xs text-slate-500">{item.code}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-800 text-sm leading-tight">{item.name}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-slate-500">{item.category_name ?? "-"}</p>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="font-bold text-slate-700 text-sm">
+                            {item.qty}
+                            {item.unit_name && <span className="font-normal text-slate-400 text-xs ml-1">{item.unit_name}</span>}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-blue-600 text-sm">{item.approved ?? "-"}</td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-600 text-sm">{item.issued ?? "-"}</td>
+                        {isBorrow && (
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-bold text-sm ${item.returned >= item.issued && item.issued > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                              {item.returned ?? "-"}
+                            </span>
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-center">
+                          {hasAllocInfo && (
+                            <ChevronDown
+                              className={`w-4 h-4 text-slate-400 transition-transform duration-200 mx-auto ${isExpanded ? "rotate-180" : ""}`}
+                            />
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Expandable allocation detail row */}
+                      {hasAllocInfo && isExpanded && (
+                        <tr className="bg-slate-50/70">
+                          <td colSpan={isBorrow ? 10 : 9} className="px-6 py-3">
+                            {item.itemType === "REUSABLE" ? (
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">รหัสครุภัณฑ์ที่ได้รับ</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {(item.issued_units as IssuedUnit[]).map((u, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-mono font-bold border border-blue-200">
+                                      {u.unit_code}
+                                      {u.serial_no && <span className="font-normal text-blue-500">· {u.serial_no}</span>}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">ตัดจากล็อต</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {(item.allocated_lots as AllocatedLot[]).map((lot, i) => (
+                                    <span key={i} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs">
+                                      <span className="font-mono font-bold text-slate-700">{lot.lot_code ?? "-"}</span>
+                                      <span className="text-blue-600 font-bold">{lot.qty} ชิ้น</span>
+                                      {lot.expired_at && (
+                                        <span className="text-slate-400">หมด {new Date(lot.expired_at).toLocaleDateString("th-TH")}</span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-mono text-xs text-slate-500">{item.code}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800 text-sm leading-tight">{item.name}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-xs text-slate-500">{item.category_name ?? "-"}</p>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-bold text-slate-700 text-sm">
-                        {item.qty}
-                        {item.unit_name && <span className="font-normal text-slate-400 text-xs ml-1">{item.unit_name}</span>}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center font-bold text-blue-600 text-sm">{item.approved ?? "-"}</td>
-                    <td className="px-4 py-3 text-center font-bold text-slate-600 text-sm">{item.issued ?? "-"}</td>
-                    {isBorrow && (
-                      <td className="px-4 py-3 text-center">
-                        <span className={`font-bold text-sm ${item.returned >= item.issued && item.issued > 0 ? "text-emerald-600" : "text-slate-400"}`}>
-                          {item.returned ?? "-"}
-                        </span>
-                      </td>
-                    )}
-                  </tr>
-                ))}
+                    </React.Fragment>
+                  );
+                })}
                 {!requisition.items?.length && (
                   <tr>
-                    <td colSpan={isBorrow ? 9 : 8} className="px-5 py-12 text-center">
+                    <td colSpan={isBorrow ? 10 : 9} className="px-5 py-12 text-center">
                       <div className="flex flex-col items-center gap-2 text-slate-400">
                         <Package className="w-10 h-10 text-slate-300" />
                         <p className="text-sm font-medium">ไม่มีรายการพัสดุ</p>

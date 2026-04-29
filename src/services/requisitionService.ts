@@ -194,11 +194,18 @@ export const uploadBorrowerDocument = async (
   );
 };
 
+export interface UnitReturnDetail {
+  unit_id: string;
+  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+  note?: string;
+}
+
 export interface ReturnItemPayload {
   req_item_id: number;
   qty_returned: number;
   condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
   note?: string;
+  units?: UnitReturnDetail[];  // per-unit detail for REUSABLE items
 }
 
 /**

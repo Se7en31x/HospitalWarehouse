@@ -20,6 +20,8 @@ import {
   RequisitionItemLots,
   RequisitionItemUnits,
   BorrowerDetails,
+  AllocatedLot,
+  IssuedUnit,
 } from "../../../../types/requisition_type";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 
@@ -784,9 +786,54 @@ export default function RequisitionDetailsPage({
                     {/* Allocator body */}
                     <div className="flex-1 overflow-y-auto p-4 bg-white">
                       {!isPending ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
-                          <PackageCheck size={40} className="mb-3 opacity-30" />
-                          <p className="font-bold text-slate-600">อนุมัติแล้ว {selectedItem.issued} ชิ้น</p>
+                        <div className="flex flex-col gap-3">
+                          {/* Summary badge */}
+                          <div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-50 border border-green-100">
+                            <PackageCheck size={20} className="text-green-500 flex-shrink-0" />
+                            <p className="font-bold text-green-700 text-sm">อนุมัติแล้ว {selectedItem.issued} ชิ้น</p>
+                          </div>
+
+                          {/* Consumable: lot breakdown */}
+                          {!isReusable && (selectedItem.allocated_lots ?? []).length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">ตัดจากล็อต</p>
+                              {(selectedItem.allocated_lots as AllocatedLot[]).map((lot, i) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-sm text-slate-700 font-mono">{lot.lot_code ?? "-"}</p>
+                                    {lot.expired_at && (
+                                      <p className="text-xs text-slate-400 mt-0.5">
+                                        หมดอายุ: {new Date(lot.expired_at).toLocaleDateString("th-TH")}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="font-black text-blue-600 text-lg flex-shrink-0 ml-3">{lot.qty}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Reusable: issued unit codes */}
+                          {isReusable && (selectedItem.issued_units ?? []).length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">รหัสครุภัณฑ์ที่จ่ายออก</p>
+                              {(selectedItem.issued_units as IssuedUnit[]).map((u, i) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+                                  <span className="font-mono text-sm font-bold text-slate-700">{u.unit_code}</span>
+                                  {u.serial_no && (
+                                    <span className="text-xs text-slate-400 ml-2">S/N: {u.serial_no}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* No allocation records (PENDING status or before approval) */}
+                          {(selectedItem.allocated_lots ?? []).length === 0 && (selectedItem.issued_units ?? []).length === 0 && (
+                            <div className="flex flex-col items-center justify-center p-6 text-slate-400 text-center">
+                              <p className="text-xs">ยังไม่มีข้อมูลการจ่ายของ</p>
+                            </div>
+                          )}
                         </div>
                       ) : isReusable ? (
                         <div className="flex h-full min-h-0 flex-col gap-4">
