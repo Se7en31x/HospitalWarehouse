@@ -308,7 +308,7 @@ export default function StockInClient({ initialHistory = [] }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
+          <h2 className="text-3xl font-bold text-gray-800">รับสินค้าเข้าคลัง</h2>
         </div>
         <div className="flex items-center gap-3">
           <button

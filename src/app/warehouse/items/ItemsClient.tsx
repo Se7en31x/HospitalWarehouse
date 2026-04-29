@@ -281,7 +281,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
-              พิมพ์สติกเกอร์ ({selectedItems.size})
+              พิมพ์บาร์โค้ด ({selectedItems.size})
             </button>
           )}
           <button onClick={() => { setSelectedItem(null); setIsAddModalOpen(true); }} className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md">

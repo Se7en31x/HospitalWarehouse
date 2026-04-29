@@ -160,7 +160,7 @@ export default function ReceiveClient() {
 
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">รับพัสดุเข้าคลัง</h2>
+                <h2 className="text-3xl font-bold text-gray-800">รับสินค้าเข้าคลัง</h2>
                 <button onClick={() => router.push("/warehouse/receives/createform")}
                     className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-sm">
                     <Plus className="w-4 h-4" /> สร้างใบรับสินค้า

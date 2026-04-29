@@ -239,7 +239,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
             subtotalFmt:    fmtCurrency(r.qty * r.costPrice),
         }));
         printAsPdf(
-            "รายงานการรับพัสดุเข้าคลัง",
+            "รายงานการรับสินค้าเข้าคลัง",
             `${dateFrom ? `จาก ${fmtDate(dateFrom)} ` : ""}${dateTo ? `ถึง ${fmtDate(dateTo)}` : ""}`.trim() || "ทั้งหมด",
             columns,
             pdfRows,
@@ -251,7 +251,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">รายงานการรับพัสดุเข้าคลัง</h2>
+                <h2 className="text-3xl font-bold text-gray-800">รายงานการรับสินค้าเข้าคลัง</h2>
                 <div className="flex items-center gap-3">
                     {onBack && (
                         <button type="button" onClick={onBack}
