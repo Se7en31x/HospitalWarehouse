@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   FileText, Layers, Loader2, Package, CheckCircle, Clock, X,
 } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import * as receiveService from "@/services/receiveService";
@@ -178,25 +179,41 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           .receive-doc-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         `}</style>
         <table className="w-full min-w-[1000px] text-left text-sm table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
+            <colgroup>
+              <col className="w-[56px]" />
+              <col className="w-[10%]" />
+              <col className="w-[18%]" />
+              <col className="w-[18%]" />
+              <col className="w-[8%]" />
+              {showLot ? (
+                <>
+                  <col className="w-[9%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[11%]" />
+                </>
+              ) : (
+                <col className="w-[9%]" />
+              )}
+            </colgroup>
+            <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-300 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-5 w-[56px] text-center">#</th>
-                <th className="px-6 py-5 w-[120px]">รหัสสินค้า</th>
-                <th className="px-6 py-5 w-[200px]">ชื่อสินค้า</th>
-                <th className="px-6 py-5 w-[180px]">หมวดหมู่</th>
-                <th className="px-6 py-5 w-[88px] text-center">สั่ง</th>
-                <th className="px-6 py-5 w-[100px] text-center">รับ</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">#</th>
+                <th className="px-6 py-4 whitespace-nowrap">รหัสสินค้า</th>
+                <th className="px-6 py-4 whitespace-nowrap">ชื่อสินค้า</th>
+                <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">สั่ง</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">รับ</th>
                 {showLot && (
                   <>
-                    <th className="px-6 py-5 w-[140px]">Lot Code</th>
-                    <th className="px-6 py-5 w-[120px]">วันหมดอายุ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">Lot Code</th>
+                    <th className="px-6 py-4 whitespace-nowrap">วันหมดอายุ</th>
                   </>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800 text-sm">
               {(doc.receive_item ?? []).map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50">
+                <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                   <td className="px-6 py-5 w-[56px] text-center text-slate-500 font-medium tabular-nums align-middle">{idx + 1}</td>
                   <td className="px-6 py-5 w-[120px] align-middle min-w-0">
                     <p className="text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>{item.item_code ?? String(item.item_id)}</p>
@@ -333,10 +350,13 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin">
-          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full" />
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-[#fafafa]">
+        <DotLottieReact
+          src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+          loop
+          autoplay
+          style={{ width: 160, height: 160 }}
+        />
       </div>
     );
   }
@@ -346,9 +366,9 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
   const hasPending   = batch.headers.some(h => h.status === "PENDING");
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-bold text-gray-800">รายละเอียดการรับเข้า</h2>
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายละเอียดการรับเข้า</h2>
         <button
           onClick={() => router.back()}
           className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"

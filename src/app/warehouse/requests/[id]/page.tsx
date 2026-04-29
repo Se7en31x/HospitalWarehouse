@@ -7,7 +7,7 @@ import {
   Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown, MessageSquare,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import toast from "react-hot-toast";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import {
   getRequisitionById,
   approveRequisition,
@@ -237,18 +237,17 @@ export default function RequisitionDetailsPage({
       (u: RequisitionItemUnits) => u.unit_code.toLowerCase() === raw.toLowerCase()
     );
     if (!foundUnit) {
-      toast.error(`ไม่พบบาร์โค้ด ${raw} ในรายการที่พร้อมใช้งาน`);
+      SweetAlertUtils.error("ไม่พบบาร์โค้ด", `ไม่พบบาร์โค้ด ${raw} ในรายการที่พร้อมใช้งาน`);
       setScanInput("");
       return;
     }
     if (alloc.units.includes(foundUnit.id)) {
-      toast.error(`สแกนบาร์โค้ด ${raw} ไปแล้ว`);
+      SweetAlertUtils.error("สแกนซ้ำ", `สแกนบาร์โค้ด ${raw} ไปแล้ว`);
       setScanInput("");
       return;
     }
     const newUnits = [...alloc.units, foundUnit.id];
     updateAllocation(currentItem.id, { ...alloc, qty: newUnits.length, units: newUnits });
-    toast.success(`เพิ่ม ${foundUnit.unit_code} สำเร็จ!`);
     setScanInput("");
   };
 
@@ -365,9 +364,13 @@ export default function RequisitionDetailsPage({
 
   if (isFetching) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 gap-4">
-        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-        <p className="text-blue-600 font-medium animate-pulse">กำลังโหลดข้อมูลใบเบิก...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#fafafa] gap-4">
+        <DotLottieReact
+          src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+          loop
+          autoplay
+          style={{ width: 160, height: 160 }}
+        />
       </div>
     );
   }
@@ -380,17 +383,17 @@ export default function RequisitionDetailsPage({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col bg-[#fafafa]">
 
       {/* ── Scrollable body ──────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col gap-5 p-6 sm:p-8">
+      <div className="flex-1 flex flex-col gap-5 p-3 sm:p-4 md:p-6">
 
         {/* ── Page Header ─────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0">
+        <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           {/* Left: title */}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-              {isBorrow ? "รายละเอียดคำร้องยืมครุภัณฑ์" : "รายละเอียดคำร้องเบิกพัสดุ"}
+              {isBorrow ? "รายละเอียดคำขอยืมครุภัณฑ์" : "รายละเอียดคำขอเบิกพัสดุ"}
             </h1>
           </div>
           {/* Right: action group */}
@@ -405,7 +408,7 @@ export default function RequisitionDetailsPage({
         </div>
 
         {/* ── Summary Bar ───────────────────────────────────────────────────── */}
-        <section className="flex-shrink-0 rounded-xl bg-white border border-gray-200 shadow-sm p-5">
+        <section className="flex-shrink-0 rounded-xl bg-white border border-slate-200 shadow-sm p-5">
           <div className="mb-4 flex items-center gap-2.5 border-l-4 border-blue-500 pl-3 pb-0">
             <FileText className="h-4 w-4 text-blue-600" />
             <h3 className="text-sm font-bold text-slate-700">
@@ -461,7 +464,7 @@ export default function RequisitionDetailsPage({
 
         {/* ── Borrower Details — BORROW type only ───────────────────────────── */}
         {isBorrow && bd && (
-          <section className="rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+          <section className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
             {/* Header with toggle */}
             <button
               onClick={() => setIsBorrowerDetailsOpen(!isBorrowerDetailsOpen)}
@@ -660,11 +663,11 @@ export default function RequisitionDetailsPage({
 
         {/* ── Main Split Layout ────────────────────────────────────────────── */}
         
-          <div className="flex-1 min-h-0 flex overflow-hidden gap-3">
+          <div className="flex-1 min-h-0 flex overflow-hidden gap-5">
 
             {/* ── Left Panel (60%) — Items table ───────────────────────────── */}
-            <div className="flex-[3_1_0%] min-w-0 flex flex-col rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm">
-              <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50/70 flex justify-between items-center flex-shrink-0">
+            <div className="flex-[3_1_0%] min-w-0 flex flex-col rounded-lg overflow-hidden border border-slate-200 bg-white shadow-sm relative">
+              <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/70 flex justify-between items-center flex-shrink-0">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm border-l-4 border-blue-500 pl-3">
                   รายการที่ต้องเบิกจ่าย
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
@@ -674,15 +677,23 @@ export default function RequisitionDetailsPage({
               </div>
 
               <div className="flex-1 overflow-y-auto">
-                <table className="w-full table-fixed text-sm">
-                  <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
-                    <tr className="uppercase text-[11px] font-semibold text-slate-500 tracking-wider">
-                      <th className="px-5 py-3.5 text-left" style={{ width: "80px" }}>รูป</th>
-                      <th className="px-5 py-3.5 text-left" style={{ width: "360px" }}>รายละเอียดสินค้า</th>
-                      <th className="px-5 py-3.5 text-right" style={{ width: "110px" }}>ยอดคงคลัง</th>
-                      <th className="px-5 py-3.5 text-right" style={{ width: "110px" }}>ยอดที่ขอ</th>
-                      <th className="px-5 py-3.5 text-right" style={{ width: "140px" }}>ยอดเตรียมจ่าย</th>
-                      <th style={{ width: "48px" }} />
+                <table className="w-full table-fixed text-sm text-left">
+                  <colgroup>
+                    <col className="w-[80px]" />
+                    <col />
+                    <col className="w-[110px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[140px]" />
+                    <col className="w-[48px]" />
+                  </colgroup>
+                  <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0]">
+                    <tr>
+                      <th className="px-5 py-4 text-left whitespace-nowrap">รูป</th>
+                      <th className="px-5 py-4 text-left whitespace-nowrap">รายละเอียดสินค้า</th>
+                      <th className="px-5 py-4 text-right whitespace-nowrap">ยอดคงคลัง</th>
+                      <th className="px-5 py-4 text-right whitespace-nowrap">ยอดที่ขอ</th>
+                      <th className="px-5 py-4 text-right whitespace-nowrap">ยอดเตรียมจ่าย</th>
+                      <th className="px-3 py-4 w-[48px]" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -695,9 +706,9 @@ export default function RequisitionDetailsPage({
                         <tr
                           key={item.id}
                           onClick={() => setSelectedItemId(item.id)}
-                          className={`cursor-pointer transition-colors group ${isSel ? "bg-blue-50/80" : "hover:bg-slate-50"}`}
+                          className={`cursor-pointer transition-colors group ${isSel ? "bg-blue-50/80" : "bg-white hover:bg-slate-50"}`}
                         >
-                          <td className="px-5 py-3" style={{ width: "80px" }}>
+                          <td className="px-5 py-3">
                             <div className="flex items-stretch gap-2">
                               <div className={`w-1 rounded-full transition-opacity ${isSel ? "bg-blue-600 opacity-100" : "bg-transparent opacity-0"}`} />
                               <div className="w-11 h-11 rounded-lg overflow-hidden flex items-center justify-center bg-slate-100 border border-slate-100 flex-shrink-0">
@@ -708,7 +719,7 @@ export default function RequisitionDetailsPage({
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-3" style={{ width: "360px" }}>
+                          <td className="px-5 py-3">
                             <p className="font-bold text-slate-800 text-sm">{item.name}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <p className="text-xs text-slate-400 font-mono">{item.code}</p>
@@ -717,22 +728,17 @@ export default function RequisitionDetailsPage({
                                   {item.category_name}
                                 </span>
                               )}
-                              {item.itemType === "REUSABLE" && (
-                                <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">
-                                  ยิงบาร์โค้ด
-                                </span>
-                              )}
                             </div>
                           </td>
-                          <td className="px-5 py-3 text-right" style={{ width: "110px" }}>
+                          <td className="px-5 py-3 text-right">
                             <span className={`font-bold text-sm ${item.current_stock > 0 ? "text-slate-600" : "text-rose-500"}`}>
                               {item.current_stock}
                             </span>
                           </td>
-                          <td className="px-5 py-3 text-right" style={{ width: "110px" }}>
+                          <td className="px-5 py-3 text-right">
                             <span className="font-black text-slate-400 text-lg">{item.qty}</span>
                           </td>
-                          <td className="px-5 py-3 text-right" style={{ width: "140px" }}>
+                          <td className="px-5 py-3 text-right">
                             {isPending ? (
                               <span className={`font-black text-xl ${isComplete ? "text-blue-600" : isOver ? "text-rose-600" : alloc.qty > 0 ? "text-blue-600" : "text-slate-300"}`}>
                                 {alloc.qty}
@@ -741,7 +747,7 @@ export default function RequisitionDetailsPage({
                               <span className="font-black text-lg text-blue-600">{item.issued}</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-center" style={{ width: "48px" }}>
+                          <td className="px-4 py-3 text-center">
                             <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${isSel ? "bg-blue-600 text-white" : "text-slate-300 -translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0"}`}>
                               <ArrowRight size={14} />
                             </div>
@@ -813,14 +819,14 @@ export default function RequisitionDetailsPage({
                           <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-3">
                             <div className="mb-2 flex flex-shrink-0 items-center justify-between gap-3">
                               <p className="text-xs font-bold text-slate-500 ml-1">บาร์โค้ดจากรายการที่ว่าง</p>
-                              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-500">
+                              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-500 min-w-0 flex-1 sm:flex-initial sm:w-auto">
                                 <Search size={14} className="flex-shrink-0" />
                                 <input
                                   type="text"
                                   value={barcodeSearch}
                                   onChange={(e) => setBarcodeSearch(e.target.value)}
                                   placeholder="ค้นบาร์โค้ด"
-                                  className="w-36 bg-transparent text-xs outline-none placeholder:text-slate-400"
+                                className="w-full sm:w-36 bg-transparent text-xs outline-none placeholder:text-slate-400"
                                 />
                                 {barcodeSearch && (
                                   <button type="button" onClick={() => setBarcodeSearch("")} className="text-slate-400 hover:text-slate-600">
@@ -946,14 +952,9 @@ export default function RequisitionDetailsPage({
             </div>
           </div>
 
-        {/* ── Action Footer ────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-sm px-4 py-3.5 flex justify-between items-center rounded-b-xl">
-          <p className="text-xs text-slate-500">
-            {isPending
-              ? "ระบบจะบันทึกการตัดคลังแบบอัตโนมัติ กรุณาแน่ใจก่อนกดอนุมัติ"
-              : `รายการนี้ถูกอนุมัติไปแล้ว อยู่ในสถานะ ${getStatusLabel(requisition?.status)}`}
-          </p>
-          <div className="flex items-center gap-3">
+        {(isPending || canCompleteDelivery) && (
+        <div className="flex-shrink-0 border-t border-slate-200 px-4 py-3.5 flex flex-col sm:flex-row justify-end items-center gap-3 rounded-b-xl">
+          <div className="flex flex-wrap items-center justify-end gap-3 w-full sm:w-auto">
             {isPending && (
               <>
                 <button
@@ -968,7 +969,6 @@ export default function RequisitionDetailsPage({
                   disabled={isLoading}
                   className="px-7 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
-                  
                   อนุมัติ
                 </button>
               </>
@@ -985,6 +985,7 @@ export default function RequisitionDetailsPage({
             )}
           </div>
         </div>
+        )}
       </div>{/* end scrollable body */}
       {/* ── Image lightbox ─────────────────────────────────────────────────── */}
       {previewImage && (

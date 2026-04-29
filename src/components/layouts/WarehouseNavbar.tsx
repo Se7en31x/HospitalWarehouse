@@ -52,34 +52,34 @@ export default function WarehouseNavbar() {
       </div>
 
       <div className="relative z-10 border-b border-white/10">
-        <div className="flex items-center justify-between px-8 py-3.5">
+        <div className="flex items-center justify-between px-8 py-4">
 
           {/* Logo + Title */}
-          <a href="https://www.hpk-hms.site/" className="flex items-center gap-5 hover:opacity-90 transition-opacity">
-            <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-md overflow-hidden">
+          <a href="https://www.hpk-hms.site/" className="flex items-center gap-6 hover:opacity-90 transition-opacity">
+            <div className="w-[72px] h-[72px] rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden">
               <Image
                 src="https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png"
                 alt="Logo"
-                width={56}
-                height={56}
+                width={72}
+                height={72}
                 className="object-contain"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <h1 className="text-[17px] font-bold tracking-tight text-white leading-none">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-[20px] font-bold tracking-tight text-white leading-none">
                 โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
               </h1>
-              <span className="text-[13px] font-semibold text-blue-100/90 tracking-wide uppercase">
+              <span className="text-[14px] font-semibold text-blue-100/90 tracking-wide uppercase">
                 ระบบจัดการแผนกคลังหลักโรงพยาบาล
               </span>
             </div>
           </a>
 
           {/* Right: Bell + Avatar */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <NotificationBell title="การแจ้งเตือนคลัง" viewAllHref="/warehouse/notifications" entityType="WAREHOUSE" />
 
-            <div className="h-8 w-[1px] bg-white/20 mx-1" />
+            <div className="h-10 w-[1px] bg-white/20 mx-1" />
 
             <div className="relative self-stretch flex items-center" ref={profileRef}>
               {isLoading ? (
@@ -87,23 +87,22 @@ export default function WarehouseNavbar() {
               ) : (
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-3 p-1.5 pl-3 hover:bg-white/10 rounded-full transition-all group"
+                  className="flex items-center gap-3 p-2 pl-4 hover:bg-white/10 rounded-full transition-all group"
                 >
-                  <div className="flex flex-col items-end leading-tight">
-                    <span className="text-[14px] font-bold text-white group-hover:text-blue-200 transition-colors">
+                  <div className="flex flex-col items-end leading-tight gap-0.5">
+                    <span className="text-[16px] font-bold text-white group-hover:text-blue-200 transition-colors">
                       {displayName}
                     </span>
-                    <span className="text-[10px] text-blue-300 font-bold uppercase tracking-wider">
+                    <span className="text-[12px] text-blue-300 font-bold uppercase tracking-wider">
                       {roleName}
                     </span>
                   </div>
                   <div className="relative">
-                    {/* เปลี่ยนสีพื้นหลัง Avatar ให้ตัดกับ Navbar */}
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 ring-2 ring-white/30 group-hover:ring-white/60 transition-all flex items-center justify-center text-sm font-extrabold text-white shadow-lg">
-                      <User className="w-5 h-5" />
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 ring-2 ring-white/30 group-hover:ring-white/60 transition-all flex items-center justify-center font-extrabold text-white shadow-lg">
+                      <User className="w-6 h-6" />
                     </div>
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-blue-200 transition-transform duration-300 ${showProfileMenu ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-5 h-5 text-blue-200 transition-transform duration-300 ${showProfileMenu ? "rotate-180" : ""}`} />
                 </button>
               )}
 

@@ -25,8 +25,6 @@ export default function MainContentWrapper({ children }: { children: ReactNode }
   }, []);
 
   const isNoScrollPage = 
-    pathname?.toLowerCase().includes('/items') ||  
-    pathname?.toLowerCase().startsWith('/items/')||
     pathname?.toLowerCase().includes('/settings') ||  
     pathname?.toLowerCase().startsWith('/settings/');
 
@@ -35,7 +33,7 @@ export default function MainContentWrapper({ children }: { children: ReactNode }
 
   return (
     <main 
-      className={`flex-1 min-w-0 ${shouldScroll ? "overflow-y-auto" : ""}`}
+      className={`flex-1 min-w-0 bg-[#fafafa] ${shouldScroll ? "overflow-y-auto" : ""}`}
     >
       <div className="max-w-8xl mx-auto">
         {children}

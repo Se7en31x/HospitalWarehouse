@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import type { CSSProperties } from "react";
 import {
   Search,
   ChevronLeft,
@@ -8,12 +9,14 @@ import {
   ChevronDown,
   Package,
   X,
+  Eye,
+  StickyNote,
 } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { getStockMovements } from "@/services/stockMovementService";
+import { getAllStockMovements } from "@/services/stockMovementService";
 import {
   StockMovement,
-  StockMovementFilters,
   StockMovementType,
 } from "@/types/stockmovement_type";
 
@@ -40,15 +43,15 @@ const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
 
 const OUT_TYPES = new Set(["OUT", "RECEIVE_CANCEL", "ADJUST_OUT"]);
 
+const PAGE_LIMIT = 10;
+
 const fmt = (n: number | null | undefined) =>
   n == null ? "-" : n.toLocaleString("th-TH");
 
 // ---- Main Client ----
 const StockMovementClient = () => {
-  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [allMovements, setAllMovements] = useState<StockMovement[]>([]);
   const [isFetching, setIsFetching] = useState(true);
-  const [selectedMovement, setSelectedMovement] =
-    useState<StockMovement | null>(null);
 
   // Filters
   const [keyword, setKeyword] = useState("");
@@ -59,51 +62,47 @@ const StockMovementClient = () => {
   const [startDateFocused, setStartDateFocused] = useState(false);
   const [endDateFocused, setEndDateFocused] = useState(false);
 
-  // Pagination (server-side)
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const itemsPerPage = 10;
-
-  const fetchData = useCallback(
-    async (page = 1) => {
-      setIsFetching(true);
-      try {
-        const filters: StockMovementFilters = {
-          page,
-          limit: itemsPerPage,
-          keyword: keyword || undefined,
-          type: selectedType || undefined,
-          start_date: startDate || undefined,
-          end_date: endDate || undefined,
-        };
-
-        const result = await getStockMovements(filters);
-        if (result.success) {
-          setMovements(result.data);
-          setTotalPages(result.meta.totalPages);
-          setTotalItems(result.meta.total);
-        } else {
-          SweetAlertUtils.error(result.message || "ไม่สามารถดึงข้อมูลได้");
-          setMovements([]);
-        }
-      } catch (error: any) {
-        const errorMessage = error?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล";
-        console.error("Failed to fetch stock movements:", error);
-        SweetAlertUtils.error(errorMessage);
-        setMovements([]);
-      } finally {
-        setIsFetching(false);
-      }
-    },
-    [keyword, selectedType, startDate, endDate]
+  const [detailMovement, setDetailMovement] = useState<StockMovement | null>(
+    null
   );
 
-  // reset page & fetch on filter change
+  useEffect(() => {
+    if (!detailMovement) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDetailMovement(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [detailMovement]);
+
+  const fetchAll = useCallback(async () => {
+    setIsFetching(true);
+    try {
+      const all = await getAllStockMovements({});
+      const sorted = [...all].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setAllMovements(sorted);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+      console.error("Failed to fetch stock movements:", error);
+      SweetAlertUtils.error(errorMessage);
+      setAllMovements([]);
+    } finally {
+      setIsFetching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
   useEffect(() => {
     setCurrentPage(1);
-    fetchData(1);
-  }, [fetchData]);
+  }, [keyword, selectedType, startDate, endDate]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -117,21 +116,56 @@ const StockMovementClient = () => {
     }
   }, [isTypeDropdownOpen]);
 
+  const filteredMovements = allMovements.filter((mv) => {
+    if (keyword.trim()) {
+      const k = keyword.toLowerCase();
+      const matchKw =
+        (mv.item?.code || "").toLowerCase().includes(k) ||
+        (mv.item?.name || "").toLowerCase().includes(k) ||
+        (mv.operator_name || "").toLowerCase().includes(k) ||
+        (mv.created_by || "").toLowerCase().includes(k);
+      if (!matchKw) return false;
+    }
+    if (selectedType && mv.type !== selectedType) return false;
+    if (startDate) {
+      const row = new Date(mv.created_at);
+      row.setHours(0, 0, 0, 0);
+      const s = new Date(startDate);
+      s.setHours(0, 0, 0, 0);
+      if (row < s) return false;
+    }
+    if (endDate) {
+      const row = new Date(mv.created_at);
+      const e = new Date(endDate);
+      e.setHours(23, 59, 59, 999);
+      if (row > e) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredMovements.length / PAGE_LIMIT) || 1;
+  const paginatedMovements = filteredMovements.slice(
+    (currentPage - 1) * PAGE_LIMIT,
+    currentPage * PAGE_LIMIT
+  );
+  const pagedCount = paginatedMovements.length;
+  const filteredCount = filteredMovements.length;
+  const allCount = allMovements.length;
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    fetchData(page);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-bold text-gray-800">การเคลื่อนไหวสต็อก</h2>
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6 font-sans">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">การเคลื่อนไหวสต็อก</h2>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         {/* Search */}
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
@@ -143,11 +177,11 @@ const StockMovementClient = () => {
         </div>
 
         {/* Type dropdown */}
-        <div className="relative" data-filter-type>
+        <div className="relative w-full sm:w-auto" data-filter-type>
           <button
             type="button"
             onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">
               {selectedType
@@ -162,7 +196,7 @@ const StockMovementClient = () => {
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {typeOptions.map((t) => (
-                  <li key={t.v}>
+                  <li key={t.v || "all"}>
                     <button
                       type="button"
                       onClick={() => {
@@ -233,86 +267,92 @@ const StockMovementClient = () => {
       </div>
 
       {/* Table */}
-      <div
-        className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col"
-        style={{ height: "65vh" }}
-      >
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
-        )}
-        <div
-          className="flex-1"
-          style={{
-            overflowX: "auto",
-            overflowY: "auto",
-            scrollbarWidth: "auto",
-            msOverflowStyle: "auto",
-          } as React.CSSProperties}
-        >
-          <style>{`
-            div::-webkit-scrollbar {
+        ) : (
+          <>
+            <div
+              data-stock-movement-scroll
+              className="flex-1 min-h-0"
+              style={{
+                overflowX: "auto",
+                overflowY: "auto",
+                scrollbarWidth: "auto",
+                msOverflowStyle: "auto",
+              } as CSSProperties}
+            >
+              <style>{`
+            div[data-stock-movement-scroll]::-webkit-scrollbar {
               width: 0;
               height: 8px;
             }
-            div::-webkit-scrollbar-track {
+            div[data-stock-movement-scroll]::-webkit-scrollbar-track {
               background: #f1f5f9;
             }
-            div::-webkit-scrollbar-thumb {
+            div[data-stock-movement-scroll]::-webkit-scrollbar-thumb {
               background: #cbd5e1;
               border-radius: 4px;
             }
-            div::-webkit-scrollbar-thumb:hover {
+            div[data-stock-movement-scroll]::-webkit-scrollbar-thumb:hover {
               background: #94a3b8;
             }
           `}</style>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+          <table className="w-max min-w-full table-auto border-collapse text-sm text-left">
+            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-[50px]">#</th>
-                <th className="px-6 py-4 w-[120px]">รหัสสินค้า</th>
-                <th className="px-6 py-4 w-[200px]">ชื่อสินค้า</th>
-                <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[100px]">หน่วยนับ</th>
-                <th className="px-6 py-4 w-[100px]">จำนวน</th>
-                <th className="px-6 py-4 w-[180px]">ยอดคงเหลือ</th>
-                <th className="px-6 py-4 w-[120px]">ประเภท</th>
-                <th className="px-6 py-4 w-[200px]">ผู้ดำเนินการ</th>
-                <th className="px-6 py-4 w-[160px]">วันที่และเวลา</th>
+                <th className="pl-3 pr-2 py-4 whitespace-nowrap w-10 text-center">#</th>
+                <th className="px-2 py-4 whitespace-nowrap">รหัสสินค้า</th>
+                <th className="px-3 py-4 whitespace-nowrap">ชื่อสินค้า</th>
+                <th className="px-3 py-4 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-2 py-4 whitespace-nowrap">หน่วยนับ</th>
+                <th className="px-2 py-4 whitespace-nowrap text-center">จำนวน</th>
+                <th className="px-2 py-4 whitespace-nowrap">ยอดคงเหลือ</th>
+                <th className="px-2 py-4 whitespace-nowrap">ประเภท</th>
+                <th className="px-3 py-4 whitespace-nowrap">ผู้ดำเนินการ</th>
+                <th className="px-2 py-4 whitespace-nowrap">วันที่และเวลา</th>
+                <th className="pr-3 pl-1 py-4 whitespace-nowrap text-center w-11">ตรวจสอบ</th>
               </tr>
             </thead>
-            <tbody className="">
-              {movements.map((mv, idx) => {
+            <tbody className="text-slate-600">
+              {paginatedMovements.map((mv, idx) => {
                 const isOut = OUT_TYPES.has(mv.type);
                 const badge = TYPE_BADGE[mv.type] ?? { label: mv.type, cls: "bg-slate-100 text-slate-600 border border-slate-200" };
+                const itemName = mv.item?.name ?? "ไม่ระบุ";
+                const categoryText = mv.item?.category ?? "-";
+                const operatorDisplay = mv.operator_name ?? mv.created_by ?? "";
                 return (
                   <tr key={mv.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                    <td className="px-6 py-[18px] text-slate-500 text-center">
-                      {(currentPage - 1) * itemsPerPage + idx + 1}
+                    <td className="pl-3 pr-2 py-3 text-slate-500 tabular-nums text-center">
+                      {(currentPage - 1) * PAGE_LIMIT + idx + 1}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-500 font-mono">
+                    <td className="px-2 py-3 text-slate-500 font-mono text-sm whitespace-nowrap">
                       {mv.item?.code ?? "-"}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-600">
-                      {mv.item?.name ?? "ไม่ระบุ"}
+                    <td className="max-w-[min(18rem,28vw)] px-3 py-3 whitespace-nowrap truncate align-middle" title={itemName}>
+                      {itemName}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-600">
-                      {mv.item?.category ?? "-"}
+                    <td className="max-w-[min(14rem,22vw)] px-3 py-3 whitespace-nowrap truncate align-middle" title={categoryText}>
+                      {categoryText}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-600">
+                    <td className="px-2 py-3 whitespace-nowrap">
                       {mv.item?.unit ?? "-"}
                     </td>
-                    <td className="px-6 py-[18px]">
-                      <div className={`text-base font-bold ${isOut ? "text-rose-600" : "text-emerald-600"}`}>
+                    <td className="px-2 py-3 text-center whitespace-nowrap align-middle">
+                      <span className={`inline-block text-base font-bold tabular-nums ${isOut ? "text-rose-600" : "text-emerald-600"}`}>
                         {isOut ? "-" : "+"}{fmt(mv.quantity)}
-                      </div>
+                      </span>
                     </td>
-                    <td className="px-6 py-[18px]">
+                    <td className="px-2 py-3 whitespace-nowrap align-middle">
                       {mv.balance_before != null && mv.balance_after != null ? (
-                        <div className="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
                           <span>ก่อน: <span className="font-medium text-slate-500">{fmt(mv.balance_before)}</span></span>
                           <span className="text-slate-300">→</span>
                           <span>หลัง: <span className="font-medium text-slate-700">{fmt(mv.balance_after)}</span></span>
@@ -321,64 +361,147 @@ const StockMovementClient = () => {
                         <span className="text-slate-400 text-xs">-</span>
                       )}
                     </td>
-                    <td className="px-6 py-[18px]">
-                      <span className="text-slate-700 text-sm">{badge.label}</span>
+                    <td className="px-2 py-3 whitespace-nowrap align-middle">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
                     </td>
-                    <td className="px-6 py-[18px] text-slate-600">
+                    <td className="max-w-[min(10rem,16vw)] px-3 py-3 whitespace-nowrap truncate align-middle text-sm" title={operatorDisplay || undefined}>
                       {mv.operator_name || mv.created_by ? (
-                        <span className="text-sm">
-                          {mv.operator_name ?? mv.created_by}
-                        </span>
+                        operatorDisplay
                       ) : (
                         <span className="text-slate-400 text-xs">ระบบอัตโนมัติ</span>
                       )}
                     </td>
-                    <td className="px-6 py-[18px] text-slate-500">
+                    <td className="px-2 py-3 text-slate-500 text-sm whitespace-nowrap align-middle">
                       {new Date(mv.created_at).toLocaleString("th-TH", {
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
                     </td>
+                    <td className="pr-3 pl-1 py-3 text-center whitespace-nowrap align-middle">
+                      <button
+                        type="button"
+                        onClick={() => setDetailMovement(mv)}
+                        className="inline-flex p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-all align-middle"
+                        title="ดูหมายเหตุ"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
+              {filteredMovements.length === 0 && !isFetching && (
+                <tr>
+                  <td colSpan={11}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <Package className="w-12 h-12 text-slate-300" />
+                      <p className="text-sm font-medium">ไม่พบข้อมูลการเคลื่อนไหวสต็อก</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-
-          {movements.length === 0 && !isFetching && (
-            <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-              <Package className="w-12 h-12 text-slate-300" />
-              <p className="text-sm font-medium">ไม่พบข้อมูลการเคลื่อนไหวสต็อก</p>
             </div>
-          )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+          <p className="text-sm text-slate-500">
+            แสดง {pagedCount} จาก {filteredCount} รายการ
+            {filteredCount !== allCount && (
+              <span className="text-slate-400"> (ทั้งหมด {allCount} รายการ)</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+              className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium">
+              หน้า {currentPage} / {totalPages || 1}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+              className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors bg-white"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+          </>
+        )}
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">
-          แสดง {movements.length} จาก {totalItems} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => handlePageChange(currentPage - 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+      {detailMovement && (
+        <>
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
+            onClick={() => setDetailMovement(null)}
+            aria-hidden
+          />
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={() => setDetailMovement(null)}
           >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium">
-            หน้า {currentPage} / {totalPages || 1}
-          </span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => handlePageChange(currentPage + 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed bg-white"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="stock-movement-detail-title"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-6 flex items-center justify-between z-10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-indigo-100 rounded-lg shrink-0">
+                    <StickyNote className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2
+                      id="stock-movement-detail-title"
+                      className="text-2xl font-bold text-slate-900 truncate"
+                    >
+                      หมายเหตุ
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailMovement(null)}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors shrink-0"
+                  aria-label="ปิด"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-8">
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                    {detailMovement.note?.trim()
+                      ? detailMovement.note.trim()
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 px-8 py-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDetailMovement(null)}
+                  className="px-6 py-2.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-semibold transition-colors"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
   X, Eye, Package,
 } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { getAllRequisitions } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
 import toast from "react-hot-toast";
@@ -109,16 +111,12 @@ export default function ReturnsClient() {
   const [startDateFocused, setStartDateFocused] = useState(false);
   const [endDateFocused, setEndDateFocused] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [serverTotal, setServerTotal] = useState(0);
   const [serverTotalPages, setServerTotalPages] = useState(0);
-  const [isMounted, setIsMounted] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   const pageRef = useRef(1);
   const keywordRef = useRef("");
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => { setIsMounted(true); }, []);
 
   const fetchPage = useCallback(async (page: number, keyword: string) => {
     setIsFetching(true);
@@ -139,7 +137,6 @@ export default function ReturnsClient() {
         }
         // เก็บรายการทั้งหมด แล้วค่อยกรองตาม Tab ฝั่ง client
         setRecords(data);
-        setServerTotal(result.total || 0);
         const totalPages = result.limit ? Math.ceil((result.total || 0) / result.limit) : 0;
         setServerTotalPages(totalPages);
       } else {
@@ -149,7 +146,6 @@ export default function ReturnsClient() {
       console.error("fetch borrows failed", err);
       toast.error(getErrorMessage(err));
       setRecords([]);
-      setServerTotal(0);
       setServerTotalPages(0);
     } finally {
       setIsFetching(false);
@@ -157,17 +153,19 @@ export default function ReturnsClient() {
   }, []);
 
   useEffect(() => {
-    if (isMounted) fetchPage(1, "");
-  }, [isMounted, fetchPage]);
+    fetchPage(1, "");
+  }, [fetchPage]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest("[data-status-dd]")) setIsStatusDropdownOpen(false);
+      if (!target.closest("[data-filter-status]")) setIsStatusDropdownOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    if (isStatusDropdownOpen) {
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }
+  }, [isStatusDropdownOpen]);
 
   const openDetail = useCallback((id: number) => {
     router.push(`/warehouse/returns/${id}`);
@@ -216,20 +214,18 @@ export default function ReturnsClient() {
   const displayRecords = filteredRecords;
   const totalPages = serverTotalPages;
 
-  if (!isMounted) return null;
-
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6 font-sans">
 
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200">
+      <div className="flex gap-1 mb-6 border-b border-slate-200 overflow-x-auto">
         {(["PENDING", "HISTORY"] as const).map((tab) => {
           const tabLabel = tab === "PENDING" ? "รอดำเนินการ" : "ประวัติการคืน";
           const isActive = activeTab === tab;
@@ -256,8 +252,8 @@ export default function ReturnsClient() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-5 items-center">
-        <div className="relative w-64">
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
@@ -269,22 +265,24 @@ export default function ReturnsClient() {
         </div>
 
         {/* Status Dropdown */}
-        <div className="relative" data-status-dd="">
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
+            type="button"
             onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedStatus}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
           </button>
           {isStatusDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {STATUS_FILTER_OPTIONS.map(s => (
                   <li key={s}>
                     <button
+                      type="button"
                       onClick={() => { setSelectedStatus(s); setIsStatusDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s ? "bg-indigo-50 text-indigo-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
                       {s}
                     </button>
@@ -347,33 +345,62 @@ export default function ReturnsClient() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "65vh" }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
-        )}
-        <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+        ) : (
+          <>
+            <div
+              data-returns-scroll
+              className="flex-1 min-h-0"
+              style={{
+                overflowX: "auto",
+                overflowY: "auto",
+                scrollbarWidth: "auto",
+                msOverflowStyle: "auto",
+              } as CSSProperties}
+            >
+              <style>{`
+            div[data-returns-scroll]::-webkit-scrollbar {
+              width: 0;
+              height: 8px;
+            }
+            div[data-returns-scroll]::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            div[data-returns-scroll]::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 4px;
+            }
+            div[data-returns-scroll]::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
+          <table className="w-full table-fixed text-sm text-left">
+            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-4 w-[50px]">#</th>
-                <th className="px-4 py-4 w-[150px]">เลขที่เอกสาร</th>
-                <th className="px-4 py-4 w-[120px]">ประเภท</th>
-                <th className="px-4 py-4 w-[160px]">ผู้ดำเนินเรื่องยืม</th>
-                <th className="px-4 py-4 w-[160px]">ผู้ยืม</th>
-                <th className="px-4 py-4 w-[150px]">เบอร์ติดต่อ</th>
-                <th className="px-4 py-4 w-[80px]">รายการ</th>
-                <th className="px-4 py-4 w-[170px]">วันที่ทำรายการ</th>
-                <th className="px-4 py-4 w-[120px]">กำหนดคืน</th>
-                <th className="px-4 py-4 w-[170px]">วันที่คืนสำเร็จ</th>
-                <th className="px-4 py-4 w-[120px]">สถานะ</th>
-                <th className="px-4 py-4 text-center w-[110px]">จัดการ</th>
+                <th className="px-4 py-4 whitespace-nowrap w-[50px]">#</th>
+                <th className="px-3 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
+                <th className="px-6 py-4 whitespace-nowrap">ผู้ดำเนินเรื่องยืม</th>
+                <th className="px-6 py-4 whitespace-nowrap">ผู้ยืม</th>
+                <th className="px-6 py-4 whitespace-nowrap">เบอร์ติดต่อ</th>
+                <th className="px-6 py-4 whitespace-nowrap w-[80px]">รายการ</th>
+                <th className="px-6 py-4 whitespace-nowrap">วันที่ทำรายการ</th>
+                <th className="px-6 py-4 whitespace-nowrap">กำหนดคืน</th>
+                <th className="px-6 py-4 whitespace-nowrap">วันที่คืนสำเร็จ</th>
+                <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="text-slate-700">
+            <tbody className="text-slate-600">
               {displayRecords.map((r, idx) => {
                 const uiStatus = mapUiStatus(r);
                 const overdue = getDaysOverdue(r);
@@ -381,24 +408,24 @@ export default function ReturnsClient() {
 
                 return (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                    <td className="px-4 py-2.5 text-slate-700">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-black">{r.doc_no}</td>
-                    <td className="px-4 py-2.5 text-slate-600 text-sm">
+                    <td className="px-4 py-3">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
+                    <td className="px-3 py-3 font-mono text-sm text-black">{r.doc_no}</td>
+                    <td className="px-6 py-3 text-sm">
                       {ext ? "ภายนอก" : "ภายใน"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-slate-700 truncate">{r.requester || "-"}</span>
+                        <span className="text-sm truncate">{r.requester || "-"}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-slate-700 truncate">
+                        <span className="text-sm truncate">
                           {getBorrowerDisplay(r)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-6 py-3">
                       {r.borrower_details?.phone ? (
                         <a
                           href={`tel:${r.borrower_details.phone}`}
@@ -410,25 +437,26 @@ export default function ReturnsClient() {
                         <span className="text-sm text-slate-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-600">{r.item_count ?? 0}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="text-sm text-slate-700">{fmtDateTime(r.request_date)}</div>
+                    <td className="px-6 py-3">{r.item_count ?? 0}</td>
+                    <td className="px-6 py-3">
+                      <div className="text-sm">{fmtDateTime(r.request_date)}</div>
                     </td>
-                    <td className="px-4 py-2.5">
-                      <div className="text-sm text-slate-700">{fmtDateOnly(r.due_date)}</div>
+                    <td className="px-6 py-3">
+                      <div className="text-sm">{fmtDateOnly(r.due_date)}</div>
                       {overdue > 0 && (
                         <div className="text-xs text-red-600 font-bold">ค้าง {overdue} วัน</div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5">
-                      <div className="text-sm text-slate-700">{fmtDateTime(r.return_date ?? null)}</div>
+                    <td className="px-6 py-3">
+                      <div className="text-sm">{fmtDateTime(r.return_date ?? null)}</div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-6 py-3">
                       <StatusBadge status={uiStatus} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-6 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
+                          type="button"
                           onClick={() => openDetail(r.id)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                           title="ดูรายละเอียดและรับคืน"
@@ -452,33 +480,36 @@ export default function ReturnsClient() {
               )}
             </tbody>
           </table>
-        </div>
-      </div>
+            </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-600">
-          แสดง {displayRecords.length} จาก {serverTotal} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => handlePageChange(currentPage - 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium px-3 py-1">
-            หน้า {currentPage} / {totalPages || 1}
-          </span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => handlePageChange(currentPage + 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors bg-white"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+          <p className="text-sm text-slate-500">
+            {tabbedRecords.length === 0
+              ? "แสดง 0 รายการ"
+              : `แสดง ${displayRecords.length} จาก ${tabbedRecords.length} รายการ`}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+              className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+              className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors bg-white"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

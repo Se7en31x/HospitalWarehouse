@@ -18,7 +18,11 @@ export default async function WithdrawPage() {
     const token = session?.access_token;
     items = await getInventoryItems({ allowed_req: true }, token);
   } catch (error) {
-    console.error("[WithdrawPage] SSR fetch failed — client will re-fetch on mount:", error instanceof Error ? error.message : error);
+    console.error("Failed to fetch withdraw items during server rendering:", {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      status: (error as { status?: number })?.status,
+    });
     items = [];
   }
 

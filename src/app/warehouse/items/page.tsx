@@ -28,9 +28,5 @@ export default async function WarehouseItemsPage() {
     items = [];
   }
 
-  return (
-    <div className="bg-gray-50 min-h-screen">
-      <StockClient initialItems={items} />
-    </div>
-  );
+  return <StockClient initialItems={items} />;
 }

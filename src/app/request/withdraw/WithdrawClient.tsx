@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { Search, Plus, ShoppingCart, PackagePlus, ChevronLeft, ChevronRight, ChevronDown, X, Package, RefreshCw, ScanBarcode } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Search, Plus, ShoppingCart, Package, ChevronLeft, ChevronRight, ChevronDown, X, Printer } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
-import { resolveBarcode } from "@/services/barcodeService";
 import { useAuth } from "@/hooks/useAuth";
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+import { printLabels, type LabelData } from "@/lib/printLabel";
 import CartModal from "./CartModal";
 import ItemDetailModal from "./ItemDetailModal";
 
@@ -33,118 +34,54 @@ const getEffectiveStock = (item: Item.UiItem): number =>
     ? (typeof item.availableStock === "number" ? item.availableStock : 0)
     : item.stock;
 
-const formatUpdatedAt = (iso: string | null | undefined): string => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("th-TH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-};
-
 // No stock override — item.stock stays as current_stock so ItemDetailModal
 // and tooltip can show the raw total. Display always calls getEffectiveStock().
 const mapRequestableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
 
+const PAGE_LIMIT = 10;
+
 export default function WithdrawClient({ initialItems }: Props) {
   // ดึงข้อมูลแผนกและสถานะการโหลดจาก useAuth ที่แกะจาก Token จริง
-  const { departments, user, isLoading: isAuthLoading } = useAuth();
+  const { departments, isLoading: isAuthLoading } = useAuth();
 
-  // ✅ State สำหรับรายการ Items
-  const [items, setItems] = useState<Item.UiItem[]>(mapRequestableStock(initialItems || []));
+  const [allItems, setAllItems] = useState<Item.UiItem[]>(mapRequestableStock(initialItems || []));
   
   // ✅ State สำหรับ Options (Dropdowns)
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
-  const [units, setUnits] = useState<Item.unitOptions>([]);
 
-  // ✅ State สำหรับ Cart และ Shopping
-  const [selectedItems, setSelectedItems] = useState<CartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
 
-  // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
-  const [selectedUnit, setSelectedUnit] = useState("หน่วยทั้งหมด");
+  const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
   const [selectedLocation, setSelectedLocation] = useState("ตำแหน่งทั้งหมด");
-  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
-  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   const [showCartModal, setShowCartModal] = useState(false);
   const [isCartBouncing, setIsCartBouncing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
-  const showCartModalRef = useRef(false);
-  const showItemDetailModalRef = useRef(false);
 
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<Item.UiItem | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
-  const [serverTotal, setServerTotal] = useState(0);
-  const [serverTotalPages, setServerTotalPages] = useState(0);
+  const [selectedLabelRows, setSelectedLabelRows] = useState<Map<string, LabelData>>(new Map());
 
-  // Scanner state
-  const [scanInput, setScanInput] = useState("");
-  const [scanMsg, setScanMsg] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-
-  // Refs to track current state for socket refresh
-  const pageRef = useRef(1);
-  const categoryRef = useRef("หมวดหมู่ทั้งหมด");
-  const unitRef = useRef("หน่วยทั้งหมด");
-  const locationRef = useRef("ตำแหน่งทั้งหมด");
-  const searchRef = useRef("");
-
-  // --- [Data Fetching Logic] ---
-  const fetchPage = useCallback(async (
-    page: number,
-    category: string,
-    unit: string,
-    location: string,
-    search: string
-  ) => {
+  const fetchAll = useCallback(async () => {
     setIsFetching(true);
     try {
-      // Build filter params based on selections
-      const filters: Record<string, unknown> = {
-        page,
-        limit: itemsPerPage,
-        allowed_req: true,
-      };
-      
-      if (category !== "หมวดหมู่ทั้งหมด") {
-        filters.category = category;
-      }
-      if (unit !== "หน่วยทั้งหมด") {
-        filters.unit = unit;
-      }
-      if (location !== "ตำแหน่งทั้งหมด") {
-        filters.location = location;
-      }
-      if (search) {
-        filters.keyword = search;
-      }
-
-      const result = await ItemSvc.getInventoryItemsPage(filters);
-      setItems(mapRequestableStock(result.items || []));
-      setServerTotal(result.meta.total);
-      setServerTotalPages(result.meta.totalPages);
-
-      console.log(`[WithdrawClient] Fetched page ${page}, total items: ${result.meta.total}`);
+      const result = await ItemSvc.getAllInventoryItems({ allowed_req: true });
+      setAllItems(mapRequestableStock(result || []));
     } catch (error) {
       const msg = getErrorMessage(error);
       console.error("Fetch error:", msg);
-      // 401 = session expired, don't spam user with popups
       const status = (error as Record<string, unknown>)?.status;
       if (status !== 401) {
         SweetAlertUtils.error("เกิดข้อผิดพลาด", msg || "โหลดข้อมูลล้มเหลว");
@@ -152,25 +89,11 @@ export default function WithdrawClient({ initialItems }: Props) {
     } finally {
       setIsFetching(false);
     }
-  }, [itemsPerPage]);
+  }, []);
 
   const refreshData = useCallback(async () => {
-    await fetchPage(
-      pageRef.current,
-      categoryRef.current,
-      unitRef.current,
-      locationRef.current,
-      searchRef.current
-    );
-  }, [fetchPage]);
-
-  // Keep refs in sync so the stable socket listener can read current state
-  useEffect(() => { showCartModalRef.current = showCartModal; }, [showCartModal]);
-  useEffect(() => { showItemDetailModalRef.current = showItemDetailModal; }, [showItemDetailModal]);
-  useEffect(() => { categoryRef.current = selectedCategory; }, [selectedCategory]);
-  useEffect(() => { unitRef.current = selectedUnit; }, [selectedUnit]);
-  useEffect(() => { locationRef.current = selectedLocation; }, [selectedLocation]);
-  useEffect(() => { searchRef.current = searchTerm; }, [searchTerm]);
+    fetchAll();
+  }, [fetchAll]);
 
   // --- [Real-time Socket.io Connection] ---
   useEffect(() => {
@@ -184,9 +107,7 @@ export default function WithdrawClient({ initialItems }: Props) {
     if (!socket.connected) socket.connect();
 
     const scheduleRefresh = () => {
-      if (!isVisibleRef.current) return;
-      if (isRefreshingRef.current) return;
-      if (showCartModalRef.current || showItemDetailModalRef.current) return;
+      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
 
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -204,10 +125,7 @@ export default function WithdrawClient({ initialItems }: Props) {
     };
 
     const handleRefreshSignal = (message: string) => {
-      console.log("[Socket] REFRESH_DATA received, type:", message);
-      if (message === "ITEMS") {
-        scheduleRefresh();
-      }
+      if (message === "ITEMS") scheduleRefresh();
     };
 
     socket.on("REFRESH_DATA", handleRefreshSignal);
@@ -220,7 +138,7 @@ export default function WithdrawClient({ initialItems }: Props) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData]);
+  }, [refreshData, isFetching]);
 
   // --- [Initialize Data & LocalStorage] ---
   useEffect(() => {
@@ -230,7 +148,7 @@ export default function WithdrawClient({ initialItems }: Props) {
     const savedCart = localStorage.getItem("withdraw_cart");
     if (savedCart) {
       try {
-        setSelectedItems(JSON.parse(savedCart));
+        setCartItems(JSON.parse(savedCart));
       } catch (e) {
         console.error(e);
       }
@@ -241,17 +159,13 @@ export default function WithdrawClient({ initialItems }: Props) {
       try {
         const categoryData = await ItemSvc.getcategoriesOptions();
         setCategories(categoryData || []);
-        const unitData = await ItemSvc.getUnitsOptions();
-        setUnits(unitData || []);
       } catch (err) {
         console.error("Load options failed", err);
       }
     };
     fetchOptions();
-
-    // โหลดข้อมูล Items (page 1)
-    fetchPage(1, "หมวดหมู่ทั้งหมด", "หน่วยทั้งหมด", "ตำแหน่งทั้งหมด", "");
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
@@ -271,45 +185,118 @@ export default function WithdrawClient({ initialItems }: Props) {
   // --- [Persist Cart & Department to LocalStorage] ---
   useEffect(() => {
     if (isMounted) {
-      localStorage.setItem("withdraw_cart", JSON.stringify(selectedItems));
+      localStorage.setItem("withdraw_cart", JSON.stringify(cartItems));
       if (selectedDeptId !== null) {
         localStorage.setItem("withdraw_dept", String(selectedDeptId));
       }
     }
-  }, [selectedItems, selectedDeptId, isMounted]);
+  }, [cartItems, selectedDeptId, isMounted]);
 
   // --- [Close dropdowns when clicking outside] ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest("[data-category-dropdown]")) {
-        setIsCategoryDropdownOpen(false);
-      }
-      if (!target.closest("[data-unit-dropdown]")) {
-        setIsUnitDropdownOpen(false);
-      }
-      if (!target.closest("[data-location-dropdown]")) {
-        setIsLocationDropdownOpen(false);
-      }
+      if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
+      if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
+      if (!target.closest("[data-filter-location]")) setIsLocationOpen(false);
     };
 
-    if (isCategoryDropdownOpen || isUnitDropdownOpen || isLocationDropdownOpen) {
+    if (isCategoryOpen || isStatusOpen || isLocationOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isCategoryDropdownOpen, isUnitDropdownOpen, isLocationDropdownOpen]);
+  }, [isCategoryOpen, isStatusOpen, isLocationOpen]);
 
-  // --- [Filter Logic] ---
-  const filterCategories = ["หมวดหมู่ทั้งหมด", ...(categories || []).map((c) => c.name)];
-  const filterUnits = ["หน่วยทั้งหมด", ...(units || []).map((u) => u.name)];
-  const filterLocations = useMemo(() => {
-    const locations = new Set(items.map((item) => item.location).filter(Boolean));
-    return ["ตำแหน่งทั้งหมด", ...Array.from(locations)];
-  }, [items]);
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
 
-  // Server-side pagination (no client-side filtering needed)
-  const totalPages = serverTotalPages;
-  const displayItems = items;
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const filterCategories = ["หมวดหมู่ทั้งหมด", ...categories.map((c) => c.name)];
+  const filterLocations = [
+    "ตำแหน่งทั้งหมด",
+    ...Array.from(new Set(allItems.map((item) => item.location).filter(Boolean))),
+  ];
+
+  const filteredItems = allItems.filter((item) => {
+    const keyword = searchTerm.toLowerCase();
+    const matchesSearch =
+      !keyword ||
+      item.name.toLowerCase().includes(keyword) ||
+      item.code.toLowerCase().includes(keyword);
+    const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
+    const matchesStatus = selectedStatus === "สถานะทั้งหมด" || item.status === selectedStatus;
+    const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
+    return matchesSearch && matchesCat && matchesStatus && matchesLocation;
+  });
+
+  const totalPages = Math.ceil(filteredItems.length / PAGE_LIMIT);
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * PAGE_LIMIT,
+    currentPage * PAGE_LIMIT
+  );
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(filteredItems.length / PAGE_LIMIT));
+    if (currentPage > tp) setCurrentPage(tp);
+  }, [filteredItems.length, currentPage]);
+
+  const toggleSelect = (item: Item.UiItem) =>
+    setSelectedLabelRows((prev) => {
+      const s = new Map(prev);
+      s.has(item.id) ? s.delete(item.id) : s.set(item.id, { name: item.name, code: item.code });
+      return s;
+    });
+
+  const toggleSelectAll = () => {
+    const allSelected = paginatedItems.length > 0 && paginatedItems.every((i) => selectedLabelRows.has(i.id));
+    setSelectedLabelRows((prev) => {
+      const s = new Map(prev);
+      allSelected
+        ? paginatedItems.forEach((i) => s.delete(i.id))
+        : paginatedItems.forEach((i) => s.set(i.id, { name: i.name, code: i.code }));
+      return s;
+    });
+  };
+
+  const handleBulkPrint = () => {
+    printLabels(Array.from(selectedLabelRows.values()));
+  };
+
+  const Badge = ({ status }: { status: string }) => {
+    const statusMap: Record<string, string> = {
+      ACTIVE: "เปิดใช้งาน",
+    };
+    const displayStatus = statusMap[status] || status;
+
+    const styles: Record<string, string> = {
+      ปกติ: "bg-green-100 text-green-500",
+      ต่ำ: "bg-amber-100 text-amber-500",
+      หมด: "bg-red-100 text-red-500",
+      ระงับ: "bg-red-100 text-red-500",
+      เปิดใช้งาน: "bg-green-100 text-green-500",
+    };
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[displayStatus] || "bg-slate-100 text-slate-700"}`}
+      >
+        {displayStatus}
+      </span>
+    );
+  };
+
+  const getTypeDisplay = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      MED_ASSET: "ครุภัณฑ์ภายในองค์กร",
+      REUSABLE: "ของใช้ซ้ำรายชิ้น",
+      CONSUMABLE: "วัสดุสิ้นเปลือง",
+    };
+    return typeMap[type] || type;
+  };
 
   const openItemDetail = useCallback((item: Item.UiItem) => {
     // Override stock → effective stock so ItemDetailModal caps at the right max
@@ -323,7 +310,7 @@ export default function WithdrawClient({ initialItems }: Props) {
     setIsCartBouncing(true);
     setTimeout(() => setIsCartBouncing(false), 300);
 
-    setSelectedItems((prev) => {
+    setCartItems((prev) => {
       const exist = prev.find((i) => i.id === selectedItemForDetail.id);
       if (exist) {
         const newQty = exist.quantity + quantity;
@@ -338,16 +325,16 @@ export default function WithdrawClient({ initialItems }: Props) {
   }, [selectedItemForDetail]);
 
   const removeItem = useCallback((id: string) => {
-    setSelectedItems((prev) => prev.filter((i) => i.id !== id));
+    setCartItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
   const updateQty = useCallback(
     (id: string, delta: number) => {
-      setSelectedItems((prev) =>
+      setCartItems((prev) =>
         prev.map((i) => {
           if (i.id === id) {
             const n = i.quantity + delta;
-            const origItem = items.find((orig) => orig.id === id);
+            const origItem = allItems.find((orig) => orig.id === id);
             const maxStock = origItem ? getEffectiveStock(origItem) : 0;
             if (n > 0 && n <= maxStock) return { ...i, quantity: n };
           }
@@ -355,11 +342,11 @@ export default function WithdrawClient({ initialItems }: Props) {
         })
       );
     },
-    [items]
+    [allItems]
   );
 
   const handleCartSuccess = () => {
-    setSelectedItems([]);
+    setCartItems([]);
     localStorage.removeItem("withdraw_cart");
     setShowCartModal(false);
   };
@@ -367,62 +354,67 @@ export default function WithdrawClient({ initialItems }: Props) {
   if (!isMounted) return null;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <style
         dangerouslySetInnerHTML={{
           __html: `@keyframes cart-bounce { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } } .animate-bounce-custom { animation: cart-bounce 0.3s ease-in-out; }`,
         }}
       />
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {selectedLabelRows.size > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkPrint}
+              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              พิมพ์บาร์โค้ด ({selectedLabelRows.size})
+            </button>
+          )}
           <button
+            type="button"
             onClick={() => setShowCartModal(true)}
             className={`px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
               isCartBouncing ? "animate-bounce-custom" : ""
             }`}
           >
             <ShoppingCart className="w-4 h-4" />
-            ตะกร้า ({selectedItems.length})
+            ตะกร้า ({cartItems.length})
           </button>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหา..."
+            placeholder="ค้นหาชื่อ / รหัส..."
             value={searchTerm}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSearchTerm(value);
-              searchRef.current = value;
-              setCurrentPage(1);
-              pageRef.current = 1;
-              fetchPage(1, categoryRef.current, unitRef.current, locationRef.current, value);
-            }}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
-        {/* Category Dropdown */}
-        <div className="relative" data-category-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-category>
           <button
-            onClick={() => { setIsCategoryDropdownOpen(!isCategoryDropdownOpen); setIsUnitDropdownOpen(false); setIsLocationDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsCategoryOpen(!isCategoryOpen);
+              setIsStatusOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedCategory}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryDropdownOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {isCategoryDropdownOpen && (
+          {isCategoryOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterCategories.map((c) => (
@@ -431,11 +423,8 @@ export default function WithdrawClient({ initialItems }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedCategory(c);
-                        categoryRef.current = c;
-                        setIsCategoryDropdownOpen(false);
+                        setIsCategoryOpen(false);
                         setCurrentPage(1);
-                        pageRef.current = 1;
-                        fetchPage(1, c, unitRef.current, locationRef.current, searchRef.current);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedCategory === c
@@ -452,38 +441,45 @@ export default function WithdrawClient({ initialItems }: Props) {
           )}
         </div>
 
-        {/* Unit Dropdown */}
-        <div className="relative" data-unit-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
-            onClick={() => { setIsUnitDropdownOpen(!isUnitDropdownOpen); setIsCategoryDropdownOpen(false); setIsLocationDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsStatusOpen(!isStatusOpen);
+              setIsCategoryOpen(false);
+              setIsLocationOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{selectedUnit}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isUnitDropdownOpen ? "rotate-180" : ""}`} />
+            <span className="text-slate-800 font-medium">{selectedStatus === "สถานะทั้งหมด" ? "สถานะทั้งหมด" : selectedStatus}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {isUnitDropdownOpen && (
+          {isStatusOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
-                {filterUnits.map((u) => (
-                  <li key={u}>
+                {[
+                  { value: "สถานะทั้งหมด", label: "สถานะทั้งหมด" },
+                  { value: "ปกติ", label: "ปกติ" },
+                  { value: "ต่ำ", label: "ต่ำ" },
+                  { value: "หมด", label: "หมด" },
+                  { value: "ระงับ", label: "ระงับ" },
+                ].map((s) => (
+                  <li key={s.value}>
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedUnit(u);
-                        unitRef.current = u;
-                        setIsUnitDropdownOpen(false);
+                        setSelectedStatus(s.value);
+                        setIsStatusOpen(false);
                         setCurrentPage(1);
-                        pageRef.current = 1;
-                        fetchPage(1, categoryRef.current, u, locationRef.current, searchRef.current);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                        selectedUnit === u
+                        selectedStatus === s.value
                           ? "bg-blue-50 text-blue-700 font-medium"
                           : "text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      {u}
+                      {s.label}
                     </button>
                   </li>
                 ))}
@@ -492,17 +488,21 @@ export default function WithdrawClient({ initialItems }: Props) {
           )}
         </div>
 
-        {/* Location Dropdown */}
-        <div className="relative" data-location-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-location>
           <button
-            onClick={() => { setIsLocationDropdownOpen(!isLocationDropdownOpen); setIsCategoryDropdownOpen(false); setIsUnitDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsLocationOpen(!isLocationOpen);
+              setIsCategoryOpen(false);
+              setIsStatusOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedLocation}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationDropdownOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {isLocationDropdownOpen && (
+          {isLocationOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
                 {filterLocations.map((loc) => (
@@ -511,11 +511,8 @@ export default function WithdrawClient({ initialItems }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedLocation(loc);
-                        locationRef.current = loc;
-                        setIsLocationDropdownOpen(false);
+                        setIsLocationOpen(false);
                         setCurrentPage(1);
-                        pageRef.current = 1;
-                        fetchPage(1, categoryRef.current, unitRef.current, loc, searchRef.current);
                       }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedLocation === loc
@@ -533,21 +530,15 @@ export default function WithdrawClient({ initialItems }: Props) {
         </div>
 
         {/* Clear filters */}
-        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedUnit !== "หน่วยทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "สถานะทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
           <button
             type="button"
             onClick={() => {
               setSearchTerm("");
               setSelectedCategory("หมวดหมู่ทั้งหมด");
-              setSelectedUnit("หน่วยทั้งหมด");
+              setSelectedStatus("สถานะทั้งหมด");
               setSelectedLocation("ตำแหน่งทั้งหมด");
               setCurrentPage(1);
-              pageRef.current = 1;
-              categoryRef.current = "หมวดหมู่ทั้งหมด";
-              unitRef.current = "หน่วยทั้งหมด";
-              locationRef.current = "ตำแหน่งทั้งหมด";
-              searchRef.current = "";
-              fetchPage(1, "หมวดหมู่ทั้งหมด", "หน่วยทั้งหมด", "ตำแหน่งทั้งหมด", "");
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
           >
@@ -557,25 +548,30 @@ export default function WithdrawClient({ initialItems }: Props) {
         )}
       </div>
 
-      {/* Table Content */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
-        )}
-        <div 
-          className="flex-1" 
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
-        >
-          <style>{`
+        ) : (
+          <>
+            <div
+              className="flex-1"
+              style={
+                {
+                  overflowX: "auto",
+                  overflowY: "auto",
+                  scrollbarWidth: "auto",
+                  msOverflowStyle: "auto",
+                } as React.CSSProperties
+              }
+            >
+              <style>{`
             div::-webkit-scrollbar {
               width: 0;
               height: 8px;
@@ -591,138 +587,196 @@ export default function WithdrawClient({ initialItems }: Props) {
               background: #94a3b8;
             }
           `}</style>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-4 w-[20px]">#</th>
-                <th className="px-4 py-4 w-[50px]">รูป</th>
-                <th className="px-5 py-4 w-[100px]">รหัส</th>
-                <th className="px-5 py-4 w-[180px]">ชื่อรายการ</th>
-                <th className="px-5 py-4 w-[140px]">หมวดหมู่</th>
-                <th className="px-5 py-4 w-[140px]">ตำแหน่ง</th>
-                <th className="px-5 py-4 w-[80px]">คงเหลือ</th>
-                <th className="px-5 py-4 w-[80px]">หน่วย</th>
-                <th className="px-5 py-4 w-[128px]">อัปเดตเมื่อ</th>
-                <th className="px-5 py-4 text-right w-[80px]">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-600">
-              {displayItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-2 w-[20px] text-center">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-2 w-[50px]">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
-                      {item.imageUrl ? (
-                        <button
-                          onClick={() => setLightboxImage({ url: item.imageUrl!, name: item.name })}
-                          className="w-full h-full focus:outline-none"
-                        >
-                          <img src={item.imageUrl} className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in" alt={item.name} />
-                        </button>
-                      ) : (
-                        <PackagePlus className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-2 w-[100px]">{item.code}</td>
-                  <td className="px-5 py-2 w-[180px]">{item.name}</td>
-                  <td className="px-5 py-2 w-[100px]">{item.category}</td>
-                  <td className="px-5 py-2 w-[100px]">{item.location}</td>
-                  <td className="px-5 py-2 w-[100px]">
-                    {item.type === "REUSABLE" ? (
-                      <div className="relative group inline-block cursor-help">
-                        <span className={`font-normal ${
-                          getEffectiveStock(item) <= 0 ? "text-red-500" :
-                          getEffectiveStock(item) <= item.minStock ? "text-orange-500" :
-                          "text-emerald-600"
-                        }`}>
-                          {getEffectiveStock(item)}
-                        </span>
-                        <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                          ทั้งหมดในคลัง: {item.stock} {item.unit}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col">
-                        <span className={`font-normal ${
-                          item.stock <= 0 ? "text-red-500" :
-                          item.stock <= item.minStock ? "text-orange-500" :
-                          "text-emerald-600"
-                        }`}>
-                          {item.stock}
-                        </span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-5 py-2 w-[80px]">{item.unit}</td>
-                  <td
-                    className="px-5 py-2 w-[128px] text-slate-600 tabular-nums"
-                    title={item.updatedAt ? new Date(item.updatedAt).toISOString() : undefined}
-                  >
-                    {formatUpdatedAt(item.updatedAt)}
-                  </td>
-                  <td className="px-5 py-2 w-[80px] text-right">
-                    <button
-                      onClick={() => openItemDetail(item)}
-                      disabled={getEffectiveStock(item) <= 0}
-                      className="p-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="เพิ่มเข้าตะกร้า"
+              <table className="w-full table-fixed text-sm text-left">
+                <colgroup>
+                  <col className="w-[44px]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[9%]" />
+                </colgroup>
+                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedLabelRows.has(i.id))}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        title="เลือกทั้งหมดในหน้านี้"
+                      />
+                    </th>
+                    <th className="px-6 py-4">รูป</th>
+                    <th className="px-3 py-4 whitespace-nowrap">รหัสรายการ</th>
+                    <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
+                    <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
+                    <th className="px-6 py-4 w-[120px] whitespace-nowrap">คงเหลือ</th>
+                    <th className="px-6 py-4 w-[120px] whitespace-nowrap">ขั้นต่ำ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
+                    <th className="px-6 py-4 whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
+                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-600">
+                  {paginatedItems.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                     >
-                      <Plus size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {displayItems.length === 0 && !isFetching && (
-                <tr>
-                  <td colSpan={10}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <Search className="w-12 h-12 text-slate-300" />
-                      <p className="text-sm font-medium">ไม่พบข้อมูลพัสดุ</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      <td className="px-6 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedLabelRows.has(item.id)}
+                          onChange={() => toggleSelect(item)}
+                          className="w-6 h-4 accent-blue-600 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-6 py-3">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
+                          {item.imageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setLightboxImage({ url: item.imageUrl!, name: item.name })}
+                              className="w-full h-full focus:outline-none"
+                            >
+                              <img src={item.imageUrl} className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in" alt={item.name} />
+                            </button>
+                          ) : (
+                            <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">{item.code}</td>
+                      <td className="px-3 py-3">
+                        <span className="block truncate" title={item.name}>
+                          {item.name}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-slate-600 truncate">{item.category}</td>
+                      <td className="px-6 py-3 text-sm truncate">{getTypeDisplay(item.type)}</td>
+                      <td className="px-6 py-3 w-[120px]">
+                        {item.type === "REUSABLE" ? (
+                          <div className="relative group inline-block cursor-help">
+                            <span
+                              className={`font-bold text-base ${
+                                getEffectiveStock(item) <= 0
+                                  ? "text-red-500"
+                                  : getEffectiveStock(item) <= item.minStock
+                                    ? "text-orange-500"
+                                    : "text-emerald-600"
+                              }`}
+                            >
+                              {getEffectiveStock(item)}
+                            </span>
+                            <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                              ทั้งหมดในคลัง: {item.stock} {item.unit}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col">
+                            <span
+                              className={`font-bold ${
+                                item.stock <= 0 ? "text-red-500" : item.stock <= item.minStock ? "text-orange-500" : "text-emerald-600"
+                              }`}
+                            >
+                              {item.stock}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-3 w-[120px]">
+                        {item.minStock > 0 ? (
+                          <span className="text-black font-semibold">{item.minStock}</span>
+                        ) : (
+                          <span className="text-black">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-3">{item.unit}</td>
+                      <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>
+                      <td className="px-6 py-3">
+                        <Badge status={item.status} />
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <div className="flex justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openItemDetail(item)}
+                            disabled={getEffectiveStock(item) <= 0}
+                            className="p-1.5 bg-blue-700 text-white rounded-md border border-blue-700/90 shadow-sm hover:bg-blue-800 hover:border-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="เพิ่มเข้าตะกร้า"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedItems.length === 0 && (
+                    <tr>
+                      <td colSpan={12}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="w-12 h-12 text-slate-300"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={1.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"
+                            />
+                          </svg>
+                          <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-600">
-          แสดง {displayItems.length} จาก {serverTotal} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => {
-              const newPage = currentPage - 1;
-              setCurrentPage(newPage);
-              pageRef.current = newPage;
-              fetchPage(newPage, categoryRef.current, unitRef.current, locationRef.current, searchRef.current);
-            }}
-            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium px-3 py-1">
-            หน้า {currentPage} / {totalPages || 1}
-          </span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => {
-              const newPage = currentPage + 1;
-              setCurrentPage(newPage);
-              pageRef.current = newPage;
-              fetchPage(newPage, categoryRef.current, unitRef.current, locationRef.current, searchRef.current);
-            }}
-            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <p className="text-sm text-slate-500">
+                แสดง {paginatedItems.length} จาก {filteredItems.length} รายการ
+                {filteredItems.length !== allItems.length && (
+                  <span className="text-slate-400"> (ทั้งหมด {allItems.length} รายการ)</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors bg-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Item Detail Modal */}
@@ -737,7 +791,7 @@ export default function WithdrawClient({ initialItems }: Props) {
       <CartModal
         isOpen={showCartModal}
         onClose={() => setShowCartModal(false)}
-        selectedItems={selectedItems}
+        selectedItems={cartItems}
         selectedDeptId={selectedDeptId}
         departments={departments}
         onDeptChange={setSelectedDeptId}
@@ -753,10 +807,11 @@ export default function WithdrawClient({ initialItems }: Props) {
           onClick={() => setLightboxImage(null)}
         >
           <div
-            className="relative bg-white rounded-lg shadow-2xl p-2 max-w-[90vw] max-h-[90vh]"
+            className="relative bg-white rounded-lg shadow-2xl p-2"
             onClick={(e) => e.stopPropagation()}
           >
             <button
+              type="button"
               onClick={() => setLightboxImage(null)}
               className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-lg shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
             >
@@ -765,9 +820,9 @@ export default function WithdrawClient({ initialItems }: Props) {
             <img
               src={lightboxImage.url}
               alt={lightboxImage.name}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              className="w-[350px] h-[280px] object-contain rounded-lg"
             />
-            <p className="text-center text-sm font-bold text-slate-800 mt-2 pb-1">{lightboxImage.name}</p>
+            <p className="text-center text-sm text-slate-600 mt-2 pb-1">{lightboxImage.name}</p>
           </div>
         </div>
       )}

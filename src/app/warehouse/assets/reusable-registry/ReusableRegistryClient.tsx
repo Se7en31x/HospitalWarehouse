@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Edit, Printer, Search, Trash2, X } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
@@ -123,8 +124,6 @@ export default function ReusableRegistryClient({
 
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [serverTotal, setServerTotal] = useState(0);
-  const [serverTotalPages, setServerTotalPages] = useState(0);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -132,11 +131,6 @@ export default function ReusableRegistryClient({
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  // Refs for state tracking
-  const pageRef = useRef(1);
-  const keywordRef = useRef("");
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Dropdown states
   const [isDepartmentOpen, setIsDepartmentOpen] = useState(false);
@@ -211,22 +205,18 @@ export default function ReusableRegistryClient({
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
-  // Fetch units with pagination
-  const fetchPage = useCallback(async (page: number, keyword: string) => {
+  // โหลดข้อมูลทั้งหมดมาครั้งเดียว แล้วทำ filter + pagination ใน client
+  const fetchAll = useCallback(async () => {
     if (!itemId) return;
     setIsFetching(true);
     setFetchError(null);
     try {
       const response = await reusableSvc.getReusableUnits({ 
         item_id: itemId,
-        keyword,
-        page,
-        limit: itemsPerPage
+        limit: 9999,
       });
       const units = response.items || [];
       setRecords(units);
-      setServerTotal(response.total || 0);
-      setServerTotalPages(response.totalPages || 0);
       if (units.length > 0) {
         setMasterItem({
           name: units[0].item_name || initialItemName,
@@ -239,22 +229,18 @@ export default function ReusableRegistryClient({
     } finally {
       setIsFetching(false);
     }
-  }, [itemId, initialItemName, initialItemCode, itemsPerPage]);
+  }, [itemId, initialItemName, initialItemCode]);
 
-  // Refresh data using stored refs
   const refreshData = useCallback(() => {
-    fetchPage(pageRef.current, keywordRef.current);
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
-  // hasMounted prevents React Strict Mode's double-invoke from firing two requests
   const hasMounted = useRef(false);
   useEffect(() => {
     if (!itemId) return;
     if (hasMounted.current) return;
     hasMounted.current = true;
-    // Always fetch to get correct totalPages, even if initialUnits is populated.
-    // This ensures serverTotal and serverTotalPages are set for pagination.
-    fetchPage(1, "");
+    fetchAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
@@ -375,19 +361,11 @@ export default function ReusableRegistryClient({
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    keywordRef.current = value;
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      setCurrentPage(1);
-      pageRef.current = 1;
-      fetchPage(1, value);
-    }, 300);
+    setCurrentPage(1);
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    pageRef.current = newPage;
-    fetchPage(newPage, keywordRef.current);
   };
 
   // Filter options
@@ -400,32 +378,37 @@ export default function ReusableRegistryClient({
     { value: "DISPOSED", label: "ไม่พร้อมใช้งาน" },
   ];
 
-  // Filter data (server handles keyword filtering, client handles additional filters)
+  // Client-side filter + pagination
   const filteredRecords = records.filter((record) => {
+    const keyword = searchTerm.toLowerCase();
+    const matchesSearch = !keyword ||
+      record.unit_code.toLowerCase().includes(keyword) ||
+      (record.serial_no || "").toLowerCase().includes(keyword);
     const matchesDept = selectedDepartment === "แผนกประจำการทั้งหมด" || 
       (selectedDepartment && String(record.department_id) === selectedDepartment);
     const matchesStatus = selectedStatus === "สถานะทั้งหมด" || record.status === selectedStatus;
 
-    return matchesDept && matchesStatus;
+    return matchesSearch && matchesDept && matchesStatus;
   });
 
-  // Calculate pagination based on filtered records for this page
-  const totalPages = Math.ceil(serverTotal / itemsPerPage);
-  const paginatedRecords = filteredRecords;
+  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
+  const paginatedRecords = filteredRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleBulkPrint = () => {
+    printLabels(Array.from(selectedUnits.values()));
+  };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8">
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">
-            {masterItem?.name || "กำลังโหลด..."}
-          </h2>
-        </div>
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
+          {masterItem?.name || "กำลังโหลด..."}
+        </h2>
+        <div className="flex items-center gap-3 flex-wrap">
           {selectedUnits.size > 0 && (
             <button
-              onClick={() => printLabels(Array.from(selectedUnits.values()))}
+              onClick={handleBulkPrint}
               className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
@@ -443,7 +426,7 @@ export default function ReusableRegistryClient({
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
@@ -455,11 +438,11 @@ export default function ReusableRegistryClient({
         </div>
 
         {/* Department Dropdown */}
-        <div className="relative" data-filter-department>
+        <div className="relative w-full sm:w-auto" data-filter-department>
           <button
             type="button"
             onClick={() => { setIsDepartmentOpen(!isDepartmentOpen); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedDepartment}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDepartmentOpen ? "rotate-180" : ""}`} />
@@ -474,7 +457,7 @@ export default function ReusableRegistryClient({
                     <li key={deptValue}>
                       <button
                         type="button"
-                        onClick={() => { setSelectedDepartment(deptValue); setIsDepartmentOpen(false); setCurrentPage(1); pageRef.current = 1; fetchPage(1, keywordRef.current); }}
+                        onClick={() => { setSelectedDepartment(deptValue); setIsDepartmentOpen(false); setCurrentPage(1); }}
                         className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedDepartment === deptValue ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                       >
                         {deptLabel}
@@ -488,11 +471,11 @@ export default function ReusableRegistryClient({
         </div>
 
         {/* Status Dropdown */}
-        <div className="relative" data-filter-status>
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
             type="button"
             onClick={() => { setIsStatusOpen(!isStatusOpen); setIsDepartmentOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedStatus}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
@@ -504,7 +487,7 @@ export default function ReusableRegistryClient({
                   <li key={s.value}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); pageRef.current = 1; fetchPage(1, keywordRef.current); }}
+                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
                       {s.label}
@@ -521,11 +504,10 @@ export default function ReusableRegistryClient({
           <button
             type="button"
             onClick={() => {
-              setSearchTerm(""); keywordRef.current = "";
+              setSearchTerm("");
               setSelectedDepartment("แผนกประจำการทั้งหมด");
               setSelectedStatus("สถานะทั้งหมด");
-              setCurrentPage(1); pageRef.current = 1;
-              fetchPage(1, "");
+              setCurrentPage(1);
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
           >
@@ -536,127 +518,130 @@ export default function ReusableRegistryClient({
       </div>
 
       {/* Table Content */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "65vh" }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
+        ) : (
+          <>
+            <div
+              className="flex-1"
+              style={{ overflowX: "auto", overflowY: "auto", scrollbarWidth: "auto", msOverflowStyle: "auto" } as React.CSSProperties}
+            >
+              <style>{`
+                div::-webkit-scrollbar { width: 0; height: 8px; }
+                div::-webkit-scrollbar-track { background: #f1f5f9; }
+                div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+              `}</style>
+              <table className="w-full text-sm text-left table-fixed">
+                <colgroup>
+                  <col className="w-[44px]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
+                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedUnits.has(r.id))}
+                        onChange={toggleSelectAllUnits}
+                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        title="เลือกทั้งหมดในหน้านี้"
+                      />
+                    </th>
+                    <th className="px-6 py-4 whitespace-nowrap">Unit Code</th>
+                    <th className="px-6 py-4 whitespace-nowrap">Serial</th>
+                    <th className="px-6 py-4 whitespace-nowrap">แผนก</th>
+                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">สภาพ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">เอกสารรับเข้า</th>
+                    <th className="px-6 py-4 whitespace-nowrap">หมายเหตุ</th>
+                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-600">
+                  {paginatedRecords.map((rec) => (
+                    <tr key={rec.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                      <td className="px-4 py-2.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedUnits.has(rec.id)}
+                          onChange={() => toggleSelectUnit(rec)}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-6 py-2.5 font-mono">{rec.unit_code}</td>
+                      <td className="px-6 py-2.5 truncate">{rec.serial_no || "-"}</td>
+                      <td className="px-6 py-2.5 truncate">{rec.department_name || "ส่วนกลาง"}</td>
+                      <td className="px-6 py-2.5"><StatusBadge unit={rec} /></td>
+                      <td className="px-6 py-2.5"><ConditionBadge condition={rec.condition} /></td>
+                      <td className="px-6 py-2.5 text-xs truncate">{rec.receive_doc_no || "-"}</td>
+                      <td className="px-6 py-2.5 truncate">{rec.note || "-"}</td>
+                      <td className="px-6 py-2.5 text-center">
+                        <div className="flex justify-center gap-1">
+                          <button onClick={() => openEditModal(rec)} className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button onClick={() => handleDelete(rec.id, rec.unit_code, rec.status)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedRecords.length === 0 && !isFetching && (
+                    <tr>
+                      <td colSpan={9}>
+                        {fetchError ? (
+                          <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
+                            <AlertTriangle className="w-10 h-10 text-rose-300" />
+                            <p className="text-sm font-medium">{fetchError}</p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                            </svg>
+                            <p className="text-sm font-medium">ไม่พบข้อมูลทะเบียนรายชิ้น</p>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <p className="text-sm text-slate-500">
+                แสดง {paginatedRecords.length} จาก {filteredRecords.length} รายการ
+                {filteredRecords.length !== records.length && (
+                  <span className="text-slate-400"> (ทั้งหมด {records.length} รายการ)</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <button disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+                <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+                <button disabled={currentPage >= totalPages} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors bg-white"><ChevronRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+          </>
         )}
-
-        <div 
-          className="flex-1" 
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
-        >
-          <style>{`
-            div::-webkit-scrollbar {
-              width: 0;
-              height: 8px;
-            }
-            div::-webkit-scrollbar-track {
-              background: #f1f5f9;
-            }
-            div::-webkit-scrollbar-thumb {
-              background: #cbd5e1;
-              border-radius: 4px;
-            }
-            div::-webkit-scrollbar-thumb:hover {
-              background: #94a3b8;
-            }
-          `}</style>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-4 w-[44px] text-center">
-                  <input
-                    type="checkbox"
-                    checked={paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedUnits.has(r.id))}
-                    onChange={toggleSelectAllUnits}
-                    className="w-4 h-4 accent-blue-600 cursor-pointer"
-                    title="เลือกทั้งหมดในหน้านี้"
-                  />
-                </th>
-                <th className="px-6 py-4 w-[140px]">Unit Code</th>
-                <th className="px-6 py-4 w-[140px]">Serial</th>
-                <th className="px-6 py-4 w-[140px]">แผนก</th>
-                <th className="px-6 py-4 w-[140px]">สถานะ</th>
-                <th className="px-6 py-4 w-[100px]">สภาพ</th>
-                <th className="px-6 py-4 w-[150px]">เอกสารรับเข้า</th>
-                <th className="px-6 py-4 w-[120px]">หมายเหตุ</th>
-                <th className="px-6 py-4 w-[80px] text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-600">
-              {paginatedRecords.map((rec, idx) => (
-                <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-2.5 w-[44px] text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedUnits.has(rec.id)}
-                      onChange={() => toggleSelectUnit(rec)}
-                      className="w-4 h-4 accent-blue-600 cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-6 py-2.5 w-[140px] font-mono">{rec.unit_code}</td>
-                  <td className="px-6 py-2.5 w-[140px] truncate">{rec.serial_no || "-"}</td>
-                  <td className="px-6 py-2.5 w-[140px] truncate">{rec.department_name || "ส่วนกลาง"}</td>
-                  <td className="px-6 py-2.5 w-[140px]"><StatusBadge unit={rec} /></td>
-                  <td className="px-6 py-2.5 w-[100px]"><ConditionBadge condition={rec.condition} /></td>
-                  <td className="px-6 py-2.5 w-[150px] text-xs truncate">{rec.receive_doc_no || "-"}</td>
-                  <td className="px-6 py-2.5 w-[120px] truncate">{rec.note || "-"}</td>
-                  <td className="px-6 py-2.5 w-[80px] text-center">
-                    <div className="flex justify-center gap-1">
-                      <button
-                        onClick={() => openEditModal(rec)}
-                        className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(rec.id, rec.unit_code, rec.status)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {paginatedRecords.length === 0 && !isFetching && (
-                <tr>
-                  <td colSpan={9}>
-                    {fetchError ? (
-                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-rose-400">
-                        <AlertTriangle className="w-10 h-10 text-rose-300" />
-                        <p className="text-sm font-medium">{fetchError}</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                        <p className="text-sm font-medium">ไม่พบข้อมูลทะเบียนรายชิ้น</p>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedRecords.length} จาก {serverTotal} รายการ</p>
-        <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-          <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-          <button disabled={currentPage >= totalPages} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"><ChevronRight className="w-4 h-4" /></button>
-        </div>
       </div>
 
       {/* Edit Modal */}

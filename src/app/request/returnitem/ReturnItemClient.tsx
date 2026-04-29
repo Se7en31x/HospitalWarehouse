@@ -4,9 +4,10 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
-  Clock, Building2, User, Eye,
-  Phone, Package, X,
+  Clock, Eye,
+  Phone, X,
 } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import toast, { Toaster } from "react-hot-toast";
 import { getBorrowActive } from "@/services/requisitionService";
 import type { RequisitionHeader, BorrowerDetails } from "@/types/requisition_type";
@@ -16,8 +17,11 @@ import { socket } from "@/lib/socket";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String((error as Record<string, unknown>).message);
   return String(error);
 };
+
+const PAGE_LIMIT = 10;
 
 const fmtDate = (d?: string | null) => {
   if (!d) return "-";
@@ -65,7 +69,6 @@ export default function ReturnItemClient() {
   // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
   const [selectedDepartment, setSelectedDepartment] = useState("แผนกทั้งหมด");
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
   const [startDate, setStartDate] = useState("");
@@ -122,8 +125,7 @@ export default function ReturnItemClient() {
     if (!socket.connected) socket.connect();
 
     const scheduleRefresh = () => {
-      if (!isVisibleRef.current) return;
-      if (isRefreshingRef.current) return;
+      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
 
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -155,16 +157,16 @@ export default function ReturnItemClient() {
       }
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [fetchData]);
+  }, [fetchData, isFetching]);
 
   // --- [Close dropdowns when clicking outside] ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest("[data-department-dropdown]")) {
+      if (!target.closest("[data-filter-department]")) {
         setIsDepartmentDropdownOpen(false);
       }
-      if (!target.closest("[data-status-dropdown]")) {
+      if (!target.closest("[data-filter-status]")) {
         setIsStatusDropdownOpen(false);
       }
     };
@@ -241,43 +243,49 @@ export default function ReturnItemClient() {
   }, [records, searchTerm, selectedDepartment, selectedStatus, startDate, endDate]);
 
   // --- [Pagination Logic] ---
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const displayed = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filtered.slice(start, start + itemsPerPage);
-  }, [filtered, currentPage]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_LIMIT));
+  const paginatedItems = filtered.slice((currentPage - 1) * PAGE_LIMIT, currentPage * PAGE_LIMIT);
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(filtered.length / PAGE_LIMIT));
+    if (currentPage > tp) setCurrentPage(tp);
+  }, [filtered.length, currentPage]);
 
   // --- [Render JSX] ---
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <Toaster position="top-right" />
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        {/* Search */}
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหาเลขที่เอกสาร / ชื่อผู้ยืม..."
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
-        {/* Department Dropdown */}
-        <div className="relative" data-department-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-department>
           <button
-            onClick={() => { setIsDepartmentDropdownOpen(!isDepartmentDropdownOpen); setIsStatusDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[160px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsDepartmentDropdownOpen(!isDepartmentDropdownOpen);
+              setIsStatusDropdownOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium truncate">{selectedDepartment}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isDepartmentDropdownOpen ? "rotate-180" : ""}`} />
@@ -295,7 +303,7 @@ export default function ReturnItemClient() {
                         setIsDepartmentDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedDepartment === d
                           ? "bg-blue-50 text-blue-700 font-medium"
                           : "text-slate-700 hover:bg-slate-50"
@@ -310,11 +318,14 @@ export default function ReturnItemClient() {
           )}
         </div>
 
-        {/* Status Dropdown */}
-        <div className="relative" data-status-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
-            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDepartmentDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[160px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsStatusDropdownOpen(!isStatusDropdownOpen);
+              setIsDepartmentDropdownOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium truncate">{selectedStatus}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
@@ -332,7 +343,7 @@ export default function ReturnItemClient() {
                         setIsStatusDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                         selectedStatus === s
                           ? "bg-blue-50 text-blue-700 font-medium"
                           : "text-slate-700 hover:bg-slate-50"
@@ -347,37 +358,54 @@ export default function ReturnItemClient() {
           )}
         </div>
 
-        {/* Date range */}
-        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
-          startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
-        }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            startDate || startDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันที่เริ่มต้น</label>
+        <div
+          className={`relative w-full sm:w-[200px] border rounded-lg px-3 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
+            startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+          }`}
+        >
+          <label
+            className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+              startDate || startDateFocused
+                ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+                : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+            }`}
+          >
+            วันที่เริ่มต้น
+          </label>
           <input
             type="date"
             value={startDate}
-            onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setCurrentPage(1);
+            }}
             onFocus={() => setStartDateFocused(true)}
             onBlur={() => setStartDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
             style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
           />
         </div>
-        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
-          endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
-        }`}>
-          <label className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-            endDate || endDateFocused
-              ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-              : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-          }`}>วันที่สิ้นสุด</label>
+        <div
+          className={`relative w-full sm:w-[200px] border rounded-lg px-3 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
+            endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+          }`}
+        >
+          <label
+            className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
+              endDate || endDateFocused
+                ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
+                : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
+            }`}
+          >
+            วันที่สิ้นสุด
+          </label>
           <input
             type="date"
             value={endDate}
-            onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setCurrentPage(1);
+            }}
             onFocus={() => setEndDateFocused(true)}
             onBlur={() => setEndDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
@@ -385,7 +413,6 @@ export default function ReturnItemClient() {
           />
         </div>
 
-        {/* Clear filters */}
         {(searchTerm || selectedDepartment !== "แผนกทั้งหมด" || selectedStatus !== "สถานะทั้งหมด" || startDate || endDate) && (
           <button
             type="button"
@@ -405,134 +432,159 @@ export default function ReturnItemClient() {
         )}
       </div>
 
-      {/* Table Content */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full" />
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
-        )}
-        <div
-          className="flex-1"
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
-        >
-          <style>{`
+        ) : (
+          <>
+            <div
+              className="flex-1"
+              style={
+                {
+                  overflowX: "auto",
+                  overflowY: "auto",
+                  scrollbarWidth: "auto",
+                  msOverflowStyle: "auto",
+                } as React.CSSProperties
+              }
+            >
+              <style>{`
             div::-webkit-scrollbar { width: 0; height: 8px; }
             div::-webkit-scrollbar-track { background: #f1f5f9; }
             div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
             div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
           `}</style>
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
-              <tr>
-                <th className="px-5 py-4 w-12">#</th>
-                <th className="px-5 py-4">เลขที่เอกสาร</th>
-                <th className="px-5 py-4">ผู้ยืมภายนอก</th>
-                <th className="px-5 py-4">ช่องทางติดต่อ</th>
-                <th className="px-5 py-4">แผนก</th>
-                <th className="px-5 py-4 text-center">จำนวน</th>
-                <th className="px-5 py-4">วันที่ยืม</th>
-                <th className="px-5 py-4">กำหนดคืน</th>
-                <th className="px-5 py-4">สถานะ</th>
-                <th className="px-5 py-4 text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-600">
-              {displayed.map((r, idx) => {
-                const overdue = isOverdue(r.due_date);
-                const borrower = r.borrower_details as BorrowerDetails | undefined | null;
-                return (
-                  <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                    <td className="px-5 py-4 text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                    <td className="px-5 py-4 font-mono font-medium text-slate-800">{r.doc_no}</td>
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-gray-800">{[borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") || "-"}</div>
-                      <div className="text-xs text-emerald-700 font-medium">{borrower?.phone ?? "-"}</div>
-                      <div className="text-xs text-slate-400">ผู้ทำรายการ: {r.requester ?? "-"}</div>
-                    </td>
-                    <td className="px-5 py-4 text-gray-600 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-gray-400" />
-                        {borrower?.phone || "-"}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-gray-600">{r.department_name ?? `แผนก ${r.department_id}`}</td>
-                    <td className="px-5 py-4 text-center font-medium text-gray-700">{r.item_count ?? 0}</td>
-                    <td className="px-5 py-4 text-gray-600">{fmtDate(r.request_date)}</td>
-                    <td className="px-5 py-4">
-                      <span className={overdue ? "text-red-600 font-semibold" : "text-gray-600"}>
-                        {fmtDate(r.due_date)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      {r.status === "PENDING_RETURN_CHECK" ? <PendingCheckBadge /> : <StatusBadge overdue={overdue} />}
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <button
-                        onClick={() => openDetail(r.id)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="ดูรายละเอียด / รับคืน"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                    </td>
+              <table className="w-full table-fixed text-sm text-left">
+                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-4 w-12 text-center whitespace-nowrap">#</th>
+                    <th className="px-5 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                    <th className="px-5 py-4 whitespace-nowrap">ผู้ยืมภายนอก</th>
+                    <th className="px-5 py-4 whitespace-nowrap">ช่องทางติดต่อ</th>
+                    <th className="px-5 py-4 whitespace-nowrap">แผนก</th>
+                    <th className="px-5 py-4 text-center whitespace-nowrap">จำนวน</th>
+                    <th className="px-5 py-4 whitespace-nowrap">วันที่ยืม</th>
+                    <th className="px-5 py-4 whitespace-nowrap">กำหนดคืน</th>
+                    <th className="px-5 py-4 whitespace-nowrap">สถานะ</th>
+                    <th className="px-5 py-4 text-center whitespace-nowrap">จัดการ</th>
                   </tr>
-                );
-              })}
-              {displayed.length === 0 && !isFetching && (
-                <tr>
-                  <td colSpan={10} className="p-0 align-middle">
-                    <div
-                      className="flex min-h-[calc(65vh-3.5rem)] flex-col items-center justify-center gap-3 px-4 py-8 text-center text-slate-400"
-                      aria-live="polite"
-                    >
-                      <Package className="h-12 w-12 shrink-0 text-slate-300" />
-                      <p className="max-w-md text-sm font-medium leading-relaxed">
-                        ไม่พบรายการ
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="text-slate-600">
+                  {paginatedItems.map((r, idx) => {
+                    const overdue = isOverdue(r.due_date);
+                    const borrower = r.borrower_details as BorrowerDetails | undefined | null;
+                    return (
+                      <tr
+                        key={r.id}
+                        className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                      >
+                        <td className="px-4 py-3 text-center text-sm text-slate-500 tabular-nums">
+                          {(currentPage - 1) * PAGE_LIMIT + idx + 1}
+                        </td>
+                        <td className="px-5 py-3 font-mono font-medium text-slate-800">{r.doc_no}</td>
+                        <td className="px-5 py-3">
+                          <div className="font-medium text-slate-800">
+                            {[borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") || "—"}
+                          </div>
+                          <div className="text-xs text-emerald-700 font-medium">{borrower?.phone ?? "—"}</div>
+                          <div className="text-xs text-slate-400">ผู้ทำรายการ: {r.requester ?? "—"}</div>
+                        </td>
+                        <td className="px-5 py-3 text-slate-600">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                            {borrower?.phone || "—"}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-slate-600 truncate" title={r.department_name ?? undefined}>
+                          {r.department_name ?? `แผนก ${r.department_id}`}
+                        </td>
+                        <td className="px-5 py-3 text-center font-medium text-slate-700">{r.item_count ?? 0}</td>
+                        <td className="px-5 py-3 text-slate-600">{fmtDate(r.request_date)}</td>
+                        <td className="px-5 py-3">
+                          <span className={overdue ? "text-red-600 font-semibold" : "text-slate-600"}>
+                            {fmtDate(r.due_date)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          {r.status === "PENDING_RETURN_CHECK" ? <PendingCheckBadge /> : <StatusBadge overdue={overdue} />}
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openDetail(r.id)}
+                            className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
+                            title="ดูรายละเอียด / รับคืน"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {paginatedItems.length === 0 && (
+                    <tr>
+                      <td colSpan={10}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="w-12 h-12 text-slate-300"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={1.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"
+                            />
+                          </svg>
+                          <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <p className="text-sm text-slate-500">
+                แสดง {paginatedItems.length} จาก {filtered.length} รายการ
+                {filtered.length !== records.length && (
+                  <span className="text-slate-400"> (ทั้งหมด {records.length} รายการ)</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors bg-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-600">
-          แสดง {displayed.length} จาก {filtered.length} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium px-3 py-1">
-            หน้า {currentPage} / {totalPages || 1}
-          </span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-
     </div>
   );
 }

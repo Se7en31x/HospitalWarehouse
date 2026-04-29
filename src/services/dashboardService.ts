@@ -37,6 +37,7 @@ export interface MonthlyRequisition {
 
 export interface LotStats {
   total: number;
+  normal: number;
   belowMinimum: number;
   nearExpiry: number;
 }

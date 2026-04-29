@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Trash2, X, Printer
 } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
@@ -37,33 +38,21 @@ const getEffectiveStock = (item: Item.UiItem): number =>
     : item.stock;
 
 export default function ItemsClient({ initialItems }: { initialItems: Item.UiItem[] }) {
-  const [items, setItems] = useState<Item.UiItem[]>(initialItems || []);
+  const [allItems, setAllItems] = useState<Item.UiItem[]>(initialItems || []);
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
-  const [serverTotal, setServerTotal] = useState(0);
-  const [serverTotalPages, setServerTotalPages] = useState(0);
+  const [isFetching, setIsFetching] = useState(true);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
-  // Refs always hold current page/keyword so socket refresh can re-fetch correctly
-  const pageRef = useRef(1);
-  const keywordRef = useRef("");
-  const keywordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
 
-  const fetchPage = useCallback(async (page: number, keyword: string) => {
+  const fetchAll = useCallback(async () => {
     setIsFetching(true);
     try {
-      const result = await ItemSvc.getInventoryItemsPage({
-        page,
-        limit: PAGE_LIMIT,
-        ...(keyword ? { keyword } : {}),
-      });
-      setItems(result.items || []);
-      setServerTotal(result.meta.total);
-      setServerTotalPages(result.meta.totalPages);
+      const result = await ItemSvc.getAllInventoryItems({});
+      setAllItems(result || []);
     } catch (error) {
       console.error("Fetch error:", error);
       SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลล้มเหลว");
@@ -73,8 +62,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   }, []);
 
   const refreshData = useCallback(async () => {
-    fetchPage(pageRef.current, keywordRef.current);
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -131,47 +120,39 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     };
 
     fetchOptions();
-    // Fetch page 1 on mount (SSR initialItems only covers page 1 without meta)
-    fetchPage(1, "");
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
+  const [selectedLocation, setSelectedLocation] = useState("ตำแหน่งทั้งหมด");
   const [currentPage, setCurrentPage] = useState(1);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    keywordRef.current = value;
-    if (keywordTimerRef.current) clearTimeout(keywordTimerRef.current);
-    keywordTimerRef.current = setTimeout(() => {
-      setCurrentPage(1);
-      pageRef.current = 1;
-      fetchPage(1, value);
-    }, 300);
+    setCurrentPage(1);
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    pageRef.current = newPage;
-    fetchPage(newPage, keywordRef.current);
   };
 
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
-  // const [isLocationOpen, setIsLocationOpen] = useState(false);
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
       if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
-      // if (!target.closest("[data-filter-location]")) setIsLocationOpen(false);
+      if (!target.closest("[data-filter-location]")) setIsLocationOpen(false);
     };
-    if (isCategoryOpen || isStatusOpen /* || isLocationOpen */) {
+    if (isCategoryOpen || isStatusOpen || isLocationOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isCategoryOpen, isStatusOpen]);
+  }, [isCategoryOpen, isStatusOpen, isLocationOpen]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -202,15 +183,24 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   };
 
   const filterCategories = ["หมวดหมู่ทั้งหมด", ...categories.map(c => c.name)];
+  const filterLocations = [
+    "ตำแหน่งทั้งหมด",
+    ...Array.from(new Set(allItems.map((item) => item.location).filter(Boolean))),
+  ];
 
-  // Client-side secondary filters (category/status) applied to current page's items
-  const filteredItems = items.filter((item) => {
+  const filteredItems = allItems.filter((item) => {
+    const keyword = searchTerm.toLowerCase();
+    const matchesSearch = !keyword ||
+      item.name.toLowerCase().includes(keyword) ||
+      item.code.toLowerCase().includes(keyword);
     const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "สถานะทั้งหมด" || item.status === selectedStatus;
-    return matchesCat && matchesStatus;
+    const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
+    return matchesSearch && matchesCat && matchesStatus && matchesLocation;
   });
-  // paginatedItems = filteredItems (server already paged)
-  const paginatedItems = filteredItems;
+
+  const totalPages = Math.ceil(filteredItems.length / PAGE_LIMIT);
+  const paginatedItems = filteredItems.slice((currentPage - 1) * PAGE_LIMIT, currentPage * PAGE_LIMIT);
 
   const handleDelete = async (id: string) => {
     const result = await SweetAlertUtils.delete("ลบพัสดุ", "คุณต้องการลบรายการนี้ใช่หรือไม่?");
@@ -268,13 +258,12 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8">
-
-      <div className="flex items-center justify-between mb-6">
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {selectedItems.size > 0 && (
             <button
               onClick={handleBulkPrint}
@@ -291,16 +280,16 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       </div>
 
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input type="text" placeholder="ค้นหาชื่อ / รหัส..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
         </div>
 
-        <div className="relative" data-filter-category>
+        <div className="relative w-full sm:w-auto" data-filter-category>
           <button
             type="button"
             onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedCategory}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
@@ -325,11 +314,11 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
           )}
         </div>
 
-        <div className="relative" data-filter-status>
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
             type="button"
-            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); setIsLocationOpen(false); }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedStatus === "สถานะทั้งหมด" ? "สถานะทั้งหมด" : selectedStatus}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
@@ -354,12 +343,11 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
           )}
         </div>
 
-        {/* Location Dropdown - Disabled */}
-        {/* <div className="relative" data-filter-location>
+        <div className="relative w-full sm:w-auto" data-filter-location>
           <button
             type="button"
             onClick={() => { setIsLocationOpen(!isLocationOpen); setIsCategoryOpen(false); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedLocation}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isLocationOpen ? "rotate-180" : ""}`} />
@@ -382,18 +370,18 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               </ul>
             </div>
           )}
-        </div> */}
+        </div>
 
         {/* Clear filters */}
-        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "สถานะทั้งหมด") && (
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "สถานะทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
           <button
             type="button"
             onClick={() => {
-              setSearchTerm(""); keywordRef.current = "";
+              setSearchTerm("");
               setSelectedCategory("หมวดหมู่ทั้งหมด");
               setSelectedStatus("สถานะทั้งหมด");
-              setCurrentPage(1); pageRef.current = 1;
-              fetchPage(1, "");
+              setSelectedLocation("ตำแหน่งทั้งหมด");
+              setCurrentPage(1);
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
           >
@@ -403,15 +391,19 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
         )}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
-        )}
-        <div 
+        ) : (
+          <>
+          <div
           className="flex-1" 
           style={{
             overflowX: 'auto',
@@ -436,10 +428,24 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               background: #94a3b8;
             }
           `}</style>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+          <table className="w-full table-fixed text-sm text-left">
+            <colgroup>
+              <col className="w-[44px]" />
+              <col className="w-[80px]" />
+              <col className="w-[13%]" />
+              <col className="w-[18%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[8%]" />
+              <col className="w-[13%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
+            </colgroup>
+            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-4 w-[44px] text-center">
+                <th className="px-4 py-4 text-center">
                   <input
                     type="checkbox"
                     checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
@@ -448,30 +454,34 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     title="เลือกทั้งหมดในหน้านี้"
                   />
                 </th>
-                <th className="px-6 py-4 w-[80px]">รูป</th>
-                <th className="px-6 py-4 w-[140px]">รหัส</th>
-                <th className="px-6 py-4 w-[250px]">ชื่อพัสดุ</th>
-                <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[160px]">ประเภท</th>
-                <th className="px-6 py-4 w-[100px]">คงเหลือ</th>
-                <th className="px-6 py-4 w-[100px]">ขั้นต่ำ</th>
-                <th className="px-6 py-4 w-[120px]">หน่วย</th>
-                <th className="px-6 py-4 w-[120px]">สถานะ</th>
-                <th className="px-6 py-4 text-center w-[120px]">จัดการ</th>
+                <th className="px-6 py-4">รูป</th>
+                <th className="px-3 py-4 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
+                <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
+                <th className="px-6 py-4 w-[120px] whitespace-nowrap">คงเหลือ</th>
+                <th className="px-6 py-4 w-[120px] whitespace-nowrap">ขั้นต่ำ</th>
+                <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
+                <th className="px-6 py-4 whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
+                <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
               </tr>
             </thead>
             <tbody className="text-slate-600">
-              {paginatedItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-3 w-[44px] text-center">
+              {paginatedItems.map((item) => (
+                <tr
+                  key={item.id}
+                  className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                >
+                  <td className="px-6 py-3 text-center">
                     <input
                       type="checkbox"
                       checked={selectedItems.has(item.id)}
                       onChange={() => toggleSelect(item)}
-                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                      className="w-6 h-4 accent-blue-600 cursor-pointer"
                     />
                   </td>
-                  <td className="px-6 py-3 w-[100px]">
+                  <td className="px-6 py-3">
                     <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
                       {item.imageUrl ? (
                         <button
@@ -485,13 +495,17 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-3">{item.code}</td>
-                  <td className="px-6 py-3">{item.name}</td>
-                  <td className="px-6 py-3 text-slate-600">{item.category}</td>
-                  <td className="px-6 py-3 text-sm">
+                  <td className="px-3 py-3">{item.code}</td>
+                  <td className="px-3 py-3">
+                    <span className="block truncate" title={item.name}>
+                      {item.name}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-slate-600 truncate">{item.category}</td>
+                  <td className="px-6 py-3 text-sm truncate">
                     {getTypeDisplay(item.type)}
                   </td>
-                  <td className="px-6 py-3">
+                  <td className="px-6 py-3 w-[120px]">
                     {item.type === "REUSABLE" ? (
                       <div className="relative group inline-block cursor-help">
                         <span className={`font-bold text-base ${
@@ -518,7 +532,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-3 w-[100px]">
+                  <td className="px-6 py-3 w-[120px]">
                     {item.minStock > 0 ? (
                       <span className="text-black font-semibold">
                         {item.minStock}
@@ -528,7 +542,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     )}
                   </td>
                   <td className="px-6 py-3">{item.unit}</td>
-                  <td className="px-4 py-3 w-[150px]"><Badge status={item.status} /></td>
+                  <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>
+                  <td className="px-6 py-3"><Badge status={item.status} /></td>
                   {/* <td className="px-6 py-3 w-[160px] hidden sm:table-cell">
                     {(() => {
                       const dt = formatThaiDateTime(item.updatedAt);
@@ -541,7 +556,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                       );
                     })()}
                   </td> */}
-                  <td className="px-6 py-3 w-[100px] text-center">
+                  <td className="px-6 py-3 text-center">
                     <div className="flex justify-between gap-1">
                       <button onClick={() => openEditModal(item)} className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"><Edit className="w-5 h-5"/></button>
                       <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-5 h-5"/></button>
@@ -551,7 +566,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               ))}
               {paginatedItems.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={13}>
+                  <td colSpan={12}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
@@ -564,28 +579,35 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {serverTotal} รายการ</p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage === 1 || isFetching}
-            onClick={() => handlePageChange(currentPage - 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium">หน้า {currentPage} / {serverTotalPages || 1}</span>
-          <button
-            disabled={currentPage >= serverTotalPages || isFetching}
-            onClick={() => handlePageChange(currentPage + 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        {/* Pagination */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+          <p className="text-sm text-slate-500">
+            แสดง {paginatedItems.length} จาก {filteredItems.length} รายการ
+            {filteredItems.length !== allItems.length && (
+              <span className="text-slate-400"> (ทั้งหมด {allItems.length} รายการ)</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+              className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+            <button
+              disabled={currentPage >= totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+              className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors bg-white"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+          </>
+        )}
       </div>
 
       <ItemFormModal

@@ -5,6 +5,10 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export const metadata = {
+  title: "รายละเอียดการยืม",
+};
+
 export const dynamic = "force-dynamic";
 
 export default async function ReturnItemDetailPage({ params }: PageProps) {

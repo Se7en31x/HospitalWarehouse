@@ -1,6 +1,9 @@
-import React from 'react';
-import BorrowClient from './BorrowClient';
-import { getInventoryItems, UiItem } from '@/services/itemsService';
+export const dynamic = "force-dynamic";
+
+import BorrowClient from "./BorrowClient";
+import { getInventoryItems } from "@/services/itemsService";
+import { createClient } from "@/lib/supabase/server";
+import { UiItem } from "@/types/items_type";
 
 export const metadata = {
   title: "ระบบยืม-คืน ครุภัณฑ์ (Borrow System)",
@@ -8,16 +11,23 @@ export const metadata = {
 
 export default async function BorrowPage() {
   let items: UiItem[] = [];
-  
+
   try {
-    // พยายามดึงข้อมูลที่ Server (จะสำเร็จถ้า Token ใน Cookie พร้อม)
-    items = await getInventoryItems({ allowed_borrow: true, type: "REUSABLE" });
+    const supabase = await createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    items = await getInventoryItems({ allowed_borrow: true, type: "REUSABLE" }, token);
   } catch (error) {
-    // ถ้าติด 401 (Unauthorized) ให้ส่งอาเรย์ว่างไปก่อน หน้าเว็บจะไม่แดง
-    console.warn("⚠️ BorrowPage: Server-side fetch failed, fallback to client-side.");
+    console.error("Failed to fetch borrow items during server rendering:", {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      status: (error as { status?: number })?.status,
+    });
     items = [];
   }
-  
-  // ส่ง items (ที่มีค่าหรือเป็น []) ไปให้ Client Component จัดการต่อ
+
   return <BorrowClient initialItems={items} />;
 }

@@ -19,14 +19,14 @@ const SETTINGS_BASE = "/v1";
 /**
  * ดึงข้อมูลทุกหน้ามาต่อกันเป็น Array เดียว (ใช้สำหรับพวก Master Data ใน Settings)
  */
-async function fetchAllPages<T>(basePath: string): Promise<T[]> {
+async function fetchAllPages<T>(basePath: string, token?: string): Promise<T[]> {
     const all: T[] = [];
     let page = 1;
     const limit = 10;
 
     while (true) {
         // ใช้ api.list เพื่อเข้าถึงข้อมูลทั้ง data และ meta
-        const res = await api.list<T>(basePath, { page, limit, keyword: "" });
+        const res = await api.list<T>(basePath, { page, limit, keyword: "" }, token);
         all.push(...(res.data || []));
 
         if (!res.meta?.nextPage) break;
@@ -39,7 +39,7 @@ async function fetchAllPages<T>(basePath: string): Promise<T[]> {
 // ============ API Functions ============
 
 // --- Categories ---
-export const getCategories = () => fetchAllPages<Category>(`${SETTINGS_BASE}/categories`);
+export const getCategories = (token?: string) => fetchAllPages<Category>(`${SETTINGS_BASE}/categories`, token);
 
 export const getCategoryById = (id: string) => 
     api.get<Category>(`${SETTINGS_BASE}/categories/${id}`);
@@ -54,7 +54,7 @@ export const deleteCategory = (id: string) =>
     api.delete(`${SETTINGS_BASE}/categories/${id}`);
 
 // --- Units ---
-export const getUnits = () => fetchAllPages<Unit>(`${SETTINGS_BASE}/units`);
+export const getUnits = (token?: string) => fetchAllPages<Unit>(`${SETTINGS_BASE}/units`, token);
 
 export const createUnit = (payload: UnitPayload) =>
     api.post<Unit>(`${SETTINGS_BASE}/units`, payload);
@@ -66,7 +66,7 @@ export const deleteUnit = (id: string) =>
     api.delete(`${SETTINGS_BASE}/units/${id}`);
 
 // --- Warehouses ---
-export const getWarehouses = () => fetchAllPages<Warehouse>(`${SETTINGS_BASE}/warehouses`);
+export const getWarehouses = (token?: string) => fetchAllPages<Warehouse>(`${SETTINGS_BASE}/warehouses`, token);
 
 export const createWarehouse = (payload: WarehousePayload) =>
     api.post<Warehouse>(`${SETTINGS_BASE}/warehouses`, payload);
@@ -78,7 +78,7 @@ export const deleteWarehouse = (id: string) =>
     api.delete(`${SETTINGS_BASE}/warehouses/${id}`);
 
 // --- Suppliers ---
-export const getSuppliers = () => fetchAllPages<Supplier>(`${SETTINGS_BASE}/suppliers`);
+export const getSuppliers = (token?: string) => fetchAllPages<Supplier>(`${SETTINGS_BASE}/suppliers`, token);
 
 export const createSupplier = (payload: SupplierPayload) =>
     api.post<Supplier>(`${SETTINGS_BASE}/suppliers`, payload);

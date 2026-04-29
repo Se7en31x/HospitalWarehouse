@@ -43,7 +43,7 @@ export default async function WarehouseLayout({ children }: { children: ReactNod
 
   return (
     <UserProvider initialProfile={initialProfile}>
-      <div className="flex flex-col h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
+      <div className="flex flex-col h-screen w-full overflow-hidden bg-[#f5f5f5] text-slate-900">
 
         <WarehouseNavbar />
 

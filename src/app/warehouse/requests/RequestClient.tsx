@@ -2,14 +2,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, X } from "lucide-react";
-import Swal from "sweetalert2";
-import {
-  getAllRequisitions,
-} from "../../../services/requisitionService";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { getAllRequisitionsPages } from "../../../services/requisitionService";
 import { RequisitionHeader } from "../../../types/requisition_type";
-import toast, { Toaster } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { socket } from "@/lib/socket";
+import { SweetAlertUtils } from "@/utils/sweetAlert";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -20,10 +18,8 @@ const PAGE_LIMIT = 10;
 const ACTIVE_STATUSES = new Set(["PENDING", "APPROVED"]);
 
 const RequestClient = () => {
-  const [requests, setRequests] = useState<RequisitionHeader[]>([]);
+  const [allRequests, setAllRequests] = useState<RequisitionHeader[]>([]);
   const [isFetching, setIsFetching] = useState(true);
-  const [serverTotal, setServerTotal] = useState(0);
-  const [serverTotalPages, setServerTotalPages] = useState(0);
 
   // Filters & Pagination
   const [activeTab, setActiveTab] = useState("all");
@@ -33,7 +29,6 @@ const RequestClient = () => {
 
   const router = useRouter();
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
-  const [isCancelLoading, setIsCancelLoading] = useState<string | number | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startDateFocused, setStartDateFocused] = useState(false);
@@ -42,9 +37,6 @@ const RequestClient = () => {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
-  const pageRef = useRef(1);
-  const keywordRef = useRef("");
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- [Helper Functions] ---
 
@@ -52,43 +44,32 @@ const RequestClient = () => {
     return req.requester || req.requester_id || "ไม่ระบุผู้ทำรายการ";
   };
 
-  const fetchPage = useCallback(async (page: number, keyword: string) => {
+  const fetchAll = useCallback(async () => {
     setIsFetching(true);
     try {
-      const result = await getAllRequisitions({
-        page,
-        limit: PAGE_LIMIT,
-        ...(keyword ? { keyword } : {}),
-      });
-      
-      if (result && result.success !== false) {
-        setRequests(result.data || []);
-        setServerTotal(result.total || 0);
-        const totalPages = result.limit ? Math.ceil((result.total || 0) / result.limit) : 0;
-        setServerTotalPages(totalPages);
-      } else {
-        throw new Error(result.message || "ไม่สามารถดึงข้อมูลได้");
-      }
+      const all = await getAllRequisitionsPages({});
+      const sortedRows = [...all].sort((a, b) =>
+        new Date(b.request_date).getTime() - new Date(a.request_date).getTime()
+      );
+      setAllRequests(sortedRows);
     } catch (err) {
       console.error("Fetch error:", err);
-      toast.error(getErrorMessage(err));
-      setRequests([]);
-      setServerTotal(0);
-      setServerTotalPages(0);
+      SweetAlertUtils.error(getErrorMessage(err));
+      setAllRequests([]);
     } finally {
       setIsFetching(false);
     }
   }, []);
 
   const refreshData = useCallback(async () => {
-    fetchPage(pageRef.current, keywordRef.current);
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   // --- [Effects] ---
 
   useEffect(() => {
-    fetchPage(1, "");
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   // Click Outside เพื่อปิด Dropdown
   useEffect(() => {
@@ -110,6 +91,14 @@ const RequestClient = () => {
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [refreshData]);
+
+  useEffect(() => setCurrentPage(1), [
+    activeTab,
+    selectedType,
+    startDate,
+    endDate,
+    searchTerm,
+  ]);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
@@ -146,7 +135,20 @@ const RequestClient = () => {
   }, [refreshData, isFetching]);
 
   // --- [Filter Logic] ---
-  const filteredRequests = requests.filter(req => {
+  const filteredRequests = allRequests.filter(req => {
+    if (searchTerm.trim()) {
+      const kw = searchTerm.toLowerCase();
+      const bn = req.borrower_details
+        ? `${req.borrower_details.firstname ?? ""} ${req.borrower_details.lastname ?? ""}`.trim().toLowerCase()
+        : "";
+      const matchesKeyword =
+        (req.doc_no || "").toLowerCase().includes(kw) ||
+        (req.department_name || "").toLowerCase().includes(kw) ||
+        (displayRequesterName(req).toLowerCase()).includes(kw) ||
+        (req.requester_id || "").toLowerCase().includes(kw) ||
+        bn.includes(kw);
+      if (!matchesKeyword) return false;
+    }
     const matchesStatus = activeTab === "all" || req.status === activeTab;
     const matchesType = selectedType === "all" || req.type === selectedType;
     const matchDate =
@@ -162,13 +164,17 @@ const RequestClient = () => {
   });
 
   // Sort: active statuses first, then by request_date descending (most recent first) within each group
-  const paginatedItems = [...filteredRequests].sort((a, b) => {
+  const sortedFiltered = [...filteredRequests].sort((a, b) => {
     const aActive = ACTIVE_STATUSES.has(a.status) ? 0 : 1;
     const bActive = ACTIVE_STATUSES.has(b.status) ? 0 : 1;
     if (aActive !== bActive) return aActive - bActive;
     return new Date(b.request_date).getTime() - new Date(a.request_date).getTime();
   });
-  const totalPages = serverTotalPages;
+  const totalPages = Math.ceil(sortedFiltered.length / PAGE_LIMIT) || 1;
+  const paginatedItems = sortedFiltered.slice((currentPage - 1) * PAGE_LIMIT, currentPage * PAGE_LIMIT);
+  const pagedCount = paginatedItems.length;
+  const filteredCount = sortedFiltered.length;
+  const allCount = allRequests.length;
 
   // --- [Components] ---
   const statusLabels: Record<string, string> = {
@@ -221,32 +227,22 @@ const RequestClient = () => {
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    keywordRef.current = value;
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      setCurrentPage(1);
-      pageRef.current = 1;
-      fetchPage(1, value);
-    }, 300);
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    pageRef.current = newPage;
-    fetchPage(newPage, keywordRef.current);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
-      <Toaster position="top-right" />
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6 font-sans">
 
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold text-gray-800">รายการคำขอเบิก-ยืม</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการคำขอเบิก-ยืม</h2>
       </div>
 
       {/* Filters Area */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
@@ -258,10 +254,10 @@ const RequestClient = () => {
         </div>
 
         {/* Type Dropdown */}
-        <div className="relative" data-type-dropdown>
+        <div className="relative w-full sm:w-auto" data-type-dropdown>
           <button
             onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-            className="flex items-center justify-between gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 w-[180px] shadow-sm"
+            className="flex items-center justify-between gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 w-full sm:w-[180px] shadow-sm"
           >
             <span className="font-medium text-slate-700">
               {selectedType === "all" ? "ทุกประเภท" : selectedType === "WITHDRAW" ? "เบิก" : "ยืม"}
@@ -274,7 +270,7 @@ const RequestClient = () => {
                 {[{ v: 'all', l: 'ทุกประเภท' }, { v: 'WITHDRAW', l: 'เบิก' }, { v: 'BORROW', l: 'ยืม' }].map(t => (
                   <li key={t.v}>
                     <button
-                      onClick={() => { setSelectedType(t.v); setIsTypeDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
+                      onClick={() => { setSelectedType(t.v); setIsTypeDropdownOpen(false); }}
                       className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${selectedType === t.v ? "text-emerald-700 font-semibold bg-emerald-50" : "text-slate-600"}`}
                     >
                       {t.l}
@@ -287,7 +283,7 @@ const RequestClient = () => {
         </div>
 
         {/* Date range */}
-        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+        <div className={`relative border rounded-lg px-4 shadow-sm w-full sm:w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
           <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่เริ่มต้น</label>
@@ -301,7 +297,7 @@ const RequestClient = () => {
             style={{ colorScheme: "light" }}
           />
         </div>
-        <div className={`relative border rounded-lg px-4 shadow-sm w-[160px] h-[38px] flex items-center bg-white transition-colors ${
+        <div className={`relative border rounded-lg px-4 shadow-sm w-full sm:w-[160px] h-[38px] flex items-center bg-white transition-colors ${
           endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
         }`}>
           <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">วันที่สิ้นสุด</label>
@@ -322,13 +318,9 @@ const RequestClient = () => {
             type="button"
             onClick={() => {
               setSearchTerm("");
-              keywordRef.current = "";
               setSelectedType("all");
               setStartDate("");
               setEndDate("");
-              setCurrentPage(1);
-              pageRef.current = 1;
-              fetchPage(1, "");
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
           >
@@ -352,7 +344,7 @@ const RequestClient = () => {
         ].map(tab => (
           <button
             key={tab.v}
-            onClick={() => { setActiveTab(tab.v); setCurrentPage(1); pageRef.current = 1; }}
+            onClick={() => setActiveTab(tab.v)}
             className={`whitespace-nowrap rounded-full border px-5 py-1.5 text-sm font-medium transition-colors
               ${activeTab === tab.v
                 ? 'bg-blue-50 border-blue-600 text-blue-600'
@@ -365,122 +357,134 @@ const RequestClient = () => {
       </div>
 
       {/* Table Section */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col relative" style={{ height: '60vh' }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center backdrop-blur-[1px]">
-            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
+        ) : (
+          <>
+            <div
+              className="flex-1"
+              style={{
+                overflowX: 'auto',
+                overflowY: 'auto',
+                scrollbarWidth: 'auto',
+                msOverflowStyle: 'auto',
+              } as React.CSSProperties}
+            >
+              <style>{`
+                div::-webkit-scrollbar { width: 0; height: 8px; }
+                div::-webkit-scrollbar-track { background: #f1f5f9; }
+                div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+              `}</style>
+              <table className="w-full text-sm text-left table-fixed border-collapse">
+                <colgroup>
+                  <col className="w-10 min-w-[2rem]" />
+                  <col className="min-w-[7rem]" />
+                  <col className="min-w-[7rem]" />
+                  <col className="min-w-[7rem]" />
+                  <col className="min-w-[7rem]" />
+                  <col className="min-w-[7rem]" />
+                  <col className="w-[4.5rem] min-w-[4.5rem]" />
+                  <col className="min-w-[1rem]" />
+                </colgroup>
+                <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-200 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-2 py-4 whitespace-nowrap text-center">#</th>
+                    <th className="px-2 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                    <th className="px-2 py-4 whitespace-nowrap">วันที่/เวลา</th>
+                    <th className="px-2 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
+                    <th className="px-2 py-4 whitespace-nowrap">แผนก</th>
+                    <th className="px-2 py-4 whitespace-nowrap">ประเภท</th>
+                    <th className="px-2 py-4 whitespace-nowrap">สถานะ</th>
+                    <th className="px-1 py-4 text-center whitespace-nowrap">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-600">
+                  {paginatedItems.map((req, idx) => {
+                    const style = getRowStyle(req.request_date, req.status);
+                    return (
+                    <tr key={req.id} className={`bg-white transition-colors ${style.row}`}>
+                      <td className="px-2 py-2.5 text-slate-600 text-center tabular-nums">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
+                      <td className="px-2 py-2.5 font-mono text-slate-600">{req.doc_no}</td>
+                      <td className={`px-2 py-2.5 whitespace-nowrap ${style.date}`}>
+                        {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </td>
+                      <td className="px-2 py-2.5 truncate text-slate-600" title={displayRequesterName(req)}>
+                        {displayRequesterName(req)}
+                      </td>
+                      <td className="px-2 py-2.5 text-slate-600">
+                        {req.department_name || "-"}
+                      </td>
+                      <td className="px-2 py-2.5 text-slate-600 text-sm">
+                        {req.type === "WITHDRAW" ? "เบิก" : "ยืม"}
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <StatusBadge status={req.status} />
+                      </td>
+                      <td className="px-1 py-2.5 text-center">
+                        <button
+                          onClick={() => router.push(`/warehouse/requests/${req.id}`)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          title="ดูรายละเอียด"
+                        >
+                          <Eye size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                    );
+                  })}
+                  {paginatedItems.length === 0 && (
+                    <tr>
+                      <td colSpan={8}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                          </svg>
+                          <p className="text-sm font-medium">ไม่พบรายการที่ตรงกับเงื่อนไข</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <p className="text-sm text-slate-500">
+                แสดง {pagedCount} จาก {filteredCount} รายการ
+                {filteredCount !== allCount && (
+                  <span className="text-slate-400"> (ทั้งหมด {allCount} รายการ)</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage <= 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
-
-        <div
-          className="flex-1"
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
-        >
-          <style>{`
-            div::-webkit-scrollbar {
-              width: 0;
-              height: 8px;
-            }
-            div::-webkit-scrollbar-track {
-              background: #f1f5f9;
-            }
-            div::-webkit-scrollbar-thumb {
-              background: #cbd5e1;
-              border-radius: 4px;
-            }
-            div::-webkit-scrollbar-thumb:hover {
-              background: #94a3b8;
-            }
-          `}</style>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10">
-              <tr>
-                <th className="px-6 py-4 w-[50px]">#</th>
-                <th className="px-6 py-4 w-[140px]">เลขที่เอกสาร</th>
-                <th className="px-6 py-4 w-[160px]">วันที่/เวลา</th>
-                <th className="px-6 py-4 w-[180px]">ผู้ทำรายการ</th>
-                <th className="px-6 py-4 w-[140px]">แผนก</th>
-                <th className="px-6 py-4 w-[80px]">ประเภท</th>
-                <th className="px-6 py-4 w-[120px]">สถานะ</th>
-                <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-600">
-              {paginatedItems.map((req, idx) => {
-                const style = getRowStyle(req.request_date, req.status);
-                return (
-                <tr key={req.id} className={`transition-colors ${style.row}`}>
-                  <td className="px-6 py-2.5 text-slate-600">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
-                  <td className="px-6 py-2.5 font-mono text-slate-600">{req.doc_no}</td>
-                  <td className={`px-6 py-2.5 whitespace-nowrap ${style.date}`}>
-                    {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
-                  </td>
-                  <td className="px-6 py-2.5 truncate text-slate-600" title={displayRequesterName(req)}>
-                    {displayRequesterName(req)}
-                  </td>
-                  <td className="px-6 py-2.5 text-slate-600">
-                    {req.department_name || "-"}
-                  </td>
-                  <td className="px-6 py-2.5 text-slate-600 text-sm">
-                    {req.type === "WITHDRAW" ? "เบิก" : "ยืม"}
-                  </td>
-                  <td className="px-6 py-2.5">
-                    <StatusBadge status={req.status} />
-                  </td>
-                  <td className="px-6 py-2.5 text-center">
-                    <button
-                      onClick={() => router.push(`/warehouse/requests/${req.id}`)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                      title="ดูรายละเอียด"
-                    >
-                      <Eye size={18} />
-                    </button>
-                  </td>
-                </tr>
-                );
-              })}
-              {paginatedItems.length === 0 && !isFetching && (
-                <tr>
-                  <td colSpan={8}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
-                      </svg>
-                      <p className="text-sm font-medium">ไม่พบรายการที่ตรงกับเงื่อนไข</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination Control */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {serverTotal} รายการ</p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage <= 1}
-            onClick={() => handlePageChange(currentPage - 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => handlePageChange(currentPage + 1)}
-            className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
       </div>
     </div>
   );

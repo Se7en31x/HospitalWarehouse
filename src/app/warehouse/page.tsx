@@ -5,6 +5,7 @@ import {
   Package,
   AlertCircle,
   BarChart3,
+  ChevronDown,
   CalendarDays,
   Layers,
   CalendarClock,
@@ -31,8 +32,12 @@ export default function WarehouseDashboard() {
   const [stockInThisMonth, setStockInThisMonth] = useState<number>(0);
   const [weeklyData, setWeeklyData] = useState<WeeklyRequisition[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyRequisition[]>([]);
+  const [yearlyData, setYearlyData] = useState<MonthlyRequisition[]>([]);
   const [lotStats, setLotStats] = useState<LotStats | null>(null);
-  const [chartMode, setChartMode] = useState<"week" | "month">("week");
+  const [chartMode, setChartMode] = useState<"week" | "month" | "year">("week");
+  const [chartType, setChartType] = useState<"bar" | "line">("bar");
+  const [isChartTypeOpen, setIsChartTypeOpen] = useState(false);
+  const [hoveredPoint, setHoveredPoint] = useState<{ index: number; series: "total" | "withdraw" } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null); // เพิ่ม state สำหรับเก็บ error message
 
@@ -45,7 +50,7 @@ export default function WarehouseDashboard() {
         const analytics = await getDashboardAnalytics({
           expiryDays: 90,
           weeks: 4,
-          months: 6,
+          months: 60,
           topItems: 5,
           expiringLimit: 20,
         });
@@ -62,6 +67,7 @@ export default function WarehouseDashboard() {
 
         setLotStats({
           total: analytics.lotHealth?.totalLots ?? 0,
+          normal: analytics.lotHealth?.normalLots ?? 0,
           belowMinimum: analytics.lotHealth?.belowMinimumLots ?? 0,
           nearExpiry: analytics.lotHealth?.nearExpiryLots ?? 0,
         });
@@ -73,13 +79,46 @@ export default function WarehouseDashboard() {
         setWeeklyData(analytics.weeklyRequisitions || []);
 
         const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-        const monthlyWithLabels: MonthlyRequisition[] = (analytics.monthlyRequisitions || []).map((m) => {
+        const monthlyRaw = analytics.monthlyRequisitions || [];
+        const monthlyWithLabels: MonthlyRequisition[] = monthlyRaw.map((m) => {
           const [y, mm] = String(m.month).split("-");
           const monthIndex = Math.max(0, Math.min(11, Number(mm) - 1));
           const thaiYear = (Number(y) + 543).toString().slice(-2);
           return { ...m, label: `${monthNames[monthIndex]} ${thaiYear}` };
         });
-        setMonthlyData(monthlyWithLabels);
+        setMonthlyData(monthlyWithLabels.slice(-6));
+
+        // รวมข้อมูลรายเดือนเป็นรายปี
+        const yearlyBuckets: Record<string, MonthlyRequisition> = {};
+        for (const m of monthlyRaw) {
+          const year = String(m.month).split("-")[0];
+          if (!yearlyBuckets[year]) {
+            yearlyBuckets[year] = {
+              month: year,
+              label: `ปี ${Number(year) + 543}`,
+              withdraw: 0,
+              borrow: 0,
+              total: 0,
+            };
+          }
+          yearlyBuckets[year].withdraw += m.withdraw ?? 0;
+          yearlyBuckets[year].borrow += m.borrow ?? 0;
+          yearlyBuckets[year].total += m.total ?? 0;
+        }
+        // ให้แสดงย้อนหลัง 5 ปีเสมอ (ปีที่ไม่มีข้อมูล = 0)
+        const currentYear = new Date().getFullYear();
+        const fiveYearData: MonthlyRequisition[] = Array.from({ length: 5 }, (_, idx) => {
+          const year = String(currentYear - 4 + idx);
+          const bucket = yearlyBuckets[year];
+          return bucket ?? {
+            month: year,
+            label: `ปี ${Number(year) + 543}`,
+            withdraw: 0,
+            borrow: 0,
+            total: 0,
+          };
+        });
+        setYearlyData(fiveYearData);
       } catch (err: any) {
         // ปรับปรุงการแสดง Error ให้ละเอียดขึ้น
         const msg = err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล";
@@ -91,6 +130,18 @@ export default function WarehouseDashboard() {
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!isChartTypeOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-filter-chart-type]")) {
+        setIsChartTypeOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isChartTypeOpen]);
 
   // --- UI สำหรับกรณี Error ---
   if (error) {
@@ -111,7 +162,7 @@ export default function WarehouseDashboard() {
     );
   }
 
-  const chartData = chartMode === "week" ? weeklyData : monthlyData;
+  const chartData = chartMode === "week" ? weeklyData : chartMode === "month" ? monthlyData : yearlyData;
   const maxChartTotal = Math.max(...chartData.map((d) => d.total), 1);
 
   const weekDayLabels = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
@@ -124,9 +175,28 @@ export default function WarehouseDashboard() {
     return `${weekday} ${dayMonth}`;
   };
 
+  const getNiceYAxis = (maxValue: number) => {
+    const safeMax = Math.max(1, maxValue);
+    const paddedMax = safeMax * 1.2; // เว้นหัวกราฟเล็กน้อย
+    const rawStep = paddedMax / 5; // แบ่งเป็น 5 ช่วงหลัก (รวม 6 tick)
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const normalized = rawStep / magnitude;
+
+    let niceNormalized = 1;
+    if (normalized <= 1) niceNormalized = 1;
+    else if (normalized <= 2) niceNormalized = 2;
+    else if (normalized <= 5) niceNormalized = 5;
+    else niceNormalized = 10;
+
+    const step = niceNormalized * magnitude;
+    const yMax = step * 5;
+    const ticks = Array.from({ length: 6 }, (_, i) => i * step);
+    return { yMax, ticks };
+  };
+
   if (loading) {
     return (
-      <div className="space-y-6 p-6 bg-white min-h-screen animate-pulse">
+      <div className="space-y-6 p-6 bg-[#f5f5f5] min-h-screen animate-pulse">
         {/* Header skeleton */}
         <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200">
           <div className="space-y-2">
@@ -193,10 +263,10 @@ export default function WarehouseDashboard() {
   const lotTotal = lotStats?.total ?? 0;
   const lotBelowMin = lotStats?.belowMinimum ?? 0;
   const lotNearExp = lotStats?.nearExpiry ?? 0;
-  const lotNormal = Math.max(0, lotTotal - lotBelowMin - lotNearExp);
+  const lotNormal = lotStats?.normal ?? Math.max(0, lotTotal - lotBelowMin - lotNearExp);
 
   const lotSegments = [
-    { label: "ปกติ", value: lotNormal, color: "bg-blue-500", textColor: "text-blue-600", stroke: "#3b82f6" },
+    { label: "ใช้งานได้", value: lotNormal, color: "bg-blue-500", textColor: "text-blue-600", stroke: "#3b82f6" },
     { label: "ต่ำกว่าจุดต่ำสุด", value: lotBelowMin, color: "bg-red-500", textColor: "text-red-600", stroke: "#ef4444" },
     { label: "ใกล้หมดอายุ", value: lotNearExp, color: "bg-amber-500", textColor: "text-amber-600", stroke: "#f59e0b" },
   ];
@@ -214,86 +284,97 @@ export default function WarehouseDashboard() {
     })
     : [];
 
+  const dashboardStatCards = [
+    {
+      label: "จำนวนสินค้าทั้งหมด",
+      value: summary?.totalItems ?? 0,
+      icon: <Package className="w-9 h-9" />,
+      tone: "from-slate-700 to-slate-800",
+    },
+    {
+      label: "จำนวนล็อตทั้งหมด",
+      value: lotStats?.total ?? 0,
+      icon: <Layers className="w-9 h-9" />,
+      tone: "from-blue-700 to-indigo-800",
+    },
+    {
+      label: "ล็อตใกล้หมดอายุ",
+      value: nearExpiryCount,
+      icon: <CalendarClock className="w-9 h-9" />,
+      tone: "from-amber-600 to-orange-700",
+    },
+    {
+      label: "ล็อตหมดอายุแล้ว",
+      value: expiredCount,
+      icon: <CalendarX className="w-9 h-9" />,
+      tone: "from-rose-700 to-red-800",
+    },
+    {
+      label: "เบิกพัสดุรายสัปดาห์",
+      value: currentWeekTotal,
+      icon: <ClipboardList className="w-9 h-9" />,
+      tone: "from-emerald-700 to-teal-800",
+    },
+    {
+      label: "สินค้าสต็อกต่ำ",
+      value: lowStockCount,
+      icon: <PackageMinus className="w-9 h-9" />,
+      tone: "from-orange-700 to-amber-800",
+    },
+    {
+      label: "จำนวนแผนกทั้งหมด",
+      value: summary?.totalDepartments ?? 0,
+      icon: <Building2 className="w-9 h-9" />,
+      tone: "from-cyan-700 to-sky-800",
+    },
+    {
+      label: "จำนวนผู้จำหน่ายทั้งหมด",
+      value: summary?.totalSuppliers ?? 0,
+      icon: <Truck className="w-9 h-9" />,
+      tone: "from-indigo-700 to-violet-800",
+    },
+    {
+      label: "รับเข้าเดือนนี้",
+      value: stockInThisMonth,
+      icon: <ArrowDownToLine className="w-9 h-9" />,
+      tone: "from-blue-600 to-indigo-700",
+    },
+  ];
+
   return (
-    <div className="space-y-6 p-6 bg-white min-h-screen">
+    <div className="space-y-6 p-6 bg-[#f5f5f5] min-h-screen">
       {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-slate-300 shadow-sm">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">แดชบอร์ดคลังพัสดุ</h2>
-          <p className="text-sm text-slate-500 mt-1">ภาพรวมข้อมูลสินค้า ล็อต และสถิติการเบิกพัสดุ</p>
+          <h2 className="text-xl font-bold text-slate-800">แดชบอร์ดคลังพัสดุ</h2>
+          <p className="text-xs text-slate-500 mt-0.5">ภาพรวมข้อมูลสินค้า ล็อต และสถิติการเบิกพัสดุ</p>
         </div>
-        <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
+        <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-md border border-slate-200">
           <CalendarDays className="w-5 h-5 text-blue-600" />
-          <span className="text-sm font-medium text-blue-800">
+          <span className="text-sm font-medium text-slate-700">
             {new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
           </span>
         </div>
       </div>
 
       {/* 2. Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {/* จำนวนสินค้าทั้งหมด */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-blue-100 text-blue-600 rounded-lg w-fit mb-2"><Package className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{(summary?.totalItems ?? 0).toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนสินค้าทั้งหมด</p>
-        </div>
-
-        {/* จำนวนล็อตทั้งหมด */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg w-fit mb-2"><Layers className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{(lotStats?.total ?? 0).toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนล็อตทั้งหมด</p>
-        </div>
-
-        {/* ล็อตสินค้าใกล้หมดอายุ */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-amber-100 text-amber-600 rounded-lg w-fit mb-2"><CalendarClock className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-amber-600">{nearExpiryCount.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">ล็อตใกล้หมดอายุ</p>
-        </div>
-
-        {/* ล็อตหมดอายุแล้ว */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-red-100 text-red-600 rounded-lg w-fit mb-2"><CalendarX className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-red-600">{expiredCount.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">ล็อตหมดอายุแล้ว</p>
-        </div>
-
-        {/* สถิติการเบิกพัสดุรายสัปดาห์ */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg w-fit mb-2"><ClipboardList className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{currentWeekTotal.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">เบิกพัสดุรายสัปดาห์</p>
-        </div>
-
-        {/* สินค้าสต็อกต่ำ */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-orange-100 text-orange-600 rounded-lg w-fit mb-2"><PackageMinus className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-orange-600">{lowStockCount.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">สินค้าสต็อกต่ำ</p>
-        </div>
-
-        {/* จำนวนแผนกทั้งหมด */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-cyan-100 text-cyan-600 rounded-lg w-fit mb-2"><Building2 className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{(summary?.totalDepartments ?? 0).toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนแผนกทั้งหมด</p>
-        </div>
-
-        {/* จำนวนผู้จำหน่ายทั้งหมด */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-rose-100 text-rose-600 rounded-lg w-fit mb-2"><Truck className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{(summary?.totalSuppliers ?? 0).toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">จำนวนผู้จำหน่ายทั้งหมด</p>
-        </div>
-
-        {/* รับเข้าเดือนนี้ */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="p-2 bg-purple-100 text-purple-600 rounded-lg w-fit mb-2"><ArrowDownToLine className="w-4 h-4" /></div>
-          <p className="text-2xl font-bold text-slate-800">{stockInThisMonth.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">รับเข้าเดือนนี้</p>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {dashboardStatCards.map((card) => (
+          <div
+            key={card.label}
+            className="overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white"
+          >
+            <div className={`bg-gradient-to-br ${card.tone} p-4 text-white min-h-[110px]`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="rounded-full bg-white/25 p-2.5 text-white">
+                  {card.icon}
+                </div>
+                <p className="text-4xl font-bold leading-none text-white">{card.value.toLocaleString()}</p>
+              </div>
+              <p className="mt-3 text-sm text-white/95 font-medium leading-tight text-right">{card.label}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* 3. Lot Overview, Requisitions & Top 5 Row */}
@@ -359,34 +440,84 @@ export default function WarehouseDashboard() {
             </div>
           </div>
         </div>
-        {/* Bar Chart - สถิติการเบิกพัสดุ */}
+        {/* สถิติการเบิกพัสดุ — bar / line */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-7 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
               สถิติการเบิกพัสดุ
             </h3>
-            <div className="flex bg-slate-100 rounded-lg p-0.5">
-              <button
-                onClick={() => setChartMode("week")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "week" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                รายสัปดาห์
-              </button>
-              <button
-                onClick={() => setChartMode("month")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "month" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                รายเดือน
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* ประเภทกราฟ */}
+              <div className="relative" data-filter-chart-type>
+                <button
+                  type="button"
+                  onClick={() => setIsChartTypeOpen((prev) => !prev)}
+                  className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+                >
+                  <span className="text-slate-800 font-medium">
+                    {chartType === "bar" ? "📊 กราฟแท่ง" : "📈 กราฟเส้น (คลื่น)"}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isChartTypeOpen ? "rotate-180" : ""}`} />
+                </button>
+                {isChartTypeOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full overflow-hidden">
+                    <ul className="py-1">
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChartType("bar");
+                            setIsChartTypeOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${chartType === "bar" ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                        >
+                          📊 กราฟแท่ง
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChartType("line");
+                            setIsChartTypeOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${chartType === "line" ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                        >
+                          📈 กราฟเส้น (คลื่น)
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+              {/* ช่วงเวลา */}
+              <div className="flex bg-slate-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setChartMode("week")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "week" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  รายสัปดาห์
+                </button>
+                <button
+                  onClick={() => setChartMode("month")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "month" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  รายเดือน
+                </button>
+                <button
+                  onClick={() => setChartMode("year")}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${chartMode === "year" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  รายปี
+                </button>
+              </div>
             </div>
           </div>
 
           {chartData.length === 0 ? (
             <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">ยังไม่มีข้อมูลการเบิก</div>
-          ) : (
+          ) : chartType === "bar" ? (
             <>
               <div className="h-[280px] flex items-end justify-between gap-2 border-b border-slate-100 pb-2 px-2">
                 {chartData.map((item, idx) => {
@@ -417,6 +548,178 @@ export default function WarehouseDashboard() {
                 <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-100 rounded-sm" /> ยืม (Borrow)</div>
               </div>
             </>
+          ) : (
+            /* ---- Line / Wave Chart (SVG) ---- */
+            (() => {
+              // ปรับ ratio ของ viewBox ให้กว้างขึ้น เพื่อให้กราฟกินพื้นที่เต็มการ์ดมากขึ้น
+              const svgW = 980, svgH = 280;
+              const padL = 46, padR = 16, padT = 24, padB = 58;
+              const plotW = svgW - padL - padR;
+              const plotH = svgH - padT - padB;
+              const n = chartData.length;
+
+              const getX = (i: number) => padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+              const { yMax, ticks } = getNiceYAxis(maxChartTotal);
+              const getY = (val: number) => padT + (1 - val / yMax) * plotH;
+
+              const totalPts = chartData.map((d, i) => ({ x: getX(i), y: getY(d.total), d }));
+              const withdrawPts = chartData.map((d, i) => ({ x: getX(i), y: getY(d.withdraw), d }));
+
+              const smoothPath = (pts: { x: number; y: number }[]) => {
+                if (pts.length === 0) return "";
+                if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+                return pts.reduce((acc, pt, i) => {
+                  if (i === 0) return `M ${pt.x} ${pt.y}`;
+                  const prev = pts[i - 1];
+                  const cpx = (prev.x + pt.x) / 2;
+                  return `${acc} C ${cpx} ${prev.y} ${cpx} ${pt.y} ${pt.x} ${pt.y}`;
+                }, "");
+              };
+
+              const totalLinePath = smoothPath(totalPts);
+              const withdrawLinePath = smoothPath(withdrawPts);
+              const xTicks = chartData.map((_, i) => getX(i));
+              const activeIdx = hoveredPoint !== null && hoveredPoint.index < chartData.length ? hoveredPoint.index : null;
+              const activeSeries = hoveredPoint?.series ?? null;
+              const activePoint = activeIdx !== null
+                ? (activeSeries === "withdraw" ? withdrawPts[activeIdx] : totalPts[activeIdx])
+                : null;
+              const activeLabel = activeIdx !== null
+                ? ("weekStart" in chartData[activeIdx] ? formatDate(chartData[activeIdx].weekStart) : chartData[activeIdx].label)
+                : "";
+              const activeValue = activeIdx !== null
+                ? (activeSeries === "withdraw" ? chartData[activeIdx].withdraw : chartData[activeIdx].total)
+                : 0;
+              const activeValueColor = activeSeries === "withdraw" ? "#16a34a" : "#0284c7";
+              const tooltipWidth = 156;
+              const tooltipHeight = 36;
+              const tooltipX = activePoint
+                ? Math.min(Math.max(activePoint.x - tooltipWidth / 2, padL), svgW - padR - tooltipWidth)
+                : 0;
+              const tooltipY = activePoint ? Math.max(padT + 8, activePoint.y - 52) : 0;
+
+              // Y ticks คำนวณอัตโนมัติจากข้อมูลจริง
+              const yTicks = ticks.map((val) => ({ y: getY(val), val }));
+
+              return (
+                <div className="w-full">
+                  <svg
+                    viewBox={`0 0 ${svgW} ${svgH}`}
+                    preserveAspectRatio="xMidYMid meet"
+                    width="100%"
+                    height="280"
+                    style={{ display: "block" }}
+                    onMouseLeave={() => setHoveredPoint(null)}
+                  >
+                    {/* Vertical grid */}
+                    {xTicks.map((x, i) => (
+                      <line
+                        key={`x-${i}`}
+                        x1={x}
+                        y1={padT}
+                        x2={x}
+                        y2={padT + plotH}
+                        stroke="#e5e7eb"
+                        strokeWidth="1"
+                        strokeDasharray="2 4"
+                      />
+                    ))}
+
+                    {/* Grid lines + Y labels */}
+                    {yTicks.map((t, i) => (
+                      <g key={i}>
+                        <line x1={padL} y1={t.y} x2={svgW - padR} y2={t.y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="2 4" />
+                        <text x={padL - 7} y={t.y + 4} textAnchor="end" fontSize="11" fill="#94a3b8">{t.val}</text>
+                      </g>
+                    ))}
+
+                    {/* Withdraw line (dashed green) */}
+                    <path d={withdrawLinePath} fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeDasharray="6 4" />
+
+                    {/* Total line (soft gray like sample) */}
+                    <path d={totalLinePath} fill="none" stroke="#cbd5e1" strokeWidth="2.2" strokeLinecap="round" />
+
+                    {/* Withdraw dots */}
+                    {withdrawPts.map((pt, i) => (
+                      <circle
+                        key={i}
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={activeIdx === i && activeSeries === "withdraw" ? "5" : "3.8"}
+                        fill="white"
+                        stroke="#22c55e"
+                        strokeWidth={activeIdx === i && activeSeries === "withdraw" ? "2.4" : "1.8"}
+                        className="cursor-pointer transition-all"
+                        onMouseEnter={() => setHoveredPoint({ index: i, series: "withdraw" })}
+                      >
+                        <title>{("weekStart" in chartData[i] ? formatDate((chartData[i] as any).weekStart) : (chartData[i] as any).label)} — เบิกใช้: {chartData[i].withdraw}</title>
+                      </circle>
+                    ))}
+
+                    {/* Total dots + X labels */}
+                    {totalPts.map((pt, i) => {
+                      const label = "weekStart" in chartData[i]
+                        ? formatDate((chartData[i] as any).weekStart)
+                        : (chartData[i] as any).label;
+                      return (
+                        <g key={i}>
+                          <circle
+                            cx={pt.x}
+                            cy={pt.y}
+                            r={activeIdx === i && activeSeries === "total" ? "7" : "6"}
+                            fill="#0ea5e9"
+                            stroke="white"
+                            strokeWidth={activeIdx === i && activeSeries === "total" ? "3.2" : "2.4"}
+                            className="cursor-pointer transition-all"
+                            onMouseEnter={() => setHoveredPoint({ index: i, series: "total" })}
+                          >
+                            <title>{label}: {chartData[i].total} รายการ</title>
+                          </circle>
+                          <text
+                            x={pt.x}
+                            y={padT + plotH + 18}
+                            textAnchor="middle"
+                            fontSize="11"
+                            fill="#64748b"
+                          >
+                            {label}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {activePoint ? (
+                      <g>
+                        <rect
+                          x={tooltipX}
+                          y={tooltipY}
+                          width={tooltipWidth}
+                          height={tooltipHeight}
+                          rx="8"
+                          fill="white"
+                          stroke="#e2e8f0"
+                          strokeWidth="1"
+                          style={{ filter: "drop-shadow(0 6px 14px rgba(15,23,42,0.12))" }}
+                        />
+                        <text x={tooltipX + 10} y={tooltipY + 23} fontSize="11" fill="#64748b">
+                          {activeLabel}
+                        </text>
+                        <text x={tooltipX + tooltipWidth - 10} y={tooltipY + 23} textAnchor="end" fontSize="15" fontWeight="500" fill={activeValueColor}>
+                          {activeValue}
+                        </text>
+                      </g>
+                    ) : null}
+                  </svg>
+                  <div className="flex justify-center gap-6 mt-4 text-xs font-normal text-slate-500">
+                    <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-slate-300 rounded" /> รวมทั้งหมด</div>
+                    <div className="flex items-center gap-2">
+                      <svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#22c55e" strokeWidth="2" strokeDasharray="5 3" /></svg>
+                      เบิกใช้ (Withdraw)
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       </div>

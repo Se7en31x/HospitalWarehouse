@@ -40,33 +40,29 @@ export const getStockMovements = async (
 };
 
 /**
- * ดึงข้อมูลการเคลื่อนไหวพัสดุทุกหน้ามาต่อกันเป็น Array เดียว
+ * โหลดการเคลื่อนไหวทั้งหมดเป็นชุดเดียว (วน pagination ด้วย batch ขนาดใหญ่) — สำหรับ client-side filter
  */
 export const getAllStockMovements = async (
-  filters?: StockMovementFilters
+  filters?: Omit<StockMovementFilters, "page" | "limit">
 ): Promise<StockMovement[]> => {
-  const firstPage = await getStockMovements({ ...filters, page: 1, limit: 10 });
+  const limit = 100;
+  let page = 1;
+  const all: StockMovement[] = [];
 
-  if (!firstPage.success) {
-    return [];
-  }
-
-  const allMovements = [...firstPage.data];
-  const totalPages = firstPage.meta.totalPages || 1;
-
-  for (let page = 2; page <= totalPages; page += 1) {
-    const nextPage = await getStockMovements({
-      ...filters,
+  while (true) {
+    const res = await getStockMovements({
+      ...(filters ?? {}),
       page,
-      limit: firstPage.meta.limit || 10,
-    });
-
-    if (nextPage.success) {
-      allMovements.push(...nextPage.data);
-    }
+      limit,
+    } as StockMovementFilters);
+    if (!res.success || !Array.isArray(res.data)) break;
+    all.push(...res.data);
+    const tp = res.meta.totalPages ?? 1;
+    if (res.data.length < limit || page >= tp) break;
+    page += 1;
   }
 
-  return allMovements;
+  return all;
 };
 
 /**

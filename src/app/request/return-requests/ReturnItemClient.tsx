@@ -1,38 +1,34 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
-  Eye, Package, X, Plus,
+  Eye, X, Plus,
 } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import toast, { Toaster } from "react-hot-toast";
 import * as reusableSvc from "@/services/reusableUnitService";
 import { socket } from "@/lib/socket";
 
-// === Helper Functions ===
-
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String((error as Record<string, unknown>).message);
   return String(error);
 };
 
-const fmtDate = (d?: string | null) => {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric", month: "short", day: "numeric",
-  });
-};
-
 const fmtDateTime = (d?: string | null) => {
-  if (!d) return "-";
+  if (!d) return "—";
   return new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
-// === Types ===
+const PAGE_LIMIT = 10;
 
 interface ReturnRequest {
   id: number;
@@ -45,8 +41,6 @@ interface ReturnRequest {
   item_count?: number;
 }
 
-// === Status Badge Component ===
-
 const StatusBadge = ({ status }: { status: string }) => {
   const statusMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
     PENDING: { label: "รอดำเนินการ", bg: "bg-amber-100", text: "text-amber-900", border: "border-amber-200" },
@@ -57,24 +51,19 @@ const StatusBadge = ({ status }: { status: string }) => {
   };
   const s = statusMap[status] || { label: status, bg: "bg-slate-100", text: "text-slate-800", border: "border-slate-200" };
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-semibold whitespace-nowrap ${s.bg} ${s.text} ${s.border}`}>
       {s.label}
     </span>
   );
 };
 
-// === Main Component ===
-
 export default function ReturnItemClient() {
   const router = useRouter();
 
-  // ✅ State สำหรับรายการ Records
   const [records, setRecords] = useState<ReturnRequest[]>([]);
 
-  // ✅ State สำหรับ UI
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
   const [selectedDepartment, setSelectedDepartment] = useState("แผนกทั้งหมด");
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
   const [isDepartmentDropdownOpen, setIsDepartmentDropdownOpen] = useState(false);
@@ -85,7 +74,6 @@ export default function ReturnItemClient() {
   const isVisibleRef = useRef(true);
   const [isFetching, setIsFetching] = useState(true);
 
-  // --- [Data Fetching Logic] ---
   const fetchData = useCallback(async () => {
     setIsFetching(true);
     try {
@@ -99,8 +87,9 @@ export default function ReturnItemClient() {
     }
   }, []);
 
-  // --- [Initialize Data] ---
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -116,8 +105,7 @@ export default function ReturnItemClient() {
     if (!socket.connected) socket.connect();
 
     const scheduleRefresh = () => {
-      if (!isVisibleRef.current) return;
-      if (isRefreshingRef.current) return;
+      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
 
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -149,18 +137,13 @@ export default function ReturnItemClient() {
       }
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [fetchData]);
+  }, [fetchData, isFetching]);
 
-  // --- [Close dropdowns when clicking outside] ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest("[data-department-dropdown]")) {
-        setIsDepartmentDropdownOpen(false);
-      }
-      if (!target.closest("[data-status-dropdown]")) {
-        setIsStatusDropdownOpen(false);
-      }
+      if (!target.closest("[data-filter-department]")) setIsDepartmentDropdownOpen(false);
+      if (!target.closest("[data-filter-status]")) setIsStatusDropdownOpen(false);
     };
 
     if (isDepartmentDropdownOpen || isStatusDropdownOpen) {
@@ -169,50 +152,44 @@ export default function ReturnItemClient() {
     }
   }, [isDepartmentDropdownOpen, isStatusDropdownOpen]);
 
-  // --- [Navigate to Detail Page] ---
-  const openDetail = useCallback((id: number) => {
-    router.push(`/request/return-requests/${id}`);
-  }, [router]);
+  const openDetail = useCallback(
+    (id: number) => {
+      router.push(`/request/return-requests/${id}`);
+    },
+    [router]
+  );
 
-  // --- [Filter Options Logic] ---
   const filterDepartments = useMemo(() => {
     const depts = new Set(
-      records
-        .map((r) => r.department_name)
-        .filter((name): name is string => Boolean(name))
+      records.map((r) => r.department_name).filter((name): name is string => Boolean(name))
     );
     return ["แผนกทั้งหมด", ...Array.from(depts)];
   }, [records]);
 
   const filterStatuses = useMemo(() => {
-    const statuses = new Set(
-      records
-        .map((r) => r.status)
-        .filter((s): s is string => Boolean(s))
-    );
+    const statuses = new Set(records.map((r) => r.status).filter((s): s is string => Boolean(s)));
     return ["สถานะทั้งหมด", ...Array.from(statuses)];
   }, [records]);
 
-  // --- [Filter & Search Logic] ---
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return records.filter((r) => {
-      // Search filter
-      if (term && !(
-        r.doc_no.toLowerCase().includes(term) ||
-        (r.department_name ?? "").toLowerCase().includes(term) ||
-        (r.requested_by_name ?? "").toLowerCase().includes(term) ||
-        (r.requester ?? "").toLowerCase().includes(term)
-      )) {
+      if (
+        term &&
+        !(
+          r.doc_no.toLowerCase().includes(term) ||
+          (r.department_name ?? "").toLowerCase().includes(term) ||
+          (r.requested_by_name ?? "").toLowerCase().includes(term) ||
+          (r.requester ?? "").toLowerCase().includes(term)
+        )
+      ) {
         return false;
       }
 
-      // Department filter
       if (selectedDepartment !== "แผนกทั้งหมด" && r.department_name !== selectedDepartment) {
         return false;
       }
 
-      // Status filter
       if (selectedStatus !== "สถานะทั้งหมด" && r.status !== selectedStatus) {
         return false;
       }
@@ -221,55 +198,62 @@ export default function ReturnItemClient() {
     });
   }, [records, searchTerm, selectedDepartment, selectedStatus]);
 
-  // --- [Pagination Logic] ---
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const displayed = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filtered.slice(start, start + itemsPerPage);
-  }, [filtered, currentPage]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_LIMIT));
+  const paginatedItems = filtered.slice((currentPage - 1) * PAGE_LIMIT, currentPage * PAGE_LIMIT);
 
-  // --- [Render JSX] ---
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(filtered.length / PAGE_LIMIT));
+    if (currentPage > tp) setCurrentPage(tp);
+  }, [filtered.length, currentPage]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <Toaster position="top-right" />
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-800">รายการคำขอคืน</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการคำขอคืน</h2>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push("/request/return-requests/create")}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4" />
-          สร้างคำขอคืนของ
-        </button>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={() => router.push("/request/return-requests/create")}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-blue-800"
+          >
+            <Plus className="w-4 h-4" />
+            สร้างคำขอคืนของ
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        {/* Search */}
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="ค้นหาเลขที่เอกสาร / แผนก / ผู้ทำรายการ..."
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
           />
         </div>
 
-        {/* Department Dropdown */}
-        <div className="relative" data-department-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-department>
           <button
-            onClick={() => { setIsDepartmentDropdownOpen(!isDepartmentDropdownOpen); setIsStatusDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsDepartmentDropdownOpen(!isDepartmentDropdownOpen);
+              setIsStatusDropdownOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{selectedDepartment}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDepartmentDropdownOpen ? "rotate-180" : ""}`} />
+            <span className="text-slate-800 font-medium truncate">{selectedDepartment}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isDepartmentDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
           {isDepartmentDropdownOpen && (
@@ -299,14 +283,17 @@ export default function ReturnItemClient() {
           )}
         </div>
 
-        {/* Status Dropdown */}
-        <div className="relative" data-status-dropdown>
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
-            onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDepartmentDropdownOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            type="button"
+            onClick={() => {
+              setIsStatusDropdownOpen(!isStatusDropdownOpen);
+              setIsDepartmentDropdownOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{selectedStatus}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
+            <span className="text-slate-800 font-medium truncate">{selectedStatus}</span>
+            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
           {isStatusDropdownOpen && (
@@ -336,7 +323,6 @@ export default function ReturnItemClient() {
           )}
         </div>
 
-        {/* Clear filters */}
         {(searchTerm || selectedDepartment !== "แผนกทั้งหมด" || selectedStatus !== "สถานะทั้งหมด") && (
           <button
             type="button"
@@ -354,113 +340,135 @@ export default function ReturnItemClient() {
         )}
       </div>
 
-      {/* Table Content */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: '65vh' }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="animate-spin">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-            </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
-        )}
-        <div
-          className="flex-1"
-          style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            scrollbarWidth: 'auto',
-            msOverflowStyle: 'auto',
-          } as React.CSSProperties}
-        >
-          <style>{`
-            div::-webkit-scrollbar {
-              width: 0;
-              height: 8px;
-            }
-            div::-webkit-scrollbar-track {
-              background: #f1f5f9;
-            }
-            div::-webkit-scrollbar-thumb {
-              background: #cbd5e1;
-              border-radius: 4px;
-            }
-            div::-webkit-scrollbar-thumb:hover {
-              background: #94a3b8;
-            }
+        ) : (
+          <>
+            <div
+              className="flex-1"
+              style={
+                {
+                  overflowX: "auto",
+                  overflowY: "auto",
+                  scrollbarWidth: "auto",
+                  msOverflowStyle: "auto",
+                } as CSSProperties
+              }
+            >
+              <style>{`
+            div::-webkit-scrollbar { width: 0; height: 8px; }
+            div::-webkit-scrollbar-track { background: #f1f5f9; }
+            div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+            div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
           `}</style>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-4 w-[50px]">#</th>
-                <th className="px-5 py-4 w-[180px]">เลขที่เอกสาร</th>
-                <th className="px-5 py-4 w-[200px]">แผนก</th>
-                <th className="px-5 py-4 w-[200px]">ผู้ทำรายการ</th>
-                <th className="px-5 py-4 w-[180px]">สถานะ</th>
-                <th className="px-5 py-4 w-[200px]">วันที่สร้าง</th>
-                <th className="px-5 py-4 w-[80px] text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-600">
-              {displayed.map((r, idx) => (
-                <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-2 w-[50px] text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-5 py-2 w-[180px] font-mono font-medium text-slate-800">{r.doc_no}</td>
-                  <td className="px-5 py-2 w-[200px] text-gray-600">{r.department_name ?? "-"}</td>
-                  <td className="px-5 py-2 w-[200px] text-gray-600">{r.requested_by_name || r.requester || "-"}</td>
-                  <td className="px-5 py-2 w-[180px]">
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td className="px-5 py-2 w-[200px] text-gray-600">{fmtDateTime(r.created_at)}</td>
-                  <td className="px-5 py-2 w-[80px] text-center">
-                    <button
-                      onClick={() => openDetail(r.id)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                      title="ดูรายละเอียด"
+              <table className="w-full table-fixed text-sm text-left">
+                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-4 w-[52px] text-center whitespace-nowrap">#</th>
+                    <th className="px-5 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                    <th className="px-5 py-4 whitespace-nowrap">แผนก</th>
+                    <th className="px-5 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
+                    <th className="px-5 py-4 whitespace-nowrap">สถานะ</th>
+                    <th className="px-5 py-4 whitespace-nowrap">วันที่สร้าง</th>
+                    <th className="px-5 py-4 text-center whitespace-nowrap">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-600">
+                  {paginatedItems.map((r, idx) => (
+                    <tr
+                      key={r.id}
+                      className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                     >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {displayed.length === 0 && !isFetching && (
-                <tr>
-                  <td colSpan={7}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <Package className="w-12 h-12 text-slate-300" />
-                      <p className="text-sm font-medium">ไม่พบรายการคำขอคืน</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      <td className="px-4 py-3 text-center text-sm text-slate-500 tabular-nums">
+                        {(currentPage - 1) * PAGE_LIMIT + idx + 1}
+                      </td>
+                      <td className="px-5 py-3 font-mono font-medium text-slate-800">{r.doc_no}</td>
+                      <td className="px-5 py-3 text-slate-600 truncate" title={r.department_name ?? undefined}>
+                        {r.department_name ?? "—"}
+                      </td>
+                      <td className="px-5 py-3 text-slate-600 truncate" title={(r.requested_by_name || r.requester) ?? undefined}>
+                        {r.requested_by_name || r.requester || "—"}
+                      </td>
+                      <td className="px-5 py-3">
+                        <StatusBadge status={r.status} />
+                      </td>
+                      <td className="px-5 py-3 text-slate-600 tabular-nums">{fmtDateTime(r.created_at)}</td>
+                      <td className="px-5 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => openDetail(r.id)}
+                          className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
+                          title="ดูรายละเอียด"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedItems.length === 0 && (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="w-12 h-12 text-slate-300"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={1.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"
+                            />
+                          </svg>
+                          <p className="text-sm font-medium">ไม่พบข้อมูล</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-600">
-          แสดง {displayed.length} จาก {filtered.length} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium px-3 py-1">
-            หน้า {currentPage} / {totalPages || 1}
-          </span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <p className="text-sm text-slate-500">
+                แสดง {paginatedItems.length} จาก {filtered.length} รายการ
+                {filtered.length !== records.length && (
+                  <span className="text-slate-400"> (ทั้งหมด {records.length} รายการ)</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors bg-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

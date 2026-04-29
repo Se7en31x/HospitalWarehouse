@@ -565,7 +565,7 @@ export default function ReceiveFormPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-[#fafafa]">
       <Toaster position="top-right" />
 
       <div className="w-full p-6 flex flex-col flex-1">
@@ -787,34 +787,36 @@ export default function ReceiveFormPage() {
               </div>
               <div style={{ overflowX: 'auto', overflowY: 'auto' } as React.CSSProperties}>
                 <style>{`
-                  div::-webkit-scrollbar {
-                    width: 0;
-                    height: 8px;
-                  }
-                  div::-webkit-scrollbar-track {
-                    background: #f1f5f9;
-                  }
-                  div::-webkit-scrollbar-thumb {
-                    background: #cbd5e1;
-                    border-radius: 4px;
-                  }
-                  div::-webkit-scrollbar-thumb:hover {
-                    background: #94a3b8;
-                  }
+                  div::-webkit-scrollbar { width: 0; height: 8px; }
+                  div::-webkit-scrollbar-track { background: #f1f5f9; }
+                  div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                  div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
                 `}</style>
                 <table className="w-full text-sm text-left table-fixed">
-                  <thead className="bg-slate-50 text-slate-700 font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                  <colgroup>
+                    <col className="w-[40px]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[6%]" />
+                  </colgroup>
+                  <thead className="bg-slate-50 text-slate-700 text-base font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                     <tr>
-                      <th className="px-6 py-4 w-[40px] text-center">#</th>
-                      <th className="px-6 py-4 w-[120px]">รหัส</th>
-                      <th className="px-6 py-4 w-[180px] text-left">สินค้า</th>
-                      <th className="px-6 py-4 w-[180px] text-left">หมวดหมู่</th>
-                      <th className="px-6 py-4 w-[200px]">รายละเอียด</th>
-                      <th className="px-6 py-4 w-[100px]">ใบกำกับ</th>
-                      <th className="px-6 py-4 w-[80px]">รับจริง</th>
-                      <th className="px-6 py-4 w-[80px]">หน่วย</th>
-                      <th className="px-6 py-4 w-[120px]">ต้นทุน</th>
-                      <th className="px-6 py-4 w-[50px] text-center">จัดการ</th>
+                      <th className="px-6 py-4 text-center whitespace-nowrap">#</th>
+                      <th className="px-6 py-4 whitespace-nowrap">รหัส</th>
+                      <th className="px-6 py-4 text-left whitespace-nowrap">สินค้า</th>
+                      <th className="px-6 py-4 text-left whitespace-nowrap">หมวดหมู่</th>
+                      <th className="px-6 py-4 whitespace-nowrap">รายละเอียด</th>
+                      <th className="px-6 py-4 whitespace-nowrap">ใบกำกับ</th>
+                      <th className="px-6 py-4 whitespace-nowrap">รับจริง</th>
+                      <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
+                      <th className="px-6 py-4 whitespace-nowrap">ต้นทุน</th>
+                      <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-600">
@@ -879,7 +881,7 @@ interface LineRowProps {
 
 function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRowProps) {
   return (
-    <tr className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+    <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
 
       {/* # */}
       <td className="px-6 py-3 text-center text-sm text-slate-400 font-mono">{idx + 1}</td>

@@ -1,24 +1,17 @@
-// src/app/warehouse/items/loading.tsx
+"use client";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
 export default function Loading() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] w-full space-y-4 animate-in fade-in duration-500">
-      {/* Container ของตัวหมุน */}
-      <div className="relative">
-        {/* วงแหวนพื้นหลัง (จางๆ) */}
-        <div className="w-12 h-12 border-4 border-blue-100 rounded-full"></div>
-        
-        {/* ตัวหมุนหลักสีฟ้า */}
-        <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-
-      {/* ข้อความประกอบ (Optional) */}
-      <div className="flex flex-col items-center">
-        <p className="text-sm font-bold text-slate-600 tracking-wide">
-        </p>
-        <p className="text-xs text-slate-400 animate-pulse mt-1">
-          กรุณารอสักครู่...
-        </p>
-      </div>
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-white z-50">
+      <DotLottieReact
+        src="https://lottie.host/embed/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+        loop
+        autoplay
+        style={{ width: 220, height: 220 }}
+      />
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mt-1" />
+      <p className="text-xs text-slate-400 mt-3">กรุณารอสักครู่...</p>
     </div>
   );
 }

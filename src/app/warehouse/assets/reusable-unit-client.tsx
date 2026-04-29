@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search, X } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
@@ -20,18 +21,13 @@ const REUSABLE_PAGE_LIMIT = 10;
 export default function ReusableUnitClient() {
   const router = useRouter();
 
-  const [items, setItems] = useState<Item.UiItem[]>([]);
+  const [allItems, setAllItems] = useState<Item.UiItem[]>([]);
   const [isFetching, setIsFetching] = useState(false);
-  const [serverTotal, setServerTotal] = useState(0);
-  const [serverTotalPages, setServerTotalPages] = useState(0);
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRefreshingRef = useRef(false);
   const isVisibleRef = useRef(true);
-  const pageRef = useRef(1);
-  const keywordRef = useRef("");
-  const keywordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
@@ -60,18 +56,15 @@ export default function ReusableUnitClient() {
     });
   };
 
-  const fetchPage = useCallback(async (page: number, keyword: string) => {
+  const handleBulkPrint = () => {
+    printLabels(Array.from(selectedItems.values()));
+  };
+
+  const fetchAll = useCallback(async () => {
     setIsFetching(true);
     try {
-      const result = await ItemSvc.getInventoryItemsPage({
-        type: "REUSABLE",
-        page,
-        limit: REUSABLE_PAGE_LIMIT,
-        ...(keyword ? { keyword } : {}),
-      });
-      setItems(result.items || []);
-      setServerTotal(result.meta.total);
-      setServerTotalPages(result.meta.totalPages);
+      const result = await ItemSvc.getAllInventoryItems({ type: "REUSABLE" });
+      setAllItems(result || []);
     } catch (error) {
       console.error("Fetch error:", error);
       SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลของใช้ซ้ำไม่สำเร็จ");
@@ -81,8 +74,8 @@ export default function ReusableUnitClient() {
   }, []);
 
   const refreshData = useCallback(async () => {
-    fetchPage(pageRef.current, keywordRef.current);
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -120,8 +113,8 @@ export default function ReusableUnitClient() {
     ItemSvc.getcategoriesOptions()
       .then(d => setCategories(d || []))
       .catch(err => console.error("Load categories options failed", err));
-    fetchPage(1, "");
-  }, [fetchPage]);
+    fetchAll();
+  }, [fetchAll]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -137,30 +130,27 @@ export default function ReusableUnitClient() {
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    keywordRef.current = value;
-    if (keywordTimerRef.current) clearTimeout(keywordTimerRef.current);
-    keywordTimerRef.current = setTimeout(() => {
-      setCurrentPage(1);
-      pageRef.current = 1;
-      fetchPage(1, value);
-    }, 300);
+    setCurrentPage(1);
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    pageRef.current = newPage;
-    fetchPage(newPage, keywordRef.current);
   };
 
   const filterCategories = ["หมวดหมู่ทั้งหมด", ...categories.map((c) => c.name)];
 
-  // Client-side secondary filters on current page's items
-  const filteredItems = items.filter((item) => {
+  const filteredItems = allItems.filter((item) => {
+    const keyword = searchTerm.toLowerCase();
+    const matchesSearch = !keyword ||
+      item.name.toLowerCase().includes(keyword) ||
+      item.code.toLowerCase().includes(keyword);
     const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
     const matchesStatus = selectedStatus === "ทั้งหมด" || item.status === selectedStatus;
-    return matchesCat && matchesStatus;
+    return matchesSearch && matchesCat && matchesStatus;
   });
-  const paginatedItems = filteredItems;
+
+  const totalPages = Math.ceil(filteredItems.length / REUSABLE_PAGE_LIMIT);
+  const paginatedItems = filteredItems.slice((currentPage - 1) * REUSABLE_PAGE_LIMIT, currentPage * REUSABLE_PAGE_LIMIT);
 
   const goToRegistry = (itemId: string) => {
     router.push(`/warehouse/assets/reusable-registry?itemId=${itemId}`);
@@ -194,13 +184,29 @@ export default function ReusableUnitClient() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8">
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-3xl font-bold text-gray-800">จัดการอุปกรณ์ทางการแพทย์</h2>
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการอุปกรณ์ทางการแพทย์</h2>
+          <div className="flex border-b border-slate-200 mt-2">
+            <button
+              onClick={() => router.push('/warehouse/assets?mode=reusable')}
+              className="px-5 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-700 transition-colors"
+            >
+              อุปกรณ์ทางการแพทย์
+            </button>
+            <button
+              onClick={() => router.push('/warehouse/assets?mode=med-asset')}
+              className="px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+            >
+              ครุภัณฑ์ภายในองค์กร
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
           {selectedItems.size > 0 && (
             <button
-              onClick={() => printLabels(Array.from(selectedItems.values()))}
+              onClick={handleBulkPrint}
               className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
             >
               <Printer className="w-4 h-4" />
@@ -208,24 +214,10 @@ export default function ReusableUnitClient() {
             </button>
           )}
         </div>
-        <div className="flex border-b border-slate-200">
-          <button
-            onClick={() => router.push('/warehouse/assets?mode=reusable')}
-            className="px-5 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-700 transition-colors"
-          >
-            อุปกรณ์ทางการแพทย์
-          </button>
-          <button
-            onClick={() => router.push('/warehouse/assets?mode=med-asset')}
-            className="px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
-          >
-            ครุภัณฑ์ภายในองค์กร
-          </button>
-        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-6 items-center">
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
@@ -236,11 +228,11 @@ export default function ReusableUnitClient() {
           />
         </div>
 
-        <div className="relative" data-filter-category>
+        <div className="relative w-full sm:w-auto" data-filter-category>
           <button
             type="button"
             onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">{selectedCategory}</span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
@@ -250,9 +242,13 @@ export default function ReusableUnitClient() {
               <ul className="py-1">
                 {filterCategories.map((c) => (
                   <li key={c}>
-                    <button type="button" onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); pageRef.current = 1; }}
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCategory(c); setIsCategoryOpen(false); setCurrentPage(1); }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
-                    >{c}</button>
+                    >
+                      {c}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -260,11 +256,11 @@ export default function ReusableUnitClient() {
           )}
         </div>
 
-        <div className="relative" data-filter-status>
+        <div className="relative w-full sm:w-auto" data-filter-status>
           <button
             type="button"
             onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-[200px] justify-between"
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
             <span className="text-slate-800 font-medium">
               {STATUS_OPTIONS.find(s => s.value === selectedStatus)?.label ?? "สถานะทั้งหมด"}
@@ -278,11 +274,9 @@ export default function ReusableUnitClient() {
                   <li key={s.value}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); pageRef.current = 1; }}
+                      onClick={() => { setSelectedStatus(s.value); setIsStatusOpen(false); setCurrentPage(1); }}
                       className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
-                        selectedStatus === s.value
-                          ? "bg-blue-50 text-blue-700 font-medium"
-                          : "text-slate-700 hover:bg-slate-50"
+                        selectedStatus === s.value ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"
                       }`}
                     >
                       <span>{s.label}</span>
@@ -300,11 +294,10 @@ export default function ReusableUnitClient() {
           <button
             type="button"
             onClick={() => {
-              setSearchTerm(""); keywordRef.current = "";
+              setSearchTerm("");
               setSelectedCategory("หมวดหมู่ทั้งหมด");
               setSelectedStatus("ทั้งหมด");
-              setCurrentPage(1); pageRef.current = 1;
-              fetchPage(1, "");
+              setCurrentPage(1);
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
           >
@@ -314,94 +307,148 @@ export default function ReusableUnitClient() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col" style={{ height: "60vh" }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      {/* Table Content */}
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-16">
+            <DotLottieReact
+              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+              loop
+              autoplay
+              style={{ width: 160, height: 160 }}
+            />
           </div>
+        ) : (
+          <>
+            <div
+              className="flex-1"
+              style={{ overflowX: "auto", overflowY: "auto", scrollbarWidth: "auto", msOverflowStyle: "auto" } as React.CSSProperties}
+            >
+              <style>{`
+                div::-webkit-scrollbar { width: 0; height: 8px; }
+                div::-webkit-scrollbar-track { background: #f1f5f9; }
+                div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+              `}</style>
+              <table className="w-full text-sm text-left table-fixed">
+                <colgroup>
+                  <col className="w-[44px]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
+                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        title="เลือกทั้งหมดในหน้านี้"
+                      />
+                    </th>
+                    <th className="px-6 py-4">รูป</th>
+                    <th className="px-3 py-4 whitespace-nowrap">รหัส</th>
+                    <th className="px-3 py-4 whitespace-nowrap">ชื่อรายการ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
+                    <th className="px-6 py-4 whitespace-nowrap">คงเหลือ</th>
+                    <th className="px-6 py-4 whitespace-nowrap">พร้อมใช้งาน</th>
+                    <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
+                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
+                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-600">
+                  {paginatedItems.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                    >
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(item.id)}
+                          onChange={() => toggleSelect(item)}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-6 py-3">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
+                          {item.imageUrl
+                            ? <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
+                            : <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">{item.code}</td>
+                      <td className="px-3 py-3">
+                        <span className="block truncate" title={item.name}>{item.name}</span>
+                      </td>
+                      <td className="px-6 py-3 truncate">{item.category}</td>
+                      <td className="px-6 py-3">{item.stock}</td>
+                      <td className="px-6 py-3 text-emerald-700 font-semibold">{item.availableStock ?? 0}</td>
+                      <td className="px-6 py-3">{item.unit}</td>
+                      <td className="px-6 py-3"><Badge status={item.status} /></td>
+                      <td className="px-6 py-3 text-center">
+                        <button
+                          onClick={() => goToRegistry(item.id)}
+                          className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg"
+                        >
+                          <ClipboardList className="w-5 h-5 stroke-[2]" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedItems.length === 0 && !isFetching && (
+                    <tr>
+                      <td colSpan={10}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
+                          </svg>
+                          <p className="text-sm font-medium">ไม่พบรายการของใช้ซ้ำ</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <p className="text-sm text-slate-500">
+                แสดง {paginatedItems.length} จาก {filteredItems.length} รายการ
+                {filteredItems.length !== allItems.length && (
+                  <span className="text-slate-400"> (ทั้งหมด {allItems.length} รายการ)</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium">หน้า {currentPage} / {totalPages || 1}</span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className="p-2 border border-slate-300 rounded-lg disabled:opacity-30 hover:bg-slate-50 transition-colors bg-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
-
-        <div className="flex-1" style={{ overflowX: 'auto', overflowY: 'auto' } as React.CSSProperties}>
-          <table className="w-full text-sm text-left table-fixed">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-4 w-[44px] text-center">
-                  <input
-                    type="checkbox"
-                    checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 accent-blue-600 cursor-pointer"
-                    title="เลือกทั้งหมดในหน้านี้"
-                  />
-                </th>
-                <th className="px-6 py-4 w-[100px]">รูป</th>
-                <th className="px-6 py-4 w-[140px]">รหัส</th>
-                <th className="px-6 py-4 w-[260px]">ชื่อรายการ</th>
-                <th className="px-6 py-4 w-[180px]">หมวดหมู่</th>
-                <th className="px-6 py-4 w-[130px]">คงเหลือ</th>
-                <th className="px-6 py-4 w-[130px]">พร้อมใช้งาน</th>
-                <th className="px-6 py-4 w-[120px]">หน่วย</th>
-                <th className="px-6 py-4 w-[130px]">สถานะ</th>
-                <th className="px-6 py-4 text-center w-[100px]">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-600">
-              {paginatedItems.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-3 w-[44px] text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedItems.has(item.id)}
-                      onChange={() => toggleSelect(item)}
-                      className="w-4 h-4 accent-blue-600 cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-6 py-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
-                      {item.imageUrl
-                        ? <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.name} />
-                        : <Package className="w-5 h-5 m-auto mt-2.5 text-slate-300" />}
-                    </div>
-                  </td>
-                  <td className="px-6 py-3">{item.code}</td>
-                  <td className="px-6 py-3">{item.name}</td>
-                  <td className="px-6 py-3">{item.category}</td>
-                  <td className="px-6 py-3">{item.stock}</td>
-                  <td className="px-6 py-3 text-emerald-700 font-semibold">{item.availableStock ?? 0}</td>
-                  <td className="px-6 py-3">{item.unit}</td>
-                  <td className="px-6 py-3"><Badge status={item.status} /></td>
-                  <td className="px-6 py-3 w-[100px] text-center">
-                    <button onClick={() => goToRegistry(item.id)} className="text-blue-700 hover:bg-blue-50 rounded-lg">
-                      <ClipboardList className="w-6 h-6 stroke-[2]" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {paginatedItems.length === 0 && !isFetching && (
-                <tr>
-                  <td colSpan={11}>
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
-                      <p className="text-sm font-medium">ไม่พบรายการของใช้ซ้ำ</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-slate-500">แสดง {paginatedItems.length} จาก {serverTotal} รายการ</p>
-        <div className="flex items-center gap-2">
-          <button disabled={currentPage === 1 || isFetching} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-medium">หน้า {currentPage} / {serverTotalPages || 1}</span>
-          <button disabled={currentPage >= serverTotalPages || isFetching} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border border-slate-400 rounded-lg disabled:opacity-30 bg-white">
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
       </div>
     </div>
   );
