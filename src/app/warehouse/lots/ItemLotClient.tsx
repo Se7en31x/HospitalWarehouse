@@ -625,17 +625,17 @@ export default function LotClient({
                 div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
                 div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
               `}</style>
-              <table className="w-full text-sm text-left table-fixed">
+              <table className="w-full min-w-[960px] text-sm text-left table-fixed">
                 <colgroup>
                   <col className="w-[44px]" />
-                  <col className="w-[13%]" />
                   <col className="w-[11%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[10%]" />
                   <col className="w-[7%]" />
-                  <col className="w-[9%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[15%]" />
                   <col className="w-[9%]" />
                   <col className="w-[9%]" />
                 </colgroup>
@@ -726,7 +726,7 @@ export default function LotClient({
                         </td>
                         <td className="px-6 py-2.5 truncate text-slate-600">{enrichedData.category}</td>
                         <td className="px-6 py-2.5 text-slate-600">{lot.quantity.toLocaleString()}</td>
-                        <td className="px-6 py-2.5 text-slate-600">{enrichedData.unit}</td>
+                        <td className="px-6 py-2.5 text-slate-600 truncate max-w-[6rem]" title={enrichedData.unit}>{enrichedData.unit}</td>
                         <td className="px-6 py-2.5">
                           <div className="text-slate-600 truncate" title={fmtDateTime(lot.createdAt)}>{fmtDateTime(lot.createdAt)}</div>
                         </td>

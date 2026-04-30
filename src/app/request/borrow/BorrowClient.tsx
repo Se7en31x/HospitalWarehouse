@@ -704,7 +704,7 @@ export default function BorrowClient({ initialItems }: Props) {
                           <span className="text-black">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-3">{item.unit}</td>
+                      <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
                       <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>
                       <td className="px-6 py-3">
                         <Badge status={item.status} />

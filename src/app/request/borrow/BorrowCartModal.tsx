@@ -242,6 +242,59 @@ const initialExternalForm: ExternalPersonForm = {
   documents: [],
 };
 
+function BorrowerAttachmentThumbnail({
+  file,
+  variant,
+  onOpenImage,
+}: {
+  file: File;
+  variant: "inline" | "card";
+  onOpenImage: (payload: { url: string; name: string }) => void;
+}) {
+  const url = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  const isImage = file.type.startsWith("image/");
+  if (!isImage) return null;
+
+  if (variant === "inline") {
+    return (
+      <button
+        type="button"
+        aria-label={`ขยายรูป ${file.name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenImage({ url, name: file.name });
+        }}
+        className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+      >
+        <img
+          src={url}
+          alt={file.name}
+          className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in"
+        />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={`ขยายรูป ${file.name}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenImage({ url, name: file.name });
+      }}
+      className="mx-auto block w-full max-w-[76px] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+    >
+      <img
+        src={url}
+        alt={file.name}
+        className="w-full aspect-square object-cover block hover:opacity-80 transition-opacity cursor-zoom-in"
+      />
+    </button>
+  );
+}
+
 export default function BorrowCartModal({
   showCartModal,
   setShowCartModal,
@@ -255,6 +308,11 @@ export default function BorrowCartModal({
   departments,
   onDeptChange,
 }: BorrowCartModalProps) {
+  const [attachmentLightbox, setAttachmentLightbox] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+
   const [externalStep, setExternalStep] = useState<1 | 2 | 3>(1);
 
   // ✅ State สำหรับ Loading ตอนกดปุ่ม
@@ -380,6 +438,7 @@ export default function BorrowCartModal({
 
   const handleCloseModal = useCallback(() => {
     if (isSubmitting) return;
+    setAttachmentLightbox(null);
     void flushBorrowDraft()
       .then(() => {
         if (externalForm.returnDate) {
@@ -856,6 +915,7 @@ export default function BorrowCartModal({
   const labelClass = "block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1";
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       onClick={handleCloseModal}
@@ -1504,11 +1564,12 @@ export default function BorrowCartModal({
                         const isImage = file.type.startsWith("image/");
                         return (
                           <div key={idx} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-b-0">
-                            {/* File type icon */}
                             {isImage ? (
-                              <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 border border-slate-200">
-                                <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
-                              </div>
+                              <BorrowerAttachmentThumbnail
+                                file={file}
+                                variant="inline"
+                                onOpenImage={setAttachmentLightbox}
+                              />
                             ) : (
                               <div className="w-7 h-7 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-center flex-shrink-0">
                                 <FileText className="w-3.5 h-3.5 text-slate-400" />
@@ -1618,26 +1679,121 @@ export default function BorrowCartModal({
                           </p>
                         </div>
                         {externalForm.documents.length > 0 && (
-                          <p className="text-sm flex gap-2">
-                            <span className="text-gray-500 w-24 flex-shrink-0">เอกสารแนบ:</span>
-                            <span className="text-gray-800">{externalForm.documents.length} ไฟล์</span>
-                          </p>
+                          <div className="space-y-2 pt-1 border-t border-slate-100">
+                            <p className="text-sm font-semibold text-slate-800">เอกสารแนบ</p>
+                            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-x-2 gap-y-2">
+                              {externalForm.documents.map((file, idx) => (
+                                <div
+                                  key={`${idx}-${file.name}-${file.lastModified}`}
+                                  className="space-y-1 min-w-0"
+                                >
+                                  {file.type.startsWith("image/") ? (
+                                    <BorrowerAttachmentThumbnail
+                                      file={file}
+                                      variant="card"
+                                      onOpenImage={setAttachmentLightbox}
+                                    />
+                                  ) : (
+                                    <div className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50 min-h-[76px]">
+                                      <FileText className="w-5 h-5 text-slate-400 shrink-0" />
+                                      <span className="text-xs text-gray-700 truncate">{file.name}</span>
+                                    </div>
+                                  )}
+                                  <p className="text-[11px] text-gray-500 truncate" title={file.name}>
+                                    {file.name}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              ทั้งหมด {externalForm.documents.length} ไฟล์
+                            </p>
+                          </div>
                         )}
                       </div>
                     </div>
-                    
+
                     <div>
                       <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-3">รายละเอียดการยืม</h4>
-                      <div className="space-y-2">
-                        <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">รายการทั้งหมด:</span> <span className="font-semibold text-indigo-600">{selectedItems.length} รายการ ({selectedItems.reduce((a, b) => a + b.quantity, 0)} ชิ้น)</span></p>
-                        <p className="text-sm flex gap-2">
-                          <span className="text-gray-500 w-24 flex-shrink-0">ระยะเวลายืม:</span>
+                      <div className="overflow-x-auto rounded-xl border border-slate-200">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-50 border-b border-slate-100 text-base font-semibold text-slate-700">
+                            <tr>
+                              <th className="px-2 py-2.5 w-14">รูป</th>
+                              <th className="px-3 py-2.5 whitespace-nowrap">รหัส</th>
+                              <th className="px-3 py-2.5 min-w-[120px]">ชื่อรายการ</th>
+                              <th className="px-3 py-2.5">หมวดหมู่</th>
+                              <th className="px-3 py-2.5 text-right w-24 whitespace-nowrap">จำนวน</th>
+                              <th className="px-3 py-2.5 text-right w-24 max-w-[6rem] whitespace-nowrap">หน่วยนับ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-gray-700 text-sm font-normal">
+                            {selectedItems.map((item) => (
+                              <tr key={item.id}>
+                                <td className="px-2 py-2">
+                                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center">
+                                    {item.imageUrl ? (
+                                      <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Package className="w-5 h-5 text-gray-300" />
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2.5 font-mono text-sm text-gray-600 whitespace-nowrap font-normal">
+                                  {item.code}
+                                </td>
+                                <td className="px-3 py-2.5 font-normal text-gray-900">
+                                  {item.name}
+                                </td>
+                                <td className="px-3 py-2.5 text-gray-700 font-normal">
+                                  {item.category || (item.type === "REUSABLE" ? "ครุภัณฑ์" : "วัสดุ")}
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-indigo-600 font-normal tabular-nums">
+                                  {item.quantity}
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-gray-700 font-normal w-24 max-w-[6rem] min-w-0 overflow-hidden align-middle">
+                                  <span
+                                    className="block truncate"
+                                    title={item.unit ? item.unit : undefined}
+                                  >
+                                    {item.unit || "—"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-50 border-t border-slate-200 font-normal">
+                              <td className="px-3 py-2.5 text-right text-gray-700 font-normal" colSpan={4}>
+                                รวม
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-indigo-600 font-normal tabular-nums">
+                                {selectedItems.reduce((a, b) => a + b.quantity, 0)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-gray-700 text-sm font-normal w-24 max-w-[6rem] min-w-0 overflow-hidden align-middle">
+                                <span
+                                  className="block truncate"
+                                  title={`(${selectedItems.length} รายการ)`}
+                                >
+                                  ({selectedItems.length} รายการ)
+                                </span>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        <p className="text-sm flex flex-wrap gap-x-2 gap-y-1">
+                          <span className="text-gray-500 shrink-0">ระยะเวลายืม:</span>
                           <span className="font-semibold text-emerald-600">
                             {fmtDate(todayYmdLocal())} ถึง {fmtDate(externalForm.returnDate)}
                           </span>
                         </p>
                         {externalForm.notes && (
-                          <p className="text-sm flex gap-2"><span className="text-gray-500 w-24 flex-shrink-0">หมายเหตุ:</span> <span className="text-gray-800">{externalForm.notes}</span></p>
+                          <p className="text-sm flex gap-2">
+                            <span className="text-gray-500 w-24 flex-shrink-0">หมายเหตุ:</span>
+                            <span className="text-gray-800">{externalForm.notes}</span>
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1727,5 +1883,42 @@ export default function BorrowCartModal({
         )}
       </div>
     </div>
+
+    {attachmentLightbox && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+        onClick={() => setAttachmentLightbox(null)}
+        role="presentation"
+      >
+        <div
+          className="relative bg-white rounded-lg shadow-2xl p-2 max-w-[min(90vw,520px)]"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="ดูภาพเอกสารแนบ"
+        >
+          <button
+            type="button"
+            onClick={() => setAttachmentLightbox(null)}
+            className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-lg shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
+            aria-label="ปิด"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <img
+            src={attachmentLightbox.url}
+            alt={attachmentLightbox.name}
+            className="w-[min(90vw,480px)] h-[min(70vh,400px)] object-contain rounded-lg mx-auto block"
+          />
+          <p
+            className="text-center text-sm text-slate-600 mt-2 pb-1 px-2 truncate"
+            title={attachmentLightbox.name}
+          >
+            {attachmentLightbox.name}
+          </p>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

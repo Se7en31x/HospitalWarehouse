@@ -56,6 +56,10 @@ export default function ReturnItemClient() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDepartment, setSelectedDepartment] = useState("แผนกทั้งหมด");
   const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startDateFocused, setStartDateFocused] = useState(false);
+  const [endDateFocused, setEndDateFocused] = useState(false);
   const [isDepartmentDropdownOpen, setIsDepartmentDropdownOpen] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
@@ -184,9 +188,16 @@ export default function ReturnItemClient() {
         return false;
       }
 
+      const d = new Date(r.created_at);
+      if (Number.isNaN(d.getTime())) return false;
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      if (startDate && ymd < startDate) return false;
+      if (endDate && ymd > endDate) return false;
+
       return true;
     });
-  }, [records, searchTerm, selectedDepartment, selectedStatus]);
+  }, [records, searchTerm, selectedDepartment, selectedStatus, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_LIMIT));
   const paginatedItems = filtered.slice((currentPage - 1) * PAGE_LIMIT, currentPage * PAGE_LIMIT);
@@ -313,13 +324,59 @@ export default function ReturnItemClient() {
           )}
         </div>
 
-        {(searchTerm || selectedDepartment !== "แผนกทั้งหมด" || selectedStatus !== "สถานะทั้งหมด") && (
+        <div
+          className={`relative w-full sm:w-[160px] border rounded-lg px-4 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
+            startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+          }`}
+        >
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">
+            วันที่เริ่มต้น
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setCurrentPage(1);
+            }}
+            onFocus={() => setStartDateFocused(true)}
+            onBlur={() => setStartDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light" }}
+          />
+        </div>
+
+        <div
+          className={`relative w-full sm:w-[160px] border rounded-lg px-4 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
+            endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
+          }`}
+        >
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">
+            วันที่สิ้นสุด
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setCurrentPage(1);
+            }}
+            onFocus={() => setEndDateFocused(true)}
+            onBlur={() => setEndDateFocused(false)}
+            className="w-full text-sm outline-none border-none bg-transparent"
+            style={{ colorScheme: "light" }}
+          />
+        </div>
+
+        {(searchTerm || selectedDepartment !== "แผนกทั้งหมด" || selectedStatus !== "สถานะทั้งหมด" || startDate || endDate) && (
           <button
             type="button"
             onClick={() => {
               setSearchTerm("");
               setSelectedDepartment("แผนกทั้งหมด");
               setSelectedStatus("สถานะทั้งหมด");
+              setStartDate("");
+              setEndDate("");
               setCurrentPage(1);
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"

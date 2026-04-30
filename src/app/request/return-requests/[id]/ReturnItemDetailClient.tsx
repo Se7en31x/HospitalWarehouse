@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import {
   Loader2,
-  FileText, Package, Clock, CheckCircle, AlertCircle,
+  Package,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  X,
+  Eye,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
@@ -22,7 +27,7 @@ const getStatusBadgeColor = (status: string) => {
   };
   return map[status] || "bg-slate-100 text-slate-800 border-slate-200";
 };
-// 
+
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     PENDING: "รออนุมัติ",
@@ -36,14 +41,209 @@ const getStatusLabel = (status: string) => {
 
 const getStatusIcon = (status: string) => {
   switch (status) {
-    case "PENDING": return <Clock className="w-3 h-3" />;
-    case "APPROVED": return <CheckCircle className="w-3 h-3" />;
-    case "REJECTED": return <AlertCircle className="w-3 h-3" />;
-    case "COMPLETED": return <CheckCircle className="w-3 h-3" />;
-    case "PENDING_RETURN_CHECK": return <Loader2 className="w-3 h-3 animate-spin" />;
-    default: return <Clock className="w-3 h-3" />;
+    case "PENDING":
+      return <Clock className="w-3 h-3" />;
+    case "APPROVED":
+      return <CheckCircle className="w-3 h-3" />;
+    case "REJECTED":
+      return <AlertCircle className="w-3 h-3" />;
+    case "COMPLETED":
+      return <CheckCircle className="w-3 h-3" />;
+    case "PENDING_RETURN_CHECK":
+      return <Loader2 className="w-3 h-3 animate-spin" />;
+    default:
+      return <Clock className="w-3 h-3" />;
   }
 };
+
+// ─── Field row (โทนเดียวกับ returnitem / BorrowerFieldRow) ───────────────────
+
+function DetailFieldRow({
+  label,
+  value,
+  className = "",
+  valueClassName = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-sm font-bold text-gray-900 mb-1">{label}</p>
+      <p
+        className={`text-sm text-gray-600 whitespace-pre-wrap break-words ${valueClassName}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+const displayOrDash = (v: string | null | undefined): string =>
+  v != null && String(v).trim() !== "" ? String(v).trim() : "—";
+
+type UnitRow = {
+  unit_code: string;
+  serial_no: string | null;
+  status: string | null;
+  condition: string | null;
+  is_found?: boolean;
+};
+
+function buildUnitRows(item: reusableSvc.ReusableReturnRequestItem): UnitRow[] {
+  if (item.requested_units?.length) {
+    return item.requested_units.map((u) => ({
+      unit_code: u.unit_code,
+      serial_no: u.serial_no,
+      status: u.status,
+      condition: u.condition,
+      is_found: u.is_found,
+    }));
+  }
+  if (item.requested_unit_codes?.length) {
+    return item.requested_unit_codes.map((code) => ({
+      unit_code: code,
+      serial_no: null,
+      status: null,
+      condition: null,
+    }));
+  }
+  return [];
+}
+
+function unitCountForItem(item: reusableSvc.ReusableReturnRequestItem): number {
+  const rows = buildUnitRows(item);
+  if (rows.length > 0) return rows.length;
+  return item.requested_qty ?? 0;
+}
+
+function RequestedUnitsModal({
+  item,
+  onClose,
+}: {
+  item: reusableSvc.ReusableReturnRequestItem;
+  onClose: () => void;
+}) {
+  const rows = buildUnitRows(item);
+  const title = item.item_name || "รายการ";
+  const code = item.item_code || "—";
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[min(92vh,640px)]"
+        role="dialog"
+        aria-labelledby="units-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3 px-5 sm:px-6 py-4 border-b border-slate-200 flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-slate-500">ตรวจสอบหน่วยที่ขอคืน</p>
+            <h2 id="units-modal-title" className="text-lg font-bold text-gray-900 leading-snug mt-0.5">
+              {title}
+            </h2>
+            <p className="text-sm font-mono font-medium text-slate-600 mt-1">{code}</p>
+            <p className="text-xs text-slate-500 mt-2">
+              รวม{" "}
+              <span className="font-semibold text-slate-700">
+                {rows.length > 0 ? rows.length : item.requested_qty ?? 0}
+              </span>{" "}
+              หน่วย
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/90 hover:bg-white hover:border-slate-300 text-slate-500 flex-shrink-0 transition-colors shadow-sm"
+            aria-label="ปิด"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto min-h-0 px-5 sm:px-6 py-4">
+          {rows.length > 0 ? (
+            <div className="rounded-lg border border-slate-200 overflow-hidden">
+              <table className="w-full text-sm border-collapse min-w-[520px]">
+                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+                  <tr>
+                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 w-12">#</th>
+                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
+                      รหัสหน่วย
+                    </th>
+                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
+                      S/N
+                    </th>
+                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
+                      สถานะ
+                    </th>
+                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
+                      สภาพ
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={`${row.unit_code}-${i}`} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60">
+                      <td className="px-3 py-2 text-slate-500 tabular-nums align-middle">{i + 1}</td>
+                      <td className="px-3 py-2 font-mono font-semibold text-slate-800 align-middle whitespace-nowrap">
+                        {row.unit_code}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 align-middle whitespace-nowrap">
+                        {displayOrDash(row.serial_no)}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 align-middle">
+                        {displayOrDash(row.status)}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        <span className="text-slate-600">{displayOrDash(row.condition)}</span>
+                        {typeof row.is_found === "boolean" ? (
+                          <span
+                            className={`ml-2 text-xs font-medium ${
+                              row.is_found ? "text-emerald-600" : "text-amber-600"
+                            }`}
+                          >
+                            {row.is_found ? "พบ" : "ยังไม่พบ"}
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center">
+              <Package className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-600">
+                ระบบยังไม่ส่งรายการรหัสหน่วยทีละรายการ
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                จำนวนที่แจ้งคืนในแถวนี้:{" "}
+                <span className="font-semibold text-slate-700">{item.requested_qty ?? 0}</span> หน่วย
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 sm:px-6 py-3 border-t border-slate-200 bg-slate-50/60 flex justify-end flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors"
+          >
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -51,143 +251,219 @@ export default function ReturnItemDetailClient() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id;
-  const [detail, setDetail] = useState<reusableSvc.ReusableReturnRequest | null>(null);
+  const [detail, setDetail] = useState<reusableSvc.ReusableReturnRequest | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
+  const [unitsModalItem, setUnitsModalItem] =
+    useState<reusableSvc.ReusableReturnRequestItem | null>(null);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    reusableSvc.getReusableReturnRequestById(Number(id))
+    reusableSvc
+      .getReusableReturnRequestById(Number(id))
       .then(setDetail)
       .catch(() => toast.error("โหลดรายละเอียดไม่สำเร็จ"))
       .finally(() => setLoading(false));
   }, [id]);
 
-  // ─── Loading State ─────────────────────────────────────────────────────────
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      <div className="flex flex-col min-h-screen bg-[#fafafa]">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
   if (!id || !detail) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-slate-400">
-        ไม่พบข้อมูล
+      <div className="flex flex-col min-h-screen bg-[#fafafa]">
+        <div className="flex flex-1 items-center justify-center text-slate-500 text-sm font-medium">
+          ไม่พบข้อมูล
+        </div>
       </div>
     );
   }
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const itemCount = detail.items?.length ?? 0;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8">
+    <div className="flex flex-col min-h-screen bg-[#fafafa]">
       <Toaster position="top-right" />
+      {unitsModalItem ? (
+        <RequestedUnitsModal item={unitsModalItem} onClose={() => setUnitsModalItem(null)} />
+      ) : null}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-bold text-gray-800">รายละเอียดคำขอคืน</h2>
-        <button
-          onClick={() => router.push("/request/return-requests")}
-          className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
-        >
-          ย้อนกลับ
-        </button>
-      </div>
-
-      <div className="space-y-6 flex-1">
-        {/* Document Info */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-            <FileText className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-semibold">ข้อมูลคำขอคืน</h2>
+      <div className="w-full max-w-5xl mx-auto px-6 py-6 flex flex-col flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
+              รายละเอียดคำขอคืน
+            </h1>
           </div>
+          <button
+            type="button"
+            onClick={() => router.push("/request/return-requests")}
+            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0"
+          >
+            ย้อนกลับ
+          </button>
+        </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <div>
-              <p className="text-xs text-slate-500">เลขที่คำขอ</p>
-              <p className="font-mono text-base font-semibold text-slate-800">{detail.doc_no}</p>
+        <div className="space-y-4 flex-1">
+          {/* ข้อมูลคำขอคืน */}
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-gray-900">ข้อมูลคำขอคืน</h2>
             </div>
-            <div>
-              <p className="text-xs text-slate-500">แผนก</p>
-              <p className="text-base font-medium text-slate-800">{detail.department_name || "-"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">สถานะ</p>
-              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold items-center gap-1 ${getStatusBadgeColor(detail.status)}`}>
-                {getStatusIcon(detail.status)}
-                {getStatusLabel(detail.status)}
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">วันที่สร้าง</p>
-              <p className="text-base text-slate-800">{fmtDateTime(detail.created_at)}</p>
-            </div>
-            {detail.preferred_pickup_at && (
+            <div className="px-5 sm:px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-5">
+              <DetailFieldRow
+                label="เลขที่คำขอ"
+                value={detail.doc_no}
+                valueClassName="font-mono font-medium text-slate-800"
+              />
+              <DetailFieldRow
+                label="แผนก"
+                value={displayOrDash(detail.department_name)}
+              />
               <div>
-                <p className="text-xs text-slate-500">วันเวลานัดรับของ</p>
-                <p className="text-base text-slate-800">{fmtDateTime(detail.preferred_pickup_at)}</p>
+                <p className="text-sm font-bold text-gray-900 mb-1">สถานะ</p>
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold items-center gap-1 ${getStatusBadgeColor(detail.status)}`}
+                >
+                  {getStatusIcon(detail.status)}
+                  {getStatusLabel(detail.status)}
+                </span>
               </div>
-            )}
-          </div>
-
-          {detail.note && (
-            <div className="mt-4">
-              <p className="text-xs text-slate-500 mb-1">หมายเหตุ</p>
-              <p className="text-base text-slate-800">{detail.note}</p>
+              <DetailFieldRow
+                label="วันที่สร้าง"
+                value={fmtDateTime(detail.created_at)}
+              />
+              {detail.requested_by_name || detail.requested_by ? (
+                <DetailFieldRow
+                  label="ผู้แจ้งคำขอ"
+                  value={displayOrDash(
+                    detail.requested_by_name ?? detail.requested_by
+                  )}
+                />
+              ) : null}
+              {detail.preferred_pickup_at ? (
+                <DetailFieldRow
+                  label="วันเวลานัดรับของ"
+                  value={fmtDateTime(detail.preferred_pickup_at)}
+                />
+              ) : null}
             </div>
-          )}
-        </section>
+            {detail.note ? (
+              <div className="px-5 sm:px-6 py-4 border-t border-slate-100">
+                <DetailFieldRow label="หมายเหตุ" value={detail.note} />
+              </div>
+            ) : null}
+          </section>
 
-        {/* Items Table */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col" style={{ height: "350px" }}>
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-            <Package className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold">รายการย่อย ({detail.items?.length || 0} รายการ)</h2>
-          </div>
+          {/* รายการครุภัณฑ์ */}
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-gray-900">
+                รายการครุภัณฑ์
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                ทั้งหมด {itemCount} รายการ
+              </p>
+            </div>
 
-          <div className="flex-1 border border-slate-200 rounded-lg overflow-auto">
-            <table className="w-full text-base text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-300 sticky top-0 z-10 tracking-wide text-sm">
-                <tr>
-                  <th className="px-6 py-5 w-[48px] text-center">#</th>
-                  <th className="px-6 py-5 w-[100px]">รหัส</th>
-                  <th className="px-6 py-5 min-w-[200px]">ชื่อรายการ</th>
-                  <th className="px-6 py-5 w-[140px]">หมวดหมู่</th>
-                  <th className="px-6 py-5 w-[100px] text-center">จำนวน</th>
-                  <th className="px-6 py-5 min-w-[160px]">Unit Codes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {detail.items.map((item, idx) => (
-                  <tr key={item.item_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-5 text-center text-slate-500 font-medium text-sm">{idx + 1}</td>
-                    <td className="px-6 py-5 font-mono text-xs text-slate-700">{item.item_code || "-"}</td>
-                    <td className="px-6 py-5">
-                      <p className="text-slate-800 text-sm">{item.item_name || "-"}</p>
-                    </td>
-                    <td className="px-6 py-5 text-sm text-slate-600">{item.category_name || "-"}</td>
-                    <td className="px-6 py-5 text-center font-medium text-indigo-600 text-base">{item.requested_qty}</td>
-                    <td className="px-6 py-5 font-mono text-xs text-slate-600">{item.requested_unit_codes?.join(", ") || "-"}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] table-auto border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5 w-14">
+                      #
+                    </th>
+                    <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
+                      รหัส
+                    </th>
+                    <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 min-w-[10rem]">
+                      รายการ
+                    </th>
+                    <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
+                      หมวดหมู่
+                    </th>
+                    <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
+                      จำนวน
+                    </th>
+                    <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5 min-w-[10rem]">
+                      ตรวจสอบ
+                    </th>
                   </tr>
-                ))}
-                {(!detail.items || detail.items.length === 0) && (
-                  <tr>
-                    <td colSpan={6}>
-                      <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
-                        <Package className="w-16 h-16 text-slate-300" />
-                        <p className="text-base font-medium">ไม่พบรายการ</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                </thead>
+                <tbody>
+                  {(detail.items ?? []).map((item, idx) => {
+                    const nUnits = unitCountForItem(item);
+                    return (
+                    <tr
+                      key={`${item.item_id}-${idx}`}
+                      className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/40 transition-colors"
+                    >
+                      <td className="px-4 py-3.5 text-center text-sm font-medium text-slate-500 align-middle">
+                        {idx + 1}
+                      </td>
+                      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                        <span className="font-mono text-sm font-medium text-slate-800">
+                          {item.item_code || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 align-middle min-w-[10rem] max-w-md">
+                        <p className="text-sm font-medium text-slate-800 leading-snug">
+                          {item.item_name || "—"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                        <span className="text-sm font-medium text-slate-600">
+                          {item.category_name || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
+                        <span className="text-sm font-semibold text-blue-600">
+                          {item.requested_qty}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 align-middle text-center">
+                        {nUnits <= 0 ? (
+                          <span className="text-sm text-slate-400">—</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setUnitsModalItem(item)}
+                            className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
+                            title={nUnits > 1 ? `ดูหน่วยทั้งหมด (${nUnits} หน่วย)` : "ดูหน่วย"}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                  })}
+                  {itemCount === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+                          <Package className="w-12 h-12 text-slate-200" />
+                          <p className="text-sm font-medium text-slate-500">
+                            ไม่พบรายการ
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

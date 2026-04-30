@@ -108,9 +108,10 @@ export default function ItemDetailModal({
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
                   คงเหลือ
                 </label>
-                <div className="flex-1 flex items-center">
-                  <p className="text-lg font-bold text-emerald-600">
-                    {item.stock} {item.unit}
+                <div className="flex-1 flex items-center min-w-0">
+                  <p className="text-lg font-bold text-emerald-600 flex items-baseline gap-1 min-w-0 max-w-full">
+                    <span className="shrink-0 tabular-nums">{item.stock}</span>
+                    <span className="truncate min-w-0" title={item.unit}>{item.unit}</span>
                   </p>
                 </div>
               </div>
@@ -120,8 +121,8 @@ export default function ItemDetailModal({
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
                   จำนวนที่ต้องการเบิก
                 </label>
-                <div className="flex-1 flex items-center">
-                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1">
+                <div className="flex-1 flex items-center min-w-0">
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1 shrink-0">
                     <button
                       onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
                       className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-500"
@@ -144,9 +145,9 @@ export default function ItemDetailModal({
                       <Plus size={20} />
                     </button>
                   </div>
-                  <span className="text-slate-500 font-medium text-xs ml-1">{item.unit}</span>
+                  <span className="text-slate-500 font-medium text-xs ml-1 min-w-0 truncate" title={item.unit}>{item.unit}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-slate-500 mt-2 truncate" title={`สูงสุด: ${item.stock} ${item.unit}`}>
                   สูงสุด: {item.stock} {item.unit}
                 </p>
               </div>

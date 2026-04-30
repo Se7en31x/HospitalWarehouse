@@ -393,7 +393,7 @@ export default function ReusableUnitClient() {
                       <td className="px-6 py-3 truncate">{item.category}</td>
                       <td className="px-6 py-3">{item.stock}</td>
                       <td className="px-6 py-3 text-emerald-700 font-semibold">{item.availableStock ?? 0}</td>
-                      <td className="px-6 py-3">{item.unit}</td>
+                      <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
                       <td className="px-6 py-3"><Badge status={item.status} /></td>
                       <td className="px-6 py-3 text-center">
                         <button

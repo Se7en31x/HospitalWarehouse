@@ -457,7 +457,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
                           ? registeredCounts[item.id]
                           : <span className="text-slate-600 text-xs">0</span>}
                       </td>
-                      <td className="px-6 py-3">{item.unit}</td>
+                      <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
                       <td className="px-6 py-3"><Badge status={item.status} /></td>
                       <td className="px-6 py-3 text-center">
                         <div className="flex justify-center gap-1">

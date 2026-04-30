@@ -329,7 +329,7 @@ const StockMovementClient = () => {
                     <td className="max-w-[min(14rem,22vw)] px-3 py-3 whitespace-nowrap truncate align-middle" title={categoryText}>
                       {categoryText}
                     </td>
-                    <td className="px-2 py-3 whitespace-nowrap">
+                    <td className="max-w-[min(8rem,22vw)] px-2 py-3 truncate align-middle" title={mv.item?.unit ?? undefined}>
                       {mv.item?.unit ?? "-"}
                     </td>
                     <td className="px-2 py-3 text-center whitespace-nowrap align-middle">

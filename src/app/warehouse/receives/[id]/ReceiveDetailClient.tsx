@@ -19,6 +19,7 @@ import type {
 
 const MySwal = withReactContent(Swal);
 const getErrorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -132,11 +133,11 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
     row.category_name?.trim() || row.category?.trim() || "—";
 
   return (
-    <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-slate-800 border-b border-slate-200 pb-4">
+    <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+      <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-slate-800">
         <div className="flex flex-wrap items-center gap-2">
           <FileText className="h-5 w-5 text-indigo-600 shrink-0" />
-          <h2 className="text-lg font-semibold">เอกสารรับเข้า</h2>
+          <h2 className="text-lg font-bold text-gray-900">เอกสารรับเข้า</h2>
         </div>
         <span
           className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
@@ -146,8 +147,9 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
         </span>
       </div>
 
+      <div className="px-5 sm:px-6 py-5">
       <div
-        className="receive-doc-scroll flex-1 border border-slate-200 rounded-lg overflow-hidden"
+        className="receive-doc-scroll flex-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col"
         style={{
           maxHeight: "400px",
           overflowX: "auto",
@@ -162,24 +164,24 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           .receive-doc-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
           .receive-doc-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         `}</style>
-        <table className="w-full min-w-[1000px] text-left text-sm table-fixed">
+        <table className="w-full min-w-[980px] text-left text-sm table-fixed">
             <colgroup>
               <col className="w-[56px]" />
-              <col className="w-[10%]" />
-              <col className="w-[18%]" />
-              <col className="w-[18%]" />
-              <col className="w-[8%]" />
+              <col className="w-[160px]" />
+              <col className="w-[260px]" />
+              <col className="w-[220px]" />
+              <col className="w-[80px]" />
               {showLot ? (
                 <>
-                  <col className="w-[9%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[11%]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[150px]" />
                 </>
               ) : (
-                <col className="w-[9%]" />
+                <col className="w-[80px]" />
               )}
             </colgroup>
-            <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-300 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-800 text-base font-bold border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 text-center whitespace-nowrap">#</th>
                 <th className="px-6 py-4 whitespace-nowrap">รหัสรายการ</th>
@@ -195,23 +197,31 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-800 text-sm">
+            <tbody className="text-slate-600">
               {(doc.receive_item ?? []).map((item, idx) => (
                 <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-5 w-[56px] text-center text-slate-500 font-medium tabular-nums align-middle">{idx + 1}</td>
-                  <td className="px-6 py-5 w-[120px] align-middle min-w-0">
-                    <p className="text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>{item.item_code ?? String(item.item_id)}</p>
+                  <td className="px-6 py-3 w-[56px] text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
+                  <td className="px-3 py-3 align-middle min-w-0">
+                    <p className="text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
+                      {item.item_code ?? String(item.item_id)}
+                    </p>
                   </td>
-                  <td className="px-6 py-5 w-[200px] align-middle min-w-0">
-                    <p className="text-slate-800 leading-snug line-clamp-2" title={item.item_name ?? ""}>{item.item_name ?? "—"}</p>
+                  <td className="px-3 py-3 align-middle min-w-0">
+                    <p className="text-slate-800 leading-snug truncate" title={item.item_name ?? ""}>
+                      {item.item_name ?? "—"}
+                    </p>
                   </td>
-                  <td className="px-6 py-5 w-[180px] align-middle min-w-0">
-                    <p className="text-slate-800 leading-snug truncate" title={itemCategory(item)}>{itemCategory(item)}</p>
+                  <td className="px-6 py-3 align-middle min-w-0">
+                    <p className="text-slate-700 leading-snug truncate" title={itemCategory(item)}>
+                      {itemCategory(item)}
+                    </p>
                   </td>
-                  <td className="px-6 py-5 w-[88px] text-center font-medium text-slate-700 tabular-nums align-middle">{item.expected_qty ?? 0}</td>
+                  <td className="px-6 py-3 text-center text-slate-700 tabular-nums align-middle">
+                    {item.expected_qty ?? 0}
+                  </td>
                   {isPending ? (
                     <>
-                      <td className="px-6 py-5 w-[100px] align-middle">
+                      <td className="px-6 py-3 align-middle">
                         <div className="flex justify-center">
                           <input
                             type="number" min="0" max={item.expected_qty ?? 0}
@@ -227,7 +237,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                       </td>
                       {showLot && (
                         <>
-                          <td className="px-6 py-5 w-[140px] align-middle">
+                          <td className="px-6 py-3 align-middle">
                             <input
                               title="Lot Code" type="text" placeholder="Lot Code"
                               className="w-full max-w-[132px] rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
@@ -235,7 +245,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                               onChange={e => patch(item.id, { lot_code: e.target.value })}
                             />
                           </td>
-                          <td className="px-6 py-5 w-[120px] align-middle">
+                          <td className="px-6 py-3 align-middle">
                             <input
                               title="Expiry date" type="date"
                               className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
@@ -248,13 +258,19 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                     </>
                   ) : (
                     <>
-                      <td className="px-6 py-5 w-[100px] text-center font-medium text-indigo-600 tabular-nums align-middle">{item.qty ?? 0}</td>
+                      <td className="px-6 py-3 text-center text-indigo-600 tabular-nums align-middle">
+                        {item.qty ?? 0}
+                      </td>
                       {showLot && (
                         <>
-                          <td className="px-6 py-5 w-[140px] align-middle">
-                            <p className="text-xs font-mono text-slate-700 truncate" title={item.lot_code ?? ""}>{item.lot_code ?? "—"}</p>
+                          <td className="px-6 py-3 align-middle">
+                            <p className="text-xs font-mono text-slate-700 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
+                              {item.lot_code ?? "—"}
+                            </p>
                           </td>
-                          <td className="px-6 py-5 w-[120px] font-medium text-slate-800 tabular-nums align-middle">{fmtDate(item.expired_at)}</td>
+                          <td className="px-6 py-3 text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                            {fmtDate(item.expired_at)}
+                          </td>
                         </>
                       )}
                     </>
@@ -274,18 +290,19 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
             </tbody>
           </table>
       </div>
+      </div>
 
       {isPending && (doc.receive_item?.length ?? 0) > 0 && (
-        <div className="flex gap-3 justify-end mt-6 pt-2">
+        <div className="px-5 sm:px-6 pb-5 sm:pb-6 flex gap-3 justify-end">
           <button
             onClick={handleCancel} disabled={busy}
-            className="px-6 py-2.5 text-sm font-bold text-red-600 bg-white border border-red-200 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-60"
+            className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-200/60 disabled:opacity-60"
           >
             ยกเลิกเอกสารนี้
           </button>
           <button
             onClick={handleConfirm} disabled={busy}
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm shadow-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
             ยืนยันการรับเข้า
@@ -334,9 +351,9 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#fafafa]">
+      <div className="flex flex-col items-center justify-center min-h-[50vh] bg-[#fafafa] p-3 sm:p-4 md:p-6">
         <DotLottieReact
-          src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
+          src={LOTTIE_SRC}
           loop
           autoplay
           style={{ width: 160, height: 160 }}
@@ -350,22 +367,23 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
   const hasPending   = batch.headers.some(h => h.status === "PENDING");
 
   return (
-    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายละเอียดการรับเข้า</h2>
-        <button
-          onClick={() => router.back()}
-          className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
-        >
-          ย้อนกลับ
-        </button>
-      </div>
+    <div className="flex flex-col min-h-screen bg-[#fafafa]">
+      <div className="w-full px-6 py-6 flex flex-col flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">รายละเอียดการรับเข้า</h2>
+          <button
+            onClick={() => router.back()}
+            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0"
+          >
+            ย้อนกลับ
+          </button>
+        </div>
 
-      <div className="space-y-6 flex-1">
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex flex-wrap items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
+        <div className="space-y-4 flex-1">
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center gap-2 text-slate-800">
             <Layers className="h-5 w-5 text-indigo-600 shrink-0" />
-            <h2 className="text-lg font-semibold">ข้อมูลเลขที่นำเข้า</h2>
+            <h2 className="text-lg font-bold text-gray-900">ข้อมูลเลขที่นำเข้า</h2>
             {hasPending && (
               <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800">
                 <Clock className="w-3 h-3" />
@@ -373,13 +391,13 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
               </span>
             )}
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="px-5 sm:px-6 py-5 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
-              <p className="text-xs text-slate-500">เลขที่นำเข้า</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">เลขที่นำเข้า</p>
               <p className="font-mono text-base font-semibold text-slate-800">{batch.batch_no}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">ประเภทการรับเข้า</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">ประเภทการรับเข้า</p>
               <p className="text-base font-medium text-slate-800">
                 {batch.acquisition_type
                   ? (ACQUISITION_LABEL[batch.acquisition_type] ?? String(batch.acquisition_type))
@@ -387,36 +405,37 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">วันที่รับเข้า</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">วันที่รับเข้า</p>
               <p className="text-base text-slate-800">{fmtDateTime(batch.receive_date)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">ผู้จำหน่าย / ผู้บริจาค</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">ผู้จำหน่าย / ผู้บริจาค</p>
               <p className="text-base text-slate-800">{batch.supplier_name ?? batch.donor_name ?? "-"}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">ผู้บันทึก</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">ผู้บันทึก</p>
               <p className="text-base text-slate-800">
                 {batch.created_by_name?.trim() || "—"}
               </p>
             </div>
             <div className="md:col-span-3">
-              <p className="text-xs text-slate-500">หมายเหตุ</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">หมายเหตุ</p>
               <p className="text-base text-slate-800">{batch.note ?? "-"}</p>
             </div>
           </div>
         </section>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {batch.headers.map(header => (
             <DocSection key={header.id} doc={header} onRefresh={loadData} />
           ))}
           {batch.headers.length === 0 && (
-            <section className="rounded-lg bg-white border border-slate-300 p-6 text-center text-slate-500">
+            <section className="bg-white border border-slate-200 rounded-xl px-5 sm:px-6 py-6 text-center text-slate-500">
               <p className="text-base">ไม่พบเอกสารใน Batch นี้</p>
             </section>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

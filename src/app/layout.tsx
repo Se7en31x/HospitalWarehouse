@@ -26,7 +26,7 @@ export default function RootLayout({
       <body className={`h-screen flex flex-col bg-gray-200 font-prompt ${prompt.className}`}>
         <div className="flex flex-1 overflow-hidden">
             <main className="flex-1  overflow-y-auto">
-              <div className="max-w-8xl mx-auto">{children}</div>
+              <div className="w-full min-w-0 min-h-0 flex flex-col">{children}</div>
             </main>
         </div>
       </body>

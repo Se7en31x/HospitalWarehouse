@@ -1,22 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
-  Menu, LayoutDashboard, PackageSearch, Layers, ArrowDownToLine,
-  ClipboardCheck, History, FileBarChart, Tags, Settings, Undo2, PackageCheck,
+  Menu,
+  X,
+  LayoutDashboard,
+  PackageSearch,
+  Layers,
+  ArrowDownToLine,
+  ClipboardCheck,
+  History,
+  FileBarChart,
+  Tags,
+  Settings,
+  Undo2,
+  PackageCheck,
 } from 'lucide-react';
 
-const menus = [
+interface NavItem {
+  name: string;
+  icon: typeof LayoutDashboard;
+  path: string;
+}
+
+interface MenuGroup {
+  title: string;
+  items: NavItem[];
+}
+
+const menuGroups: MenuGroup[] = [
   {
-    group: 'ภาพรวม',
-    items: [
-      { name: 'แดชบอร์ด', path: '/warehouse', icon: LayoutDashboard },
-    ],
+    title: 'ภาพรวม',
+    items: [{ name: 'แดชบอร์ด', path: '/warehouse', icon: LayoutDashboard }],
   },
   {
-    group: 'คลังพัสดุ',
+    title: 'คลังพัสดุ',
     items: [
       { name: 'รายการพัสดุ', path: '/warehouse/items', icon: PackageSearch },
       { name: 'ล็อตสินค้า', path: '/warehouse/lots', icon: Layers },
@@ -25,7 +45,7 @@ const menus = [
     ],
   },
   {
-    group: 'เบิก-ยืม-คืน',
+    title: 'เบิก-ยืม-คืน',
     items: [
       { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
       { name: 'รับคืนพัสดุยืม', path: '/warehouse/returns', icon: Undo2 },
@@ -33,7 +53,7 @@ const menus = [
     ],
   },
   {
-    group: 'รายงาน',
+    title: 'รายงาน',
     items: [
       { name: 'ประวัติการเคลื่อนไหว', path: '/warehouse/stock-movement', icon: History },
       { name: 'รายงาน', path: '/warehouse/reports', icon: FileBarChart },
@@ -42,99 +62,149 @@ const menus = [
   },
 ];
 
-export default function WarehouseSidebar() {
+function pathIsActive(pathname: string, path: string) {
+  if (path === '/warehouse') return pathname === '/warehouse';
+  return pathname === path || pathname.startsWith(path + '/');
+}
+
+function NavContent({
+  collapsed,
+  onLinkClick,
+  toggleSidebar,
+  onClose,
+}: {
+  collapsed: boolean;
+  onLinkClick?: () => void;
+  toggleSidebar: () => void;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    const onResize = () => setCollapsed(window.innerWidth <= 1536);
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  const isActive = (path: string) =>
-    path === '/warehouse' ? pathname === path : pathname === path || pathname.startsWith(path + '/');
 
   return (
-    <aside
-      className={`relative h-screen shrink-0 flex flex-col bg-white z-20 shadow-[2px_0_16px_rgba(0,0,0,0.07)] transition-[width] duration-300 ease-in-out ${collapsed ? 'w-[72px]' : 'w-64'}`}
-    >
-      {/* Toggle */}
-      <div className={`flex items-center py-4 border-b border-slate-100 ${collapsed ? 'justify-center' : 'justify-end px-3'}`}>
+    <div className="flex flex-col h-full select-none bg-white">
+      <div className="flex items-center border-b border-slate-100 px-5 py-4 transition-all duration-300">
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          type="button"
+          onClick={onClose ?? toggleSidebar}
+          className="p-2 rounded-lg text-slate-500 bg-white border border-slate-200 shadow-sm hover:bg-slate-50 hover:text-slate-700 transition-all shrink-0 active:scale-95"
+          title={onClose ? 'ปิดเมนู' : collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
         >
-          <Menu className="w-[22px] h-[22px]" strokeWidth={2.25} />
+          {onClose ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto scrollbar-hide py-4">
-        {menus.map((group, gi) => (
-          <div key={gi} className={gi > 0 ? 'mt-6' : ''}>
-            {/* Group label */}
-            {!collapsed ? (
-              <p className="px-4 mb-2 text-[10px] font-bold text-slate-500">
-                {group.group}
-              </p>
-            ) : gi > 0 ? (
-              <div className="mx-auto w-6 border-t border-slate-100 mb-3 mt-1" />
-            ) : null}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
+        {menuGroups.map((group, gi) => (
+          <div key={group.title} className={gi > 0 ? 'mt-3' : ''}>
+            <div className={`mb-1 transition-all duration-200 ${collapsed ? 'px-2 py-1' : 'px-5'}`}>
+              {collapsed ? (
+                <div className="ml-3 w-6 h-px bg-black/10" />
+              ) : (
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  {group.title}
+                </span>
+              )}
+            </div>
 
-            <ul className="space-y-0.5 px-2">
+            <div className="px-2 space-y-0.5">
               {group.items.map((item) => {
-                const active = isActive(item.path);
                 const Icon = item.icon;
+                const isActive = pathIsActive(pathname, item.path);
+
                 return (
-                  <li key={item.path} className="relative group">
-                    {/* Active indicator — expanded only */}
-                    {active && !collapsed && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-7 bg-[#0786F5] rounded-r-full" />
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    onClick={onLinkClick}
+                    title={collapsed ? item.name : ''}
+                    className={`
+                      relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-300 group
+                      ${
+                        isActive
+                          ? 'bg-blue-50 shadow-sm ring-1 ring-blue-100/80 hover:bg-blue-100'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }
+                    `}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-[66%] min-h-[1.25rem] bg-blue-600 rounded-r-full" />
                     )}
-
-                    <Link
-                      href={item.path}
-                      className={`flex items-center rounded-xl transition-colors duration-150 ${
-                        collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-4 py-3'
-                      } ${
-                        active
-                          ? 'bg-[#0786F5]/[0.14] text-[#0554B0] font-semibold'
-                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                    <Icon
+                      className={`w-[20px] h-[20px] shrink-0 ${
+                        isActive ? 'text-blue-700' : 'text-slate-400 group-hover:text-slate-600'
                       }`}
-                    >
-                      <Icon
-                        strokeWidth={2.25}
-                        className={`w-6 h-6 shrink-0 ${
-                          active ? 'text-[#0786F5]' : 'text-slate-500 group-hover:text-slate-700'
+                    />
+                    {!collapsed && (
+                      <span
+                        className={`text-[14px] font-semibold whitespace-nowrap ${
+                          isActive ? 'text-blue-700' : 'text-slate-700'
                         }`}
-                      />
-                      {!collapsed && (
-                        <span className="text-[14px] leading-none flex-1 whitespace-nowrap">
-                          {item.name}
-                        </span>
-                      )}
-                    </Link>
-
-                    {/* Tooltip */}
-                    {collapsed && (
-                      <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-50">
+                      >
                         {item.name}
-                      </div>
+                      </span>
                     )}
-                  </li>
+                  </Link>
                 );
               })}
-            </ul>
+            </div>
           </div>
         ))}
       </nav>
+    </div>
+  );
+}
 
-      {/* Footer */}
-      <div className={`py-4 border-t border-slate-100 flex ${collapsed ? 'justify-center' : 'px-4 justify-start'}`}>
-        <div className="w-2 h-2 rounded-full bg-[#0786F5] shadow-[0_0_6px_rgba(7,134,245,0.5)]" />
-      </div>
-    </aside>
+export default function WarehouseSidebar() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  const toggleSidebar = () => setIsCollapsed((c) => !c);
+  const onMobileClose = () => setIsMobileOpen(false);
+
+  return (
+    <>
+      {/* Mobile: open drawer control (desktop sidebar is hidden) */}
+      <button
+        type="button"
+        onClick={() => setIsMobileOpen(true)}
+        className="lg:hidden fixed z-[35] left-4 top-[104px] p-2 rounded-lg text-slate-500 bg-white border border-slate-200 shadow-md hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
+        aria-label="เปิดเมนู"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      <div
+        className={`lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+          isMobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={onMobileClose}
+        aria-hidden={!isMobileOpen}
+      />
+
+      <aside
+        className={`
+          hidden lg:flex flex-col shrink-0 h-full overflow-hidden
+          bg-white border-r border-slate-200 transition-all duration-300 ease-in-out
+          ${isCollapsed ? 'w-[68px]' : 'w-60'}
+        `}
+      >
+        <NavContent collapsed={isCollapsed} toggleSidebar={toggleSidebar} />
+      </aside>
+
+      <aside
+        className={`
+          lg:hidden fixed inset-y-0 left-0 z-50 w-72 flex flex-col
+          bg-slate-100 transition-transform duration-300 ease-in-out
+          ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        <NavContent
+          collapsed={false}
+          toggleSidebar={toggleSidebar}
+          onClose={onMobileClose}
+          onLinkClick={onMobileClose}
+        />
+      </aside>
+    </>
   );
 }

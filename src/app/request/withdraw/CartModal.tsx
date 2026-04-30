@@ -284,7 +284,7 @@ export default function CartModal({
                                   <Plus size={14} />
                                 </button>
                               </div>
-                              <span className="text-slate-500 font-medium text-xs ml-1 truncate">{item.unit}</span>
+                              <span className="text-slate-500 font-medium text-xs ml-1 min-w-0 truncate" title={item.unit}>{item.unit}</span>
                             </div>
                             <button onClick={() => onRemoveItem(item.id)} className="p-1 text-slate-300 hover:text-rose-500 transition-colors shrink-0">
                               <X size={16} />

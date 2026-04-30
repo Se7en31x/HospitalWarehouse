@@ -6,7 +6,7 @@ interface PageProps {
 }
 
 export const metadata = {
-  title: "รายละเอียดการยืม",
+  title: "ดำเนินการส่งคืน",
 };
 
 export const dynamic = "force-dynamic";

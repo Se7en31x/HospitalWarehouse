@@ -133,7 +133,7 @@ export default function AdjustQuantityModal({
                       {lot.quantity.toLocaleString()}
                     </span>
                   </div>
-                  <span className="pb-3 pt-1 text-xs text-slate-400">{lot.unit}</span>
+                  <span className="pb-3 pt-1 px-2 text-xs text-slate-400 max-w-full truncate text-center" title={lot.unit}>{lot.unit}</span>
                 </div>
 
                 {/* Arrow — vertically centered by flex items-center on parent */}
@@ -159,7 +159,7 @@ export default function AdjustQuantityModal({
                       className="w-full text-center text-3xl font-bold text-[#0055FF] bg-transparent outline-none leading-none tabular-nums"
                     />
                   </div>
-                  <span className="pb-3 pt-1 text-xs text-[#0055FF]/60">{lot.unit}</span>
+                  <span className="pb-3 pt-1 px-2 text-xs text-[#0055FF]/60 max-w-full truncate text-center" title={lot.unit}>{lot.unit}</span>
                 </div>
               </div>
 
@@ -167,17 +167,18 @@ export default function AdjustQuantityModal({
               <div className="flex justify-center mb-5">
                 {diff !== 0 ? (
                   <span
-                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border max-w-full min-w-0 ${
                       diff > 0
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                         : "bg-rose-50 text-rose-700 border-rose-200"
                     }`}
                   >
                     {diff > 0
-                      ? <TrendingUp className="w-3.5 h-3.5" />
-                      : <TrendingDown className="w-3.5 h-3.5" />}
-                    {diff > 0 ? "เพิ่มขึ้น" : "ลดลง"}{" "}
-                    {Math.abs(diff).toLocaleString()} {lot.unit}
+                      ? <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                      : <TrendingDown className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="shrink-0">{diff > 0 ? "เพิ่มขึ้น" : "ลดลง"}</span>
+                    <span className="tabular-nums shrink-0">{Math.abs(diff).toLocaleString()}</span>
+                    <span className="truncate min-w-0 text-left" title={lot.unit}>{lot.unit}</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center text-xs font-medium text-slate-400 px-3 py-1.5 rounded-full bg-slate-100 border border-dashed border-slate-300">

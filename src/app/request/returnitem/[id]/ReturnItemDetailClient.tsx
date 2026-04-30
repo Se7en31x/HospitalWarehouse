@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect, type ReactNode, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import {
-  FileText, Package, Loader2, CheckCircle, X, RotateCcw,
-  ChevronRight, AlertTriangle, Clock,
+  Package, Loader2, CheckCircle, X, RotateCcw,
+  ChevronRight, ChevronDown, AlertTriangle, Clock, FileText,
 } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Swal from "sweetalert2";
@@ -12,12 +13,24 @@ import withReactContent from "sweetalert2-react-content";
 import { getRequisitionById, submitReturn, ReturnItemPayload } from "@/services/requisitionService";
 import { fmtDate } from "@/utils/dateUtils";
 import type {
-  RequisitionHeader, RequisitionItem, OutstandingUnit, AllocatedLot,
+  RequisitionHeader, RequisitionItem, OutstandingUnit, AllocatedLot, BorrowerDetails,
 } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
 const getErr = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
+
+/** Backend อาจเก็บหลาย URL ใน id_card_url เป็น JSON array */
+const parseIdCardUrls = (raw: string | null | undefined): string[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean) as string[];
+  } catch {
+    /* ไม่ใช่ JSON — URL เดียว */
+  }
+  return [raw];
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,28 +104,43 @@ const condBadge = (c: ReturnCondition) =>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type UiStatus = "รอการคืน" | "คืนแล้ว" | "รออนุมัติ" | "รอตรวจรับคืน" | "ค้างคืน" | "ยกเลิก" | "ถูกปฏิเสธ";
-
 const daysOverdue = (h: RequisitionHeader) => {
   if (!h.due_date || h.status !== "BORROWING") return 0;
   const diff = Date.now() - new Date(h.due_date).getTime();
   return diff > 0 ? Math.floor(diff / 86_400_000) : 0;
 };
 
-const uiStatus = (h: RequisitionHeader) => {
-  const overdue = daysOverdue(h);
-  if (h.status === "BORROWING")
-    return overdue > 0
-      ? { label: "ค้างคืน", cls: "bg-red-50 text-red-700 border-red-200" }
-      : { label: "รอการคืน", cls: "bg-amber-50 text-amber-700 border-amber-200" };
-  if (h.status === "PENDING_RETURN_CHECK")
-    return { label: "รอตรวจรับคืน", cls: "bg-sky-50 text-sky-700 border-sky-200" };
-  if (h.status === "COMPLETED")
-    return { label: "คืนแล้ว", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-  if (h.status === "PENDING")
-    return { label: "รออนุมัติ", cls: "bg-blue-50 text-blue-700 border-blue-200" };
-  return { label: h.status, cls: "bg-slate-100 text-slate-500 border-slate-200" };
+const formatBorrowerAddress = (bd: BorrowerDetails): string | null => {
+  const parts: string[] = [];
+  if (bd.address?.trim()) parts.push(bd.address.trim());
+  if (bd.subdistrict?.trim()) parts.push(`ต.${bd.subdistrict.trim()}`);
+  if (bd.district?.trim()) parts.push(`อ.${bd.district.trim()}`);
+  if (bd.province?.trim()) parts.push(`จ.${bd.province.trim()}`);
+  if (bd.zipcode?.trim()) parts.push(bd.zipcode.trim());
+  return parts.length ? parts.join(" ") : null;
 };
+
+const displayOrDash = (v: string | null | undefined): string =>
+  v != null && String(v).trim() !== "" ? String(v).trim() : "—";
+
+function BorrowerFieldRow({
+  label,
+  value,
+  className = "",
+  valueClassName = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-sm font-bold text-gray-900 mb-1">{label}</p>
+      <p className={`text-sm text-gray-600 whitespace-pre-wrap break-words ${valueClassName}`}>{value}</p>
+    </div>
+  );
+}
 
 // ─── Condition Pill Group ─────────────────────────────────────────────────────
 
@@ -143,31 +171,224 @@ function ConditionPills({
   );
 }
 
+/** ดรอปดาวน์สถานะคืน — โทนเดียวกับตัวกรองหน้า BorrowClient (ปุ่มขอบ slate + เมนูลอย); portal เพื่อไม่โดนตัดในกล่องเลื่อนตาราง */
+function ReturnConditionBorrowDropdown({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ReturnCondition;
+  onChange: (c: ReturnCondition) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
+
+  const placeMenu = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    let left = r.left;
+    const width = Math.max(r.width, 176);
+    if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
+    setMenuStyle({
+      position: "fixed",
+      top: r.bottom + 4,
+      left,
+      width,
+      zIndex: 200,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    placeMenu();
+  }, [open, placeMenu]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onReposition = () => placeMenu();
+    document.addEventListener("mousedown", onDocDown);
+    window.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      window.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
+    };
+  }, [open, placeMenu]);
+
+  if (disabled) {
+    return (
+      <span className="inline-flex min-h-[2.125rem] items-center text-sm text-slate-400 px-1">
+        —
+      </span>
+    );
+  }
+
+  const label = condLabel(value);
+
+  return (
+    <>
+      <div className="relative w-full min-w-[8.5rem]">
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full justify-between"
+        >
+          <span className="text-slate-800 font-medium truncate">{label}</span>
+          <ChevronDown
+            className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </div>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={menuStyle}
+            className="bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+          >
+            <ul className="py-1">
+              {CONDITIONS.map(opt => (
+                <li key={opt.value}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                      value === opt.value
+                        ? "bg-blue-50 text-blue-700 font-medium"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
 // ─── Item thumbnail ───────────────────────────────────────────────────────────
 
 function ItemThumb({
   url,
   size = "md",
+  onImageClick,
 }: {
   url?: string | null;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md" | "lg";
+  /** ถ้ามีและมี url — คลิกเพื่อดูรูปขยาย */
+  onImageClick?: () => void;
 }) {
   const cls =
-    size === "sm"
-      ? "w-10 h-10 rounded-lg"
-      : "w-12 h-12 rounded-xl";
+    size === "xs"
+      ? "w-8 h-8 rounded-md"
+      : size === "sm"
+        ? "w-10 h-10 rounded-lg"
+        : size === "md"
+          ? "w-12 h-12 rounded-xl"
+          : "w-14 h-14 rounded-xl ring-2 ring-white shadow-md border border-slate-200/90";
+  const iconCls =
+    size === "xs" ? "w-4 h-4" : size === "lg" ? "w-6 h-6" : "w-5 h-5";
+  const baseBorder =
+    size === "lg" ? "" : "border border-slate-100";
+  const imgClass = `${cls} object-cover ${baseBorder} flex-shrink-0 block ${
+    onImageClick ? "cursor-zoom-in hover:opacity-90 transition-opacity" : ""
+  }`.replace(/\s+/g, " ").trim();
+
+  if (url && onImageClick) {
+    const round =
+      size === "xs"
+        ? "rounded-md"
+        : size === "sm"
+          ? "rounded-lg"
+          : "rounded-xl";
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onImageClick();
+        }}
+        className={`p-0 border-0 bg-transparent ${round} focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1`}
+        aria-label="ดูรูปสินค้า"
+      >
+        <img src={url} alt="" className={imgClass} />
+      </button>
+    );
+  }
+
   return url ? (
     <img
       src={url}
       alt=""
-      className={`${cls} object-cover border border-slate-100 flex-shrink-0`}
+      className={`${cls} object-cover ${baseBorder} flex-shrink-0`}
     />
   ) : (
     <div
-      className={`${cls} bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0`}
+      className={`${cls} ${size === "lg" ? "bg-white" : "bg-slate-50"} ${baseBorder || "border border-slate-100"} flex items-center justify-center flex-shrink-0`}
     >
-      <Package className="w-5 h-5 text-slate-300" />
+      <Package className={`${iconCls} text-slate-300`} />
     </div>
+  );
+}
+
+/** หัวโมดัลส่งคืน — จัดวางแบบรูปอ้างอิง: รูปซ้าย / คำบรรยายซ้อนกัน / ปิดมุมขวา */
+function ModalProductHeader({
+  imageUrl,
+  eyebrow,
+  title,
+  code,
+  onClose,
+}: {
+  imageUrl?: string | null;
+  eyebrow: string;
+  title: string;
+  code: string | null | undefined;
+  onClose: () => void;
+}) {
+  return (
+    <header className="flex items-start gap-4 px-5 sm:px-7 py-5 sm:py-6 border-b border-slate-200 bg-white flex-shrink-0">
+      <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0">
+        <ItemThumb url={imageUrl} size="lg" />
+        <div className="min-w-0 flex flex-col gap-1">
+          <p className="text-xs font-medium text-slate-500 leading-tight">{eyebrow}</p>
+          <h2 className="text-xl sm:text-[1.35rem] font-bold text-slate-900 leading-snug tracking-tight">
+            {title}
+          </h2>
+          <p className="text-sm font-mono font-medium text-slate-500 tabular-nums">
+            {code != null && String(code).trim() !== "" ? String(code).trim() : "—"}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/90 hover:bg-white hover:border-slate-300 text-slate-500 flex-shrink-0 transition-colors self-start shadow-sm"
+        aria-label="ปิด"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </header>
   );
 }
 
@@ -175,18 +396,18 @@ function ItemThumb({
 
 function ModalShell({
   children,
-  onClose,
+  onClose: _onClose,
+  maxWidthClass = "max-w-lg",
 }: {
   children: React.ReactNode;
   onClose: () => void;
+  /** เช่น max-w-lg | max-w-xl */
+  maxWidthClass?: string;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-    >
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col"
+        className={`bg-white rounded-xl border border-slate-200 shadow-xl w-full ${maxWidthClass} flex flex-col overflow-hidden`}
         style={{ maxHeight: "92vh" }}
       >
         {children}
@@ -217,29 +438,19 @@ function ConsumableModal({
 
   return (
     <ModalShell onClose={onClose}>
-      {/* Header */}
-      <div className="flex items-start gap-3 px-6 py-5 border-b border-slate-100 flex-shrink-0">
-        <ItemThumb url={item.image_url} />
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ส่งคืนวัสดุ</p>
-          <p className="font-bold text-slate-800 leading-snug">{item.name}</p>
-          <p className="text-xs font-mono text-slate-400">{item.code}</p>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 flex-shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+      <ModalProductHeader
+        imageUrl={item.image_url}
+        eyebrow="ส่งคืนวัสดุ"
+        title={item.name}
+        code={item.code}
+        onClose={onClose}
+      />
 
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+      <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-5 sm:py-6 space-y-6">
         {/* Lots reference */}
         {lots.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-              ล็อตที่ได้รับจากคลัง
-            </p>
+            <p className="text-xs font-semibold text-slate-500 mb-2">ล็อตที่ได้รับจากคลัง</p>
             <div className="flex flex-wrap gap-2">
               {lots.map((lot, i) => (
                 <div
@@ -264,9 +475,9 @@ function ConsumableModal({
 
         {/* Qty */}
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+          <p className="text-xs font-semibold text-slate-500 mb-3">
             จำนวนที่คืน{" "}
-            <span className="normal-case font-normal text-slate-400">
+            <span className="font-normal text-slate-500">
               (คงค้าง {max} ชิ้น)
             </span>
           </p>
@@ -302,17 +513,13 @@ function ConsumableModal({
 
         {/* Condition */}
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-            สภาพสินค้าที่คืน
-          </p>
+          <p className="text-xs font-semibold text-slate-500 mb-2">สภาพสินค้าที่คืน</p>
           <ConditionPills value={cond} onChange={setCond} />
         </div>
 
         {/* Note */}
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-            หมายเหตุ
-          </p>
+          <p className="text-xs font-semibold text-slate-500 mb-2">หมายเหตุ</p>
           <textarea
             rows={2}
             value={note}
@@ -328,23 +535,25 @@ function ConsumableModal({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex-shrink-0">
-        <p className="text-sm text-slate-500">
+      <div className="flex items-center justify-between gap-3 px-5 sm:px-7 py-4 border-t border-slate-200 bg-slate-50/60 flex-shrink-0">
+        <p className="text-sm text-slate-600">
           คืน{" "}
-          <span className="font-bold text-blue-600 text-base">{qty}</span>
+          <span className="font-bold text-blue-600">{qty}</span>
           {" "}ชิ้น
         </p>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+            className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-200/60"
           >
             ยกเลิก
           </button>
           <button
+            type="button"
             onClick={() => onConfirm({ qty_returned: qty, condition: cond, note })}
             disabled={qty === 0}
-            className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-indigo-200"
           >
             ยืนยัน
           </button>
@@ -418,51 +627,36 @@ function ReusableModal({
   const selCount = draft.size;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col"
-        style={{ maxHeight: "92vh" }}
-      >
-        {/* Header */}
-        <div className="flex items-start gap-3 px-6 py-5 border-b border-slate-100 flex-shrink-0">
-          <ItemThumb url={item.image_url} />
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              เลือกครุภัณฑ์ที่คืน
-            </p>
-            <p className="font-bold text-slate-800 leading-snug">{item.name}</p>
-            <p className="text-xs font-mono text-slate-400">{item.code}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 flex-shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <ModalShell onClose={onClose} maxWidthClass="max-w-4xl">
+      <ModalProductHeader
+        imageUrl={item.image_url}
+        eyebrow="เลือกครุภัณฑ์ที่คืน"
+        title={item.name}
+        code={item.code}
+        onClose={onClose}
+      />
 
         {/* Toolbar */}
         {outstanding.length > 0 && (
-          <div className="flex items-center justify-between px-6 py-2.5 bg-slate-50 border-b border-slate-100 flex-shrink-0">
-            <p className="text-xs text-slate-500">
+          <div className="flex items-center justify-between px-5 sm:px-7 py-3 bg-slate-50/80 border-b border-slate-200 flex-shrink-0">
+            <p className="text-sm font-medium text-slate-600">
               เลือก{" "}
               <span className="font-bold text-blue-600">{selCount}</span>
               {" "}/{" "}{outstanding.length} ชิ้น
             </p>
             {selCount < outstanding.length ? (
               <button
+                type="button"
                 onClick={selectAll}
-                className="text-xs font-semibold text-blue-500 hover:text-blue-700"
+                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
               >
                 เลือกทั้งหมด
               </button>
             ) : (
               <button
+                type="button"
                 onClick={() => setDraft(new Map())}
-                className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                className="text-sm font-semibold text-slate-500 hover:text-slate-700"
               >
                 ยกเลิกทั้งหมด
               </button>
@@ -470,317 +664,320 @@ function ReusableModal({
           </div>
         )}
 
-        {/* Unit list */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+        {/* ตารางรายการหน่วย — เลื่อนได้เมื่อมีหลายแถว */}
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0 px-5 sm:px-7 py-4 sm:py-5">
           {outstanding.length === 0 && (
-            <div className="py-14 text-center text-slate-400">
-              <Package className="w-10 h-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm font-medium">ไม่มีครุภัณฑ์ค้างคืน</p>
-              <p className="text-xs mt-1 text-slate-300">อาจถูกคืนไปแล้วทั้งหมด</p>
+            <div className="py-14 text-center text-slate-500">
+              <Package className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+              <p className="text-sm font-medium text-slate-600">ไม่มีครุภัณฑ์ค้างคืน</p>
+              <p className="text-xs mt-1 text-slate-400">อาจถูกคืนไปแล้วทั้งหมด</p>
             </div>
           )}
 
-          {outstanding.map(unit => {
-            const sel = draft.get(unit.id);
-            const isSel = !!sel;
-            return (
-              <div
-                key={unit.id}
-                className={`rounded-xl border-2 transition-all overflow-hidden ${
-                  isSel
-                    ? "border-blue-300 bg-blue-50/30"
-                    : "border-slate-100 hover:border-slate-200"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggle(unit)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left"
-                >
-                  {/* Checkbox */}
-                  <div
-                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                      isSel ? "bg-blue-500 border-blue-500" : "border-slate-300"
-                    }`}
-                  >
-                    {isSel && (
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 12 12"
-                      >
-                        <path
-                          d="M2 6l3 3 5-5"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono font-bold text-slate-700">
-                      {unit.unit_code}
-                    </span>
-                    {unit.serial_no && (
-                      <span className="ml-2 text-xs text-slate-400">
-                        S/N: {unit.serial_no}
-                      </span>
-                    )}
-                  </div>
-
-                  {isSel && sel!.condition !== "GOOD" && (
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${condBadge(sel!.condition)}`}
-                    >
-                      {condLabel(sel!.condition)}
-                    </span>
-                  )}
-                </button>
-
-                {/* Expanded section when selected */}
-                {isSel && (
-                  <div className="px-4 pb-4 pt-2 border-t border-blue-100/70 space-y-3">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                        สภาพ
-                      </p>
-                      <ConditionPills
-                        value={sel!.condition}
-                        onChange={c => patch(unit.id, { condition: c })}
-                      />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          {outstanding.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col min-h-0 flex-1">
+              <div className="overflow-auto max-h-[min(52vh,28rem)] overscroll-contain">
+                <table className="w-full text-sm border-collapse min-w-[640px]">
+                  <thead className="sticky top-0 z-[1] bg-slate-50 shadow-[0_1px_0_0_rgb(226,232,240)]">
+                    <tr>
+                      <th scope="col" className="w-12 px-2 py-2.5 text-center font-semibold text-slate-600 align-middle">
+                        <span className="sr-only">เลือก</span>
+                      </th>
+                      <th scope="col" className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">
+                        รหัสหน่วย
+                      </th>
+                      <th scope="col" className="text-left px-3 py-2.5 font-semibold text-slate-600 w-[9.5rem]">
+                        สถานะ
+                      </th>
+                      <th scope="col" className="text-left px-3 py-2.5 font-semibold text-slate-600 min-w-[12rem]">
                         หมายเหตุ
-                      </p>
-                      <input
-                        type="text"
-                        value={sel!.note}
-                        onChange={e => patch(unit.id, { note: e.target.value })}
-                        placeholder={
-                          sel!.condition === "LOST"
-                            ? "อธิบายสาเหตุการสูญหาย..."
-                            : "หมายเหตุ (ถ้ามี)"
-                        }
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      />
-                    </div>
-                  </div>
-                )}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outstanding.map(unit => {
+                      const sel = draft.get(unit.id);
+                      const isSel = !!sel;
+                      return (
+                        <tr
+                          key={unit.id}
+                          className={`border-b border-slate-100 last:border-b-0 transition-colors ${
+                            isSel ? "bg-blue-50/50" : "hover:bg-slate-50/60"
+                          }`}
+                        >
+                          <td className="px-2 py-2 align-middle text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggle(unit)}
+                              className="inline-flex items-center justify-center align-middle"
+                              aria-label={isSel ? "ไม่เลือกรายการนี้" : "เลือกรายการนี้"}
+                            >
+                              <span
+                                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                  isSel ? "bg-blue-600 border-blue-600" : "border-slate-300 bg-white"
+                                }`}
+                              >
+                                {isSel && (
+                                  <svg
+                                    className="w-3 h-3 text-white"
+                                    fill="none"
+                                    viewBox="0 0 12 12"
+                                  >
+                                    <path
+                                      d="M2 6l3 3 5-5"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                )}
+                              </span>
+                            </button>
+                          </td>
+                          <td className="px-3 py-2 align-middle whitespace-nowrap">
+                            <span className="font-mono text-sm font-semibold text-slate-800">
+                              {unit.unit_code}
+                            </span>
+                            {unit.serial_no ? (
+                              <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                                S/N {unit.serial_no}
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <ReturnConditionBorrowDropdown
+                              value={isSel ? sel.condition : "GOOD"}
+                              disabled={!isSel}
+                              onChange={c => patch(unit.id, { condition: c })}
+                            />
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <input
+                              type="text"
+                              value={sel?.note ?? ""}
+                              disabled={!isSel}
+                              onChange={e => patch(unit.id, { note: e.target.value })}
+                              placeholder={
+                                !isSel
+                                  ? "เลือกแถวก่อน"
+                                  : sel?.condition === "LOST"
+                                    ? "อธิบายสาเหตุการสูญหาย..."
+                                    : "หมายเหตุ (ถ้ามี)"
+                              }
+                              className="w-full min-w-[11rem] border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-100"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex-shrink-0">
-          <p className="text-sm text-slate-500">
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-7 py-4 border-t border-slate-200 bg-slate-50/60 flex-shrink-0">
+          <p className="text-sm text-slate-600">
             คืน{" "}
-            <span className="font-bold text-blue-600 text-base">{selCount}</span>
+            <span className="font-bold text-blue-600">{selCount}</span>
             {" "}จาก{" "}
-            <span className="font-semibold text-slate-700">{outstanding.length}</span>
+            <span className="font-semibold text-slate-800">{outstanding.length}</span>
             {" "}ชิ้น
           </p>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-xl"
+              className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-200/60"
             >
               ยกเลิก
             </button>
             <button
+              type="button"
               onClick={() => onConfirm(Array.from(draft.values()))}
-              className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
+              className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm shadow-indigo-200"
             >
               ยืนยัน{selCount > 0 ? ` (${selCount})` : ""}
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
-// ─── Item Card (BORROWING) ────────────────────────────────────────────────────
+// ─── ตารางรายละเอียดการส่งคืน ────────────────────────────────────────────────────
 
-function ConsumableCard({
+function ConsumableReturnTableRow({
   item,
   value,
   onOpenModal,
+  onPreviewImage,
+  canReturn = true,
 }: {
   item: RequisitionItem;
   value: ConsumableReturn | null;
   onOpenModal: () => void;
+  onPreviewImage?: (payload: { url: string; name: string }) => void;
+  canReturn?: boolean;
 }) {
   const max = (item.issued || 0) - (item.returned || 0);
   const lots: AllocatedLot[] = item.allocated_lots ?? [];
   const hasValue = value && value.qty_returned > 0;
 
   return (
-    <div className="p-5 flex gap-4">
-      <ItemThumb url={item.image_url} />
-
-      <div className="flex-1 min-w-0">
-        {/* Name + type */}
-        <div className="flex items-start gap-2 mb-0.5">
-          <p className="font-bold text-slate-800 leading-snug">{item.name}</p>
-          <span className="flex-shrink-0 mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
-            วัสดุ
-          </span>
+    <tr className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/40 transition-colors">
+      <td className="px-4 py-3.5 align-middle">
+        <div className="flex justify-center">
+          <ItemThumb
+            url={item.image_url}
+            size="sm"
+            onImageClick={
+              item.image_url && onPreviewImage
+                ? () => onPreviewImage({ url: item.image_url!, name: item.name })
+                : undefined
+            }
+          />
         </div>
-        <p className="text-xs font-mono text-slate-400">{item.code}</p>
-
-        {/* Lots info */}
-        {lots.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {lots.map((lot, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-600"
-              >
-                <span className="font-mono font-semibold">{lot.lot_code || "-"}</span>
-                <span className="text-slate-300">·</span>
-                <span>{lot.qty} ชิ้น</span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Status / summary */}
-        <div className="mt-3 flex items-center gap-3">
+      </td>
+      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+        <span className="font-mono text-sm font-medium text-slate-800">{item.code || "—"}</span>
+      </td>
+      <td className="px-4 py-3.5 align-middle min-w-[10rem] max-w-md">
+        <p className="text-sm font-medium text-slate-800 leading-snug">{item.name}</p>
+      </td>
+      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+        <span className="text-sm font-medium text-slate-600">วัสดุ</span>
+      </td>
+      <td className="px-4 py-3.5 align-middle">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {lots.map((lot, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-slate-700"
+            >
+              <span className="font-mono font-semibold">{lot.lot_code || "-"}</span>
+              <span className="text-slate-300">·</span>
+              <span>{lot.qty} ชิ้น</span>
+            </span>
+          ))}
           {hasValue ? (
             <>
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${condBadge(value!.condition)}`}>
+              <span className={`inline-flex text-sm font-medium px-2.5 py-1 rounded-full border ${condBadge(value!.condition)}`}>
                 {condLabel(value!.condition)}
               </span>
-              <span className="text-sm text-slate-600">
+              <span className="text-sm font-medium text-slate-600 whitespace-nowrap">
                 คืน{" "}
                 <span className="font-bold text-blue-600">{value!.qty_returned}</span>
-                {" "}จาก{" "}{max} ชิ้น
+                {" / "}{max} ชิ้น
               </span>
             </>
           ) : (
-            <span className="text-xs text-slate-400">
+            <span className="text-sm font-medium text-slate-500 whitespace-nowrap">
               คงค้าง{" "}
               <span className="font-bold text-slate-600">{max}</span>
               {" "}ชิ้น · ยังไม่ได้ระบุ
             </span>
           )}
         </div>
-      </div>
-
-      {/* Action button */}
-      <div className="flex-shrink-0 flex items-center">
-        <button
-          type="button"
-          onClick={onOpenModal}
-          className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-xl border transition-all ${
-            hasValue
-              ? "bg-white border-blue-200 text-blue-600 hover:bg-blue-50"
-              : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200"
-          }`}
-        >
-          {hasValue ? (
-            <>
-              <RotateCcw className="w-3.5 h-3.5" />
-              แก้ไข
-            </>
-          ) : (
-            <>
-              ส่งคืน
-              <ChevronRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
-      </div>
-    </div>
+      </td>
+      <td className="px-4 py-3.5 align-middle text-right whitespace-nowrap">
+        {canReturn ? (
+          <button
+            type="button"
+            onClick={onOpenModal}
+            className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg border transition-all whitespace-nowrap ${
+              hasValue
+                ? "bg-white border-blue-200 text-blue-600 hover:bg-blue-50"
+                : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200"
+            }`}
+          >
+            {hasValue ? (
+              <>
+                <RotateCcw className="w-4 h-4 shrink-0" />
+                แก้ไข
+              </>
+            ) : (
+              <>
+                ส่งคืน
+                <ChevronRight className="w-4 h-4 shrink-0" />
+              </>
+            )}
+          </button>
+        ) : (
+          <span className="text-sm text-slate-400 font-medium">ไม่สามารถแก้ไข</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
-function ReusableCard({
+function ReusableReturnTableRow({
   item,
   selections,
   onOpenModal,
+  onPreviewImage,
+  canReturn = true,
 }: {
   item: RequisitionItem;
   selections: UnitSelection[];
   onOpenModal: () => void;
+  onPreviewImage?: (payload: { url: string; name: string }) => void;
+  canReturn?: boolean;
 }) {
   const outstanding: OutstandingUnit[] = item.outstanding_units ?? [];
   const hasSelections = selections.length > 0;
 
   return (
-    <div className="p-5 flex gap-4">
-      <ItemThumb url={item.image_url} />
-
-      <div className="flex-1 min-w-0">
-        {/* Name + type */}
-        <div className="flex items-start gap-2 mb-0.5">
-          <p className="font-bold text-slate-800 leading-snug">{item.name}</p>
-          <span className="flex-shrink-0 mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
-            ครุภัณฑ์
-          </span>
+    <tr className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/40 transition-colors">
+      <td className="px-4 py-3.5 align-middle">
+        <div className="flex justify-center">
+          <ItemThumb
+            url={item.image_url}
+            size="sm"
+            onImageClick={
+              item.image_url && onPreviewImage
+                ? () => onPreviewImage({ url: item.image_url!, name: item.name })
+                : undefined
+            }
+          />
         </div>
-        <p className="text-xs font-mono text-slate-400">{item.code}</p>
-
-        {/* Outstanding units preview */}
-        {outstanding.length > 0 && (
-          <div className="mt-2.5">
-            <p className="text-[10px] text-slate-400 mb-1.5">
+      </td>
+      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+        <span className="font-mono text-sm font-medium text-slate-800">{item.code || "—"}</span>
+      </td>
+      <td className="px-4 py-3.5 align-middle min-w-[10rem] max-w-md">
+        <p className="text-sm font-medium text-slate-800 leading-snug">{item.name}</p>
+      </td>
+      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+        <span className="text-sm font-medium text-slate-600">ครุภัณฑ์</span>
+      </td>
+      <td className="px-4 py-3.5 align-middle">
+        {outstanding.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-medium text-slate-600 whitespace-nowrap shrink-0">
               ค้างคืน {outstanding.length} ชิ้น
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {outstanding.map(u => {
-                const selected = selections.find(s => s.unit_id === u.id);
-                return (
-                  <span
-                    key={u.id}
-                    className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md border transition-colors ${
-                      selected
-                        ? condBadge(selected.condition)
-                        : "bg-slate-50 text-slate-500 border-slate-200"
-                    }`}
-                  >
-                    {u.unit_code}
-                    {selected && selected.condition !== "GOOD" && (
-                      <span className="ml-1 font-normal opacity-70">
-                        · {condLabel(selected.condition)}
-                      </span>
-                    )}
-                    {selected && (
-                      <span className="ml-1 text-emerald-500">✓</span>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
+            </span>
+            {hasSelections && (
+              <span className="text-sm font-medium text-slate-600 whitespace-nowrap">
+                เลือกคืน{" "}
+                <span className="font-bold text-blue-600">{selections.length}</span>
+                {" / "}{outstanding.length} ชิ้น
+              </span>
+            )}
           </div>
+        ) : (
+          <p className="text-sm font-medium text-slate-500 italic">ไม่มีครุภัณฑ์ค้างคืน</p>
         )}
-
-        {outstanding.length === 0 && (
-          <p className="mt-2 text-xs text-slate-400 italic">ไม่มีครุภัณฑ์ค้างคืน</p>
-        )}
-
-        {/* Summary */}
-        {hasSelections && (
-          <p className="mt-2.5 text-sm text-slate-600">
-            เลือกคืน{" "}
-            <span className="font-bold text-blue-600">{selections.length}</span>
-            {" "}จาก{" "}{outstanding.length} ชิ้น
-          </p>
-        )}
-      </div>
-
-      {/* Action */}
-      <div className="flex-shrink-0 flex items-center">
-        {outstanding.length > 0 && (
+      </td>
+      <td className="px-4 py-3.5 align-middle text-right whitespace-nowrap">
+        {outstanding.length > 0 && canReturn && (
           <button
             type="button"
             onClick={onOpenModal}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-xl border transition-all ${
+            className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg border transition-all whitespace-nowrap ${
               hasSelections
                 ? "bg-white border-blue-200 text-blue-600 hover:bg-blue-50"
                 : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200"
@@ -788,19 +985,22 @@ function ReusableCard({
           >
             {hasSelections ? (
               <>
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-4 h-4 shrink-0" />
                 แก้ไข
               </>
             ) : (
               <>
                 เลือกรายการ
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4 shrink-0" />
               </>
             )}
           </button>
         )}
-      </div>
-    </div>
+        {outstanding.length > 0 && !canReturn && (
+          <span className="text-sm text-slate-400 font-medium">ไม่สามารถแก้ไข</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -880,14 +1080,48 @@ function DetailContent({
   setIsSubmitting: (v: boolean) => void;
 }) {
   const router = useRouter();
+  const [attachmentLightbox, setAttachmentLightbox] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
   const ext = !!header.borrower_details;
-  const status = uiStatus(header);
   const overdue = daysOverdue(header);
   const canReturn = header.status === "BORROWING";
   const bd = header.borrower_details;
   const borrowerName = bd
     ? [bd.firstname, bd.lastname].filter(Boolean).join(" ") || "บุคคลภายนอก"
     : header.requester || "ไม่ระบุ";
+
+  const borrowerAddressLine = useMemo(
+    () => (bd ? formatBorrowerAddress(bd) : null),
+    [bd]
+  );
+  const borrowerTitlePrefix = useMemo(() => {
+    if (!bd) return null;
+    const fromLookup =
+      bd.lookup_titles?.short_name?.trim() || bd.lookup_titles?.name?.trim() || null;
+    if (fromLookup) return fromLookup;
+    return bd.title_code?.trim() || null;
+  }, [bd]);
+
+  const borrowerNameWithTitle = useMemo(() => {
+    if (!bd) return null;
+    const rest = [bd.firstname?.trim(), bd.lastname?.trim()].filter(Boolean).join(" ");
+    const withTitle = [borrowerTitlePrefix, rest].filter(Boolean).join(" ").trim();
+    return withTitle || borrowerName;
+  }, [bd, borrowerTitlePrefix, borrowerName]);
+
+  const attachmentThumbs = useMemo((): Array<{ url: string; filename?: string; name?: string }> => {
+    const fromHeader = (header.attachments ?? []).filter((a): a is { url: string; filename?: string; name?: string } =>
+      Boolean(a?.url)
+    );
+    const idUrls = parseIdCardUrls(bd?.id_card_url);
+    const fromBorrower = idUrls.map((url, i) => ({
+      url,
+      filename: i === 0 ? "บัตรประชาชน" : `เอกสารแนบ ${i + 1}`,
+    })).filter(e => !fromHeader.some(a => a.url === e.url));
+    return [...fromBorrower, ...fromHeader];
+  }, [header.attachments, bd?.id_card_url]);
 
   // ── Consumable state ──
   const consumableItems = useMemo(
@@ -927,30 +1161,61 @@ function DetailContent({
 
   const [rows, setRows] = useState<ReturnRowState[]>(returnable);
 
-  const updateRow = (idx: number, patch: Partial<ReturnRowState>) => {
-    setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+  const consumablePayloadFor = (it: RequisitionItem, idx: number): ReturnItemPayload | null => {
+    const fromModal = consumableReturns.get(it.id);
+    const row = rows[idx];
+    if (fromModal !== undefined) {
+      if (fromModal.qty_returned <= 0) return null;
+      return {
+        req_item_id: it.id,
+        qty_returned: fromModal.qty_returned,
+        condition: fromModal.condition,
+        note: fromModal.note || undefined,
+      };
+    }
+    if (row && row.qty_returned > 0) {
+      return {
+        req_item_id: it.id,
+        qty_returned: row.qty_returned,
+        condition: row.condition,
+        note: row.note || undefined,
+      };
+    }
+    return null;
   };
 
-  const hasAnyReturn = rows.some(r => r.qty_returned > 0);
-
-  const adjustQty = (idx: number, delta: number) => {
-    setRows(prev => prev.map((r, i) => {
-      if (i !== idx) return r;
-      const next = r.qty_returned + delta;
-      if (next < 0 || next > r.max) return r;
-      return { ...r, qty_returned: next };
-    }));
-  };
+  const hasAnyReturn = useMemo(() => {
+    const consumableOk = consumableItems.some((it, idx) => consumablePayloadFor(it, idx) !== null);
+    const reusableOk = reusableItems.some(it => (reusableSelections.get(it.id)?.length ?? 0) > 0);
+    return consumableOk || reusableOk;
+  }, [consumableItems, reusableItems, consumableReturns, rows, reusableSelections]);
 
   const handleSubmitReturn = async () => {
-    const payload: ReturnItemPayload[] = rows
-      .filter(r => r.qty_returned > 0)
-      .map(r => ({
-        req_item_id: r.req_item_id,
-        qty_returned: r.qty_returned,
-        condition: r.condition,
-        note: r.note || undefined,
-      }));
+    const payload: ReturnItemPayload[] = [];
+
+    consumableItems.forEach((it, idx) => {
+      const row = consumablePayloadFor(it, idx);
+      if (row) payload.push(row);
+    });
+
+    reusableItems.forEach(it => {
+      const sels = reusableSelections.get(it.id) ?? [];
+      if (sels.length === 0) return;
+      const condition: ReturnCondition = sels.some(s => s.condition === "LOST")
+        ? "LOST"
+        : sels.some(s => s.condition === "DAMAGED")
+          ? "DAMAGED"
+          : sels.some(s => s.condition === "INCOMPLETE")
+            ? "INCOMPLETE"
+            : "GOOD";
+      const note = sels.map(s => s.note).filter(Boolean).join("; ") || undefined;
+      payload.push({
+        req_item_id: it.id,
+        qty_returned: sels.length,
+        condition,
+        note,
+      });
+    });
 
     if (payload.length === 0) {
       MySwal.fire({ title: "กรุณาระบุจำนวนที่คืน", icon: "warning", timer: 2000, showConfirmButton: false });
@@ -978,33 +1243,25 @@ function DetailContent({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* ─ Top bar ─ */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/request/returnitem")}
-            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 16 16">
-              <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+    <div className="flex flex-col min-h-screen bg-[#fafafa]">
+      <div className="w-full max-w-5xl mx-auto px-6 py-6 flex flex-col flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
-            <h1 className="text-base font-bold text-slate-800">รายละเอียดการยืม</h1>
-            <p className="text-xs font-mono text-slate-400">{header.doc_no}</p>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
+              รายละเอียดการส่งคืน
+            </h1>
           </div>
+          <button
+            type="button"
+            onClick={() => router.push("/request/returnitem")}
+            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0"
+          >
+            ย้อนกลับ
+          </button>
         </div>
-        <span
-          className={`text-xs font-bold px-3 py-1.5 rounded-full border ${status.cls}`}
-        >
-          {status.label}
-        </span>
-      </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <div className="space-y-4 flex-1">
 
-        {/* ─ Overdue banner ─ */}
         {overdue > 0 && (
           <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
             <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
@@ -1014,122 +1271,221 @@ function DetailContent({
           </div>
         )}
 
-        {/* ─ Info card ─ */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-indigo-500" />
-            <h2 className="text-sm font-bold text-slate-700">ข้อมูลการยืม</h2>
+        {/* ข้อมูลเอกสาร */}
+        <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
+            <h2 className="text-lg font-bold text-gray-900">ข้อมูลเอกสาร</h2>
           </div>
-          <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">ผู้ยืม</p>
-              <p className="text-sm font-semibold text-slate-800">{borrowerName}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">แผนก</p>
-              <p className="text-sm text-slate-700">
-                {header.department_name ?? `แผนก ${header.department_id}`}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">วันที่ยืม</p>
-              <p className="text-sm text-slate-700">{fmtDate(header.request_date)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">กำหนดคืน</p>
-              <p className={`text-sm font-semibold ${overdue > 0 ? "text-red-600" : "text-slate-700"}`}>
-                {fmtDate(header.due_date)}
-              </p>
-            </div>
+          <div className="px-5 sm:px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-5">
+            <BorrowerFieldRow label="เลขที่เอกสาร" value={header.doc_no} valueClassName="font-mono font-medium" />
+            <BorrowerFieldRow label="แผนก" value={displayOrDash(header.department_name ?? `แผนก ${header.department_id}`)} />
+            <BorrowerFieldRow label="ผู้ทำคำขอ" value={displayOrDash(header.requester)} />
+            <BorrowerFieldRow label="วันที่ยืม" value={fmtDate(header.request_date)} />
+            <BorrowerFieldRow
+              label="กำหนดคืน"
+              value={fmtDate(header.due_date)}
+              valueClassName={overdue > 0 ? "text-red-600 font-medium" : ""}
+            />
           </div>
-          {(header.note || bd?.notes) && (
-            <div className="px-6 pb-4 text-sm text-slate-500 border-t border-slate-50 pt-3">
-              <span className="font-semibold text-slate-600">หมายเหตุ: </span>
-              {bd?.notes ?? header.note}
+          {header.note && (
+            <div className="px-5 sm:px-6 py-4 border-t border-slate-100">
+              <BorrowerFieldRow label="หมายเหตุ (เอกสาร)" value={header.note} />
             </div>
           )}
-        </div>
+        </section>
 
-        {/* ─ Items ─ */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-blue-500" />
-              <h2 className="text-sm font-bold text-slate-700">
-                รายการพัสดุ{" "}
-                <span className="font-normal text-slate-400">
-                  ({header.items?.length ?? 0} รายการ)
-                </span>
-              </h2>
+        {/* ข้อมูลผู้ยืม — สองคอลัมน์แบบอ้างอิง */}
+        <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
+            <h2 className="text-lg font-bold text-gray-900">ข้อมูลผู้ยืม</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{ext ? "บุคคลภายนอก" : "ผู้ยืมภายในองค์กร"}</p>
+          </div>
+          <div className="px-5 sm:px-6 py-5">
+            {ext && bd ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+                <div className="space-y-5">
+                  <BorrowerFieldRow label="ชื่อ-นามสกุล" value={displayOrDash(borrowerNameWithTitle)} />
+                  <BorrowerFieldRow label="เบอร์โทรศัพท์" value={displayOrDash(bd.phone)} />
+                  <BorrowerFieldRow label="หมายเหตุ" value={displayOrDash(bd.notes)} />
+                </div>
+                <div className="space-y-5">
+                  <BorrowerFieldRow
+                    label="บัตรประชาชน"
+                    value={displayOrDash(bd.id_card)}
+                    valueClassName="font-mono tracking-wide"
+                  />
+                  <BorrowerFieldRow label="ที่อยู่" value={displayOrDash(borrowerAddressLine)} />
+                </div>
+              </div>
+            ) : (
+              <BorrowerFieldRow label="ชื่อผู้ยืม (พนักงาน)" value={displayOrDash(header.requester)} />
+            )}
+          </div>
+        </section>
+
+        {/* เอกสารแนบ */}
+        {attachmentThumbs.length > 0 && (
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-gray-900">เอกสารแนบ</h2>
+            </div>
+            <div className="px-5 sm:px-6 py-5">
+              <div className="flex flex-wrap gap-4">
+                {attachmentThumbs.map((att, i) => {
+                  const fname = att.filename || att.name || `ไฟล์ ${i + 1}`;
+                  const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(att.url) || att.url.includes("image");
+                  const wrapClass = "flex flex-col w-[100px] sm:w-[120px] shrink-0 group";
+                  const thumbBoxClass =
+                    "aspect-square rounded-lg border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center group-hover:border-blue-300 transition-colors";
+
+                  if (isImg) {
+                    return (
+                      <div key={`${att.url}-${i}`} className={wrapClass}>
+                        <button
+                          type="button"
+                          aria-label={`ขยายรูป ${fname}`}
+                          onClick={() => setAttachmentLightbox({ url: att.url, name: fname })}
+                          className="w-full text-left rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+                        >
+                          <div className={thumbBoxClass}>
+                            <img
+                              src={att.url}
+                              alt={fname}
+                              className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in"
+                            />
+                          </div>
+                        </button>
+                        <p
+                          className="text-[11px] text-slate-600 mt-2 line-clamp-2 break-all text-center leading-tight"
+                          title={fname}
+                        >
+                          {fname}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <a
+                      key={`${att.url}-${i}`}
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={wrapClass}
+                    >
+                      <div className={thumbBoxClass}>
+                        <FileText className="w-10 h-10 text-slate-300" />
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-2 line-clamp-2 break-all text-center leading-tight" title={fname}>
+                        {fname}
+                      </p>
+                    </a>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-slate-500 mt-4">ทั้งหมด {attachmentThumbs.length} ไฟล์</p>
+            </div>
+          </section>
+        )}
+
+        {/* รายละเอียดการส่งคืน — ตารางรายการ */}
+        <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">รายละเอียดการส่งคืน</h2>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-xl">
+                ระบุจำนวน สภาพ และครุภัณฑ์รายชิ้น แล้วกด <span className="font-semibold text-slate-700">แจ้งส่งคืน</span> เพื่อส่งให้คลังตรวจรับ
+              </p>
             </div>
             {canReturn && hasAnyReturn && (
-              <span className="text-xs text-emerald-600 font-semibold">
-                <CheckCircle className="w-3.5 h-3.5 inline mr-1" />
-                ระบุแล้วบางรายการ
+              <span className="text-xs text-emerald-600 font-semibold inline-flex items-center gap-1 shrink-0">
+                <CheckCircle className="w-3.5 h-3.5" />
+                พร้อมส่งคืน
               </span>
             )}
           </div>
 
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-slate-500 mb-1">ชื่อผู้ยืม</p>
-                <p className="text-base text-slate-800">{borrowerName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1">ผู้ทำรายการ</p>
-                <p className="text-base text-slate-800">{header.requester ?? "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1">แผนก</p>
-                <p className="text-base text-slate-800">{header.department_name ?? `แผนก ${header.department_id}`}</p>
-              </div>
-
-              {header.borrower_details?.phone && (
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">เบอร์โทร</p>
-                  <p className="text-base text-slate-800">{header.borrower_details.phone}</p>
-                </div>
-              )}
-
-              {header.borrower_details?.address && (
-                <div className="md:col-span-2">
-                  <p className="text-xs text-slate-500 mb-1">ที่อยู่</p>
-                  <p className="text-base text-slate-800">
-                    {header.borrower_details.address}
-                    {header.borrower_details.subdistrict && `, ${header.borrower_details.subdistrict}`}
-                    {header.borrower_details.district && ` อำเภอ${header.borrower_details.district}`}
-                    {header.borrower_details.province && `, จังหวัด${header.borrower_details.province}`}
-                    {header.borrower_details.zipcode && `, ${header.borrower_details.zipcode}`}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {(header.borrower_details?.notes || header.note) && (
-              <div>
-                <p className="text-xs text-slate-500 mb-1">หมายเหตุ</p>
-                <p className="text-base text-slate-800">
-                  {header.borrower_details?.notes ?? header.note}
-                </p>
-              </div>
-            )}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] table-auto border-collapse">
+              <colgroup>
+                <col className="w-16" />
+                <col className="w-[1%]" />
+                <col />
+                <col className="w-[1%]" />
+                <col />
+                <col className="w-[1%]" />
+              </colgroup>
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5">
+                    รูป
+                  </th>
+                  <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
+                    รหัส
+                  </th>
+                  <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 min-w-[10rem]">
+                    รายการ
+                  </th>
+                  <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
+                    ประเภท
+                  </th>
+                  <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 min-w-[12rem]">
+                    รายการที่ต้องคืน
+                  </th>
+                  <th className="text-right text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
+                    ดำเนินการ
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {consumableItems.map((it, idx) => (
+                  <ConsumableReturnTableRow
+                    key={it.id}
+                    item={it}
+                    value={consumableReturns.get(it.id) ?? null}
+                    canReturn={canReturn}
+                    onOpenModal={() => setOpenConsumable(idx)}
+                    onPreviewImage={setAttachmentLightbox}
+                  />
+                ))}
+                {reusableItems.map((it, idx) => (
+                  <ReusableReturnTableRow
+                    key={it.id}
+                    item={it}
+                    selections={reusableSelections.get(it.id) ?? []}
+                    canReturn={canReturn}
+                    onOpenModal={() => setOpenReusable(idx)}
+                    onPreviewImage={setAttachmentLightbox}
+                  />
+                ))}
+                {consumableItems.length === 0 && reusableItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-14 text-center">
+                      <Package className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                      <p className="text-sm text-slate-500">
+                        ไม่มีรายการที่ต้องดำเนินการคืนในขั้นนี้
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
+        </section>
 
-        {/* ─ Submit bar ─ */}
-        {canReturn && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 flex items-center justify-between gap-4">
+        {canReturn && (consumableItems.length > 0 || reusableItems.length > 0) && (
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-slate-700">พร้อมส่งคืน?</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                คลังจะรับเรื่องและตรวจสอบสภาพก่อนปิดรายการ
+              <p className="text-sm font-semibold text-slate-800">แจ้งส่งคืนไปคลัง</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                หลังส่งแล้ว สถานะจะเป็น &ldquo;รอตรวจรับคืน&rdquo; จนกว่าคลังจะยืนยัน
               </p>
             </div>
             <button
+              type="button"
               onClick={handleSubmitReturn}
               disabled={isSubmitting || !hasAnyReturn}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 flex-shrink-0"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 w-full sm:w-auto"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1141,7 +1497,6 @@ function DetailContent({
           </div>
         )}
 
-        {/* Status info for non-BORROWING */}
         {!canReturn && header.status === "PENDING_RETURN_CHECK" && (
           <div className="flex items-start gap-3 bg-sky-50 border border-sky-200 rounded-xl px-5 py-4">
             <Clock className="w-5 h-5 text-sky-500 flex-shrink-0 mt-0.5" />
@@ -1153,6 +1508,7 @@ function DetailContent({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* ─ Modals ─ */}
@@ -1186,6 +1542,42 @@ function DetailContent({
           }}
           onClose={() => setOpenReusable(null)}
         />
+      )}
+
+      {attachmentLightbox && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setAttachmentLightbox(null)}
+          role="presentation"
+        >
+          <div
+            className="relative bg-white rounded-lg shadow-2xl p-2 max-w-[min(90vw,520px)]"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="ดูภาพเอกสารแนบ"
+          >
+            <button
+              type="button"
+              onClick={() => setAttachmentLightbox(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-lg shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
+              aria-label="ปิด"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img
+              src={attachmentLightbox.url}
+              alt={attachmentLightbox.name}
+              className="w-[min(90vw,480px)] h-[min(70vh,400px)] object-contain rounded-lg mx-auto block"
+            />
+            <p
+              className="text-center text-sm text-slate-600 mt-2 pb-1 px-2 truncate"
+              title={attachmentLightbox.name}
+            >
+              {attachmentLightbox.name}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

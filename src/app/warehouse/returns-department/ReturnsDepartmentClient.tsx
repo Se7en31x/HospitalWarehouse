@@ -89,7 +89,10 @@ export default function ReturnsDepartmentClient() {
         status: tabStatus ?? activeTab,
       });
       setRecords(response.items || []);
-      setServerTotalPages(response.totalPages || 0);
+      const limit = response.limit || PAGE_LIMIT;
+      const total = response.total ?? 0;
+      // ไม่พึ่ง totalPages จาก meta อย่างเดียว — คิดจาก total/limit เพื่อไม่เกิดหน้าเกินเมื่อเหลือ ≤10 รายการ
+      setServerTotalPages(total <= 0 ? 1 : Math.max(1, Math.ceil(total / limit)));
     } catch (err) {
       console.error("fetch return requests failed", err);
       showToast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");

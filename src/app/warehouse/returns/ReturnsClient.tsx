@@ -100,13 +100,21 @@ export default function ReturnsClient() {
 
   const pageRef = useRef(1);
   const keywordRef = useRef("");
+  const activeTabRef = useRef<ReturnsTab>("PENDING");
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchPage = useCallback(async (page: number, keyword: string) => {
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  const fetchPage = useCallback(async (page: number, keyword: string, tab: ReturnsTab) => {
     setIsFetching(true);
     try {
+      const statusFilter =
+        tab === "PENDING" ? ("PENDING_RETURN_CHECK" as const) : ("COMPLETED" as const);
       const result = await getAllRequisitions({
         type: "BORROW",
+        status: statusFilter,
         page,
         limit: PAGE_LIMIT,
         ...(keyword ? { keyword } : {}),
@@ -119,9 +127,10 @@ export default function ReturnsClient() {
         } else if (Array.isArray((result as unknown as { items: RequisitionHeader[] }).items)) {
           data = (result as unknown as { items: RequisitionHeader[] }).items;
         }
-        // เก็บรายการทั้งหมด แล้วค่อยกรองตาม Tab ฝั่ง client
         setRecords(data);
-        const totalPages = result.limit ? Math.ceil((result.total || 0) / result.limit) : 0;
+        const limit = result.limit || PAGE_LIMIT;
+        const total = result.total ?? 0;
+        const totalPages = total <= 0 ? 1 : Math.max(1, Math.ceil(total / limit));
         setServerTotalPages(totalPages);
       } else {
         throw new Error(result.message || "ไม่สามารถดึงข้อมูลได้");
@@ -137,7 +146,7 @@ export default function ReturnsClient() {
   }, []);
 
   useEffect(() => {
-    fetchPage(1, "");
+    fetchPage(1, "", "PENDING");
   }, [fetchPage]);
 
   useEffect(() => {
@@ -162,23 +171,18 @@ export default function ReturnsClient() {
     searchTimerRef.current = setTimeout(() => {
       setCurrentPage(1);
       pageRef.current = 1;
-      fetchPage(1, value);
+      fetchPage(1, value, activeTabRef.current);
     }, 300);
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     pageRef.current = newPage;
-    fetchPage(newPage, keywordRef.current);
+    fetchPage(newPage, keywordRef.current, activeTabRef.current);
   };
 
-  const tabbedRecords = records.filter((r) => {
-    if (activeTab === "PENDING") return r.status === "PENDING_RETURN_CHECK";
-    return r.status === "COMPLETED";
-  });
-
-  // Client-side secondary filters (status/date) applied to current page's items
-  const filteredRecords = tabbedRecords.filter(r => {
+  // ตัวกรองสถานะ/วันที่ฝั่ง client (รายการตรงแท็บดึงจาก API แล้ว)
+  const filteredRecords = records.filter(r => {
     const uiStatus = mapUiStatus(r);
     const matchesStatus = selectedStatus === "สถานะทั้งหมด" || uiStatus === selectedStatus;
     const matchDate =
@@ -216,7 +220,12 @@ export default function ReturnsClient() {
           return (
             <button
               key={tab}
-              onClick={() => { setActiveTab(tab); setCurrentPage(1); pageRef.current = 1; }}
+              onClick={() => {
+                setActiveTab(tab);
+                setCurrentPage(1);
+                pageRef.current = 1;
+                fetchPage(1, keywordRef.current, tab);
+              }}
               className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
                 isActive
                   ? isPending
@@ -264,7 +273,12 @@ export default function ReturnsClient() {
                   <li key={s}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedStatus(s); setIsStatusDropdownOpen(false); setCurrentPage(1); pageRef.current = 1; }}
+                      onClick={() => {
+                        setSelectedStatus(s);
+                        setIsStatusDropdownOpen(false);
+                        setCurrentPage(1);
+                        pageRef.current = 1;
+                      }}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedStatus === s ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
                       {s}
@@ -317,7 +331,7 @@ export default function ReturnsClient() {
               setEndDate("");
               setCurrentPage(1);
               pageRef.current = 1;
-              fetchPage(1, "");
+              fetchPage(1, "", activeTabRef.current);
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors shadow-sm"
           >
@@ -471,9 +485,9 @@ export default function ReturnsClient() {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
           <p className="text-sm text-slate-500">
-            {tabbedRecords.length === 0
+            {records.length === 0
               ? "แสดง 0 รายการ"
-              : `แสดง ${displayRecords.length} จาก ${tabbedRecords.length} รายการ`}
+              : `แสดง ${displayRecords.length} จาก ${records.length} รายการ`}
           </p>
           <div className="flex items-center gap-2">
             <button

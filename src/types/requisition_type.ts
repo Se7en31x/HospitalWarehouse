@@ -139,4 +139,6 @@ export interface RequisitionHeader {
   borrower_id?: string | null;
   borrower_details?: BorrowerDetails | null;
   pending_return_submission?: PendingReturnSubmission | null;
+  /** เอกสารแนบ (ถ้า API ส่งมา) */
+  attachments?: Array<{ url: string; filename?: string; name?: string }> | null;
 }

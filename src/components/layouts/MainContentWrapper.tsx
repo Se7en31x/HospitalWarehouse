@@ -33,9 +33,9 @@ export default function MainContentWrapper({ children }: { children: ReactNode }
 
   return (
     <main 
-      className={`flex-1 min-w-0 bg-[#fafafa] ${shouldScroll ? "overflow-y-auto" : ""}`}
+      className={`flex-1 min-w-0 min-h-0 bg-[#fafafa] ${shouldScroll ? "overflow-y-auto" : ""}`}
     >
-      <div className="max-w-8xl mx-auto">
+      <div className="w-full min-w-0 min-h-full">
         {children}
       </div>
     </main>

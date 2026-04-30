@@ -354,17 +354,11 @@ export default function ReturnItemClient() {
         </div>
 
         <div
-          className={`relative w-full sm:w-[200px] border rounded-lg px-3 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
+          className={`relative w-full sm:w-[160px] border rounded-lg px-4 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
             startDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
           }`}
         >
-          <label
-            className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-              startDate || startDateFocused
-                ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-                : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-            }`}
-          >
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">
             วันที่เริ่มต้น
           </label>
           <input
@@ -377,21 +371,15 @@ export default function ReturnItemClient() {
             onFocus={() => setStartDateFocused(true)}
             onBlur={() => setStartDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: startDate || startDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
         <div
-          className={`relative w-full sm:w-[200px] border rounded-lg px-3 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
+          className={`relative w-full sm:w-[160px] border rounded-lg px-4 shadow-sm h-[38px] flex items-center bg-white transition-colors ${
             endDateFocused ? "border-blue-500 ring-2 ring-blue-500" : "border-slate-300"
           }`}
         >
-          <label
-            className={`absolute left-3 font-medium pointer-events-none transition-all duration-150 ${
-              endDate || endDateFocused
-                ? "-top-2 text-[10px] text-blue-500 bg-white px-1"
-                : "top-1/2 -translate-y-1/2 text-sm text-slate-400"
-            }`}
-          >
+          <label className="absolute left-3 -top-2 text-[10px] text-slate-700 bg-white px-1 font-medium pointer-events-none">
             วันที่สิ้นสุด
           </label>
           <input
@@ -404,7 +392,7 @@ export default function ReturnItemClient() {
             onFocus={() => setEndDateFocused(true)}
             onBlur={() => setEndDateFocused(false)}
             className="w-full text-sm outline-none border-none bg-transparent"
-            style={{ colorScheme: "light", opacity: endDate || endDateFocused ? 1 : 0 }}
+            style={{ colorScheme: "light" }}
           />
         </div>
 
@@ -461,7 +449,7 @@ export default function ReturnItemClient() {
                   <tr>
                     <th className="px-4 py-4 w-12 text-center whitespace-nowrap">#</th>
                     <th className="px-5 py-4 whitespace-nowrap">เลขที่คำขอ</th>
-                    <th className="px-5 py-4 whitespace-nowrap">ผู้ยืมภายนอก</th>
+                    <th className="px-5 py-4 whitespace-nowrap">ชื่อผู้ยืม</th>
                     <th className="px-5 py-4 whitespace-nowrap">ช่องทางติดต่อ</th>
                     <th className="px-5 py-4 whitespace-nowrap">แผนก</th>
                     <th className="px-5 py-4 text-center whitespace-nowrap">จำนวน</th>
@@ -484,12 +472,8 @@ export default function ReturnItemClient() {
                           {(currentPage - 1) * PAGE_LIMIT + idx + 1}
                         </td>
                         <td className="px-5 py-3 font-mono font-medium text-slate-800">{r.doc_no}</td>
-                        <td className="px-5 py-3">
-                          <div className="font-medium text-slate-800">
-                            {[borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") || "—"}
-                          </div>
-                          <div className="text-xs text-emerald-700 font-medium">{borrower?.phone ?? "—"}</div>
-                          <div className="text-xs text-slate-400">ผู้ทำรายการ: {r.requester ?? "—"}</div>
+                        <td className="px-5 py-3 font-medium text-slate-800">
+                          {[borrower?.firstname, borrower?.lastname].filter(Boolean).join(" ") || "—"}
                         </td>
                         <td className="px-5 py-3 text-slate-600">
                           <div className="flex items-center gap-2 text-sm">

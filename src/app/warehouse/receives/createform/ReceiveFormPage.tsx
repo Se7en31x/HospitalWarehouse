@@ -106,6 +106,25 @@ function makeLine(item: CatalogItem): LineItem {
   };
 }
 
+/** YYYY-MM-DD in local timezone for `<input type="date">`. */
+function toYmdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** ช่วง วันที่รับเข้า: ย้อนหลังได้ถึง 7 วัน ถึงวันนี้ (ไม่เกินวันนี้) */
+function receiveDateInputBounds(): { min: string; max: string } {
+  const today = new Date();
+  const y = today.getFullYear();
+  const mo = today.getMonth();
+  const da = today.getDate();
+  const earliest = new Date(y, mo, da - 7);
+  const latest = new Date(y, mo, da);
+  return { min: toYmdLocal(earliest), max: toYmdLocal(latest) };
+}
+
 // ── LocalStorage helpers ──────────────────────────────────────────────────────
 
 const STORAGE_KEY = "receive_form_draft";
@@ -151,6 +170,7 @@ export default function ReceiveFormPage() {
   const [source, setSource]   = useState<ReceiveSource>("purchase");
   const [docMeta, setDocMeta] = useState<DocMeta>(INIT_DOC);
   const patchDoc = (p: Partial<DocMeta>) => setDocMeta(d => ({ ...d, ...p }));
+  const receiveDateLimits = receiveDateInputBounds();
 
   const [lines, setLines]     = useState<LineItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -396,6 +416,14 @@ export default function ReceiveFormPage() {
 
     const missingDoc: string[] = [];
     if (!docMeta.receiveDate.trim()) missingDoc.push("วันที่รับเข้า");
+    if (docMeta.receiveDate.trim()) {
+      const { min, max } = receiveDateInputBounds();
+      const d = docMeta.receiveDate;
+      if (d < min || d > max) {
+        toast.error("วันที่รับเข้าต้องไม่เกินวันที่ปัจจุบัน และย้อนหลังได้ไม่เกิน 7 วัน");
+        return;
+      }
+    }
     if (source === "purchase") {
       if (!docMeta.poNumber.trim()) missingDoc.push("ใบส่งสินค้า");
       if (!docMeta.supplierId) missingDoc.push("ผู้จำหน่าย");
@@ -639,7 +667,8 @@ export default function ReceiveFormPage() {
                     วันที่รับเข้า <span className="text-red-500">*</span>
                   </label>
                   <input type="date" value={docMeta.receiveDate}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={receiveDateLimits.min}
+                    max={receiveDateLimits.max}
                     onChange={e => patchDoc({ receiveDate: e.target.value })}
                     className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -741,15 +770,13 @@ export default function ReceiveFormPage() {
                 {/* Manual catalog search */}
                 <div className="relative overflow-visible" data-catalog-dd>
                   <label className="block text-sm font-medium text-slate-600 mb-2">ค้นหาสินค้าจากรายการ</label>
-                  <div className={`flex items-center gap-2 border rounded-lg px-3 py-2 transition-colors ${
-                    isCatalogOpen ? "bg-white border-blue-300 ring-2 ring-blue-100" : "bg-slate-50 border-slate-200"
-                  }`}>
-                    <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                    <Search className="w-4 h-4 text-slate-400 shrink-0 pointer-events-none" />
                     <input type="text" value={catalogSearch}
                       onChange={e => { setCatalogSearch(e.target.value); setIsCatalogOpen(true); }}
                       onFocus={() => setIsCatalogOpen(true)}
                       placeholder="ค้นหาสินค้า (ชื่อ / รหัส)..."
-                      className="flex-1 text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
+                      className="flex-1 text-sm bg-transparent outline-none text-slate-800 placeholder:text-slate-400" />
                     {catalogSearch && (
                       <button type="button" onClick={() => { setCatalogSearch(""); setIsCatalogOpen(false); }}
                         className="text-slate-400 hover:text-slate-600 shrink-0">
@@ -758,26 +785,26 @@ export default function ReceiveFormPage() {
                     )}
                   </div>
                   {isCatalogOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
                       {filteredCatalog.length > 0
                         ? filteredCatalog.map(item => (
                           <button key={item.id} type="button" onClick={() => addItem(item)}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-b-0">
-                            <div className="flex items-center gap-3 min-w-0 w-full text-sm text-slate-500">
+                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+                            <div className="flex items-center gap-3 min-w-0 w-full">
                               <span className="shrink-0 w-[6.5rem] truncate text-left" title={item.code}>
                                 {item.code}
                               </span>
                               <span className="min-w-0 flex-1 truncate text-left" title={item.name}>
                                 {item.name}
                               </span>
-                              <span className="shrink-0 max-w-[40%] min-w-0 truncate text-left" title={item.category || ""}>
+                              <span className="shrink-0 max-w-[40%] min-w-0 truncate text-left text-slate-500" title={item.category || ""}>
                                 {item.category || "—"}
                               </span>
                             </div>
                           </button>
                         ))
                         : (
-                          <p className="px-4 py-5 text-sm text-slate-400 text-center">
+                          <p className="px-4 py-3 text-sm text-slate-400 text-center">
                             {isLoading ? "กำลังโหลด..." : catalogSearch ? "ไม่พบพัสดุ" : "พิมพ์ชื่อหรือรหัสรายการเพื่อค้นหา"}
                           </p>
                         )
@@ -894,6 +921,47 @@ function FieldBox({ label, children }: { label: React.ReactNode; children: React
   );
 }
 
+/** Compact unit for split field: "ลัง 1 x (40 x 50 pcs)" → "ลัง" */
+function abbreviatedUnitLabel(unitRaw: string): string {
+  const u = unitRaw.trim();
+  if (!u) return "—";
+  const m = u.match(/^(.+?)\s+\d+\s*[x×]\s*\(/i);
+  if (m) return m[1].trim() || u;
+  return u;
+}
+
+/** Number input with trailing unit column; right side shows abbreviated packaging unit. */
+function SplitUnitInput({
+  unit,
+  bold,
+  focusWithinClassName = "focus-within:ring-2 focus-within:ring-blue-300",
+  ...inputProps
+}: Omit<React.ComponentProps<"input">, "className"> & {
+  unit: string;
+  bold?: boolean;
+  focusWithinClassName?: string;
+}) {
+  const full = (unit || "").trim();
+  const shown = abbreviatedUnitLabel(full || "—");
+  return (
+    <div
+      className={`flex w-full rounded-lg border border-slate-300 bg-white overflow-hidden ${focusWithinClassName}`}
+    >
+      <input
+        {...inputProps}
+        type="number"
+        className={`min-w-0 flex-1 border-0 bg-white px-4 py-2.5 text-sm text-slate-900 text-right outline-none border-r border-slate-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${bold ? "font-bold" : ""}`}
+      />
+      <span
+        className="flex shrink-0 max-w-[42%] items-center justify-center bg-white px-4 py-2.5 text-sm font-medium text-slate-600 truncate"
+        title={full || shown}
+      >
+        {shown}
+      </span>
+    </div>
+  );
+}
+
 // ── LineRow ───────────────────────────────────────────────────────────────────
 
 interface LineRowProps {
@@ -998,8 +1066,8 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
       </td>
 
       {/* Unit */}
-      <td className="px-6 py-3">
-        <span className="text-sm text-slate-600">{line.unit}</span>
+      <td className="px-6 py-3 max-w-[7rem]">
+        <span className="text-sm text-slate-600 block truncate" title={line.unit}>{line.unit}</span>
       </td>
 
       {/* Cost - Display Only */}
@@ -1026,46 +1094,31 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
   );
 }
 
-// ── ConsumableLotSection ──────────────────────────────────────────────────────
+// ── Consumable existing lot (เหนือแถวจำนวน เมื่อรวมล็อตเดิม) ───────────────────
 
-function ConsumableLotSection({
+function ConsumableExistingLotPicker({
   line,
-  receiveDate: _receiveDate,
   onPatch,
 }: {
   line: LineItem;
-  receiveDate?: string;
   onPatch: (p: Partial<LineItem>) => void;
 }) {
-  const lotMode = line.lotMode ?? "auto";
-
+  const u = (line.unit || "").trim() || "หน่วย";
   const [existingLots, setExistingLots] = React.useState<ItemLotOption[]>([]);
   const [lotsLoading, setLotsLoading] = React.useState(false);
   const [lotSearch, setLotSearch] = React.useState("");
   const [isLotOpen, setIsLotOpen] = React.useState(false);
 
-  // Load lots when switching to existing mode
   React.useEffect(() => {
-    if (lotMode !== "existing") return;
-    if (existingLots.length > 0) return;
+    setExistingLots([]);
     setLotsLoading(true);
+    setLotSearch("");
+    setIsLotOpen(false);
     ReceiveSvc.getActiveLotsByItem(line.itemId)
       .then((lots: ItemLotOption[]) => setExistingLots(lots))
       .catch(() => toast.error("โหลดล็อตไม่สำเร็จ"))
       .finally(() => setLotsLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lotMode, line.itemId]);
-
-  const switchLotMode = (mode: "auto" | "existing") => {
-    if (mode === "auto") {
-      onPatch({ lotMode: "auto", lotCode: "", expiryDate: "", mfgDate: "" });
-    } else {
-      onPatch({ lotMode: "existing", lotCode: "", expiryDate: "" });
-    }
-    setLotSearch("");
-    setIsLotOpen(false);
-    setExistingLots([]);
-  };
+  }, [line.itemId]);
 
   const selectExistingLot = (lot: ItemLotOption) => {
     const expStr = lot.expired_at ? new Date(lot.expired_at).toISOString().split("T")[0] : "";
@@ -1079,6 +1132,103 @@ function ConsumableLotSection({
   );
   const selectedLot = existingLots.find(l => l.lot_code === line.lotCode) ?? null;
   const fmtLotDate = (d: string | null) => d ? fmtDate(d) : "ไม่มีวันหมดอายุ";
+
+  return (
+    <div className="w-full">
+      <FieldBox label={<>เลือกล็อตที่มีอยู่ <span className="text-red-500">*</span></>}>
+        <div className="relative pt-0.5">
+          {selectedLot ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 border border-slate-300 bg-white rounded-lg">
+              <div className="flex-1 min-w-0">
+                <span className="font-mono font-semibold text-slate-900">{selectedLot.lot_code}</span>
+                <span className="ml-2 text-xs text-slate-500">
+                  คงเหลือ {selectedLot.quantity} {u} · {fmtLotDate(selectedLot.expired_at)}
+                </span>
+              </div>
+              <button type="button"
+                onClick={() => { onPatch({ lotCode: "", expiryDate: "" }); setLotSearch(""); setIsLotOpen(true); }}
+                className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input type="text" autoFocus value={lotSearch}
+                onChange={e => { setLotSearch(e.target.value); setIsLotOpen(true); }}
+                onFocus={() => setIsLotOpen(true)}
+                placeholder={lotsLoading ? "กำลังโหลดล็อต..." : "ค้นหาเลขล็อต..."}
+                disabled={lotsLoading}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-slate-50"
+              />
+            </div>
+          )}
+          {isLotOpen && !selectedLot && (
+            <div className="absolute top-full left-2 right-2 sm:left-3 sm:right-3 mt-2 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
+              {lotsLoading && (
+                <div className="px-4 py-5 flex items-center justify-center gap-2 text-sm text-slate-400">
+                  <Loader2 className="w-4 h-4 animate-spin" /> กำลังโหลด...
+                </div>
+              )}
+              {!lotsLoading && filteredLots.length === 0 && (
+                <p className="px-4 py-5 text-sm text-slate-400 text-center">
+                  {existingLots.length === 0 ? "ไม่มีล็อตที่ใช้งานได้" : "ไม่พบล็อตที่ค้นหา"}
+                </p>
+              )}
+              {!lotsLoading && filteredLots.map(lot => {
+                const expired = lot.is_expired;
+                return (
+                  <button key={lot.id} type="button" disabled={expired}
+                    onClick={() => !expired && selectExistingLot(lot)}
+                    className={`w-full text-left px-4 py-2.5 border-b border-slate-50 last:border-b-0 transition-colors ${
+                      expired ? "opacity-40 cursor-not-allowed bg-slate-50" : "hover:bg-slate-50 cursor-pointer"
+                    }`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-mono font-semibold text-sm text-slate-800 shrink-0">{lot.lot_code}</span>
+                      <span className="text-xs text-slate-400 shrink-0">คงเหลือ {lot.quantity} {u}</span>
+                      <span className={`ml-auto text-xs px-1.5 py-0.5 rounded font-semibold shrink-0 ${
+                        expired ? "bg-red-100 text-red-600" : lot.expired_at ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"
+                      }`}>
+                        {expired ? "หมดอายุแล้ว" : lot.expired_at ? `หมด ${fmtLotDate(lot.expired_at)}` : "ไม่มีวันหมดอายุ"}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </FieldBox>
+      {selectedLot?.expired_at && (
+        <p className="text-xs text-slate-500 mt-2">
+          วันหมดอายุของล็อตนี้: <span className="font-semibold">{fmtLotDate(selectedLot.expired_at)}</span>
+          {" "}— จะถูกใช้เป็นวันหมดอายุสำหรับการรับเข้าครั้งนี้
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── ConsumableLotSection ──────────────────────────────────────────────────────
+
+function ConsumableLotSection({
+  line,
+  receiveDate: _receiveDate,
+  onPatch,
+}: {
+  line: LineItem;
+  receiveDate?: string;
+  onPatch: (p: Partial<LineItem>) => void;
+}) {
+  const lotMode = line.lotMode ?? "auto";
+
+  const switchLotMode = (mode: "auto" | "existing") => {
+    if (mode === "auto") {
+      onPatch({ lotMode: "auto", lotCode: "", expiryDate: "", mfgDate: "" });
+    } else {
+      onPatch({ lotMode: "existing", lotCode: "", expiryDate: "" });
+    }
+  };
 
   return (
     <>
@@ -1106,24 +1256,27 @@ function ConsumableLotSection({
         )}
       </div>
 
+      {lotMode === "existing" && (
+        <div className="mb-5 mt-1 w-full max-w-xl">
+          <ConsumableExistingLotPicker line={line} onPatch={onPatch} />
+        </div>
+      )}
+
       {/* Qty row */}
       <div className="grid grid-cols-6 gap-3 mb-4">
-        <FieldBox label="ใบกำกับ (ชิ้น)">
-          <input type="number" min="1" value={line.expectedQty}
+        <FieldBox label={`ใบกำกับ (${abbreviatedUnitLabel(line.unit || "—")})`}>
+          <SplitUnitInput unit={line.unit || "—"} bold min={1} value={line.expectedQty}
             onChange={e => { const v = Math.max(1, Number(e.target.value)); onPatch({ expectedQty: v, qty: Math.min(line.qty, v) }); }}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
           />
         </FieldBox>
-        <FieldBox label="รับจริง (ชิ้น)">
-          <input type="number" min="0" max={line.expectedQty} value={line.qty}
+        <FieldBox label={`รับจริง (${abbreviatedUnitLabel(line.unit || "—")})`}>
+          <SplitUnitInput unit={line.unit || "—"} bold min={0} max={line.expectedQty} value={line.qty}
             onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
           />
         </FieldBox>
-        <FieldBox label="ต้นทุน/ชิ้น (บาท)">
-          <input type="number" min="0" step="0.01" value={line.costPrice}
+        <FieldBox label={`ต้นทุนต่อ ${abbreviatedUnitLabel(line.unit || "หน่วย")} (บาท)`}>
+          <SplitUnitInput unit="บาท" min={0} step={0.01} value={line.costPrice}
             onChange={e => onPatch({ costPrice: Number(e.target.value) })}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
           />
         </FieldBox>
         {lotMode === "auto" && (
@@ -1149,82 +1302,6 @@ function ConsumableLotSection({
         <div className="mb-4 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
           <span>✦</span>
           <span>ระบบจะสร้างเลขล็อตให้อัตโนมัติเมื่อบันทึก</span>
-        </div>
-      )}
-
-      {/* Existing mode: lot picker */}
-      {lotMode === "existing" && (
-        <div className="mb-4">
-          <FieldBox label={<>เลือกล็อตที่มีอยู่ <span className="text-red-500">*</span></>}>
-            <div className="relative">
-              {selectedLot ? (
-                <div className="flex items-center gap-2 px-3 py-2.5 border border-indigo-300 bg-indigo-50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono font-bold text-indigo-700">{selectedLot.lot_code}</span>
-                    <span className="ml-2 text-xs text-slate-500">
-                      คงเหลือ {selectedLot.quantity} ชิ้น · {fmtLotDate(selectedLot.expired_at)}
-                    </span>
-                  </div>
-                  <button type="button"
-                    onClick={() => { onPatch({ lotCode: "", expiryDate: "" }); setLotSearch(""); setIsLotOpen(true); }}
-                    className="text-slate-400 hover:text-slate-600 flex-shrink-0">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input type="text" autoFocus value={lotSearch}
-                    onChange={e => { setLotSearch(e.target.value); setIsLotOpen(true); }}
-                    onFocus={() => setIsLotOpen(true)}
-                    placeholder={lotsLoading ? "กำลังโหลดล็อต..." : "ค้นหาเลขล็อต..."}
-                    disabled={lotsLoading}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-slate-50"
-                  />
-                </div>
-              )}
-              {isLotOpen && !selectedLot && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
-                  {lotsLoading && (
-                    <div className="px-4 py-5 flex items-center justify-center gap-2 text-sm text-slate-400">
-                      <Loader2 className="w-4 h-4 animate-spin" /> กำลังโหลด...
-                    </div>
-                  )}
-                  {!lotsLoading && filteredLots.length === 0 && (
-                    <p className="px-4 py-5 text-sm text-slate-400 text-center">
-                      {existingLots.length === 0 ? "ไม่มีล็อตที่ใช้งานได้" : "ไม่พบล็อตที่ค้นหา"}
-                    </p>
-                  )}
-                  {!lotsLoading && filteredLots.map(lot => {
-                    const expired = lot.is_expired;
-                    return (
-                      <button key={lot.id} type="button" disabled={expired}
-                        onClick={() => !expired && selectExistingLot(lot)}
-                        className={`w-full text-left px-4 py-2.5 border-b border-slate-50 last:border-b-0 transition-colors ${
-                          expired ? "opacity-40 cursor-not-allowed bg-slate-50" : "hover:bg-indigo-50 cursor-pointer"
-                        }`}>
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono font-semibold text-sm text-slate-800">{lot.lot_code}</span>
-                          <span className="text-xs text-slate-400">คงเหลือ {lot.quantity} ชิ้น</span>
-                          <span className={`ml-auto text-xs px-1.5 py-0.5 rounded font-semibold ${
-                            expired ? "bg-red-100 text-red-600" : lot.expired_at ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"
-                          }`}>
-                            {expired ? "หมดอายุแล้ว" : lot.expired_at ? `หมด ${fmtLotDate(lot.expired_at)}` : "ไม่มีวันหมดอายุ"}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </FieldBox>
-          {selectedLot?.expired_at && (
-            <p className="text-xs text-slate-500 mt-2">
-              วันหมดอายุของล็อตนี้: <span className="font-semibold">{fmtLotDate(selectedLot.expired_at)}</span>
-              {" "}— จะถูกใช้เป็นวันหมดอายุสำหรับการรับเข้าครั้งนี้
-            </p>
-          )}
         </div>
       )}
     </>
@@ -1256,9 +1333,9 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
     line.kind === "REUSABLE"   ? "bg-violet-600 hover:bg-violet-700" : "bg-amber-600 hover:bg-amber-700";
 
   return (
-    <div className={`rounded-lg border-2 ${borderCls} bg-white shadow-md overflow-hidden`}>
+    <div className={`rounded-lg border-2 ${borderCls} bg-white shadow-md overflow-visible`}>
       {/* Header */}
-      <div className={`${headerBgCls} px-6 py-4 flex items-center justify-between border-b border-slate-200 gap-3`}>
+      <div className={`${headerBgCls} px-8 py-4 flex items-center justify-between border-b border-slate-200 gap-3`}>
         <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap justify-start text-left">
           <span className="sr-only">{cfg.label}</span>
           <p className="text-sm text-slate-500 shrink-0" title={line.itemCode}>{line.itemCode}</p>
@@ -1276,7 +1353,7 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
       </div>
 
       {/* Fields */}
-      <div className="p-6">
+      <div className="px-8 py-7 sm:px-10">
         {line.kind === "CONSUMABLE" && (
           <ConsumableLotSection
             line={line}
@@ -1287,31 +1364,41 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
 
         {line.kind === "REUSABLE" && (
           <div className="grid grid-cols-4 gap-3 mb-4">
-            <FieldBox label="ใบกำกับ (ชิ้น)">
-              <input
-                type="number" min="1" value={line.expectedQty}
+            <FieldBox label={`ใบกำกับ (${abbreviatedUnitLabel(line.unit || "—")})`}>
+              <SplitUnitInput
+                unit={line.unit || "—"}
+                bold
+                focusWithinClassName="focus-within:ring-2 focus-within:ring-violet-300"
+                min={1}
+                value={line.expectedQty}
                 autoFocus={true}
                 onChange={e => {
                   const v = Math.max(1, Number(e.target.value));
                   onPatch({ expectedQty: v, qty: Math.min(line.qty, v) });
                 }}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-violet-300"
               />
             </FieldBox>
 
-            <FieldBox label="รับจริง (ชิ้น)">
-              <input
-                type="number" min="0" max={line.expectedQty} value={line.qty}
+            <FieldBox label={`รับจริง (${abbreviatedUnitLabel(line.unit || "—")})`}>
+              <SplitUnitInput
+                unit={line.unit || "—"}
+                bold
+                focusWithinClassName="focus-within:ring-2 focus-within:ring-violet-300"
+                min={0}
+                max={line.expectedQty}
+                value={line.qty}
                 onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-violet-300"
               />
             </FieldBox>
 
-            <FieldBox label="ต้นทุน/ชิ้น (บาท)">
-              <input
-                type="number" min="0" step="0.01" value={line.costPrice}
+            <FieldBox label={`ต้นทุนต่อ ${abbreviatedUnitLabel(line.unit || "หน่วย")} (บาท)`}>
+              <SplitUnitInput
+                unit="บาท"
+                focusWithinClassName="focus-within:ring-2 focus-within:ring-violet-300"
+                min={0}
+                step={0.01}
+                value={line.costPrice}
                 onChange={e => onPatch({ costPrice: Number(e.target.value) })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-300"
               />
             </FieldBox>
 
@@ -1330,31 +1417,41 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
 
         {line.kind === "MED_ASSET" && (
           <div className="grid grid-cols-5 gap-3 mb-4">
-            <FieldBox label="ใบกำกับ (ชิ้น)">
-              <input
-                type="number" min="1" value={line.expectedQty}
+            <FieldBox label={`ใบกำกับ (${abbreviatedUnitLabel(line.unit || "—")})`}>
+              <SplitUnitInput
+                unit={line.unit || "—"}
+                bold
+                focusWithinClassName="focus-within:ring-2 focus-within:ring-amber-300"
+                min={1}
+                value={line.expectedQty}
                 autoFocus={true}
                 onChange={e => {
                   const v = Math.max(1, Number(e.target.value));
                   onPatch({ expectedQty: v, qty: Math.min(line.qty, v) });
                 }}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300"
               />
             </FieldBox>
 
-            <FieldBox label="รับจริง (ชิ้น)">
-              <input
-                type="number" min="0" max={line.expectedQty} value={line.qty}
+            <FieldBox label={`รับจริง (${abbreviatedUnitLabel(line.unit || "—")})`}>
+              <SplitUnitInput
+                unit={line.unit || "—"}
+                bold
+                focusWithinClassName="focus-within:ring-2 focus-within:ring-amber-300"
+                min={0}
+                max={line.expectedQty}
+                value={line.qty}
                 onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300"
               />
             </FieldBox>
 
-            <FieldBox label="ต้นทุน/ชิ้น (บาท)">
-              <input
-                type="number" min="0" step="0.01" value={line.costPrice}
+            <FieldBox label={`ต้นทุนต่อ ${abbreviatedUnitLabel(line.unit || "หน่วย")} (บาท)`}>
+              <SplitUnitInput
+                unit="บาท"
+                focusWithinClassName="focus-within:ring-2 focus-within:ring-amber-300"
+                min={0}
+                step={0.01}
+                value={line.costPrice}
                 onChange={e => onPatch({ costPrice: Number(e.target.value) })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-300"
               />
             </FieldBox>
 
