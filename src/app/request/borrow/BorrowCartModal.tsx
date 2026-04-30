@@ -504,7 +504,8 @@ export default function BorrowCartModal({
     }
   }, [showCartModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Chained pickers (called directly, not via <select> onChange) ─────────
+  // ── Chained pickers (called directly, not via <select> onChange// ) ─────
+
 
   const pickProvince = async (id: string) => {
     const name = provinces.find((p) => p.id === id)?.name ?? "";

@@ -18,7 +18,7 @@ const getErrorMessage = (error: unknown): string => {
   if (error && typeof error === "object" && "message" in error) return String((error as Record<string, unknown>).message);
   return String(error);
 };
-
+// 
 const DEPT_TH: Record<string, string> = {
   Emergency: "แผนกฉุกเฉิน",
   Dental: "แผนกทันตกรรม",

@@ -15,7 +15,7 @@ import MainContentWrapper from "@/components/layouts/MainContentWrapper";
  */
 export default async function RequestLayout({ children }: { children: ReactNode }) {
   let initialProfile: UserProfile | null = null;
-
+// 
   try {
     const supabase = await createClient();
     // getUser() validates with Supabase servers and refreshes an expired token;

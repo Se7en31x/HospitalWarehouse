@@ -24,7 +24,7 @@ const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa
 interface ReturnItemDetailClientProps {
   returnId: string;
 }
-
+// 
 type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
 
 interface UnitSelection {

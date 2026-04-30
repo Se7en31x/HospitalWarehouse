@@ -24,7 +24,7 @@ interface CartItem {
   type?: string;
   quantity: number;
 }
-
+// 
 interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;

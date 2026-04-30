@@ -18,7 +18,7 @@ interface ItemDetailModalProps {
   onClose: () => void;
   onConfirm: (quantity: number) => void;
 }
-
+// 
 export default function ItemDetailModal({
   isOpen,
   item,

@@ -166,7 +166,7 @@ export default function WithdrawClient({ initialItems }: Props) {
     fetchOptions();
     fetchAll();
   }, [fetchAll]);
-
+// 
   // --- [Initialize Department Selection from Auth Hook] ---
   useEffect(() => {
     if (!isAuthLoading && departments.length > 0) {
