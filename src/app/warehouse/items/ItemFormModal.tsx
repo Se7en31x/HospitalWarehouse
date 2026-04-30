@@ -359,17 +359,12 @@ export default function ItemFormModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-2 flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">
                   {isEdit ? "แก้ไขข้อมูลพัสดุ" : "เพิ่มพัสดุใหม่"}
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  {isEdit
-                    ? "อัปเดตข้อมูลพัสดุในระบบ"
-                    : "บันทึกข้อมูลพัสดุใหม่เข้าคลัง"}
-                </p>
               </div>
             </div>
             <button
@@ -854,7 +849,7 @@ export default function ItemFormModal({
 
                 {/* Item Type */}
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-slate-700">ประเภทสินค้า</label>
+                  <label className="block text-sm font-semibold mb-2 text-slate-700">ประเภทพัสดุ</label>
                   <div className="bg-white rounded-lg p-3 border border-slate-300 shadow-sm">
                     <p className="text-sm font-semibold text-slate-700">{getItemTypeLabel(formData.type)}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -869,7 +864,7 @@ export default function ItemFormModal({
                   <div className="flex gap-6">
                     {isMedAssetType && (
                       <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 w-full">
-                        ครุภัณฑ์ประจำแผนก (MED_ASSET) ไม่อนุญาตให้เบิกหรือยืม — เป็นครุภัณฑ์ที่ประจำแผนกโดยเฉพาะ
+                        ครุภัณฑ์ประจำแผนก ไม่อนุญาตให้เบิกหรือยืม — เป็นครุภัณฑ์ที่ประจำแผนกโดยเฉพาะ
                       </p>
                     )}
                     {[
@@ -929,8 +924,7 @@ export default function ItemFormModal({
               className="px-8 py-2.5 font-semibold text-white bg-[#0055FF] hover:bg-[#0044DD] disabled:bg-gray-300 rounded-lg shadow-md flex items-center gap-2 transition-colors"
             >
               {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              <Save className="w-4 h-4" />
-              {isEdit ? "อัปเดตข้อมูล" : "บันทึกข้อมูล"}
+              {isEdit ? "บันทึก" : "บันทึก"}
             </button>
           </div>
         </div>

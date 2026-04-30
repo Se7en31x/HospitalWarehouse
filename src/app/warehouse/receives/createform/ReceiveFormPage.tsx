@@ -93,6 +93,34 @@ function docNoPrefix(source: ReceiveSource, kind: ItemKind): string {
   return "REC";
 }
 
+/**
+ * ดึง prefix ตัวอักษรจาก item code (ตัดเลขออก)
+ * "MND00000" → "MND" | "HPK-GL01" → "HPKGL" | "" → "LOT"
+ */
+function itemPrefix(itemCode: string): string {
+  const letters = (itemCode || "").replace(/[^A-Z]/gi, "").toUpperCase();
+  return letters.slice(0, 6) || "LOT";
+}
+
+/**
+ * สร้างเลขล็อตอัตโนมัติ: {PREFIX}-{YYMMDD}-{4xBASE36}
+ *
+ * เช่น MND-250429-K3Z1
+ *
+ * - PREFIX มาจากตัวอักษรใน item code (MND00000 → MND)
+ * - YYMMDD = วันที่รับเข้าจากฟอร์ม
+ * - 4xBASE36 = random 4 ตัว (สุ่มทุกครั้งที่กด → รองรับหลายล็อตในวันเดียวกัน)
+ */
+function autoGenLotCode(itemCode: string, receiveDate?: string): string {
+  const d = receiveDate ? new Date(receiveDate) : new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const rand = Math.floor(Math.random() * 36 ** 4).toString(36).toUpperCase().padStart(4, "0");
+  const prefix = itemPrefix(itemCode);
+  return `${prefix}-${yy}${mm}${dd}-${rand}`;
+}
+
 function makeLine(item: CatalogItem): LineItem {
   return {
     lineId: `${Date.now()}-${Math.random()}`,
@@ -100,7 +128,8 @@ function makeLine(item: CatalogItem): LineItem {
     category: item.category || "",
     kind: item.kind, unit: item.unit, warehouseId: item.warehouseId,
     expectedQty: 1, qty: 1, costPrice: 0,
-    lotCode: "", expiryDate: "", mfgDate: "",
+    lotCode: item.kind === "CONSUMABLE" ? autoGenLotCode(item.code) : "",  // receiveDate ยังไม่รู้ตอน makeLine
+    expiryDate: "", mfgDate: "",
     lotMode: "auto",
     warrantyDate: "", departmentId: null,
   };
@@ -199,11 +228,19 @@ export default function ReceiveFormPage() {
       setSource(draft.source || "purchase");
       setDocMeta(draft.docMeta || INIT_DOC);
       setLines(
-        (draft.lines || []).map((l: LineItem) => ({ ...l, category: l.category ?? "", lotMode: l.lotMode ?? "auto" })),
+        (draft.lines || []).map((l: LineItem) => ({
+          ...l,
+          category: l.category ?? "",
+          lotMode: l.lotMode ?? "auto",
+        })),
       );
       setPendingLine(
         draft.pendingLine
-          ? { ...draft.pendingLine, category: draft.pendingLine.category ?? "", lotMode: draft.pendingLine.lotMode ?? "auto" }
+          ? {
+              ...draft.pendingLine,
+              category: draft.pendingLine.category ?? "",
+              lotMode: draft.pendingLine.lotMode ?? "auto",
+            }
           : null,
       );
     }
@@ -300,7 +337,7 @@ export default function ReceiveFormPage() {
   }, 60), []);
 
   const addItem = useCallback((item: CatalogItem) => {
-    // REUSABLE / MED_ASSET: บล็อกซ้ำ (qty อยู่ในแถวเดียว)
+    // REUSABLE / MED_ASSET: ยังบล็อกซ้ำ (1 item = 1 แถว ใส่จำนวนในแถวเดียว)
     if (item.kind !== "CONSUMABLE" && lines.some(l => l.itemId === item.id)) {
       Swal.fire({
         icon: "warning",
@@ -311,7 +348,7 @@ export default function ReceiveFormPage() {
       });
       return;
     }
-    // CONSUMABLE: เพิ่มซ้ำได้เพื่อรับหลายล็อตในการส่งเดียวกัน
+    // CONSUMABLE: อนุญาตซ้ำได้ (เพื่อรับของล็อตที่ 2, 3 ของไอเท็มเดียวกันในการส่งเดียวกัน)
     setPendingLine(makeLine(item));
     setScanInput("");
     setCatalogSearch("");
@@ -331,17 +368,17 @@ export default function ReceiveFormPage() {
       if (lotMode === "existing") {
         // existing mode: ต้องเลือกล็อต และวันหมดอายุมาจากล็อตที่เลือก
         if (!pendingLine.lotCode.trim()) { toast.error("กรุณาเลือกล็อตที่มีอยู่"); return; }
-        // ตรวจ lot code ซ้ำกับแถวอื่นของไอเท็มเดียวกัน
-        const dupLot = lines.some(l =>
-          l.itemId === pendingLine.itemId &&
-          l.lineId !== editingLineId &&
-          l.lotCode.trim().toLowerCase() === pendingLine.lotCode.trim().toLowerCase()
-        );
-        if (dupLot) { toast.error(`Lot Code "${pendingLine.lotCode}" ซ้ำกับรายการที่เพิ่มไว้แล้ว`); return; }
       } else {
         // auto mode: หลังบ้าน generate lot code ให้ — ต้องกรอกวันหมดอายุเท่านั้น
         if (!pendingLine.expiryDate) { toast.error("กรุณาระบุวันหมดอายุ"); return; }
       }
+      // ตรวจ lot code ซ้ำกับแถวอื่นของไอเท็มเดียวกัน
+      const dupLot = lines.some(l =>
+        l.itemId === pendingLine.itemId &&
+        l.lineId !== editingLineId &&
+        l.lotCode.trim().toLowerCase() === pendingLine.lotCode.trim().toLowerCase()
+      );
+      if (dupLot) { toast.error(`Lot Code "${pendingLine.lotCode}" ซ้ำกับรายการที่เพิ่มไว้แล้ว`); return; }
     }
     if (editingLineId) {
       updateLine(editingLineId, pendingLine);
@@ -626,7 +663,7 @@ export default function ReceiveFormPage() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-3xl font-semibold text-gray-800">รับพัสดุเข้าคลัง</h2>
+            <h2 className="text-3xl font-semibold text-gray-800">รับสินค้าเข้าคลัง</h2>
           </div>
           <button onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">
@@ -669,7 +706,16 @@ export default function ReceiveFormPage() {
                   <input type="date" value={docMeta.receiveDate}
                     min={receiveDateLimits.min}
                     max={receiveDateLimits.max}
-                    onChange={e => patchDoc({ receiveDate: e.target.value })}
+                    onChange={e => {
+                      patchDoc({ receiveDate: e.target.value });
+                      // re-gen lot code ของ pending line (ถ้า auto mode) ให้ตรงกับวันที่รับจริง
+                      if (pendingLine?.kind === "CONSUMABLE" && (pendingLine.lotMode ?? "auto") === "auto") {
+                        setPendingLine(prev => prev
+                          ? { ...prev, lotCode: autoGenLotCode(prev.itemCode, e.target.value) }
+                          : null
+                        );
+                      }
+                    }}
                     className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
 
@@ -1003,6 +1049,11 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
       <td className="px-6 py-3">
         {line.kind === "CONSUMABLE" && (
           <div className="flex flex-col gap-1">
+            {line.lotMode === "existing" && (
+              <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 w-fit mb-0.5">
+                ↩ รวมล็อตเดิม
+              </span>
+            )}
             {line.lotCode && (
               <div className="text-sm">
                 <span className="text-slate-400">เลขลอต: </span>
@@ -1314,7 +1365,7 @@ interface PendingLineFormProps {
   line: LineItem;
   departments: DepartmentOption[];
   isEditing: boolean;
-  receiveDate?: string;
+  receiveDate: string;
   onPatch: (p: Partial<LineItem>) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -1331,6 +1382,61 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
   const confirmBtnCls =
     line.kind === "CONSUMABLE" ? "bg-blue-600 hover:bg-blue-700"     :
     line.kind === "REUSABLE"   ? "bg-violet-600 hover:bg-violet-700" : "bg-amber-600 hover:bg-amber-700";
+
+  // ── existing lot state (CONSUMABLE only) ──
+  const [existingLots, setExistingLots] = useState<ItemLotOption[]>([]);
+  const [lotsLoading, setLotsLoading] = useState(false);
+  const [lotSearch, setLotSearch] = useState("");
+  const [isLotOpen, setIsLotOpen] = useState(false);
+  const lotMode = line.lotMode ?? "auto";
+
+  // Load existing lots when switching to "existing" mode
+  useEffect(() => {
+    if (line.kind !== "CONSUMABLE" || lotMode !== "existing") return;
+    if (existingLots.length > 0) return; // already loaded
+    setLotsLoading(true);
+    ReceiveSvc.getActiveLotsByItem(line.itemId)
+      .then(lots => setExistingLots(lots))
+      .catch(() => toast.error("โหลดล็อตไม่สำเร็จ"))
+      .finally(() => setLotsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line.kind, lotMode, line.itemId]);
+
+  const switchLotMode = (mode: "auto" | "existing") => {
+    if (mode === "auto") {
+      onPatch({
+        lotMode: "auto",
+        lotCode: autoGenLotCode(line.itemCode, receiveDate),
+        expiryDate: "",
+        mfgDate: "",
+      });
+    } else {
+      onPatch({ lotMode: "existing", lotCode: "", expiryDate: "" });
+    }
+    setLotSearch("");
+    setIsLotOpen(false);
+    setExistingLots([]);
+  };
+
+  const selectExistingLot = (lot: ItemLotOption) => {
+    const expStr = lot.expired_at
+      ? new Date(lot.expired_at).toISOString().split("T")[0]
+      : "";
+    onPatch({
+      lotCode: lot.lot_code,
+      expiryDate: expStr,
+    });
+    setIsLotOpen(false);
+    setLotSearch("");
+  };
+
+  const filteredLots = existingLots.filter(l =>
+    l.lot_code.toLowerCase().includes(lotSearch.toLowerCase())
+  );
+  const selectedLot = existingLots.find(l => l.lot_code === line.lotCode) ?? null;
+
+  const fmtLotDate = (d: string | null) =>
+    d ? new Date(d).toLocaleDateString("th-TH", { year: "2-digit", month: "short", day: "numeric" }) : "ไม่มีวันหมดอายุ";
 
   return (
     <div className={`rounded-lg border-2 ${borderCls} bg-white shadow-md overflow-visible`}>

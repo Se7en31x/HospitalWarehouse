@@ -114,12 +114,12 @@ const reportGroups: ReportGroup[] = [
     ],
   },
   {
-    title: "การรับพัสดุเข้าคลัง",
+    title: "การรับสินค้าเข้าคลัง",
     reports: [
       {
         id: "receive-report",
-        label: "รายงานการรับพัสดุเข้าคลัง",
-        description: "ดูรายการรับพัสดุทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
+        label: "รายงานการรับสินค้าเข้าคลัง",
+        description: "ดูรายการรับสินค้าทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
         icon: PackagePlus,
         iconBg: "bg-blue-50",
         iconColor: "text-blue-600",
@@ -200,7 +200,6 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
       case "low-stock":
         return (
           <LowStockReportClient
-            initialItems={initialLowStockItems}
             onBack={handleBackToSelector}
           />
         );

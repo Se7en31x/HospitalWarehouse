@@ -60,8 +60,8 @@ export interface AllocatedLot {
 }
 
 export interface IssuedUnit {
-  id: string;
-  unit_code: string | null;
+  id: string;           // reusable_item_units.id (UUID)
+  unit_code: string;
   serial_no: string | null;
 }
 
@@ -89,8 +89,11 @@ export interface RequisitionItem {
   note?: string;
   available_lots?: RequisitionItemLots[];
   available_units?: RequisitionItemUnits[];
+  /** ล็อตที่ตัดสต็อกไปแล้ว (consumable) */
   allocated_lots?: AllocatedLot[];
+  /** รหัสครุภัณฑ์ที่จ่ายออกไปแล้ว (reusable) */
   issued_units?: IssuedUnit[];
+  /** รหัสครุภัณฑ์ที่ยังคงค้างอยู่ (IN_USE) สำหรับฟอร์มคืน */
   outstanding_units?: OutstandingUnit[];
 }
 

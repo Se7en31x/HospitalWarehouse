@@ -99,8 +99,8 @@ const reportTypeOptions: {
 	},
 	{
 		id: "receive-report",
-		label: "รายงานการรับพัสดุเข้าคลัง",
-		description: "ดูรายการรับพัสดุทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
+		label: "รายงานการรับสินค้าเข้าคลัง",
+		description: "ดูรายการรับสินค้าทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
 		countBg: "bg-blue-50",
 		countText: "text-blue-700",
 		ringColor: "ring-blue-300",

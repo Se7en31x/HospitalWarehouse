@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'standalone', 
+  // output: 'standalone',
   images: {
     remotePatterns: [
       {
@@ -16,6 +16,11 @@ const nextConfig = {
         hostname: "res.cloudinary.com",
       },
     ],
+  },
+  turbopack: {
+    resolveAlias: {
+      exceljs: "exceljs/dist/exceljs.min.js",
+    },
   },
 };
 
