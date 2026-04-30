@@ -22,14 +22,6 @@ const getErrorMessage = (error: unknown): string => {
 
 const PAGE_LIMIT = 10;
 
-const formatThaiDateTime = (iso: string | null | undefined): { date: string; time: string } | null => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  const date = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
-  const time = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return { date, time };
-};
 
 // Returns the stock number that should be displayed and used for threshold checks
 const getEffectiveStock = (item: Item.UiItem): number =>

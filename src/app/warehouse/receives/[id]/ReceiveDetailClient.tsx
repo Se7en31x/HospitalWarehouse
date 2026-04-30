@@ -9,6 +9,7 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import * as receiveService from "@/services/receiveService";
+import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
 import type {
   AcquisitionType,
   ReceiveBatch,
@@ -47,23 +48,6 @@ const getReceiveStatusIcon = (s: ReceiveStatus) => {
     default:          return null;
   }
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDT(v: string | null | undefined) {
-  if (!v) return "-";
-  return new Date(v).toLocaleString("th-TH", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function fmtD(v: string | null | undefined) {
-  if (!v) return "-";
-  return new Date(v).toLocaleDateString("th-TH", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-  });
-}
 
 // ─── DocSection ───────────────────────────────────────────────────────────────
 
@@ -198,8 +182,8 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
             <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-300 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 text-center whitespace-nowrap">#</th>
-                <th className="px-6 py-4 whitespace-nowrap">รหัสสินค้า</th>
-                <th className="px-6 py-4 whitespace-nowrap">ชื่อสินค้า</th>
+                <th className="px-6 py-4 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-6 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
                 <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
                 <th className="px-6 py-4 text-center whitespace-nowrap">สั่ง</th>
                 <th className="px-6 py-4 text-center whitespace-nowrap">รับ</th>
@@ -270,7 +254,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                           <td className="px-6 py-5 w-[140px] align-middle">
                             <p className="text-xs font-mono text-slate-700 truncate" title={item.lot_code ?? ""}>{item.lot_code ?? "—"}</p>
                           </td>
-                          <td className="px-6 py-5 w-[120px] font-medium text-slate-800 tabular-nums align-middle">{fmtD(item.expired_at)}</td>
+                          <td className="px-6 py-5 w-[120px] font-medium text-slate-800 tabular-nums align-middle">{fmtDate(item.expired_at)}</td>
                         </>
                       )}
                     </>
@@ -403,8 +387,8 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">วันที่รับ</p>
-              <p className="text-base text-slate-800">{fmtDT(batch.receive_date)}</p>
+              <p className="text-xs text-slate-500">วันที่รับเข้า</p>
+              <p className="text-base text-slate-800">{fmtDateTime(batch.receive_date)}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">ผู้จำหน่าย / ผู้บริจาค</p>

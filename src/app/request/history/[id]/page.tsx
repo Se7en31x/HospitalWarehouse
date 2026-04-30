@@ -10,14 +10,9 @@ import toast, { Toaster } from "react-hot-toast";
 import Swal from "sweetalert2";
 import { getRequisitionById, cancelRequisition } from "@/services/requisitionService";
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
+import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDate = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" }) : "-";
-
-const fmtDateTime = (d?: string | null) =>
-  d ? new Date(d).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) : "-";
 
 const STATUS_BADGE: Record<string, string> = {
   COMPLETED: "bg-green-100 text-green-700 border-green-200",
@@ -30,10 +25,10 @@ const STATUS_BADGE: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING:   "รออนุมัติ",
-  APPROVED:  "รอนำส่ง",
+  APPROVED:  "อนุมัติแล้ว",
   COMPLETED: "เสร็จสิ้น",
   BORROWING: "กำลังยืม",
-  REJECTED:  "ปฏิเสธ",
+  REJECTED:  "ถูกปฏิเสธ",
   CANCELLED: "ยกเลิก",
 };
 
@@ -103,7 +98,7 @@ function buildTimeline(req: RequisitionHeader): TimelineStep[] {
     status === "APPROVED" || status === "BORROWING" ? 2 :
     status === "COMPLETED"  ? 4 : 1;
 
-  const terminationLabel = status === "REJECTED" ? "ปฏิเสธ" : "ยกเลิกแล้ว";
+  const terminationLabel = status === "REJECTED" ? "ถูกปฏิเสธ" : "ยกเลิกแล้ว";
 
   return labels.map((label, i): TimelineStep => {
     if (i < completedCount) return { label, state: "done" };
@@ -291,7 +286,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
           <div className="border-b border-gray-100 mb-4" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">เลขที่เอกสาร</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">เลขที่คำขอ</p>
               <p className="font-mono text-sm text-slate-700 font-semibold">{requisition.doc_no}</p>
             </div>
             <div>

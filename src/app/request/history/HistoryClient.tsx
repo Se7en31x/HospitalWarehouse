@@ -10,14 +10,9 @@ import Swal from "sweetalert2";
 import { getAllRequisitions, cancelRequisition } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
 import { socket } from "@/lib/socket";
+import { fmtDateTime } from "@/utils/dateUtils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDate = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }) : "-";
-
-const fmtTime = (d?: string | null) =>
-  d ? new Date(d).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
 
 const STATUS_BADGE: Record<string, string> = {
   COMPLETED: "bg-green-100 text-green-700 border-green-200",
@@ -31,11 +26,11 @@ const STATUS_BADGE: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING:   "รออนุมัติ",
-  APPROVED:  "รอนำส่ง",
+  APPROVED:  "อนุมัติแล้ว",
   COMPLETED: "เสร็จสิ้น",
   BORROWING: "กำลังยืม",
   PENDING_RETURN_CHECK: "รอตรวจรับคืน",
-  REJECTED:  "ปฏิเสธ",
+  REJECTED:  "ถูกปฏิเสธ",
   CANCELLED: "ยกเลิก",
 };
 
@@ -54,10 +49,10 @@ const TypeBadge = ({ type }: { type: string }) => (
 const STATUS_TABS = [
   { v: "all",       l: "รวมทั้งหมด" },
   { v: "PENDING",   l: "รออนุมัติ" },
-  { v: "APPROVED",  l: "รอนำส่ง" },
+  { v: "APPROVED",  l: "อนุมัติแล้ว" },
   { v: "PENDING_RETURN_CHECK", l: "รอตรวจรับคืน" },
   { v: "COMPLETED", l: "เสร็จสิ้น" },
-  { v: "REJECTED",  l: "ปฏิเสธ" },
+  { v: "REJECTED",  l: "ถูกปฏิเสธ" },
   { v: "CANCELLED", l: "ยกเลิก" },
 ];
 
@@ -246,7 +241,7 @@ export default function HistoryClient() {
             <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10 text-xs">
               <tr>
                 <th className="px-5 py-4 w-[48px]">#</th>
-                <th className="px-5 py-4 w-[150px]">เลขที่เอกสาร</th>
+                <th className="px-5 py-4 w-[150px]">เลขที่คำขอ</th>
                 <th className="px-5 py-4 w-[96px]">ประเภท</th>
                 <th className="px-5 py-4 hidden sm:table-cell w-[180px]">แผนก</th>
                 <th className="px-5 py-4 w-[220px]">วันที่ทำรายการ</th>
@@ -266,8 +261,7 @@ export default function HistoryClient() {
                   </td>
                   <td className="px-5 py-3 w-[220px] text-slate-600">
                     <span className="whitespace-nowrap">
-                      {fmtDate(r.request_date)}
-                      {r.request_date && ` ${fmtTime(r.request_date)}`}
+                      {fmtDateTime(r.request_date)}
                     </span>
                   </td>
                   <td className="px-5 py-3 w-[112px] text-slate-600">{r.item_count ?? 0}</td>

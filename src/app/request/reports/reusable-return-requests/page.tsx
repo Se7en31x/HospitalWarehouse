@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Search } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
+import { fmtDateTime } from "@/utils/dateUtils";
 
 const STATUS_LABEL: Record<string, string> = {
   REQUESTED: "รอดำเนินการ",
@@ -51,8 +52,8 @@ export default function ReusableReturnRequestsReportPage() {
       row.doc_no,
       row.department_name || "-",
       row.requested_by_name || "-",
-      new Date(row.created_at).toLocaleString("th-TH"),
-      row.preferred_pickup_at ? new Date(row.preferred_pickup_at).toLocaleString("th-TH") : "-",
+      fmtDateTime(row.created_at),
+      fmtDateTime(row.preferred_pickup_at),
       STATUS_LABEL[row.status] || row.status,
       String(row.items.length),
       String(row.items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0)),
@@ -142,8 +143,8 @@ export default function ReusableReturnRequestsReportPage() {
                     <td className="px-4 py-3 font-semibold">{row.doc_no}</td>
                     <td className="px-4 py-3">{row.department_name || "-"}</td>
                     <td className="px-4 py-3">{row.requested_by_name || "-"}</td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{new Date(row.created_at).toLocaleString("th-TH")}</td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{row.preferred_pickup_at ? new Date(row.preferred_pickup_at).toLocaleString("th-TH") : "-"}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{fmtDateTime(row.created_at)}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{fmtDateTime(row.preferred_pickup_at)}</td>
                     <td className="px-4 py-3">{STATUS_LABEL[row.status] || row.status}</td>
                     <td className="px-4 py-3 text-center">{row.items.length}</td>
                     <td className="px-4 py-3 text-center">{row.items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0)}</td>

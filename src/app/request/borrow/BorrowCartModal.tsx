@@ -33,6 +33,7 @@ import * as RequisitionSvc from "@/services/requisitionService";
 import * as LookupSvc from "@/services/lookupService";
 import type { ProvinceOption, DistrictOption, SubdistrictOption, TitleOption } from "@/services/lookupService";
 import { RequisitionPayload } from "@/types/requisition_type";
+import { fmtDate } from "@/utils/dateUtils";
 
 const MySwal = withReactContent(Swal);
 
@@ -41,17 +42,6 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
-/** แสดงวันที่ YYYY-MM-DD เป็นวันที่ภาษาไทย (parse เที่ยง กันวันเพี้ยนเพราะ timezone) */
-const formatThaiDateFromYmd = (ymd: string): string => {
-  if (!ymd) return "—";
-  const d = new Date(`${ymd}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return ymd;
-  return d.toLocaleDateString("th-TH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
 
 const todayYmdLocal = (): string => {
   const d = new Date();
@@ -1642,7 +1632,7 @@ export default function BorrowCartModal({
                         <p className="text-sm flex gap-2">
                           <span className="text-gray-500 w-24 flex-shrink-0">ระยะเวลายืม:</span>
                           <span className="font-semibold text-emerald-600">
-                            {formatThaiDateFromYmd(todayYmdLocal())} ถึง {formatThaiDateFromYmd(externalForm.returnDate)}
+                            {fmtDate(todayYmdLocal())} ถึง {fmtDate(externalForm.returnDate)}
                           </span>
                         </p>
                         {externalForm.notes && (

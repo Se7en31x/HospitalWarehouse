@@ -159,7 +159,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 		const columns: PdfColumn[] = [
 			{ header: "#",           key: "_no",      align: "center" },
 			{ header: "รหัส",        key: "code" },
-			{ header: "ชื่อสินค้า",  key: "name" },
+			{ header: "ชื่อพัสดุ",  key: "name" },
 			{ header: "หมวดหมู่",    key: "category" },
 			{ header: "คลัง",        key: "location" },
 			{ header: "คงเหลือ",     key: "stock",    align: "right" },
@@ -339,7 +339,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							type="button"
 							onClick={() => {
 								const csvRows = [
-									["รหัส", "ชื่อสินค้า", "หมวดหมู่", "คลัง", "คงเหลือ", "หน่วยนับ"].join(","),
+									["รหัส", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "คงเหลือ", "หน่วยนับ"].join(","),
 									...filteredItems.map((item) => [item.code, item.name, item.category, item.location, item.stock, item.unit].join(",")),
 								].join("\n");
 								const blob = new Blob(["\uFEFF" + csvRows], { type: "text/csv;charset=utf-8;" });
@@ -402,7 +402,7 @@ const ItemsReportClient: React.FC<ItemsReportClientProps> = ({
 							<tr>
 								<th className="px-6 py-4 w-[50px]">#</th>
 								<th className="px-6 py-4 w-[150px]">รหัส</th>
-								<th className="px-6 py-4 w-[300px]">ชื่อสินค้า</th>
+								<th className="px-6 py-4 w-[300px]">ชื่อพัสดุ</th>
 								<th className="px-6 py-4 w-[200px]">หมวดหมู่</th>
 								<th className="px-6 py-4 w-[150px]">คลัง</th>
 								<th className="px-6 py-4 w-[120px]">คงเหลือ</th>

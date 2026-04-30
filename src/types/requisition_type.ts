@@ -52,6 +52,25 @@ export interface RequisitionItemUnits {
   unit_code: string;
 }
 
+export interface AllocatedLot {
+  lot_id: string | null;
+  lot_code: string | null;
+  qty: number;
+  expired_at: string | null;
+}
+
+export interface IssuedUnit {
+  id: string;
+  unit_code: string | null;
+  serial_no: string | null;
+}
+
+export interface OutstandingUnit {
+  id: string;
+  unit_code: string;
+  serial_no: string | null;
+}
+
 export interface RequisitionItem {
   id: number;
   item_id: string;
@@ -70,6 +89,9 @@ export interface RequisitionItem {
   note?: string;
   available_lots?: RequisitionItemLots[];
   available_units?: RequisitionItemUnits[];
+  allocated_lots?: AllocatedLot[];
+  issued_units?: IssuedUnit[];
+  outstanding_units?: OutstandingUnit[];
 }
 
 export interface RequisitionPayload {
@@ -82,6 +104,21 @@ export interface RequisitionPayload {
 }
 
 // src/types/requisition_type.ts
+
+export interface PendingReturnItem {
+  req_item_id: number;
+  qty_returned: number;
+  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+  note: string | null;
+  units?: Array<{ unit_id: string; unit_code?: string; condition?: string; note?: string }>;
+}
+
+export interface PendingReturnSubmission {
+  state: "SUBMITTED";
+  submitted_by: string | null;
+  submitted_at: string;
+  items: PendingReturnItem[];
+}
 
 export interface RequisitionHeader {
   id: number;
@@ -101,4 +138,5 @@ export interface RequisitionHeader {
   note?: string;
   borrower_id?: string | null;
   borrower_details?: BorrowerDetails | null;
+  pending_return_submission?: PendingReturnSubmission | null;
 }

@@ -208,12 +208,12 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
   // --- [Status Translation] ---
   const translateStatus = (status: string): string => {
     const statusMap: Record<string, string> = {
-      "ACTIVE": "ใช้งาน",
+      "ACTIVE": "เปิดใช้งาน",
       "LOW": "ต่ำ",
       "OUT_OF_STOCK": "หมด",
       "SUSPEND": "ระงับ",
       "SUSPENDED": "ระงับ",
-      "ใช้งาน": "ใช้งาน",
+      "เปิดใช้งาน": "เปิดใช้งาน",
       "ต่ำ": "ต่ำ",
       "หมด": "หมด",
       "ระงับ": "ระงับ",
@@ -225,7 +225,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
   const Badge = ({ status }: { status: string }) => {
     const thaiStatus = translateStatus(status);
     const styles: Record<string, string> = {
-      "ใช้งาน": "bg-green-100 text-green-500",
+      "เปิดใช้งาน": "bg-green-100 text-green-500",
       "ต่ำ": "bg-amber-100 text-amber-500",
       "หมด": "bg-red-100 text-red-500",
       "ระงับ": "bg-red-100 text-red-500",

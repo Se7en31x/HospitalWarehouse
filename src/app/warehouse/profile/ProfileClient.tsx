@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getMyProfile, type UserProfile } from '@/services/profileService';
 import { createClient } from '@/lib/supabase/client';
+import { fmtDateLong } from '@/utils/dateUtils';
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 
@@ -184,9 +185,7 @@ export default function ProfileClient() {
     profile.address.zip_code    ? String(profile.address.zip_code)   : null,
   ].filter(Boolean).join(' ');
 
-  const joinedDate = profile.created_at
-    ? new Date(profile.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
-    : null;
+  const joinedDate = profile.created_at ? fmtDateLong(profile.created_at) : null;
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'personal', label: 'ข้อมูลส่วนตัว' },

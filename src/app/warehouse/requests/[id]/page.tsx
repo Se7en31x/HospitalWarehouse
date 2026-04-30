@@ -19,6 +19,8 @@ import {
   RequisitionItem,
   RequisitionItemLots,
   RequisitionItemUnits,
+  AllocatedLot,
+  IssuedUnit,
   BorrowerDetails,
 } from "../../../../types/requisition_type";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -109,6 +111,80 @@ const getStatusBadgeClass = (status?: RequisitionHeader["status"]): string => {
     default: return "bg-slate-100 text-slate-700";
   }
 };
+
+// ── IssuedSummaryPanel ─────────────────────────────────────────────────────────
+
+function IssuedSummaryPanel({ item }: { item: RequisitionItem }) {
+  const isReusable = (item.itemType || "").toUpperCase() === "REUSABLE";
+  const lots: AllocatedLot[] = item.allocated_lots ?? [];
+  const units: IssuedUnit[] = item.issued_units ?? [];
+
+  if (isReusable) {
+    return (
+      <div className="flex flex-col gap-3 h-full">
+        <div className="flex items-center gap-2 mb-1">
+          <PackageCheck size={16} className="text-emerald-500" />
+          <p className="text-xs font-bold text-slate-600">จ่ายออกแล้ว {item.issued} ชิ้น</p>
+        </div>
+        {units.length === 0 ? (
+          <p className="text-xs text-slate-400 text-center py-6">ไม่มีข้อมูลครุภัณฑ์ที่จ่ายออก</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {units.map((u, i) => (
+              <div key={u.id ?? i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">{i + 1}</span>
+                  <span className="text-sm font-mono font-semibold text-slate-700">{u.unit_code ?? "-"}</span>
+                </div>
+                {u.serial_no && (
+                  <span className="text-[11px] text-slate-400 font-mono">{u.serial_no}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Consumable
+  return (
+    <div className="flex flex-col gap-3 h-full">
+      <div className="flex items-center gap-2 mb-1">
+        <PackageCheck size={16} className="text-emerald-500" />
+        <p className="text-xs font-bold text-slate-600">จ่ายออกแล้ว {item.issued} ชิ้น</p>
+      </div>
+      {lots.length === 0 ? (
+        <p className="text-xs text-slate-400 text-center py-6">ไม่มีข้อมูลล็อตที่จ่ายออก</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {lots.map((lot, i) => {
+            const isExp = lot.expired_at ? new Date(lot.expired_at) < new Date() : false;
+            return (
+              <div key={lot.lot_id ?? i} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">{i + 1}</span>
+                    <span className="text-sm font-mono font-semibold text-slate-700">{lot.lot_code ?? "-"}</span>
+                    {isExp && (
+                      <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">หมดอายุ</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-blue-600">{lot.qty} ชิ้น</span>
+                </div>
+                {lot.expired_at && (
+                  <p className="text-[10px] text-slate-400 mt-1 ml-7">
+                    หมดอายุ {new Date(lot.expired_at).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function RequisitionDetailsPage({
@@ -418,7 +494,7 @@ export default function RequisitionDetailsPage({
           <div className="border-b border-gray-100 mb-4" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">เลขที่เอกสาร</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">เลขที่คำขอ</p>
               <p className="font-mono text-sm text-slate-700 font-semibold">{requisition.doc_no}</p>
             </div>
             <div>
@@ -790,10 +866,7 @@ export default function RequisitionDetailsPage({
                     {/* Allocator body */}
                     <div className="flex-1 overflow-y-auto p-4 bg-white">
                       {!isPending ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
-                          <PackageCheck size={40} className="mb-3 opacity-30" />
-                          <p className="font-bold text-slate-600">อนุมัติแล้ว {selectedItem.issued} ชิ้น</p>
-                        </div>
+                        <IssuedSummaryPanel item={selectedItem} />
                       ) : isReusable ? (
                         <div className="flex h-full min-h-0 flex-col gap-4">
                           {/* Barcode scanner */}

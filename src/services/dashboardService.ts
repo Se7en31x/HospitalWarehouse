@@ -294,5 +294,6 @@ export async function getLotStats(expiryDays = 90): Promise<LotStats> {
     if (expiredAt && isNearExpiryDate(expiredAt, expiryDays)) nearExpiry++;
   }
 
-  return { total: lotsRes.meta?.total ?? lots.length, belowMinimum, nearExpiry };
+  const total = lotsRes.meta?.total ?? lots.length;
+  return { total, normal: total - belowMinimum - nearExpiry, belowMinimum, nearExpiry };
 }

@@ -171,6 +171,43 @@ export async function notifyBatch(batchId: number): Promise<void> {
     await api.post(`/v1/receives/batch/${batchId}/notify`, {});
 }
 
+// ── Lot helpers ────────────────────────────────────────────────────────────────
+
+export interface ItemLotOption {
+    id: string;
+    lot_code: string;
+    quantity: number;
+    expired_at: string | null;
+    status: string;
+    /** expired_at < today */
+    is_expired: boolean;
+}
+
+/**
+ * ดึงล็อต ACTIVE ของสินค้า (ไม่รวม SUSPENDED / CANCELLED)
+ * ใช้สำหรับ "เลือกล็อตเดิม" ในฟอร์มรับเข้า
+ */
+export async function getActiveLotsByItem(itemId: string): Promise<ItemLotOption[]> {
+    const res = await api.get<{ items?: unknown[]; data?: unknown[] }>(
+        `/v1/lots?item_id=${encodeURIComponent(itemId)}&status=ACTIVE&limit=200`
+    );
+    const rows: unknown[] = (res as { items?: unknown[]; data?: unknown[] }).items
+        ?? (res as { items?: unknown[]; data?: unknown[] }).data
+        ?? (Array.isArray(res) ? res : []);
+    const now = new Date();
+    return (rows as Array<Record<string, unknown>>).map(r => {
+        const exp = r.expired_at ? new Date(r.expired_at as string) : null;
+        return {
+            id: String(r.id),
+            lot_code: String(r.lot_code ?? ""),
+            quantity: Number(r.quantity ?? 0),
+            expired_at: r.expired_at ? String(r.expired_at) : null,
+            status: String(r.status ?? "ACTIVE"),
+            is_expired: exp != null && exp < now,
+        };
+    });
+}
+
 // ── Reusable API ───────────────────────────────────────────────────────────────
 
 export interface ReusableUnitInput {

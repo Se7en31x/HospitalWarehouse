@@ -10,14 +10,20 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import { getRequisitionById, submitReturn, ReturnItemPayload } from "@/services/requisitionService";
+import { fmtDate } from "@/utils/dateUtils";
 import type {
   RequisitionHeader, RequisitionItem, OutstandingUnit, AllocatedLot,
 } from "@/types/requisition_type";
 
 const MySwal = withReactContent(Swal);
 const getErr = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ReturnItemDetailClientProps {
+  returnId: string;
+}
 
 type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
 
@@ -25,6 +31,15 @@ interface UnitSelection {
   unit_id: string;
   unit_code: string;
   serial_no: string | null;
+  condition: ReturnCondition;
+  note: string;
+}
+
+interface ReturnRowState {
+  req_item_id: number;
+  name: string;
+  max: number;
+  qty_returned: number;
   condition: ReturnCondition;
   note: string;
 }
@@ -830,7 +845,7 @@ export default function ReturnItemDetailClient({ returnId }: ReturnItemDetailCli
       } catch (err) {
         MySwal.fire({
           title: "ข้อผิดพลาด",
-          text: getErrorMessage(err),
+          text: getErr(err),
           icon: "error",
         }).then(() => router.push("/request/returnitem"));
       } finally {
@@ -865,8 +880,9 @@ function DetailContent({
   setIsSubmitting: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const ext = isExternal(header);
-  const uiStatus = mapUiStatus(header);
+  const ext = !!header.borrower_details;
+  const status = uiStatus(header);
+  const overdue = daysOverdue(header);
   const canReturn = header.status === "BORROWING";
   const bd = header.borrower_details;
   const borrowerName = bd
@@ -874,17 +890,6 @@ function DetailContent({
     : header.requester || "ไม่ระบุ";
 
   // ── Consumable state ──
-  const [consumableReturns, setConsumableReturns] = useState<
-    Map<number, ConsumableReturn>
-  >(new Map());
-  const [openConsumable, setOpenConsumable] = useState<number | null>(null);
-
-  // ── Reusable state ──
-  const [reusableSelections, setReusableSelections] = useState<
-    Map<number, UnitSelection[]>
-  >(new Map());
-  const [openReusable, setOpenReusable] = useState<number | null>(null);
-
   const consumableItems = useMemo(
     () =>
       (header.items ?? []).filter(
@@ -893,11 +898,40 @@ function DetailContent({
     [header.items]
   );
 
+  const [consumableReturns, setConsumableReturns] = useState<
+    Map<number, ConsumableReturn>
+  >(new Map());
+  const [openConsumable, setOpenConsumable] = useState<number | null>(null);
+  const openConsumableItem = openConsumable !== null ? consumableItems[openConsumable] ?? null : null;
+
+  // ── Reusable state ──
+  const reusableItems = useMemo(
+    () => (header.items ?? []).filter(it => it.itemType === "REUSABLE"),
+    [header.items]
+  );
+
+  const [reusableSelections, setReusableSelections] = useState<
+    Map<number, UnitSelection[]>
+  >(new Map());
+  const [openReusable, setOpenReusable] = useState<number | null>(null);
+  const openReusableItem = openReusable !== null ? reusableItems[openReusable] ?? null : null;
+
+  const returnable: ReturnRowState[] = consumableItems.map(it => ({
+    req_item_id: it.id,
+    name: it.name,
+    max: (it.issued || 0) - (it.returned || 0),
+    qty_returned: (it.issued || 0) - (it.returned || 0),
+    condition: "GOOD" as ReturnCondition,
+    note: "",
+  }));
+
   const [rows, setRows] = useState<ReturnRowState[]>(returnable);
 
   const updateRow = (idx: number, patch: Partial<ReturnRowState>) => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
   };
+
+  const hasAnyReturn = rows.some(r => r.qty_returned > 0);
 
   const adjustQty = (idx: number, delta: number) => {
     setRows(prev => prev.map((r, i) => {
@@ -937,7 +971,7 @@ function DetailContent({
       });
       router.push("/request/returnitem");
     } catch (err) {
-      MySwal.fire({ title: "ข้อผิดพลาด", text: getErrorMessage(err), icon: "error" });
+      MySwal.fire({ title: "ข้อผิดพลาด", text: getErr(err), icon: "error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -1040,7 +1074,7 @@ function DetailContent({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-slate-500 mb-1">ชื่อผู้ยืม</p>
-                <p className="text-base text-slate-800">{getBorrowerDisplay(header)}</p>
+                <p className="text-base text-slate-800">{borrowerName}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">ผู้ทำรายการ</p>
@@ -1093,7 +1127,7 @@ function DetailContent({
               </p>
             </div>
             <button
-              onClick={handleSubmit}
+              onClick={handleSubmitReturn}
               disabled={isSubmitting || !hasAnyReturn}
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 flex-shrink-0"
             >

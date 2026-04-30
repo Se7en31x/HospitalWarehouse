@@ -8,6 +8,7 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
+import { fmtDateTime } from "@/utils/dateUtils";
 import type { DepartmentOption } from "@/services/departmentService";
 import { deptDisplayName } from "@/utils/departmentUtils";
 import { socket } from "@/lib/socket";
@@ -22,10 +23,6 @@ const getErrorMessage = (error: unknown): string =>
 
 const PAGE_LIMIT = 10;
 
-const fmtDateTime = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString("th-TH");
-};
 
 const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number => {
   return items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
@@ -426,7 +423,7 @@ export default function ReturnsDepartmentClient() {
                 <th className="px-6 py-4 whitespace-nowrap">นัดรับของ</th>
                 <th className="px-6 py-4 whitespace-nowrap w-[90px]">รายการ</th>
                 <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
               </tr>
             </thead>
             <tbody className="text-slate-600">
@@ -480,7 +477,7 @@ export default function ReturnsDepartmentClient() {
                         {searchTerm || startDate || endDate
                           ? "ไม่พบผลการค้นหา"
                           : activeTab === "REQUESTED"
-                            ? "ไม่พบใบคำขอคืนที่รอคลังดำเนินการ"
+                            ? "ไม่พบใบคำขอคืน"
                             : "ไม่พบประวัติการรับคืน"}
                       </p>
                     </div>

@@ -8,16 +8,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import * as reusableSvc from "@/services/reusableUnitService";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDateTime = (d?: string | null) => {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-};
+import { fmtDateTime } from "@/utils/dateUtils";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -34,9 +25,9 @@ const getStatusBadgeColor = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: "รอดำเนินการ",
+    PENDING: "รออนุมัติ",
     APPROVED: "อนุมัติแล้ว",
-    REJECTED: "ปฏิเสธ",
+    REJECTED: "ถูกปฏิเสธ",
     COMPLETED: "เสร็จสิ้น",
     PENDING_RETURN_CHECK: "รอตรวจรับคืน",
   };
@@ -117,7 +108,7 @@ export default function ReturnItemDetailClient() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <div>
-              <p className="text-xs text-slate-500">เลขที่เอกสาร</p>
+              <p className="text-xs text-slate-500">เลขที่คำขอ</p>
               <p className="font-mono text-base font-semibold text-slate-800">{detail.doc_no}</p>
             </div>
             <div>

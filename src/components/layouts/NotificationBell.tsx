@@ -12,6 +12,7 @@ import {
   type NotificationItem,
 } from "@/services/notificationService";
 import { socket } from "@/lib/socket";
+import { fmtDateCompact } from "@/utils/dateUtils";
 
 interface NotificationBellProps {
   title?: string;
@@ -26,7 +27,7 @@ const timeAgo = (value?: string | null): string => {
   if (diff < 3600) return `${Math.floor(diff / 60)} นาทีที่แล้ว`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} ชั่วโมงที่แล้ว`;
   if (diff < 604800) return `${Math.floor(diff / 86400)} วันที่แล้ว`;
-  return new Date(value).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  return fmtDateCompact(value);
 };
 
 interface IconConfig {

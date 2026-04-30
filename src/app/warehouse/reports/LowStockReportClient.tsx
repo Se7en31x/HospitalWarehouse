@@ -17,6 +17,7 @@ import {
 import { apiClient } from "@/lib/apiClient";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
+import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ const PdfIcon = () => (
 
 interface LowStockReportClientProps {
 	onBack?: () => void;
+	initialItems?: unknown[];
 }
 
 interface LowStockItem {
@@ -87,17 +89,9 @@ interface NearExpiryApiResponse {
 type ActiveTab = "low-stock" | "near-expiry";
 
 const ITEMS_PER_PAGE = 10;
-const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const THAI_MONTHS_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const fmtDate = (v?: string | null) => {
-	if (!v) return "-";
-	const d = new Date(v);
-	if (Number.isNaN(d.getTime())) return v;
-	return d.toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "numeric" });
-};
 
 const getStockStatusLabel = (item: LowStockItem) =>
 	item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่า Min";
@@ -292,7 +286,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		const period = fromYear === toYear && fromMonth === toMonth
 			? `เดือน${THAI_MONTHS_FULL[fromMonth]} ปี ${fromYear + 543}`
 			: `เดือน${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – เดือน${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
-		const generatedAt = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+		const generatedAt = fmtDateLong(new Date());
 		const outCount       = lsFiltered.filter((i) => i.availableStock === 0).length;
 		const lowCount       = lsFiltered.filter((i) => i.availableStock > 0).length;
 		const totalShortfall = lsFiltered.reduce((s, i) => s + i.shortfall, 0);
@@ -302,8 +296,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		// ── Column widths ─────────────────────────────────────────────────────
 		ws.columns = [
 			{ width: 6 },   // #
-			{ width: 14 },  // รหัสสินค้า
-			{ width: 32 },  // ชื่อสินค้า
+			{ width: 14 },  // รหัสรายการ
+			{ width: 32 },  // ชื่อพัสดุ
 			{ width: 18 },  // หมวดหมู่
 			{ width: 18 },  // คลัง
 			{ width: 10 },  // หน่วย
@@ -371,7 +365,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		ws.addRow([]);
 
 		// ── Row: Column headers ───────────────────────────────────────────────
-		const headers = ["#", "รหัสสินค้า", "ชื่อสินค้า", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "Min Stock", "จำนวนที่ขาด", "สถานะ"];
+		const headers = ["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "Min Stock", "จำนวนที่ขาด", "สถานะ"];
 		const hr = ws.addRow(headers);
 		hr.height = 22;
 		hr.eachCell((cell) => {
@@ -438,8 +432,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	const handleLsExportPdf = () => {
 		const columns: PdfColumn[] = [
 			{ header: "#",              key: "_no",       align: "center" },
-			{ header: "รหัสสินค้า",     key: "code" },
-			{ header: "ชื่อสินค้า",     key: "name" },
+			{ header: "รหัสรายการ",     key: "code" },
+			{ header: "ชื่อพัสดุ",     key: "name" },
 			{ header: "หมวดหมู่",       key: "category" },
 			{ header: "คลัง",           key: "warehouse" },
 			{ header: "หน่วย",          key: "unit" },
@@ -476,7 +470,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		const period = fromYear === toYear && fromMonth === toMonth
 			? `เดือน${THAI_MONTHS_FULL[fromMonth]} ปี ${fromYear + 543}`
 			: `เดือน${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – เดือน${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
-		const generatedAt = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+		const generatedAt = fmtDateLong(new Date());
 		const crit30  = neFiltered.filter((r) => (r.daysLeft ?? 999) <= 30).length;
 		const crit60  = neFiltered.filter((r) => (r.daysLeft ?? 999) > 30 && (r.daysLeft ?? 999) <= 60).length;
 		const crit90  = neFiltered.filter((r) => (r.daysLeft ?? 999) > 60).length;
@@ -487,8 +481,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		ws.columns = [
 			{ width: 6 },   // #
 			{ width: 16 },  // รหัส LOT
-			{ width: 14 },  // รหัสสินค้า
-			{ width: 32 },  // ชื่อสินค้า
+			{ width: 14 },  // รหัสรายการ
+			{ width: 32 },  // ชื่อพัสดุ
 			{ width: 18 },  // คลัง
 			{ width: 10 },  // จำนวน
 			{ width: 8 },   // หน่วย
@@ -540,7 +534,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		ws.addRow([]);
 
 		// ── Column headers ────────────────────────────────────────────────────
-		const headers = ["#", "รหัส LOT", "รหัสสินค้า", "ชื่อสินค้า", "คลัง", "จำนวน", "หน่วย", "วันหมดอายุ", "คงเหลือ (วัน)", "ระดับความเร่งด่วน"];
+		const headers = ["#", "รหัส LOT", "รหัสรายการ", "ชื่อพัสดุ", "คลัง", "จำนวน", "หน่วย", "วันหมดอายุ", "คงเหลือ (วัน)", "ระดับความเร่งด่วน"];
 		const hr = ws.addRow(headers);
 		hr.height = 22;
 		hr.eachCell((cell) => {
@@ -612,8 +606,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		const columns: PdfColumn[] = [
 			{ header: "#",          key: "_no",       align: "center" },
 			{ header: "รหัส LOT",   key: "lotCode" },
-			{ header: "รหัสสินค้า", key: "itemCode" },
-			{ header: "ชื่อสินค้า", key: "itemName" },
+			{ header: "รหัสรายการ", key: "itemCode" },
+			{ header: "ชื่อพัสดุ", key: "itemName" },
 			{ header: "คลัง",       key: "warehouse" },
 			{ header: "จำนวน",      key: "qty",       align: "right" },
 			{ header: "วันหมดอายุ", key: "dateFmt",   align: "center" },
@@ -656,7 +650,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		? `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543}`
 		: `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – ${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
 
-	const printDate = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+	const printDate = fmtDateLong(new Date());
 
 	// ── Tabs config ────────────────────────────────────────────────────────────
 	const tabs: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number }[] = [
@@ -792,7 +786,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 								<input
 									type="text"
-									placeholder="ค้นหารหัส / ชื่อสินค้า..."
+									placeholder="ค้นหารหัส / ชื่อพัสดุ..."
 									value={lsSearch}
 									onChange={(e) => setLsSearch(e.target.value)}
 									className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none bg-white"
@@ -856,8 +850,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								<thead className="bg-slate-700 text-white text-xs uppercase tracking-wide sticky top-0 z-10">
 									<tr>
 										<th className="px-4 py-3 w-[46px] text-center">#</th>
-										<th className="px-4 py-3 w-[110px]">รหัสสินค้า</th>
-										<th className="px-4 py-3 w-[220px]">ชื่อสินค้า</th>
+										<th className="px-4 py-3 w-[110px]">รหัสรายการ</th>
+										<th className="px-4 py-3 w-[220px]">ชื่อพัสดุ</th>
 										<th className="px-4 py-3 w-[140px]">หมวดหมู่</th>
 										<th className="px-4 py-3 w-[130px]">คลัง</th>
 										<th className="px-4 py-3 w-[100px] text-right">สต็อกใช้ได้</th>
@@ -932,7 +926,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 								<input
 									type="text"
-									placeholder="ค้นหา LOT / รหัส / ชื่อสินค้า..."
+									placeholder="ค้นหา LOT / รหัส / ชื่อพัสดุ..."
 									value={neSearch}
 									onChange={(e) => setNeSearch(e.target.value)}
 									className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none bg-white"
@@ -995,8 +989,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 									<tr>
 										<th className="px-4 py-3 w-[46px] text-center">#</th>
 										<th className="px-4 py-3 w-[120px]">รหัส LOT</th>
-										<th className="px-4 py-3 w-[110px]">รหัสสินค้า</th>
-										<th className="px-4 py-3 w-[220px]">ชื่อสินค้า</th>
+										<th className="px-4 py-3 w-[110px]">รหัสรายการ</th>
+										<th className="px-4 py-3 w-[220px]">ชื่อพัสดุ</th>
 										<th className="px-4 py-3 w-[140px]">คลัง</th>
 										<th className="px-4 py-3 w-[80px] text-right">จำนวน</th>
 										<th className="px-4 py-3 w-[70px]">หน่วย</th>

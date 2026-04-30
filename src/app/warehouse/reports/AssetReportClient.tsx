@@ -9,6 +9,7 @@ import {
 	Search,
 	X,
 } from "lucide-react";
+import { fmtDate } from "@/utils/dateUtils";
 
 const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -78,12 +79,6 @@ const STATUS_BADGE: Record<string, string> = {
 	LOST:         "bg-rose-50 text-rose-700 border-rose-100",
 };
 
-const fmtDate = (value?: string | null) => {
-	if (!value) return "-";
-	const d = new Date(value);
-	if (Number.isNaN(d.getTime())) return value;
-	return d.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
-};
 
 const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 	const [rows, setRows] = useState<AssetRow[]>([]);
@@ -159,7 +154,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 		const columns: PdfColumn[] = [
 			{ header: "#", key: "_no", align: "center" },
 			{ header: "รหัสครุภัณฑ์", key: "assetCode" },
-			{ header: "ชื่อสินค้า", key: "itemName" },
+			{ header: "ชื่อครุภัณฑ์", key: "itemName" },
 			{ header: "หมวดหมู่", key: "category" },
 			{ header: "แผนก", key: "department" },
 			{ header: "สถานะ", key: "statusLabel", align: "center" },
@@ -216,7 +211,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 				<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 				<input
 					type="text"
-					placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อสินค้า..."
+					placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อครุภัณฑ์..."
 					value={searchTerm}
 					onChange={(e) => {
 						setSearchTerm(e.target.value);
@@ -318,7 +313,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 				type="button"
 				onClick={() => {
 					const csvRows = [
-						["รหัสครุภัณฑ์", "เลขซีเรียล", "ชื่อสินค้า", "รหัสสินค้า", "หมวดหมู่", "แผนก", "สถานะ", "วันที่ซื้อ", "วันหมดประกัน", "จำนวนหน่วยย่อย"].join(","),
+						["รหัสครุภัณฑ์", "เลขซีเรียล", "ชื่อครุภัณฑ์", "รหัสรายการ", "หมวดหมู่", "แผนก", "สถานะ", "วันที่ซื้อ", "วันหมดประกัน", "จำนวนหน่วยย่อย"].join(","),
 						...filtered.map((r) => [
 							r.assetCode,
 							r.serialNo,
@@ -386,7 +381,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 						<tr>
 							<th className="px-6 py-4 w-[50px]">#</th>
 							<th className="px-6 py-4 w-[140px]">รหัสครุภัณฑ์</th>
-							<th className="px-6 py-4 w-[220px]">ชื่อสินค้า</th>
+							<th className="px-6 py-4 w-[220px]">ชื่อครุภัณฑ์</th>
 							<th className="px-6 py-4 w-[130px]">หมวดหมู่</th>
 							<th className="px-6 py-4 w-[160px]">แผนก</th>
 							<th className="px-6 py-4 w-[130px]">สถานะ</th>

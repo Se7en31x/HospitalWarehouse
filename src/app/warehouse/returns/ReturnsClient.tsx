@@ -11,6 +11,7 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { getAllRequisitions } from "@/services/requisitionService";
 import type { RequisitionHeader } from "@/types/requisition_type";
 import toast from "react-hot-toast";
+import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
 
 const PAGE_LIMIT = 10;
 
@@ -73,23 +74,6 @@ const StatusBadge = ({ status }: { status: UiStatus }) => {
   );
 };
 
-const fmtDateTime = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const fmtDateOnly = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString("th-TH", {
-    year: "numeric", month: "short", day: "numeric",
-  });
-};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -190,8 +174,7 @@ export default function ReturnsClient() {
 
   const tabbedRecords = records.filter((r) => {
     if (activeTab === "PENDING") return r.status === "PENDING_RETURN_CHECK";
-    // History per requirement: completed + borrowing (ย้อนหลัง)
-    return r.status === "COMPLETED" || r.status === "BORROWING";
+    return r.status === "COMPLETED";
   });
 
   // Client-side secondary filters (status/date) applied to current page's items
@@ -387,17 +370,19 @@ export default function ReturnsClient() {
             <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-4 whitespace-nowrap w-[50px]">#</th>
-                <th className="px-3 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                <th className="px-3 py-4 whitespace-nowrap">เลขที่คำขอ</th>
                 <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
-                <th className="px-6 py-4 whitespace-nowrap">ผู้ดำเนินเรื่องยืม</th>
+                <th className="px-6 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
                 <th className="px-6 py-4 whitespace-nowrap">ผู้ยืม</th>
                 <th className="px-6 py-4 whitespace-nowrap">เบอร์ติดต่อ</th>
                 <th className="px-6 py-4 whitespace-nowrap w-[80px]">รายการ</th>
                 <th className="px-6 py-4 whitespace-nowrap">วันที่ทำรายการ</th>
                 <th className="px-6 py-4 whitespace-nowrap">กำหนดคืน</th>
-                <th className="px-6 py-4 whitespace-nowrap">วันที่คืนสำเร็จ</th>
+                {activeTab === "HISTORY" && (
+                  <th className="px-6 py-4 whitespace-nowrap">วันที่คืนสำเร็จ</th>
+                )}
                 <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
               </tr>
             </thead>
             <tbody className="text-slate-600">
@@ -442,14 +427,16 @@ export default function ReturnsClient() {
                       <div className="text-sm">{fmtDateTime(r.request_date)}</div>
                     </td>
                     <td className="px-6 py-3">
-                      <div className="text-sm">{fmtDateOnly(r.due_date)}</div>
+                      <div className="text-sm">{fmtDate(r.due_date)}</div>
                       {overdue > 0 && (
                         <div className="text-xs text-red-600 font-bold">ค้าง {overdue} วัน</div>
                       )}
                     </td>
-                    <td className="px-6 py-3">
-                      <div className="text-sm">{fmtDateTime(r.return_date ?? null)}</div>
-                    </td>
+                    {activeTab === "HISTORY" && (
+                      <td className="px-6 py-3">
+                        <div className="text-sm">{fmtDateTime(r.return_date ?? null)}</div>
+                      </td>
+                    )}
                     <td className="px-6 py-3">
                       <StatusBadge status={uiStatus} />
                     </td>
@@ -470,7 +457,7 @@ export default function ReturnsClient() {
               })}
               {displayRecords.length === 0 && !isFetching && (
                 <tr>
-                  <td colSpan={12}>
+                  <td colSpan={activeTab === "HISTORY" ? 12 : 11}>
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                       <Package className="w-12 h-12 text-slate-300" />
                       <p className="text-sm font-medium">ไม่พบข้อมูล</p>

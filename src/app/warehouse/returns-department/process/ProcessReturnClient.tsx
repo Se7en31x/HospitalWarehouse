@@ -7,6 +7,7 @@ import Link from "next/link";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import { deptDisplayName } from "@/utils/departmentUtils";
+import { fmtDateTime } from "@/utils/dateUtils";
 import {
   type ProcessItemForm,
   type ProcessUnitForm,
@@ -17,10 +18,6 @@ import {
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-const fmtDateTime = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString("th-TH");
-};
 
 const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number => {
   return items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);

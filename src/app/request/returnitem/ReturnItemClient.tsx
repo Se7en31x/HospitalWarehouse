@@ -12,6 +12,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { getBorrowActive } from "@/services/requisitionService";
 import type { RequisitionHeader, BorrowerDetails } from "@/types/requisition_type";
 import { socket } from "@/lib/socket";
+import { fmtDate } from "@/utils/dateUtils";
 
 // === Helper Functions ===
 
@@ -23,12 +24,6 @@ const getErrorMessage = (error: unknown): string => {
 
 const PAGE_LIMIT = 10;
 
-const fmtDate = (d?: string | null) => {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric", month: "short", day: "numeric",
-  });
-};
 
 const isOverdue = (due?: string | null): boolean => {
   if (!due) return false;
@@ -268,7 +263,7 @@ export default function ReturnItemClient() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหาเลขที่เอกสาร / ชื่อผู้ยืม..."
+            placeholder="ค้นหาเลขที่คำขอ / ชื่อผู้ยืม..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -465,7 +460,7 @@ export default function ReturnItemClient() {
                 <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                   <tr>
                     <th className="px-4 py-4 w-12 text-center whitespace-nowrap">#</th>
-                    <th className="px-5 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                    <th className="px-5 py-4 whitespace-nowrap">เลขที่คำขอ</th>
                     <th className="px-5 py-4 whitespace-nowrap">ผู้ยืมภายนอก</th>
                     <th className="px-5 py-4 whitespace-nowrap">ช่องทางติดต่อ</th>
                     <th className="px-5 py-4 whitespace-nowrap">แผนก</th>

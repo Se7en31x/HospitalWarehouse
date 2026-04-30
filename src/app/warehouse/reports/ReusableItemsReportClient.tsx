@@ -172,7 +172,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 			{ header: "#",          key: "_no",          align: "center" },
 			{ header: "รหัสหน่วย",  key: "unitCode" },
 			{ header: "เลขซีเรียล", key: "serialNo" },
-			{ header: "ชื่อสินค้า", key: "itemName" },
+			{ header: "ชื่อพัสดุ", key: "itemName" },
 			{ header: "หมวดหมู่",   key: "category" },
 			{ header: "แผนก",       key: "department" },
 			{ header: "สถานะ",      key: "statusLabel",    align: "center" },
@@ -236,7 +236,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 					<input
 						type="text"
-						placeholder="ค้นหารหัสหน่วย / ชื่อสินค้า..."
+						placeholder="ค้นหารหัสหน่วย / ชื่อพัสดุ..."
 						value={searchTerm}
 						onChange={(e) => {
 							setSearchTerm(e.target.value);
@@ -378,7 +378,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 					type="button"
 					onClick={() => {
 						const csvRows = [
-							["รหัสหน่วย", "เลขซีเรียล", "ชื่อสินค้า", "รหัสสินค้า", "หมวดหมู่", "หน่วย", "แผนก", "สถานะ", "สภาพ"].join(","),
+							["รหัสหน่วย", "เลขซีเรียล", "ชื่อพัสดุ", "รหัสรายการ", "หมวดหมู่", "หน่วย", "แผนก", "สถานะ", "สภาพ"].join(","),
 							...filtered.map((r) => [
 								r.unitCode,
 								r.serialNo,
@@ -445,7 +445,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 								<th className="px-6 py-4 w-[50px]">#</th>
 								<th className="px-6 py-4 w-[130px]">รหัสหน่วย</th>
 								<th className="px-6 py-4 w-[130px]">เลขซีเรียล</th>
-								<th className="px-6 py-4 w-[220px]">ชื่อสินค้า</th>
+								<th className="px-6 py-4 w-[220px]">ชื่อพัสดุ</th>
 								<th className="px-6 py-4 w-[120px]">หมวดหมู่</th>
 								<th className="px-6 py-4 w-[160px]">แผนก</th>
 								<th className="px-6 py-4 w-[130px]">สถานะ</th>

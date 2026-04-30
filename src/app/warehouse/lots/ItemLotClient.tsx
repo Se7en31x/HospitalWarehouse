@@ -20,6 +20,7 @@ import { printLabels, type LabelData } from "@/lib/printLabel";
 import type * as LotInterface from "@/types/lot_type";
 import type * as ItemInterface from "@/types/items_type";
 import type * as StockIn from "@/types/stockin_type";
+import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
 
 // --- [Types & Interfaces] ---
 interface LotClientProps {
@@ -52,11 +53,6 @@ const getErrorMessage = (error: unknown): string => {
 const formatMoney = (val: number): string =>
   new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(val);
 
-const formatDate = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
-};
 
 const getEnrichedLotData = (lot: LotInterface.UiLot) => {
   return {
@@ -420,11 +416,6 @@ export default function LotClient({
     }));
   };
 
-  const formatDateTime = (dateStr?: string | null) => {
-    if (!dateStr) return "-";
-    const date = new Date(dateStr);
-    return date.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-  };
 
   const handleBulkPrint = () => {
     printLabels(Array.from(selectedItems.values()));
@@ -443,7 +434,7 @@ export default function LotClient({
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตพัสดุ</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตสินค้า</h2>
         <div className="flex items-center gap-3 flex-wrap">
           {selectedItems.size > 0 && (
             <button
@@ -672,13 +663,13 @@ export default function LotClient({
                         className="w-4 h-4 accent-blue-600 cursor-pointer"
                       />
                     </th>
-                    <th className="px-6 py-4 whitespace-nowrap">วันที่รับเข้า</th>
-                    <th className="px-6 py-4 whitespace-nowrap">รหัสสินค้า</th>
+                    <th className="px-6 py-4 whitespace-nowrap">รหัสรายการ</th>
                     <th className="px-6 py-4 whitespace-nowrap">รหัส LOT</th>
-                    <th className="px-3 py-4 whitespace-nowrap">ชื่อสินค้า</th>
+                    <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
                     <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
                     <th className="px-6 py-4 whitespace-nowrap">คงเหลือ</th>
                     <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
+                    <th className="px-6 py-4 whitespace-nowrap">วันที่รับเข้า</th>
                     <th className="px-6 py-4 whitespace-nowrap">วันหมดอายุ</th>
                     <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
                     <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
@@ -725,9 +716,6 @@ export default function LotClient({
                           />
                         </td>
                         <td className="px-6 py-2.5">
-                          <div className="text-slate-600 truncate" title={formatDateTime(lot.createdAt)}>{formatDateTime(lot.createdAt)}</div>
-                        </td>
-                        <td className="px-6 py-2.5">
                           <div className="text-slate-600 truncate" title={enrichedData.itemCode}>{enrichedData.itemCode}</div>
                         </td>
                         <td className="px-6 py-2.5">
@@ -740,8 +728,11 @@ export default function LotClient({
                         <td className="px-6 py-2.5 text-slate-600">{lot.quantity.toLocaleString()}</td>
                         <td className="px-6 py-2.5 text-slate-600">{enrichedData.unit}</td>
                         <td className="px-6 py-2.5">
+                          <div className="text-slate-600 truncate" title={fmtDateTime(lot.createdAt)}>{fmtDateTime(lot.createdAt)}</div>
+                        </td>
+                        <td className="px-6 py-2.5">
                           <span className={`${currentStatus === 'หมดอายุ' ? 'text-red-600' : currentStatus === 'ใกล้หมด' ? 'text-orange-600' : 'text-slate-600'}`}>
-                            {formatDate(lot.expiryDate)}
+                            {fmtDate(lot.expiryDate)}
                           </span>
                         </td>
                         <td className="px-6 py-2.5">

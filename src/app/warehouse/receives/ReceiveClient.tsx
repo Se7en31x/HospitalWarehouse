@@ -10,14 +10,15 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import * as receiveService from "@/services/receiveService";
 import type { ReceiveBatch, ReceiveBatchHeader, ReceiveStatus, ReceiveType } from "@/services/receiveService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+import { fmtDate } from "@/utils/dateUtils";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const TYPE_LABEL: Record<ReceiveType, string> = {
     PURCHASE:       "จัดซื้อ",
-    DONATION:       "รับบริจาคมา",
-    PURCHASE_ASSET: "ครุภัณฑ์",
-    REUSABLE_UNIT:  "ของใช้ซ้ำ",
+    DONATION:       "รับบริจาค",
+    PURCHASE_ASSET: "ซื้อครุภัณฑ์",
+    REUSABLE_UNIT:  "รับพัสดุนำกลับมาใช้",
 };
 
 const STATUS_CFG: Record<ReceiveStatus, { color: string; label: string }> = {
@@ -40,11 +41,6 @@ function TypeBadge({ type }: { type: string }) {
     return <span>{label}</span>;
 }
 
-function fmtDate(iso: string | null | undefined) {
-    if (!iso) return "-";
-    const d = new Date(iso);
-    return `${d.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" })} ${d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
-}
 
 function batchStatus(headers: ReceiveBatchHeader[]): ReceiveStatus {
     if (headers.some(h => h.status === "PENDING"))    return "PENDING";
@@ -62,8 +58,6 @@ const typeOptions  = [
     { value: "", label: "ประเภททั้งหมด" },
     { value: "PURCHASE",       label: "จัดซื้อ" },
     { value: "DONATION",       label: "บริจาค" },
-    { value: "PURCHASE_ASSET", label: "ครุภัณฑ์" },
-    { value: "REUSABLE_UNIT",  label: "ของใช้ซ้ำ" },
 ];
 const statusOptions = [
     { value: "", label: "สถานะทั้งหมด" },
@@ -322,12 +316,12 @@ export default function ReceiveClient() {
                                     <tr>
                                         <th className="px-6 py-4 whitespace-nowrap">#</th>
                                         <th className="px-6 py-4 whitespace-nowrap">เลขที่นำเข้า</th>
-                                        <th className="px-6 py-4 whitespace-nowrap">วันที่รับ</th>
+                                        <th className="px-6 py-4 whitespace-nowrap">วันที่รับเข้า</th>
                                         <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
                                         <th className="px-6 py-4 whitespace-nowrap">ผู้จำหน่าย / ผู้บริจาค</th>
                                         <th className="px-6 py-4 text-center whitespace-nowrap">รายการ</th>
                                         <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                                        <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-slate-700">

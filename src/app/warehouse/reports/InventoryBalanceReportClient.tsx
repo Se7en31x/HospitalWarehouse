@@ -201,7 +201,7 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 	], []);
 
 	const handleExportCsv = () => {
-		const header = ["คลัง", "รหัสสินค้า", "ชื่อสินค้า", "หมวดหมู่", "หน่วย", "คงเหลือ", "จำนวนขั้นต่ำ", "ระดับสต็อก"];
+		const header = ["คลัง", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "หน่วย", "คงเหลือ", "จำนวนขั้นต่ำ", "ระดับสต็อก"];
 		const rows: string[][] = [];
 		filteredWarehouses.forEach((g) => {
 			g.items.forEach((item) => {
@@ -232,8 +232,8 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 		const columns: PdfColumn[] = [
 			{ header: "#",           key: "_no",       align: "center" },
 			{ header: "คลัง",        key: "warehouse" },
-			{ header: "รหัสสินค้า",  key: "code" },
-			{ header: "ชื่อสินค้า",  key: "name" },
+			{ header: "รหัสรายการ",  key: "code" },
+			{ header: "ชื่อพัสดุ",  key: "name" },
 			{ header: "หมวดหมู่",    key: "category" },
 			{ header: "หน่วย",       key: "unit" },
 			{ header: "คงเหลือ",     key: "stock",    align: "right" },
@@ -296,7 +296,7 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 					<input
 						type="text"
-						placeholder="ค้นหารหัส / ชื่อสินค้า / หมวดหมู่..."
+						placeholder="ค้นหารหัส / ชื่อพัสดุ / หมวดหมู่..."
 						value={searchTerm}
 						onChange={(e) => setSearchTerm(e.target.value)}
 						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
@@ -479,8 +479,8 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 							<tr>
 								<th className="px-6 py-4 w-[50px] text-center">#</th>
 								<th className="px-6 py-4 w-[160px]">คลัง</th>
-								<th className="px-6 py-4 w-[130px]">รหัสสินค้า</th>
-								<th className="px-6 py-4 w-[280px]">ชื่อสินค้า</th>
+								<th className="px-6 py-4 w-[130px]">รหัสรายการ</th>
+								<th className="px-6 py-4 w-[280px]">ชื่อพัสดุ</th>
 								<th className="px-6 py-4 w-[160px]">หมวดหมู่</th>
 								<th className="px-6 py-4 w-[100px]">คงเหลือ</th>
 								<th className="px-6 py-4 w-[100px]">จำนวนขั้นต่ำ</th>

@@ -11,6 +11,7 @@ import {
   type NotificationItem,
 } from "@/services/notificationService";
 import { socket } from "@/lib/socket";
+import { fmtDateCompact } from "@/utils/dateUtils";
 
 type ReadFilter = "all" | "unread" | "read";
 
@@ -34,7 +35,7 @@ const relativeTimeTh = (value?: string | null): string => {
   if (hr   < 24)  return `${hr} ชั่วโมงที่แล้ว`;
   if (day  < 7)   return `${day} วันที่แล้ว`;
 
-  return new Date(value).toLocaleDateString("th-TH", { dateStyle: "medium" });
+  return fmtDateCompact(value);
 };
 
 const NotifAvatar = ({ n }: { n: NotificationItem }) => {

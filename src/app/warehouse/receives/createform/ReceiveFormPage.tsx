@@ -9,10 +9,12 @@ import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
 
 import * as ReceiveSvc from "@/services/receiveService";
+import type { ItemLotOption } from "@/services/receiveService";
 import * as ItemSvc from "@/services/itemsService";
 import * as DeptSvc from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
 import { resolveBarcode } from "@/services/barcodeService";
+import { fmtDate } from "@/utils/dateUtils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,8 @@ interface LineItem {
   expectedQty: number; qty: number; costPrice: number;
   // CONSUMABLE
   lotCode: string; expiryDate: string; mfgDate: string;
+  /** "auto" = สร้างล็อตใหม่อัตโนมัติ | "existing" = รวมเข้าล็อตเดิม */
+  lotMode: "auto" | "existing";
   // REUSABLE / MED_ASSET
   warrantyDate: string; departmentId: number | null;
 }
@@ -97,6 +101,7 @@ function makeLine(item: CatalogItem): LineItem {
     kind: item.kind, unit: item.unit, warehouseId: item.warehouseId,
     expectedQty: 1, qty: 1, costPrice: 0,
     lotCode: "", expiryDate: "", mfgDate: "",
+    lotMode: "auto",
     warrantyDate: "", departmentId: null,
   };
 }
@@ -174,11 +179,11 @@ export default function ReceiveFormPage() {
       setSource(draft.source || "purchase");
       setDocMeta(draft.docMeta || INIT_DOC);
       setLines(
-        (draft.lines || []).map((l: LineItem) => ({ ...l, category: l.category ?? "" })),
+        (draft.lines || []).map((l: LineItem) => ({ ...l, category: l.category ?? "", lotMode: l.lotMode ?? "auto" })),
       );
       setPendingLine(
         draft.pendingLine
-          ? { ...draft.pendingLine, category: draft.pendingLine.category ?? "" }
+          ? { ...draft.pendingLine, category: draft.pendingLine.category ?? "", lotMode: draft.pendingLine.lotMode ?? "auto" }
           : null,
       );
     }
@@ -275,7 +280,8 @@ export default function ReceiveFormPage() {
   }, 60), []);
 
   const addItem = useCallback((item: CatalogItem) => {
-    if (lines.some(l => l.itemId === item.id)) {
+    // REUSABLE / MED_ASSET: บล็อกซ้ำ (qty อยู่ในแถวเดียว)
+    if (item.kind !== "CONSUMABLE" && lines.some(l => l.itemId === item.id)) {
       Swal.fire({
         icon: "warning",
         title: "ซ้ำแล้ว",
@@ -285,6 +291,7 @@ export default function ReceiveFormPage() {
       });
       return;
     }
+    // CONSUMABLE: เพิ่มซ้ำได้เพื่อรับหลายล็อตในการส่งเดียวกัน
     setPendingLine(makeLine(item));
     setScanInput("");
     setCatalogSearch("");
@@ -300,8 +307,21 @@ export default function ReceiveFormPage() {
     if (pendingLine.expectedQty <= 0) { toast.error("จำนวนในใบกำกับต้องมากกว่า 0"); return; }
     if (pendingLine.qty < 0) { toast.error("จำนวนรับจริงต้องไม่ติดลบ"); return; }
     if (pendingLine.kind === "CONSUMABLE") {
-      if (!pendingLine.lotCode.trim()) { toast.error("กรุณาระบุ Lot Code"); return; }
-      if (!pendingLine.expiryDate) { toast.error("กรุณาระบุวันหมดอายุ"); return; }
+      const lotMode = pendingLine.lotMode ?? "auto";
+      if (lotMode === "existing") {
+        // existing mode: ต้องเลือกล็อต และวันหมดอายุมาจากล็อตที่เลือก
+        if (!pendingLine.lotCode.trim()) { toast.error("กรุณาเลือกล็อตที่มีอยู่"); return; }
+        // ตรวจ lot code ซ้ำกับแถวอื่นของไอเท็มเดียวกัน
+        const dupLot = lines.some(l =>
+          l.itemId === pendingLine.itemId &&
+          l.lineId !== editingLineId &&
+          l.lotCode.trim().toLowerCase() === pendingLine.lotCode.trim().toLowerCase()
+        );
+        if (dupLot) { toast.error(`Lot Code "${pendingLine.lotCode}" ซ้ำกับรายการที่เพิ่มไว้แล้ว`); return; }
+      } else {
+        // auto mode: หลังบ้าน generate lot code ให้ — ต้องกรอกวันหมดอายุเท่านั้น
+        if (!pendingLine.expiryDate) { toast.error("กรุณาระบุวันหมดอายุ"); return; }
+      }
     }
     if (editingLineId) {
       updateLine(editingLineId, pendingLine);
@@ -311,7 +331,7 @@ export default function ReceiveFormPage() {
     }
     setPendingLine(null);
     refocus();
-  }, [pendingLine, editingLineId, refocus]);
+  }, [pendingLine, editingLineId, lines, refocus]);
 
   const cancelPendingLine = useCallback(() => {
     setPendingLine(null);
@@ -406,8 +426,13 @@ export default function ReceiveFormPage() {
       if (l.qty < 0) { toast.error(`จำนวนรับจริงต้องไม่ติดลบ (${l.itemName})`); return; }
       if (l.qty > l.expectedQty) { toast.error(`จำนวนรับจริงต้องไม่เกินจำนวนในใบกำกับ (${l.itemName})`); return; }
       if (l.kind === "CONSUMABLE") {
-        if (!l.lotCode.trim()) { toast.error(`กรุณาระบุ Lot Code: "${l.itemName}"`); return; }
-        if (!l.expiryDate)      { toast.error(`กรุณาระบุวันหมดอายุ: "${l.itemName}"`); return; }
+        const lm = l.lotMode ?? "auto";
+        if (lm === "existing" && !l.lotCode.trim()) {
+          toast.error(`กรุณาเลือกล็อตที่มีอยู่: "${l.itemName}"`); return;
+        }
+        if (lm === "auto" && !l.expiryDate) {
+          toast.error(`กรุณาระบุวันหมดอายุ: "${l.itemName}"`); return;
+        }
       }
     }
 
@@ -611,7 +636,7 @@ export default function ReceiveFormPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-2">
-                    วันที่รับ <span className="text-red-500">*</span>
+                    วันที่รับเข้า <span className="text-red-500">*</span>
                   </label>
                   <input type="date" value={docMeta.receiveDate}
                     min={new Date().toISOString().split('T')[0]}
@@ -753,7 +778,7 @@ export default function ReceiveFormPage() {
                         ))
                         : (
                           <p className="px-4 py-5 text-sm text-slate-400 text-center">
-                            {isLoading ? "กำลังโหลด..." : catalogSearch ? "ไม่พบสินค้า" : "พิมพ์ชื่อหรือรหัสสินค้าเพื่อค้นหา"}
+                            {isLoading ? "กำลังโหลด..." : catalogSearch ? "ไม่พบพัสดุ" : "พิมพ์ชื่อหรือรหัสรายการเพื่อค้นหา"}
                           </p>
                         )
                       }
@@ -770,6 +795,7 @@ export default function ReceiveFormPage() {
               line={pendingLine}
               departments={departments}
               isEditing={editingLineId !== null}
+              receiveDate={docMeta.receiveDate}
               onPatch={patchPending}
               onConfirm={confirmPendingLine}
               onCancel={cancelPendingLine}
@@ -918,13 +944,13 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
             {line.mfgDate && (
               <div className="text-sm">
                 <span className="text-slate-400">วันผลิต: </span>
-                <span className="font-mono text-slate-900">{new Date(line.mfgDate).toLocaleDateString("th-TH")}</span>
+                <span className="font-mono text-slate-900">{fmtDate(line.mfgDate)}</span>
               </div>
             )}
             {line.expiryDate && (
               <div className="text-sm">
                 <span className="text-slate-400">วันหมดอายุ: </span>
-                <span className="font-mono text-slate-900">{new Date(line.expiryDate).toLocaleDateString("th-TH")}</span>
+                <span className="font-mono text-slate-900">{fmtDate(line.expiryDate)}</span>
               </div>
             )}
           </div>
@@ -945,7 +971,7 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
             {line.warrantyDate && (
               <div className="text-sm">
                 <span className="text-slate-400">ประกัน: </span>
-                <span className="text-slate-900">{new Date(line.warrantyDate).toLocaleDateString("th-TH")}</span>
+                <span className="text-slate-900">{fmtDate(line.warrantyDate)}</span>
               </div>
             )}
             {line.departmentId && (
@@ -1000,18 +1026,224 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
   );
 }
 
-// ── PendingLineForm ───────────────────────────────────────────────────────────
+// ── ConsumableLotSection ──────────────────────────────────────────────────────
+
+function ConsumableLotSection({
+  line,
+  receiveDate: _receiveDate,
+  onPatch,
+}: {
+  line: LineItem;
+  receiveDate?: string;
+  onPatch: (p: Partial<LineItem>) => void;
+}) {
+  const lotMode = line.lotMode ?? "auto";
+
+  const [existingLots, setExistingLots] = React.useState<ItemLotOption[]>([]);
+  const [lotsLoading, setLotsLoading] = React.useState(false);
+  const [lotSearch, setLotSearch] = React.useState("");
+  const [isLotOpen, setIsLotOpen] = React.useState(false);
+
+  // Load lots when switching to existing mode
+  React.useEffect(() => {
+    if (lotMode !== "existing") return;
+    if (existingLots.length > 0) return;
+    setLotsLoading(true);
+    ReceiveSvc.getActiveLotsByItem(line.itemId)
+      .then((lots: ItemLotOption[]) => setExistingLots(lots))
+      .catch(() => toast.error("โหลดล็อตไม่สำเร็จ"))
+      .finally(() => setLotsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lotMode, line.itemId]);
+
+  const switchLotMode = (mode: "auto" | "existing") => {
+    if (mode === "auto") {
+      onPatch({ lotMode: "auto", lotCode: "", expiryDate: "", mfgDate: "" });
+    } else {
+      onPatch({ lotMode: "existing", lotCode: "", expiryDate: "" });
+    }
+    setLotSearch("");
+    setIsLotOpen(false);
+    setExistingLots([]);
+  };
+
+  const selectExistingLot = (lot: ItemLotOption) => {
+    const expStr = lot.expired_at ? new Date(lot.expired_at).toISOString().split("T")[0] : "";
+    onPatch({ lotCode: lot.lot_code, expiryDate: expStr });
+    setIsLotOpen(false);
+    setLotSearch("");
+  };
+
+  const filteredLots = existingLots.filter(l =>
+    l.lot_code.toLowerCase().includes(lotSearch.toLowerCase())
+  );
+  const selectedLot = existingLots.find(l => l.lot_code === line.lotCode) ?? null;
+  const fmtLotDate = (d: string | null) => d ? fmtDate(d) : "ไม่มีวันหมดอายุ";
+
+  return (
+    <>
+      {/* Lot Mode Toggle */}
+      <div className="mb-5">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">ล็อตสินค้า</p>
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 gap-1">
+          <button type="button" onClick={() => switchLotMode("auto")}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${
+              lotMode === "auto" ? "bg-white text-blue-700 shadow-sm border border-blue-200" : "text-slate-500 hover:text-slate-700"
+            }`}>
+            ✦ สร้างล็อตใหม่
+          </button>
+          <button type="button" onClick={() => switchLotMode("existing")}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${
+              lotMode === "existing" ? "bg-white text-indigo-700 shadow-sm border border-indigo-200" : "text-slate-500 hover:text-slate-700"
+            }`}>
+            ↩ รวมกับล็อตเดิม
+          </button>
+        </div>
+        {lotMode === "existing" && (
+          <p className="text-xs text-slate-400 mt-1.5">
+            เลือกเมื่อผู้จำหน่ายส่งของที่ค้างมาจากรอบก่อน — ระบบจะเพิ่มจำนวนเข้าล็อตเดิมโดยอัตโนมัติ
+          </p>
+        )}
+      </div>
+
+      {/* Qty row */}
+      <div className="grid grid-cols-6 gap-3 mb-4">
+        <FieldBox label="ใบกำกับ (ชิ้น)">
+          <input type="number" min="1" value={line.expectedQty}
+            onChange={e => { const v = Math.max(1, Number(e.target.value)); onPatch({ expectedQty: v, qty: Math.min(line.qty, v) }); }}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </FieldBox>
+        <FieldBox label="รับจริง (ชิ้น)">
+          <input type="number" min="0" max={line.expectedQty} value={line.qty}
+            onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </FieldBox>
+        <FieldBox label="ต้นทุน/ชิ้น (บาท)">
+          <input type="number" min="0" step="0.01" value={line.costPrice}
+            onChange={e => onPatch({ costPrice: Number(e.target.value) })}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </FieldBox>
+        {lotMode === "auto" && (
+          <>
+            <FieldBox label="วันผลิต">
+              <input type="date" value={line.mfgDate} max={new Date().toISOString().split("T")[0]}
+                onChange={e => onPatch({ mfgDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+            <FieldBox label={<>วันหมดอายุ <span className="text-red-500">*</span></>}>
+              <input type="date" value={line.expiryDate} min={line.mfgDate || undefined}
+                onChange={e => onPatch({ expiryDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </FieldBox>
+          </>
+        )}
+      </div>
+
+      {/* Auto mode: backend will generate lot code */}
+      {lotMode === "auto" && (
+        <div className="mb-4 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+          <span>✦</span>
+          <span>ระบบจะสร้างเลขล็อตให้อัตโนมัติเมื่อบันทึก</span>
+        </div>
+      )}
+
+      {/* Existing mode: lot picker */}
+      {lotMode === "existing" && (
+        <div className="mb-4">
+          <FieldBox label={<>เลือกล็อตที่มีอยู่ <span className="text-red-500">*</span></>}>
+            <div className="relative">
+              {selectedLot ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 border border-indigo-300 bg-indigo-50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-mono font-bold text-indigo-700">{selectedLot.lot_code}</span>
+                    <span className="ml-2 text-xs text-slate-500">
+                      คงเหลือ {selectedLot.quantity} ชิ้น · {fmtLotDate(selectedLot.expired_at)}
+                    </span>
+                  </div>
+                  <button type="button"
+                    onClick={() => { onPatch({ lotCode: "", expiryDate: "" }); setLotSearch(""); setIsLotOpen(true); }}
+                    className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input type="text" autoFocus value={lotSearch}
+                    onChange={e => { setLotSearch(e.target.value); setIsLotOpen(true); }}
+                    onFocus={() => setIsLotOpen(true)}
+                    placeholder={lotsLoading ? "กำลังโหลดล็อต..." : "ค้นหาเลขล็อต..."}
+                    disabled={lotsLoading}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pl-10 text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-slate-50"
+                  />
+                </div>
+              )}
+              {isLotOpen && !selectedLot && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
+                  {lotsLoading && (
+                    <div className="px-4 py-5 flex items-center justify-center gap-2 text-sm text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" /> กำลังโหลด...
+                    </div>
+                  )}
+                  {!lotsLoading && filteredLots.length === 0 && (
+                    <p className="px-4 py-5 text-sm text-slate-400 text-center">
+                      {existingLots.length === 0 ? "ไม่มีล็อตที่ใช้งานได้" : "ไม่พบล็อตที่ค้นหา"}
+                    </p>
+                  )}
+                  {!lotsLoading && filteredLots.map(lot => {
+                    const expired = lot.is_expired;
+                    return (
+                      <button key={lot.id} type="button" disabled={expired}
+                        onClick={() => !expired && selectExistingLot(lot)}
+                        className={`w-full text-left px-4 py-2.5 border-b border-slate-50 last:border-b-0 transition-colors ${
+                          expired ? "opacity-40 cursor-not-allowed bg-slate-50" : "hover:bg-indigo-50 cursor-pointer"
+                        }`}>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-semibold text-sm text-slate-800">{lot.lot_code}</span>
+                          <span className="text-xs text-slate-400">คงเหลือ {lot.quantity} ชิ้น</span>
+                          <span className={`ml-auto text-xs px-1.5 py-0.5 rounded font-semibold ${
+                            expired ? "bg-red-100 text-red-600" : lot.expired_at ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"
+                          }`}>
+                            {expired ? "หมดอายุแล้ว" : lot.expired_at ? `หมด ${fmtLotDate(lot.expired_at)}` : "ไม่มีวันหมดอายุ"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </FieldBox>
+          {selectedLot?.expired_at && (
+            <p className="text-xs text-slate-500 mt-2">
+              วันหมดอายุของล็อตนี้: <span className="font-semibold">{fmtLotDate(selectedLot.expired_at)}</span>
+              {" "}— จะถูกใช้เป็นวันหมดอายุสำหรับการรับเข้าครั้งนี้
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── PendingLineForm ────────────────────────────────────────────────────────────
 
 interface PendingLineFormProps {
   line: LineItem;
   departments: DepartmentOption[];
   isEditing: boolean;
+  receiveDate?: string;
   onPatch: (p: Partial<LineItem>) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
+function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
   const cfg = KIND_CFG[line.kind];
   const borderCls =
     line.kind === "CONSUMABLE" ? "border-blue-400"   :
@@ -1046,62 +1278,11 @@ function PendingLineForm({ line, departments, isEditing, onPatch, onConfirm, onC
       {/* Fields */}
       <div className="p-6">
         {line.kind === "CONSUMABLE" && (
-          <div className="grid grid-cols-6 gap-3 mb-4">
-            <FieldBox label="ใบกำกับ (ชิ้น)">
-              <input
-                type="number" min="1" value={line.expectedQty}
-                autoFocus={false}
-                onChange={e => {
-                  const v = Math.max(1, Number(e.target.value));
-                  onPatch({ expectedQty: v, qty: Math.min(line.qty, v) });
-                }}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </FieldBox>
-
-            <FieldBox label="รับจริง (ชิ้น)">
-              <input
-                type="number" min="0" max={line.expectedQty} value={line.qty}
-                onChange={e => onPatch({ qty: Math.min(Math.max(0, Number(e.target.value)), line.expectedQty) })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </FieldBox>
-
-            <FieldBox label={<>Lot Code <span className="text-red-500">*</span></>}>
-              <input
-                type="text" value={line.lotCode} autoFocus
-                onChange={e => onPatch({ lotCode: e.target.value })}
-                placeholder="LOT-XXXX"
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </FieldBox>
-
-            <FieldBox label="ต้นทุน/ชิ้น (บาท)">
-              <input
-                type="number" min="0" step="0.01" value={line.costPrice}
-                onChange={e => onPatch({ costPrice: Number(e.target.value) })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </FieldBox>
-
-            <FieldBox label="วันผลิต">
-              <input
-                type="date" value={line.mfgDate}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={e => onPatch({ mfgDate: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </FieldBox>
-
-            <FieldBox label={<>วันหมดอายุ <span className="text-red-500">*</span></>}>
-              <input
-                type="date" value={line.expiryDate}
-                min={line.mfgDate}
-                onChange={e => onPatch({ expiryDate: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            </FieldBox>
-          </div>
+          <ConsumableLotSection
+            line={line}
+            receiveDate={receiveDate}
+            onPatch={onPatch}
+          />
         )}
 
         {line.kind === "REUSABLE" && (

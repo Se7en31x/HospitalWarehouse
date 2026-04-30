@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+import { REUSABLE_RETURN_STATUS_LABELS } from "@/constants/labels";
 
 // ─── Types & Interfaces ───────────────────────────────────────────────────────
 
@@ -37,11 +38,8 @@ export type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const RETURN_REQUEST_STATUS_LABEL: Record<string, string> = {
-  REQUESTED: "รอดำเนินการ",
-  PROCESSING: "กำลังตรวจรับ",
-  COMPLETED: "เสร็จสิ้น",
-};
+// Re-exported from @/constants/labels — import from there for new code
+export const RETURN_REQUEST_STATUS_LABEL: Record<string, string> = REUSABLE_RETURN_STATUS_LABELS;
 
 export const CONDITION_LABEL: Record<string, string> = {
   GOOD: "ปกติ",

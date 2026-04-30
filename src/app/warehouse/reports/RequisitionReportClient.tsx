@@ -9,6 +9,7 @@ import {
 	ChevronRight,
 	X,
 } from "lucide-react";
+import { fmtDateTime } from "@/utils/dateUtils";
 
 const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -189,21 +190,6 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 		}
 	}, [isTypeOpen, isStatusOpen, isDepartmentOpen]);
 
-	const fmtDateTime = (value?: string | null) => {
-		if (!value) return { date: "-", time: "" };
-		const dateValue = new Date(value);
-		if (Number.isNaN(dateValue.getTime())) return { date: value, time: "" };
-
-		return {
-			date: dateValue.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }),
-			time: dateValue.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
-		};
-	};
-
-	const fmtDateTimeLine = (value?: string | null) => {
-		const dateTime = fmtDateTime(value);
-		return dateTime.time ? `${dateTime.date} ${dateTime.time}` : dateTime.date;
-	};
 
 	const STATUS_BADGE_CLASS: Record<string, string> = {
 		COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -223,7 +209,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 
 	const handleExportCsv = () => {
 		const rows = [
-			["เลขที่เอกสาร", "วันที่", "ประเภท", "ผู้ทำรายการ", "แผนก", "จำนวนรายการ", "สถานะ", "หมายเหตุ"].join(","),
+			["เลขที่คำขอ", "วันที่", "ประเภท", "ผู้ทำรายการ", "แผนก", "จำนวนรายการ", "สถานะ", "หมายเหตุ"].join(","),
 			...filteredReports.map((record) => [
 				record.doc_no,
 				record.request_date,
@@ -269,7 +255,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 					<input
 						type="text"
-						placeholder="ค้นหาเลขที่เอกสาร / ผู้ทำรายการ / แผนก / รายการ..."
+						placeholder="ค้นหาเลขที่คำขอ / ผู้ทำรายการ / แผนก / รายการ..."
 						value={searchTerm}
 						onChange={(event) => setSearchTerm(event.target.value)}
 							className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
@@ -472,7 +458,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 							<thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 								<tr className="text-[13px]">
 								<th className="px-6 py-4 w-[60px] text-center">#</th>
-								<th className="px-6 py-4 w-[170px]">เลขที่เอกสาร</th>
+								<th className="px-6 py-4 w-[170px]">เลขที่คำขอ</th>
 								<th className="px-6 py-4 w-[170px]">วันที่และเวลา</th>
 								<th className="px-6 py-4 w-[230px]">ชื่อผู้ทำรายการ</th>
 								<th className="px-6 py-4 w-[220px]">แผนก</th>
@@ -489,7 +475,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 										</td>
 										<td className="px-6 py-4 text-xs w-[170px]">{record.doc_no}</td>
 										<td className="px-6 py-4 w-[170px]">
-											<div className="whitespace-nowrap">{fmtDateTimeLine(record.request_date)}</div>
+											<div className="whitespace-nowrap">{fmtDateTime(record.request_date)}</div>
 										</td>
 										<td className="px-6 py-4 w-[230px]">
 											<div>{record.requester || "-"}</div>

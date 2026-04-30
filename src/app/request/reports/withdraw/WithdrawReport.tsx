@@ -658,7 +658,7 @@ const WithdrawReport: React.FC = () => {
                     <thead className="bg-gray-100 border-b border-gray-200">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 uppercase">
-                          รหัสสินค้า
+                          รหัสรายการ
                         </th>
                         <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 uppercase">
                           ชื่อ

@@ -23,6 +23,7 @@ import {
   type MonthlyRequisition,
   type LotStats,
 } from "@/services/dashboardService";
+import { fmtDateLong } from "@/utils/dateUtils";
 
 export default function WarehouseDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -171,7 +172,7 @@ export default function WarehouseDashboard() {
     const d = new Date(dateStr);
     const weekdayIndex = (d.getDay() + 6) % 7;
     const weekday = weekDayLabels[weekdayIndex];
-    const dayMonth = d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+    const dayMonth = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "Asia/Bangkok" });
     return `${weekday} ${dayMonth}`;
   };
 
@@ -352,7 +353,7 @@ export default function WarehouseDashboard() {
         <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-md border border-slate-200">
           <CalendarDays className="w-5 h-5 text-blue-600" />
           <span className="text-sm font-medium text-slate-700">
-            {new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
+            {fmtDateLong(new Date())}
           </span>
         </div>
       </div>

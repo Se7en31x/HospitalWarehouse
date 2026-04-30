@@ -1,13 +1,9 @@
 import React from "react";
 import { X, Package, FileText, CheckCircle, Clock, XCircle, AlertCircle, ExternalLink } from "lucide-react";
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails } from "@/types/requisition_type";
+import { fmtDate } from "@/utils/dateUtils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDate = (d?: string | null) => {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
-};
 
 const fmtTime = (d?: string | null) => {
   if (!d) return "";
@@ -23,7 +19,7 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: "รออนุมัติ",
   COMPLETED: "อนุมัติแล้ว",
   APPROVED: "อนุมัติแล้ว",
-  REJECTED: "ปฏิเสธ",
+  REJECTED: "ถูกปฏิเสธ",
   CANCELLED: "ยกเลิก",
   DRAFT: "ร่าง",
 };
@@ -112,7 +108,7 @@ export function DetailModal({
             </div>
             <div className={`grid grid-cols-1 gap-4 ${record.type === "BORROW" ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
               <div>
-                <p className="text-xs text-slate-500">เลขที่เอกสาร</p>
+                <p className="text-xs text-slate-500">เลขที่คำขอ</p>
                 <p className="text-base font-semibold text-slate-800">{record.doc_no}</p>
               </div>
               <div>

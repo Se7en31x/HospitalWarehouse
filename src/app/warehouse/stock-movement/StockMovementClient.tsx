@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { CSSProperties } from "react";
 import {
   Search,
@@ -9,9 +9,9 @@ import {
   ChevronDown,
   Package,
   X,
-  Eye,
   StickyNote,
 } from "lucide-react";
+import { fmtDateTime } from "@/utils/dateUtils";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { getAllStockMovements } from "@/services/stockMovementService";
@@ -23,7 +23,6 @@ import {
 const typeOptions: { v: StockMovementType | ""; l: string }[] = [
   { v: "", l: "ประเภททั้งหมด" },
   { v: "RECEIVE_IN", l: "รับเข้า" },
-  { v: "RECEIVE_CANCEL", l: "ยกเลิกรับ" },
   { v: "OUT", l: "เบิกจ่าย" },
   { v: "RETURN_IN", l: "รับคืน" },
   { v: "ADJUST_IN", l: "ปรับเพิ่ม" },
@@ -33,8 +32,7 @@ const typeOptions: { v: StockMovementType | ""; l: string }[] = [
 
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
   RECEIVE_IN:     { label: "รับเข้า",    cls: "bg-blue-100 text-blue-700 border border-blue-200" },
-  RECEIVE_CANCEL: { label: "ยกเลิกรับ",  cls: "bg-rose-100 text-rose-700 border border-rose-200" },
-  OUT:            { label: "เบิกออก",    cls: "bg-amber-100 text-amber-700 border border-amber-200" },
+  OUT:            { label: "เบิกจ่าย",    cls: "bg-amber-100 text-amber-700 border border-amber-200" },
   RETURN_IN:      { label: "รับคืน",     cls: "bg-teal-100 text-teal-700 border border-teal-200" },
   ADJUST_IN:      { label: "ปรับเพิ่ม",  cls: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
   ADJUST_OUT:     { label: "ปรับลด",    cls: "bg-slate-100 text-slate-600 border border-slate-200" },
@@ -63,18 +61,7 @@ const StockMovementClient = () => {
   const [endDateFocused, setEndDateFocused] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [detailMovement, setDetailMovement] = useState<StockMovement | null>(
-    null
-  );
-
-  useEffect(() => {
-    if (!detailMovement) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDetailMovement(null);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [detailMovement]);
+  const [openPopover, setOpenPopover] = useState<number | null>(null);
 
   const fetchAll = useCallback(async () => {
     setIsFetching(true);
@@ -169,7 +156,7 @@ const StockMovementClient = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหาชื่อสินค้า, ผู้ดำเนินการ..."
+            placeholder="ค้นหาชื่อพัสดุ, ผู้ดำเนินการ..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
@@ -309,15 +296,15 @@ const StockMovementClient = () => {
             <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
               <tr>
                 <th className="pl-3 pr-2 py-4 whitespace-nowrap w-10 text-center">#</th>
-                <th className="px-2 py-4 whitespace-nowrap">รหัสสินค้า</th>
-                <th className="px-3 py-4 whitespace-nowrap">ชื่อสินค้า</th>
+                <th className="px-2 py-4 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
                 <th className="px-3 py-4 whitespace-nowrap">หมวดหมู่</th>
                 <th className="px-2 py-4 whitespace-nowrap">หน่วยนับ</th>
                 <th className="px-2 py-4 whitespace-nowrap text-center">จำนวน</th>
                 <th className="px-2 py-4 whitespace-nowrap">ยอดคงเหลือ</th>
                 <th className="px-2 py-4 whitespace-nowrap">ประเภท</th>
                 <th className="px-3 py-4 whitespace-nowrap">ผู้ดำเนินการ</th>
-                <th className="px-2 py-4 whitespace-nowrap">วันที่และเวลา</th>
+                <th className="px-2 py-4 whitespace-nowrap">วันที่/เวลา</th>
                 <th className="pr-3 pl-1 py-4 whitespace-nowrap text-center w-11">ตรวจสอบ</th>
               </tr>
             </thead>
@@ -372,20 +359,16 @@ const StockMovementClient = () => {
                       )}
                     </td>
                     <td className="px-2 py-3 text-slate-500 text-sm whitespace-nowrap align-middle">
-                      {new Date(mv.created_at).toLocaleString("th-TH", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
+                      {fmtDateTime(mv.created_at)}
                     </td>
                     <td className="pr-3 pl-1 py-3 text-center whitespace-nowrap align-middle">
-                      <button
-                        type="button"
-                        onClick={() => setDetailMovement(mv)}
-                        className="inline-flex p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-all align-middle"
-                        title="ดูหมายเหตุ"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <NotePopover
+                        id={mv.id}
+                        note={mv.note}
+                        isOpen={openPopover === mv.id}
+                        onToggle={() => setOpenPopover(prev => prev === mv.id ? null : mv.id)}
+                        onClose={() => setOpenPopover(null)}
+                      />
                     </td>
                   </tr>
                 );
@@ -437,73 +420,74 @@ const StockMovementClient = () => {
         )}
       </div>
 
-      {detailMovement && (
-        <>
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
-            onClick={() => setDetailMovement(null)}
-            aria-hidden
-          />
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            onClick={() => setDetailMovement(null)}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="stock-movement-detail-title"
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-6 flex items-center justify-between z-10">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 bg-indigo-100 rounded-lg shrink-0">
-                    <StickyNote className="w-6 h-6 text-indigo-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <h2
-                      id="stock-movement-detail-title"
-                      className="text-2xl font-bold text-slate-900 truncate"
-                    >
-                      หมายเหตุ
-                    </h2>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailMovement(null)}
-                  className="p-2 hover:bg-slate-100 rounded-full transition-colors shrink-0"
-                  aria-label="ปิด"
-                >
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-
-              <div className="p-8">
-                <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {detailMovement.note?.trim()
-                      ? detailMovement.note.trim()
-                      : "-"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 px-8 py-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setDetailMovement(null)}
-                  className="px-6 py-2.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-semibold transition-colors"
-                >
-                  ปิด
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 };
+
+// ── Note parser ───────────────────────────────────────────────────────────────
+// note format: "[action] itemCode itemName qty | ล็อต X | ใบ Y | แผนก Z | หมายเหตุ: ..."
+function parseNoteParts(raw: string | null | undefined): { action: string | null; parts: string[] } {
+  if (!raw?.trim()) return { action: null, parts: [] };
+  const segments = raw.split(" | ").map(s => s.trim()).filter(Boolean);
+  const first = segments[0] ?? "";
+  const actionMatch = first.match(/^\[(.+?)\]/);
+  if (actionMatch) {
+    const action = first; // keep full first segment (has item info after action)
+    return { action, parts: segments.slice(1) };
+  }
+  return { action: null, parts: segments };
+}
+
+// ── Note Popover ──────────────────────────────────────────────────────────────
+function NotePopover({ id, note, isOpen, onToggle, onClose }: {
+  id: number;
+  note: string | null | undefined;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { action, parts } = parseNoteParts(note);
+  const allParts = action ? [action, ...parts] : parts;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen, onClose]);
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`inline-flex p-2 rounded-lg transition-all ${isOpen ? "bg-blue-100 text-blue-700" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}
+        title="ดูบันทึก"
+      >
+        <StickyNote className="w-4 h-4" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+          {allParts.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-slate-400 italic">ไม่มีบันทึก</p>
+          ) : (
+            <ul className="py-2 max-h-60 overflow-y-auto">
+              {allParts.map((part, i) => (
+                <li key={i} className="flex items-start gap-2.5 px-4 py-1.5">
+                  <span className="w-1 h-1 rounded-full bg-slate-300 flex-shrink-0 mt-2" />
+                  <span className={`text-xs leading-relaxed ${i === 0 ? "text-slate-800 font-medium" : "text-slate-500"}`}>{part}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default StockMovementClient;

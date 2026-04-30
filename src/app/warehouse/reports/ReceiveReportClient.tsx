@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ChevronDown, ChevronLeft, ChevronRight, Inbox, Search, X,
 } from "lucide-react";
+import { fmtDate } from "@/utils/dateUtils";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { apiClient } from "@/lib/apiClient";
 import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
@@ -86,12 +87,6 @@ const TYPE_BADGE: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const fmtDate = (v?: string | null) => {
-    if (!v) return "-";
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return v;
-    return d.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
-};
 
 const fmtCurrency = (n: number) =>
     n > 0 ? `฿${n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-";
@@ -186,7 +181,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
     ];
 
     const handleExportCsv = () => {
-        const headers = ["วันที่รับ", "Batch No", "เลขที่เอกสาร", "ประเภท", "ผู้จำหน่าย/ผู้บริจาค", "รหัสสินค้า", "ชื่อสินค้า", "หน่วย", "จำนวนในใบกำกับ", "จำนวนรับจริง", "ราคาต่อหน่วย", "ยอดรวม"];
+        const headers = ["วันที่รับเข้า", "Batch No", "เลขที่เอกสาร", "ประเภท", "ผู้จำหน่าย/ผู้บริจาค", "รหัสรายการ", "ชื่อพัสดุ", "หน่วย", "จำนวนในใบกำกับ", "จำนวนรับจริง", "ราคาต่อหน่วย", "ยอดรวม"];
         const csvRows = [
             headers.join(","),
             ...filtered.map(r => [
@@ -215,12 +210,12 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 
     const handleExportPdf = () => {
         const columns: PdfColumn[] = [
-            { header: "วันที่รับ",      key: "receiveDateFmt" },
+            { header: "วันที่รับเข้า",      key: "receiveDateFmt" },
             { header: "Batch No",       key: "batchNo" },
             { header: "เลขที่เอกสาร",  key: "docNo" },
             { header: "ประเภท",         key: "typeLabel" },
             { header: "ผู้จำหน่าย",    key: "supplier" },
-            { header: "ชื่อสินค้า",    key: "itemName" },
+            { header: "ชื่อพัสดุ",    key: "itemName" },
             { header: "ใบกำกับ",        key: "expectedQty", align: "center" },
             { header: "รับจริง",        key: "qty",          align: "center" },
             { header: "ราคา/หน่วย",    key: "costPriceFmt", align: "right" },
@@ -268,7 +263,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
                 {/* Search */}
                 <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <input type="text" placeholder="ค้นหาชื่อสินค้า / Batch / เอกสาร..."
+                    <input type="text" placeholder="ค้นหาชื่อพัสดุ / Batch / เอกสาร..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
@@ -363,7 +358,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
                         <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                             <tr>
                                 <th className="px-4 py-4 w-[100px]">ประเภท</th>
-                                <th className="px-4 py-4">ชื่อสินค้า</th>
+                                <th className="px-4 py-4">ชื่อพัสดุ</th>
                                 <th className="px-4 py-4 w-[80px] text-center">หน่วย</th>
                                 <th className="px-4 py-4 w-[90px] text-center">ใบกำกับ</th>
                                 <th className="px-4 py-4 w-[90px] text-center">รับจริง</th>

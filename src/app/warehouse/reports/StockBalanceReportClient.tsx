@@ -10,6 +10,7 @@ import {
 	Search,
 	X,
 } from "lucide-react";
+import { fmtDateTime } from "@/utils/dateUtils";
 
 const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -80,12 +81,6 @@ const TYPE_BADGE: Record<string, string> = {
 
 const IN_TYPES = new Set(["RECEIVE_IN", "ADJUST_IN"]);
 
-const fmtDateTime = (v?: string | null) => {
-	if (!v) return "-";
-	const d = new Date(v);
-	if (Number.isNaN(d.getTime())) return v;
-	return `${d.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })} ${d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`;
-};
 
 const typeOptions = [
 	{ value: "", label: "ทุกประเภท" },
@@ -162,7 +157,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 	useEffect(() => { setCurrentPage(1); }, [searchTerm, warehouseFilter]);
 
 	const handleExportCsv = () => {
-		const header = ["วันที่/เวลา", "ประเภท", "รหัสสินค้า", "ชื่อสินค้า", "คลัง", "จำนวน", "หน่วย", "ผู้ดำเนินการ", "แผนก", "หมายเหตุ"];
+		const header = ["วันที่/เวลา", "ประเภท", "รหัสรายการ", "ชื่อพัสดุ", "คลัง", "จำนวน", "หน่วย", "ผู้ดำเนินการ", "แผนก", "หมายเหตุ"];
 		const rows = filtered.map((r) => [
 			fmtDateTime(r.date),
 			TYPE_LABEL[r.type] ?? r.type,
@@ -191,8 +186,8 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 			{ header: "#",             key: "_no",         align: "center" },
 			{ header: "วันที่/เวลา",    key: "dateFmt" },
 			{ header: "ประเภท",        key: "typeLabel",   align: "center" },
-			{ header: "รหัสสินค้า",    key: "itemCode" },
-			{ header: "ชื่อสินค้า",    key: "itemName" },
+			{ header: "รหัสรายการ",    key: "itemCode" },
+			{ header: "ชื่อพัสดุ",    key: "itemName" },
 			{ header: "คลัง",          key: "warehouse" },
 			{ header: "จำนวน",         key: "qtyFmt",      align: "right" },
 			{ header: "ผู้ดำเนินการ",   key: "operatorName" },
@@ -246,7 +241,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 					<input
 						type="text"
-						placeholder="ค้นหารหัส / ชื่อสินค้า / ผู้ดำเนินการ..."
+						placeholder="ค้นหารหัส / ชื่อพัสดุ / ผู้ดำเนินการ..."
 						value={searchTerm}
 						onChange={(e) => setSearchTerm(e.target.value)}
 						className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none"
@@ -382,8 +377,8 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 								<th className="px-4 py-4 w-[46px] text-center">#</th>
 								<th className="px-4 py-4 w-[150px]">วันที่/เวลา</th>
 								<th className="px-4 py-4 w-[110px]">ประเภท</th>
-								<th className="px-4 py-4 w-[110px]">รหัสสินค้า</th>
-								<th className="px-4 py-4 w-[200px]">ชื่อสินค้า</th>
+								<th className="px-4 py-4 w-[110px]">รหัสรายการ</th>
+								<th className="px-4 py-4 w-[200px]">ชื่อพัสดุ</th>
 								<th className="px-4 py-4 w-[120px]">คลัง</th>
 								<th className="px-4 py-4 w-[90px] text-right">จำนวน</th>
 								<th className="px-4 py-4 w-[150px]">ผู้ดำเนินการ</th>

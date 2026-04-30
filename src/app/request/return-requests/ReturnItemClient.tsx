@@ -10,22 +10,12 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import toast, { Toaster } from "react-hot-toast";
 import * as reusableSvc from "@/services/reusableUnitService";
 import { socket } from "@/lib/socket";
+import { fmtDateTime } from "@/utils/dateUtils";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error) return String((error as Record<string, unknown>).message);
   return String(error);
-};
-
-const fmtDateTime = (d?: string | null) => {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 };
 
 const PAGE_LIMIT = 10;
@@ -43,9 +33,9 @@ interface ReturnRequest {
 
 const StatusBadge = ({ status }: { status: string }) => {
   const statusMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
-    PENDING: { label: "รอดำเนินการ", bg: "bg-amber-100", text: "text-amber-900", border: "border-amber-200" },
+    PENDING: { label: "รออนุมัติ", bg: "bg-amber-100", text: "text-amber-900", border: "border-amber-200" },
     APPROVED: { label: "อนุมัติแล้ว", bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200" },
-    REJECTED: { label: "ปฏิเสธ", bg: "bg-rose-100", text: "text-rose-800", border: "border-rose-200" },
+    REJECTED: { label: "ถูกปฏิเสธ", bg: "bg-rose-100", text: "text-rose-800", border: "border-rose-200" },
     COMPLETED: { label: "เสร็จสิ้น", bg: "bg-green-100", text: "text-green-800", border: "border-green-200" },
     PENDING_RETURN_CHECK: { label: "รอตรวจรับคืน", bg: "bg-sky-100", text: "text-sky-800", border: "border-sky-200" },
   };
@@ -236,7 +226,7 @@ export default function ReturnItemClient() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="ค้นหาเลขที่เอกสาร / แผนก / ผู้ทำรายการ..."
+            placeholder="ค้นหาเลขที่คำขอ / แผนก / ผู้ทำรายการ..."
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none"
@@ -373,7 +363,7 @@ export default function ReturnItemClient() {
                 <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                   <tr>
                     <th className="px-4 py-4 w-[52px] text-center whitespace-nowrap">#</th>
-                    <th className="px-5 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                    <th className="px-5 py-4 whitespace-nowrap">เลขที่คำขอ</th>
                     <th className="px-5 py-4 whitespace-nowrap">แผนก</th>
                     <th className="px-5 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
                     <th className="px-5 py-4 whitespace-nowrap">สถานะ</th>

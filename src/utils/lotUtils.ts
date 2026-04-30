@@ -1,4 +1,5 @@
 import type * as LotType from "@/types/lot_type";
+import { fmtDate } from "@/utils/dateUtils";
 
 /**
  * Calculate days remaining until expiry
@@ -47,19 +48,6 @@ export const getExpiryStatusColor = (status: LotType.ExpiryStatus) => {
 };
 
 /**
- * Format date to Thai format
- */
-export const formatDateTH = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("th-TH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
-};
-
-/**
  * Format currency in Thai
  */
 export const formatCurrencyTH = (value: number): string => {
@@ -67,19 +55,6 @@ export const formatCurrencyTH = (value: number): string => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
-};
-
-/**
- * Format date to display format (2 Jan 2025)
- */
-export const formatDateDisplay = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("th-TH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 };
 
 /**
@@ -166,7 +141,7 @@ export const exportLotsToCSV = (lots: LotType.UiLot[]): void => {
     lot.unit,
     lot.cost,
     lot.totalValue || 0,
-    formatDateTH(lot.expiryDate),
+    fmtDate(lot.expiryDate),
     lot.daysRemaining ?? "-",
     lot.expiryStatus || "ปกติ",
     lot.supplierName || "-",
@@ -257,7 +232,7 @@ export const generatePrintableLabel = (lot: LotType.UiLot): string => {
         <div><strong>Lot Code:</strong> ${lot.id}</div>
         <div><strong>Item:</strong> ${lot.itemName}</div>
         <div><strong>Quantity:</strong> ${lot.quantity} ${lot.unit}</div>
-        <div><strong>Expiry Date:</strong> ${formatDateTH(lot.expiryDate)}</div>
+        <div><strong>Expiry Date:</strong> ${fmtDate(lot.expiryDate)}</div>
         <div><strong>Days Remaining:</strong> <span style="color: ${
     enrichedLot.expiryStatus === "หมดอายุ"
       ? "red"

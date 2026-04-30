@@ -398,13 +398,13 @@ const RequestClient = () => {
                 <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="px-2 py-4 whitespace-nowrap text-center">#</th>
-                    <th className="px-2 py-4 whitespace-nowrap">เลขที่เอกสาร</th>
+                    <th className="px-2 py-4 whitespace-nowrap">เลขที่คำขอ</th>
                     <th className="px-2 py-4 whitespace-nowrap">วันที่/เวลา</th>
                     <th className="px-2 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
                     <th className="px-2 py-4 whitespace-nowrap">แผนก</th>
                     <th className="px-2 py-4 whitespace-nowrap">ประเภท</th>
                     <th className="px-2 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-1 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className="px-1 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-600">
