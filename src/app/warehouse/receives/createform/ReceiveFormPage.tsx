@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Loader2, Search, Trash2, X, CheckCircle2, Pencil,
+  Loader2, Search, Trash2, X, CheckCircle2, Pencil, PackagePlus,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast, { Toaster } from "react-hot-toast";
@@ -252,7 +252,7 @@ export default function ReceiveFormPage() {
       setIsLoading(true);
       try {
         const [rawItems, supps, depts] = await Promise.all([
-          ItemSvc.getInventoryApiItems(),
+          ItemSvc.getInventoryApiItems({ limit: 1000 }),
           ReceiveSvc.getSuppliers(),
           DeptSvc.getDepartmentOptions(),
         ]);
@@ -648,7 +648,9 @@ export default function ReceiveFormPage() {
     const q = catalogSearch.trim().toLowerCase();
     if (!q) return catalog.slice(0, 60);
     return catalog.filter(c =>
-      c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+      c.name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      (c.category && c.category.toLowerCase().includes(q))
     ).slice(0, 60);
   })();
 
@@ -662,8 +664,14 @@ export default function ReceiveFormPage() {
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-semibold text-gray-800">รับสินค้าเข้าคลัง</h2>
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-600 rounded-xl">
+              <PackagePlus className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับสินค้าเข้าคลัง</h2>
+              <p className="text-sm text-slate-500 mt-0.5">กรอกรายละเอียดและเพิ่มรายการสินค้าเพื่อสร้างใบรับสินค้า</p>
+            </div>
           </div>
           <button onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">
@@ -821,7 +829,7 @@ export default function ReceiveFormPage() {
                     <input type="text" value={catalogSearch}
                       onChange={e => { setCatalogSearch(e.target.value); setIsCatalogOpen(true); }}
                       onFocus={() => setIsCatalogOpen(true)}
-                      placeholder="ค้นหาสินค้า (ชื่อ / รหัส)..."
+                      placeholder="ค้นหาสินค้า (ชื่อ / รหัส / หมวดหมู่)..."
                       className="flex-1 text-sm bg-transparent outline-none text-slate-800 placeholder:text-slate-400" />
                     {catalogSearch && (
                       <button type="button" onClick={() => { setCatalogSearch(""); setIsCatalogOpen(false); }}

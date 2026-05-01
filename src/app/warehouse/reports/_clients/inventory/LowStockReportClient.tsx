@@ -10,19 +10,20 @@ import {
 	Clock,
 	Search,
 	X,
-	CalendarDays,
 	FileText,
 	RefreshCw,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import { getcategoriesOptions, getWarehousesOptions } from "@/services/itemsService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
 import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
+import { OutlinedDateField } from "../../_components/OutlinedDateField";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
 const XlsxIcon = () => (
-	<svg viewBox="0 0 56 64" width="28" height="32" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
 		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
@@ -31,7 +32,7 @@ const XlsxIcon = () => (
 );
 
 const PdfIcon = () => (
-	<svg viewBox="0 0 56 64" width="28" height="32" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
 		<rect x="4" y="36" width="48" height="20" rx="4" fill="#dc2626"/>
@@ -59,6 +60,7 @@ interface LowStockItem {
 	minStock: number;
 	shortfall: number;
 	hasLots: boolean;
+	createdAt: string | null;
 }
 
 interface LowStockApiResponse {
@@ -89,12 +91,8 @@ interface NearExpiryApiResponse {
 type ActiveTab = "low-stock" | "near-expiry";
 
 const ITEMS_PER_PAGE = 10;
-const THAI_MONTHS_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const getStockStatusLabel = (item: LowStockItem) =>
-	item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่า Min";
 
 const getUrgencyLabel = (daysLeft: number | null) =>
 	daysLeft === null ? "ไม่ระบุ" : `อีก ${daysLeft} วัน`;
@@ -124,7 +122,7 @@ const Dropdown: React.FC<DropdownProps> = ({ dataAttr, value, options, open, onT
 		<button
 			type="button"
 			onClick={onToggle}
-			className={`flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white shadow-sm hover:bg-slate-50 ${minW}`}
+			className={`flex h-10 items-center gap-2 border border-slate-300 rounded-lg px-3 text-sm bg-white shadow-sm hover:bg-slate-50 ${minW}`}
 		>
 			{icon && <span className="text-slate-400">{icon}</span>}
 			<span className="flex-1 text-left text-slate-700">{value}</span>
@@ -149,21 +147,26 @@ const Dropdown: React.FC<DropdownProps> = ({ dataAttr, value, options, open, onT
 const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) => {
 	const [activeTab, setActiveTab] = useState<ActiveTab>("low-stock");
 
-	// Period filter — date range (from → to)
+	// Shared date range (used by both tabs)
 	const now = new Date();
-	const [fromMonth, setFromMonth] = useState(0);
-	const [fromYear, setFromYear]   = useState(now.getFullYear());
-	const [toMonth, setToMonth]     = useState(now.getMonth());
-	const [toYear, setToYear]       = useState(now.getFullYear());
+	const [dateFrom, setDateFrom] = useState(`${now.getFullYear()}-01-01`);
+	const [dateTo, setDateTo] = useState(now.toISOString().split("T")[0]);
 
-	const [isFromMonthOpen, setIsFromMonthOpen] = useState(false);
-	const [isFromYearOpen,  setIsFromYearOpen]  = useState(false);
-	const [isToMonthOpen,   setIsToMonthOpen]   = useState(false);
-	const [isToYearOpen,    setIsToYearOpen]    = useState(false);
+	// Shared option lists
+	const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+	const [warehouseOptions, setWarehouseOptions] = useState<string[]>([]);
 
-	const yearOptions = useMemo(() => Array.from({ length: 5 }, (_, i) => String(now.getFullYear() - i)), [now]);
+	useEffect(() => {
+		Promise.all([getcategoriesOptions(), getWarehousesOptions()]).then(([cats, whs]) => {
+			setCategoryOptions(["หมวดหมู่ทั้งหมด", ...(cats?.map((c) => c.name) ?? [])]);
+			setWarehouseOptions(["ทุกคลัง", ...(whs?.map((w) => w.name) ?? [])]);
+		}).catch(() => {
+			setCategoryOptions(["หมวดหมู่ทั้งหมด"]);
+			setWarehouseOptions(["ทุกคลัง"]);
+		});
+	}, []);
 
-	// Low Stock
+	// ── Low Stock ──────────────────────────────────────────────────────────────
 	const [lsRows, setLsRows] = useState<LowStockItem[]>([]);
 	const [lsFetching, setLsFetching] = useState(true);
 	const [lsSearch, setLsSearch] = useState("");
@@ -176,7 +179,10 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	const loadLowStock = useCallback(async () => {
 		setLsFetching(true);
 		try {
-			const res = await apiClient.get<LowStockApiResponse>("/v1/reports/low-stock");
+			const params = new URLSearchParams();
+			if (dateFrom) params.set("dateFrom", dateFrom);
+			if (dateTo) params.set("dateTo", dateTo);
+			const res = await apiClient.get<LowStockApiResponse>(`/v1/reports/low-stock?${params}`);
 			setLsRows((res.data as LowStockApiResponse).items ?? []);
 		} catch {
 			SweetAlertUtils.error("เกิดข้อผิดพลาดในการโหลดข้อมูลสต็อกต่ำ");
@@ -184,18 +190,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		} finally {
 			setLsFetching(false);
 		}
-	}, []);
+	}, [dateFrom, dateTo]);
 
 	useEffect(() => { loadLowStock(); }, [loadLowStock]);
-
-	const lsCategoryOptions = useMemo(() =>
-		["หมวดหมู่ทั้งหมด", ...Array.from(new Set(lsRows.map((i) => i.category).filter(Boolean)))],
-		[lsRows],
-	);
-	const lsWarehouseOptions = useMemo(() =>
-		["ทุกคลัง", ...Array.from(new Set(lsRows.map((i) => i.warehouse).filter(Boolean)))],
-		[lsRows],
-	);
 
 	const lsFiltered = useMemo(() => {
 		const kw = lsSearch.trim().toLowerCase();
@@ -213,9 +210,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		return lsFiltered.slice(s, s + ITEMS_PER_PAGE);
 	}, [lsFiltered, lsPage]);
 
-	useEffect(() => { setLsPage(1); }, [lsSearch, lsCategory, lsWarehouse]);
+	useEffect(() => { setLsPage(1); }, [lsSearch, lsCategory, lsWarehouse, dateFrom, dateTo]);
 
-	// Near Expiry
+	// ── Near Expiry ────────────────────────────────────────────────────────────
 	const [neRows, setNeRows] = useState<NearExpiryRow[]>([]);
 	const [neFetching, setNeFetching] = useState(false);
 	const [neFetched, setNeFetched] = useState(false);
@@ -251,19 +248,19 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [neDays]);
 
-	const neWarehouseOptions = useMemo(() =>
-		["ทุกคลัง", ...Array.from(new Set(neRows.map((r) => r.warehouse).filter(Boolean)))],
-		[neRows],
-	);
-
 	const neFiltered = useMemo(() => {
 		const kw = neSearch.trim().toLowerCase();
+		const from = dateFrom ? new Date(dateFrom) : null;
+		const to   = dateTo   ? new Date(dateTo + "T23:59:59") : null;
 		return neRows.filter((r) => {
 			const matchKw = !kw || r.lotCode.toLowerCase().includes(kw) || r.itemCode.toLowerCase().includes(kw) || r.itemName.toLowerCase().includes(kw);
 			const matchWh = neWarehouse === "ทุกคลัง" || r.warehouse === neWarehouse;
-			return matchKw && matchWh;
+			const matchPeriod = r.expiredAt
+				? (() => { const d = new Date(r.expiredAt); return (!from || d >= from) && (!to || d <= to); })()
+				: true;
+			return matchKw && matchWh && matchPeriod;
 		});
-	}, [neRows, neSearch, neWarehouse]);
+	}, [neRows, neSearch, neWarehouse, dateFrom, dateTo]);
 
 	const neTotalPages = Math.max(1, Math.ceil(neFiltered.length / ITEMS_PER_PAGE));
 	const nePageItems = useMemo(() => {
@@ -271,9 +268,16 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		return neFiltered.slice(s, s + ITEMS_PER_PAGE);
 	}, [neFiltered, nePage]);
 
-	useEffect(() => { setNePage(1); }, [neSearch, neWarehouse, neDays]);
+	useEffect(() => { setNePage(1); }, [neSearch, neWarehouse, neDays, dateFrom, dateTo]);
 
 	// ── Exports ────────────────────────────────────────────────────────────────
+
+	const periodLabel = useMemo(() => {
+		if (dateFrom && dateTo) return `${dateFrom} ถึง ${dateTo}`;
+		if (dateFrom) return `ตั้งแต่ ${dateFrom}`;
+		if (dateTo) return `ถึง ${dateTo}`;
+		return "ทุกช่วงเวลา";
+	}, [dateFrom, dateTo]);
 
 	const handleLsExportXlsx = async () => {
 		const ExcelJS = (await import("exceljs")).default;
@@ -282,34 +286,24 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		wb.created = new Date();
 
 		const ws = wb.addWorksheet("รายงานสต็อกต่ำ");
-
-		const period = fromYear === toYear && fromMonth === toMonth
-			? `เดือน${THAI_MONTHS_FULL[fromMonth]} ปี ${fromYear + 543}`
-			: `เดือน${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – เดือน${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
 		const generatedAt = fmtDateLong(new Date());
-		const outCount       = lsFiltered.filter((i) => i.availableStock === 0).length;
-		const lowCount       = lsFiltered.filter((i) => i.availableStock > 0).length;
-		const totalShortfall = lsFiltered.reduce((s, i) => s + i.shortfall, 0);
-
 		const COLS = 11;
 
-		// ── Column widths ─────────────────────────────────────────────────────
 		ws.columns = [
-			{ width: 6 },   // #
-			{ width: 14 },  // รหัสรายการ
-			{ width: 32 },  // ชื่อพัสดุ
-			{ width: 18 },  // หมวดหมู่
-			{ width: 18 },  // คลัง
-			{ width: 10 },  // หน่วย
-			{ width: 14 },  // สต็อกที่ใช้ได้
-			{ width: 14 },  // คงเหลือ DB
-			{ width: 12 },  // Min Stock
-			{ width: 12 },  // จำนวนที่ขาด
-			{ width: 14 },  // สถานะ
+			{ width: 6 },
+			{ width: 14 },
+			{ width: 32 },
+			{ width: 18 },
+			{ width: 18 },
+			{ width: 10 },
+			{ width: 14 },
+			{ width: 14 },
+			{ width: 12 },
+			{ width: 12 },
+			{ width: 14 },
 		];
 
 		type ExRow = ReturnType<typeof ws.addRow>;
-		// Helper: apply thin border to a cell range
 		const applyBorder = (row: ExRow) => {
 			row.eachCell({ includeEmpty: true }, (cell) => {
 				cell.border = {
@@ -321,8 +315,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			});
 		};
 
-		// ── Row 1: Period header ──────────────────────────────────────────────
-		const r1 = ws.addRow([period]);
+		const r1 = ws.addRow([periodLabel]);
 		ws.mergeCells(r1.number, 1, r1.number, COLS);
 		r1.height = 28;
 		r1.getCell(1).style = {
@@ -331,7 +324,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 2: Report title ───────────────────────────────────────────────
 		const r2 = ws.addRow(["รายงานสินค้าต่ำกว่า Min Stock"]);
 		ws.mergeCells(r2.number, 1, r2.number, COLS);
 		r2.height = 22;
@@ -341,7 +333,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 3: Org name ───────────────────────────────────────────────────
 		const r3 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
 		ws.mergeCells(r3.number, 1, r3.number, COLS);
 		r3.height = 18;
@@ -351,7 +342,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 4: Meta info ──────────────────────────────────────────────────
 		const r4 = ws.addRow([`วันที่สร้างรายงาน: ${generatedAt}    |    หมวดหมู่: ${lsCategory}    |    คลัง: ${lsWarehouse}`]);
 		ws.mergeCells(r4.number, 1, r4.number, COLS);
 		r4.height = 16;
@@ -361,10 +351,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 5: Blank ──────────────────────────────────────────────────────
 		ws.addRow([]);
 
-		// ── Row: Column headers ───────────────────────────────────────────────
 		const headers = ["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "Min Stock", "จำนวนที่ขาด", "สถานะ"];
 		const hr = ws.addRow(headers);
 		hr.height = 22;
@@ -382,7 +370,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			};
 		});
 
-		// ── Data rows ─────────────────────────────────────────────────────────
 		lsFiltered.forEach((item, i) => {
 			const isOut = item.availableStock === 0;
 			const dr = ws.addRow([
@@ -411,7 +398,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			});
 		});
 
-		// ── Footer ────────────────────────────────────────────────────────────
 		ws.addRow([]);
 		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
 		ws.mergeCells(fr.number, 1, fr.number, COLS);
@@ -420,12 +406,11 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "right" },
 		};
 
-		// ── Download ──────────────────────────────────────────────────────────
 		const buf = await wb.xlsx.writeBuffer();
 		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a"); a.href = url;
-		a.download = `รายงานสต็อกต่ำ_${period.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+		a.download = `รายงานสต็อกต่ำ_${periodLabel.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 		a.click(); URL.revokeObjectURL(url);
 	};
 
@@ -449,12 +434,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			minStock: item.minStock.toLocaleString(), shortfall: item.shortfall.toLocaleString(),
 			status: item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่า Min",
 		}));
-		const period = fromYear === toYear && fromMonth === toMonth
-			? `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543}`
-			: `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – ${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
 		printAsPdf(
 			"รายงานสินค้าต่ำกว่า Min Stock",
-			`${lsCategory} | ${lsWarehouse} | ประจำ${period} | รวม ${lsFiltered.length} รายการ`,
+			`${lsCategory} | ${lsWarehouse} | ${periodLabel} | รวม ${lsFiltered.length} รายการ`,
 			columns, pdfRows,
 		);
 	};
@@ -466,33 +448,23 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		wb.created = new Date();
 
 		const ws = wb.addWorksheet("รายงานใกล้หมดอายุ");
-
-		const period = fromYear === toYear && fromMonth === toMonth
-			? `เดือน${THAI_MONTHS_FULL[fromMonth]} ปี ${fromYear + 543}`
-			: `เดือน${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – เดือน${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
 		const generatedAt = fmtDateLong(new Date());
-		const crit30  = neFiltered.filter((r) => (r.daysLeft ?? 999) <= 30).length;
-		const crit60  = neFiltered.filter((r) => (r.daysLeft ?? 999) > 30 && (r.daysLeft ?? 999) <= 60).length;
-		const crit90  = neFiltered.filter((r) => (r.daysLeft ?? 999) > 60).length;
-		const totalQty = neFiltered.reduce((s, r) => s + r.quantity, 0);
-
 		const COLS = 10;
 
 		ws.columns = [
-			{ width: 6 },   // #
-			{ width: 16 },  // รหัส LOT
-			{ width: 14 },  // รหัสรายการ
-			{ width: 32 },  // ชื่อพัสดุ
-			{ width: 18 },  // คลัง
-			{ width: 10 },  // จำนวน
-			{ width: 8 },   // หน่วย
-			{ width: 16 },  // วันหมดอายุ
-			{ width: 14 },  // คงเหลือ (วัน)
-			{ width: 16 },  // ระดับความเร่งด่วน
+			{ width: 6 },
+			{ width: 16 },
+			{ width: 14 },
+			{ width: 32 },
+			{ width: 18 },
+			{ width: 10 },
+			{ width: 8 },
+			{ width: 16 },
+			{ width: 14 },
+			{ width: 16 },
 		];
 
-		// ── Row 1: Period header ──────────────────────────────────────────────
-		const r1 = ws.addRow([period]);
+		const r1 = ws.addRow([periodLabel]);
 		ws.mergeCells(r1.number, 1, r1.number, COLS);
 		r1.height = 28;
 		r1.getCell(1).style = {
@@ -501,7 +473,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 2: Report title ───────────────────────────────────────────────
 		const r2 = ws.addRow([`รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`]);
 		ws.mergeCells(r2.number, 1, r2.number, COLS);
 		r2.height = 22;
@@ -511,7 +482,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 3: Org name ───────────────────────────────────────────────────
 		const r3 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
 		ws.mergeCells(r3.number, 1, r3.number, COLS);
 		r3.height = 18;
@@ -521,7 +491,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		// ── Row 4: Meta info ──────────────────────────────────────────────────
 		const r4 = ws.addRow([`วันที่สร้างรายงาน: ${generatedAt}    |    คลัง: ${neWarehouse}    |    ช่วงเวลา: ภายใน ${neDays} วัน`]);
 		ws.mergeCells(r4.number, 1, r4.number, COLS);
 		r4.height = 16;
@@ -533,8 +502,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 
 		ws.addRow([]);
 
-		// ── Column headers ────────────────────────────────────────────────────
-		const headers = ["#", "รหัส LOT", "รหัสรายการ", "ชื่อพัสดุ", "คลัง", "จำนวน", "หน่วย", "วันหมดอายุ", "คงเหลือ (วัน)", "ระดับความเร่งด่วน"];
+		const headers = ["#", "รหัส LOT", "รหัสรายการ", "ชื่อพัสดุ", "วันหมดอายุ", "คงเหลือ (วัน)", "ระดับความเร่งด่วน", "คลัง", "จำนวน", "หน่วย"];
 		const hr = ws.addRow(headers);
 		hr.height = 22;
 		hr.eachCell((cell) => {
@@ -551,7 +519,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			};
 		});
 
-		// ── Data rows ─────────────────────────────────────────────────────────
 		const urgencyConfig: Record<string, { bg: string; fg: string }> = {
 			"วิกฤต":      { bg: "FFFFEBEE", fg: "FFEF5350" },
 			"เฝ้าระวัง":  { bg: "FFFFF3E0", fg: "FFFB8C00" },
@@ -561,8 +528,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		neFiltered.forEach((r, i) => {
 			const urgency = (r.daysLeft ?? 999) <= 30 ? "วิกฤต" : (r.daysLeft ?? 999) <= 60 ? "เฝ้าระวัง" : "ปานกลาง";
 			const dr = ws.addRow([
-				i + 1, r.lotCode, r.itemCode, r.itemName, r.warehouse,
-				r.quantity, r.unit, fmtDate(r.expiredAt), r.daysLeft ?? "-", urgency,
+				i + 1, r.lotCode, r.itemCode, r.itemName,
+				fmtDate(r.expiredAt), r.daysLeft ?? "-", urgency, r.warehouse,
+				r.quantity, r.unit,
 			]);
 			dr.height = 18;
 			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
@@ -575,7 +543,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
 					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
 				};
-				if (col === 10) {
+				if (col === 7) {
 					const cfg = urgencyConfig[urgency];
 					cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: cfg.bg } };
 					cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: cfg.fg } };
@@ -584,7 +552,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			});
 		});
 
-		// ── Footer ────────────────────────────────────────────────────────────
 		ws.addRow([]);
 		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
 		ws.mergeCells(fr.number, 1, fr.number, COLS);
@@ -593,12 +560,11 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "right" },
 		};
 
-		// ── Download ──────────────────────────────────────────────────────────
 		const buf = await wb.xlsx.writeBuffer();
 		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a"); a.href = url;
-		a.download = `รายงานใกล้หมดอายุ_${period.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+		a.download = `รายงานใกล้หมดอายุ_${periodLabel.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 		a.click(); URL.revokeObjectURL(url);
 	};
 
@@ -608,22 +574,19 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			{ header: "รหัส LOT",   key: "lotCode" },
 			{ header: "รหัสรายการ", key: "itemCode" },
 			{ header: "ชื่อพัสดุ", key: "itemName" },
-			{ header: "คลัง",       key: "warehouse" },
-			{ header: "จำนวน",      key: "qty",       align: "right" },
 			{ header: "วันหมดอายุ", key: "dateFmt",   align: "center" },
 			{ header: "คงเหลือ",    key: "daysLabel", align: "center" },
+			{ header: "คลัง",       key: "warehouse" },
+			{ header: "จำนวน",      key: "qty",       align: "right" },
 		];
 		const pdfRows = neFiltered.map((r, i) => ({
 			_no: String(i + 1), lotCode: r.lotCode, itemCode: r.itemCode, itemName: r.itemName,
 			warehouse: r.warehouse, qty: r.quantity.toLocaleString() + " " + r.unit,
 			dateFmt: fmtDate(r.expiredAt), daysLabel: getUrgencyLabel(r.daysLeft),
 		}));
-		const period = fromYear === toYear && fromMonth === toMonth
-			? `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543}`
-			: `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – ${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
 		printAsPdf(
 			`รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`,
-			`${neWarehouse} | ประจำ${period}`,
+			`${neWarehouse} | ${periodLabel}`,
 			columns, pdfRows,
 		);
 	};
@@ -632,30 +595,20 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	useEffect(() => {
 		const handler = (e: MouseEvent) => {
 			const t = e.target as HTMLElement;
-			if (!t.closest("[data-filter-from-month]")) setIsFromMonthOpen(false);
-			if (!t.closest("[data-filter-from-year]"))  setIsFromYearOpen(false);
-			if (!t.closest("[data-filter-to-month]"))   setIsToMonthOpen(false);
-			if (!t.closest("[data-filter-to-year]"))    setIsToYearOpen(false);
-			if (!t.closest("[data-filter-ls-cat]"))     setIsCatOpen(false);
-			if (!t.closest("[data-filter-ls-wh]"))      setIsLsWhOpen(false);
-			if (!t.closest("[data-filter-ne-days]"))    setIsDaysOpen(false);
-			if (!t.closest("[data-filter-ne-wh]"))      setIsNeWhOpen(false);
+			if (!t.closest("[data-filter-ls-cat]")) setIsCatOpen(false);
+			if (!t.closest("[data-filter-ls-wh]"))  setIsLsWhOpen(false);
+			if (!t.closest("[data-filter-ne-days]")) setIsDaysOpen(false);
+			if (!t.closest("[data-filter-ne-wh]"))   setIsNeWhOpen(false);
 		};
 		document.addEventListener("mousedown", handler);
 		return () => document.removeEventListener("mousedown", handler);
 	}, []);
 
-	// ── Period label ───────────────────────────────────────────────────────────
-	const periodLabel = fromYear === toYear && fromMonth === toMonth
-		? `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543}`
-		: `${THAI_MONTHS_FULL[fromMonth]} ${fromYear + 543} – ${THAI_MONTHS_FULL[toMonth]} ${toYear + 543}`;
-
 	const printDate = fmtDateLong(new Date());
 
-	// ── Tabs config ────────────────────────────────────────────────────────────
 	const tabs: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number }[] = [
-		{ id: "low-stock",   label: "สต็อกต่ำกว่า Min Stock",   icon: <AlertTriangle className="w-4 h-4" />, badge: lsRows.length },
-		{ id: "near-expiry", label: "สินค้าใกล้หมดอายุ",         icon: <Clock className="w-4 h-4" />,       badge: neFetched ? neRows.length : undefined },
+		{ id: "low-stock",   label: "สต็อกต่ำกว่า Min Stock", icon: <AlertTriangle className="w-4 h-4" />, badge: lsRows.length },
+		{ id: "near-expiry", label: "สินค้าใกล้หมดอายุ",      icon: <Clock className="w-4 h-4" />,       badge: neFetched ? neRows.length : undefined },
 	];
 
 	return (
@@ -670,60 +623,11 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</div>
 						<div>
 							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานแจ้งเตือนสต็อก</h1>
-							<p className="text-sm text-slate-500 mt-0.5">
-								ระบบบริหารคลังสินค้า HPK &nbsp;·&nbsp; ประจำ{periodLabel} &nbsp;·&nbsp; พิมพ์วันที่ {printDate}
-							</p>
+							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK &nbsp;·&nbsp; พิมพ์วันที่ {printDate}</p>
 						</div>
 					</div>
 
-				<div className="flex items-center gap-2">
-					<CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
-
-					{/* From month */}
-					<Dropdown
-						dataAttr="filter-from-month"
-						value={THAI_MONTHS_FULL[fromMonth]}
-						options={THAI_MONTHS_FULL}
-						open={isFromMonthOpen}
-						onToggle={() => { setIsFromMonthOpen((o) => !o); setIsFromYearOpen(false); setIsToMonthOpen(false); setIsToYearOpen(false); }}
-						onChange={(v) => { setFromMonth(THAI_MONTHS_FULL.indexOf(v)); setIsFromMonthOpen(false); }}
-						minW="min-w-[120px]"
-					/>
-					{/* From year */}
-					<Dropdown
-						dataAttr="filter-from-year"
-						value={`ปี ${fromYear + 543}`}
-						options={yearOptions.map((y) => `ปี ${Number(y) + 543}`)}
-						open={isFromYearOpen}
-						onToggle={() => { setIsFromYearOpen((o) => !o); setIsFromMonthOpen(false); setIsToMonthOpen(false); setIsToYearOpen(false); }}
-						onChange={(v) => { setFromYear(Number(v.replace("ปี ", "")) - 543); setIsFromYearOpen(false); }}
-						minW="min-w-[100px]"
-					/>
-
-					<span className="text-slate-400 font-medium text-sm px-1">ถึง</span>
-
-					{/* To month */}
-					<Dropdown
-						dataAttr="filter-to-month"
-						value={THAI_MONTHS_FULL[toMonth]}
-						options={THAI_MONTHS_FULL}
-						open={isToMonthOpen}
-						onToggle={() => { setIsToMonthOpen((o) => !o); setIsToYearOpen(false); setIsFromMonthOpen(false); setIsFromYearOpen(false); }}
-						onChange={(v) => { setToMonth(THAI_MONTHS_FULL.indexOf(v)); setIsToMonthOpen(false); }}
-						minW="min-w-[120px]"
-					/>
-					{/* To year */}
-					<Dropdown
-						dataAttr="filter-to-year"
-						value={`ปี ${toYear + 543}`}
-						options={yearOptions.map((y) => `ปี ${Number(y) + 543}`)}
-						open={isToYearOpen}
-						onToggle={() => { setIsToYearOpen((o) => !o); setIsToMonthOpen(false); setIsFromMonthOpen(false); setIsFromYearOpen(false); }}
-						onChange={(v) => { setToYear(Number(v.replace("ปี ", "")) - 543); setIsToYearOpen(false); }}
-						minW="min-w-[100px]"
-					/>
-
-						{/* Refresh */}
+					<div className="flex items-center gap-2">
 						<button
 							type="button"
 							onClick={() => { loadLowStock(); setNeFetched(false); }}
@@ -734,7 +638,6 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 							<RefreshCw className={`w-4 h-4 ${lsFetching || neFetching ? "animate-spin" : ""}`} />
 							รีเฟรช
 						</button>
-
 						{onBack && (
 							<button
 								type="button"
@@ -780,55 +683,64 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 				{/* ═══ LOW STOCK TAB ══════════════════════════════════════════════ */}
 				{activeTab === "low-stock" && (
 					<div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+
 						{/* Toolbar */}
 						<div className="flex flex-wrap gap-3 items-center px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-							<div className="relative w-64">
+							<div className="relative w-72">
 								<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 								<input
 									type="text"
 									placeholder="ค้นหารหัส / ชื่อพัสดุ..."
 									value={lsSearch}
 									onChange={(e) => setLsSearch(e.target.value)}
-									className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none bg-white"
+									className="w-full h-10 rounded-lg border border-slate-300 py-0 pl-9 pr-4 text-sm leading-none shadow-sm outline-none bg-white focus:ring-2 focus:ring-blue-500 box-border"
 								/>
 							</div>
 
-							<Dropdown dataAttr="filter-ls-cat" value={lsCategory} options={lsCategoryOptions}
+							<Dropdown dataAttr="filter-ls-cat" value={lsCategory} options={categoryOptions}
 								open={isCatOpen}
 								onToggle={() => { setIsCatOpen((o) => !o); setIsLsWhOpen(false); }}
 								onChange={(v) => { setLsCategory(v); setIsCatOpen(false); }}
 								minW="min-w-[180px]"
 							/>
-							<Dropdown dataAttr="filter-ls-wh" value={lsWarehouse} options={lsWarehouseOptions}
+							<Dropdown dataAttr="filter-ls-wh" value={lsWarehouse} options={warehouseOptions}
 								open={isLsWhOpen}
 								onToggle={() => { setIsLsWhOpen((o) => !o); setIsCatOpen(false); }}
 								onChange={(v) => { setLsWarehouse(v); setIsLsWhOpen(false); }}
 								minW="min-w-[160px]"
 							/>
 
+							<div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+								<OutlinedDateField label="วันที่เริ่มต้น" value={dateFrom} onChange={setDateFrom} />
+								<OutlinedDateField label="วันที่สิ้นสุด"  value={dateTo}   onChange={setDateTo} />
+							</div>
+
 							<div className="ml-auto flex items-center gap-2">
-								{(lsSearch || lsCategory !== "หมวดหมู่ทั้งหมด" || lsWarehouse !== "ทุกคลัง") && (
+								{(lsSearch || lsCategory !== "หมวดหมู่ทั้งหมด" || lsWarehouse !== "ทุกคลัง" || dateFrom || dateTo) && (
 									<button type="button"
-										onClick={() => { setLsSearch(""); setLsCategory("หมวดหมู่ทั้งหมด"); setLsWarehouse("ทุกคลัง"); setLsPage(1); }}
-										className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm bg-white"
+										onClick={() => {
+											setLsSearch(""); setLsCategory("หมวดหมู่ทั้งหมด"); setLsWarehouse("ทุกคลัง");
+											setDateFrom(""); setDateTo(""); setLsPage(1);
+										}}
+										className="flex h-10 items-center gap-1.5 px-3 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm bg-white"
 									>
 										<X className="w-3.5 h-3.5" />ล้างตัวกรอง
 									</button>
 								)}
-							<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleLsExportXlsx()}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
-							</button>
-							<button type="button" title="Export PDF" onClick={handleLsExportPdf}
+								<button type="button" title="Export PDF" onClick={handleLsExportPdf}
 									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
 									<PdfIcon />
+								</button>
+								<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleLsExportXlsx()}
+									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
+									<XlsxIcon />
 								</button>
 							</div>
 						</div>
 
 						{/* Summary strip */}
 						<div className="flex items-center gap-6 px-5 py-3 bg-white border-b border-slate-100 text-sm">
-							<span className="text-slate-500">พบ <span className="font-bold text-slate-800">{lsFiltered.length}</span> รายการ</span>
+							<span className="text-slate-500">พบ <span className="font-semibold text-slate-800">{lsFiltered.length}</span> รายการ</span>
 							<span className="flex items-center gap-1.5 text-red-600">
 								<span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
 								หมดสต็อก: <strong>{lsFiltered.filter((i) => i.availableStock === 0).length}</strong>
@@ -840,48 +752,48 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</div>
 
 						{/* Table */}
-						<div className="relative overflow-auto" style={{ maxHeight: "52vh" }}>
+						<div className="relative w-full overflow-x-auto">
 							{lsFetching && (
 								<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
 									<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 								</div>
 							)}
 							<table className="w-full text-sm text-left table-fixed min-w-[900px]">
-								<thead className="bg-slate-700 text-white text-xs uppercase tracking-wide sticky top-0 z-10">
+								<thead className="bg-slate-50 text-slate-700 text-base font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 									<tr>
-										<th className="px-4 py-3 w-[46px] text-center">#</th>
-										<th className="px-4 py-3 w-[110px]">รหัสรายการ</th>
-										<th className="px-4 py-3 w-[220px]">ชื่อพัสดุ</th>
-										<th className="px-4 py-3 w-[140px]">หมวดหมู่</th>
-										<th className="px-4 py-3 w-[130px]">คลัง</th>
-										<th className="px-4 py-3 w-[100px] text-right">สต็อกใช้ได้</th>
-										<th className="px-4 py-3 w-[90px] text-right">Min Stock</th>
-										<th className="px-4 py-3 w-[80px] text-right">ขาด</th>
-										<th className="px-4 py-3 w-[80px]">หน่วย</th>
-										<th className="px-4 py-3 w-[120px] text-center">สถานะ</th>
+										<th className="px-4 py-4 w-[50px] text-center whitespace-nowrap">#</th>
+										<th className="px-4 py-4 w-[110px] whitespace-nowrap">รหัสรายการ</th>
+										<th className="px-4 py-4 w-[220px] whitespace-nowrap">ชื่อพัสดุ</th>
+										<th className="px-4 py-4 w-[140px] whitespace-nowrap">หมวดหมู่</th>
+										<th className="px-4 py-4 w-[130px] whitespace-nowrap">คลัง</th>
+										<th className="px-4 py-4 w-[100px] text-right whitespace-nowrap">สต็อกใช้ได้</th>
+										<th className="px-4 py-4 w-[90px] text-right whitespace-nowrap">Min Stock</th>
+										<th className="px-4 py-4 w-[80px] text-right whitespace-nowrap">ขาด</th>
+										<th className="px-4 py-4 w-[80px] whitespace-nowrap">หน่วย</th>
+										<th className="px-4 py-4 w-[120px] text-center whitespace-nowrap">สถานะ</th>
 									</tr>
 								</thead>
-								<tbody>
+								<tbody className="text-slate-600">
 									{lsPageItems.length > 0 ? lsPageItems.map((item, idx) => (
-										<tr key={item.id} className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
-											<td className="px-4 py-3 text-center text-slate-400 text-xs">{(lsPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+										<tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+											<td className="px-4 py-3 text-center text-slate-500">{(lsPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
 											<td className="px-4 py-3 font-mono text-slate-600 text-xs">{item.code}</td>
 											<td className="px-4 py-3 text-slate-700 font-medium truncate" title={item.name}>{item.name}</td>
 											<td className="px-4 py-3 text-slate-500 text-xs">{item.category}</td>
 											<td className="px-4 py-3 text-slate-500 text-xs">{item.warehouse}</td>
-											<td className={`px-4 py-3 text-right font-mono font-semibold tabular-nums text-xs ${item.availableStock === 0 ? "text-red-600" : "text-orange-500"}`}>
-												{item.availableStock.toLocaleString()}
+											<td className={`px-4 py-3 text-right font-mono font-bold tabular-nums text-base ${item.availableStock === 0 ? "text-red-600" : "text-orange-500"}`}>
+												{item.availableStock === 0 ? (item.availableStock > 0 ? "+" : "") : ""}{item.availableStock.toLocaleString()}
 											</td>
 											<td className="px-4 py-3 text-right font-mono text-slate-500 tabular-nums text-xs">{item.minStock.toLocaleString()}</td>
-											<td className="px-4 py-3 text-right font-mono text-blue-600 font-semibold tabular-nums text-xs">{item.shortfall.toLocaleString()}</td>
+											<td className="px-4 py-3 text-right font-mono text-blue-600 font-bold tabular-nums text-base">{item.shortfall.toLocaleString()}</td>
 											<td className="px-4 py-3 text-slate-500 text-xs">{item.unit}</td>
 											<td className="px-4 py-3 text-center">
 												{item.availableStock === 0 ? (
-													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
 														<span className="w-1.5 h-1.5 rounded-full bg-red-500" />หมดสต็อก
 													</span>
 												) : (
-													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
 														<span className="w-1.5 h-1.5 rounded-full bg-orange-400" />ต่ำกว่า Min
 													</span>
 												)}
@@ -920,16 +832,17 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 				{/* ═══ NEAR EXPIRY TAB ════════════════════════════════════════════ */}
 				{activeTab === "near-expiry" && (
 					<div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+
 						{/* Toolbar */}
 						<div className="flex flex-wrap gap-3 items-center px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-							<div className="relative w-64">
+							<div className="relative w-72">
 								<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
 								<input
 									type="text"
 									placeholder="ค้นหา LOT / รหัส / ชื่อพัสดุ..."
 									value={neSearch}
 									onChange={(e) => setNeSearch(e.target.value)}
-									className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none bg-white"
+									className="w-full h-10 rounded-lg border border-slate-300 py-0 pl-9 pr-4 text-sm leading-none shadow-sm outline-none bg-white focus:ring-2 focus:ring-blue-500 box-border"
 								/>
 							</div>
 
@@ -942,78 +855,83 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								icon={<Clock className="w-4 h-4" />}
 								minW="min-w-[160px]"
 							/>
-							<Dropdown dataAttr="filter-ne-wh" value={neWarehouse} options={neWarehouseOptions}
+							<Dropdown dataAttr="filter-ne-wh" value={neWarehouse} options={warehouseOptions}
 								open={isNeWhOpen}
 								onToggle={() => { setIsNeWhOpen((o) => !o); setIsDaysOpen(false); }}
 								onChange={(v) => { setNeWarehouse(v); setIsNeWhOpen(false); }}
 								minW="min-w-[160px]"
 							/>
 
+							<div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+								<OutlinedDateField label="วันหมดอายุ (ตั้งแต่)" value={dateFrom} onChange={setDateFrom} />
+								<OutlinedDateField label="วันหมดอายุ (ถึง)"     value={dateTo}   onChange={setDateTo} />
+							</div>
+
 							<div className="ml-auto flex items-center gap-2">
-								{(neSearch || neWarehouse !== "ทุกคลัง") && (
+								{(neSearch || neWarehouse !== "ทุกคลัง" || dateFrom || dateTo) && (
 									<button type="button"
-										onClick={() => { setNeSearch(""); setNeWarehouse("ทุกคลัง"); setNePage(1); }}
-										className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm bg-white"
+										onClick={() => { setNeSearch(""); setNeWarehouse("ทุกคลัง"); setDateFrom(""); setDateTo(""); setNePage(1); }}
+										className="flex h-10 items-center gap-1.5 px-3 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm bg-white"
 									>
 										<X className="w-3.5 h-3.5" />ล้างตัวกรอง
 									</button>
 								)}
-							<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleNeExportXlsx()}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
-							</button>
-							<button type="button" title="Export PDF" onClick={handleNeExportPdf}
+								<button type="button" title="Export PDF" onClick={handleNeExportPdf}
 									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
 									<PdfIcon />
+								</button>
+								<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleNeExportXlsx()}
+									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
+									<XlsxIcon />
 								</button>
 							</div>
 						</div>
 
 						{/* Summary strip */}
 						<div className="flex items-center gap-6 px-5 py-3 bg-white border-b border-slate-100 text-sm">
-							<span className="text-slate-500">พบ <span className="font-bold text-slate-800">{neFiltered.length}</span> LOT</span>
+							<span className="text-slate-500">พบ <span className="font-semibold text-slate-800">{neFiltered.length}</span> LOT</span>
 							<span className="flex items-center gap-1.5 text-red-600"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />≤30 วัน: <strong>{neFiltered.filter((r) => (r.daysLeft ?? 999) <= 30).length}</strong></span>
 							<span className="flex items-center gap-1.5 text-orange-500"><span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-400" />31–60 วัน: <strong>{neFiltered.filter((r) => (r.daysLeft ?? 999) > 30 && (r.daysLeft ?? 999) <= 60).length}</strong></span>
 							<span className="flex items-center gap-1.5 text-yellow-600"><span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400" />61–90 วัน: <strong>{neFiltered.filter((r) => (r.daysLeft ?? 999) > 60).length}</strong></span>
 						</div>
 
 						{/* Table */}
-						<div className="relative overflow-auto" style={{ maxHeight: "52vh" }}>
+						<div className="relative w-full overflow-x-auto">
 							{neFetching && (
 								<div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center">
 									<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 								</div>
 							)}
 							<table className="w-full text-sm text-left table-fixed min-w-[880px]">
-								<thead className="bg-slate-700 text-white text-xs uppercase tracking-wide sticky top-0 z-10">
+								<thead className="bg-slate-50 text-slate-700 text-base font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 									<tr>
-										<th className="px-4 py-3 w-[46px] text-center">#</th>
-										<th className="px-4 py-3 w-[120px]">รหัส LOT</th>
-										<th className="px-4 py-3 w-[110px]">รหัสรายการ</th>
-										<th className="px-4 py-3 w-[220px]">ชื่อพัสดุ</th>
-										<th className="px-4 py-3 w-[140px]">คลัง</th>
-										<th className="px-4 py-3 w-[80px] text-right">จำนวน</th>
-										<th className="px-4 py-3 w-[70px]">หน่วย</th>
-										<th className="px-4 py-3 w-[120px] text-center">วันหมดอายุ</th>
-										<th className="px-4 py-3 w-[130px] text-center">ความเร่งด่วน</th>
+										<th className="px-4 py-4 w-[50px] text-center whitespace-nowrap">#</th>
+										<th className="px-4 py-4 w-[120px] whitespace-nowrap">รหัส LOT</th>
+										<th className="px-4 py-4 w-[110px] whitespace-nowrap">รหัสรายการ</th>
+										<th className="px-4 py-4 w-[220px] whitespace-nowrap">ชื่อพัสดุ</th>
+										<th className="px-4 py-4 w-[120px] text-center whitespace-nowrap">วันหมดอายุ</th>
+										<th className="px-4 py-4 w-[130px] text-center whitespace-nowrap">ความเร่งด่วน</th>
+										<th className="px-4 py-4 w-[140px] whitespace-nowrap">คลัง</th>
+										<th className="px-4 py-4 w-[80px] text-right whitespace-nowrap">จำนวน</th>
+										<th className="px-4 py-4 w-[70px] whitespace-nowrap">หน่วย</th>
 									</tr>
 								</thead>
-								<tbody>
+								<tbody className="text-slate-600">
 									{nePageItems.length > 0 ? nePageItems.map((r, idx) => (
-										<tr key={r.id} className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
-											<td className="px-4 py-3 text-center text-slate-400 text-xs">{(nePage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+										<tr key={r.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+											<td className="px-4 py-3 text-center text-slate-500">{(nePage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
 											<td className="px-4 py-3 font-mono text-slate-600 text-xs">{r.lotCode}</td>
 											<td className="px-4 py-3 font-mono text-slate-600 text-xs">{r.itemCode}</td>
 											<td className="px-4 py-3 text-slate-700 font-medium truncate" title={r.itemName}>{r.itemName}</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{r.warehouse}</td>
-											<td className="px-4 py-3 text-right font-mono text-slate-700 tabular-nums text-xs font-semibold">{r.quantity.toLocaleString()}</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{r.unit}</td>
 											<td className="px-4 py-3 text-center font-mono text-slate-600 text-xs">{fmtDate(r.expiredAt)}</td>
 											<td className="px-4 py-3 text-center">
-												<span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${getUrgencyColor(r.daysLeft)} border-transparent`}>
+												<span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border border-transparent ${getUrgencyColor(r.daysLeft)}`}>
 													{getUrgencyLabel(r.daysLeft)}
 												</span>
 											</td>
+											<td className="px-4 py-3 text-slate-500 text-xs">{r.warehouse}</td>
+											<td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-base text-slate-700">{r.quantity.toLocaleString()}</td>
+											<td className="px-4 py-3 text-slate-500 text-xs">{r.unit}</td>
 										</tr>
 									)) : (
 										<tr>
@@ -1049,7 +967,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			{/* ── Page Footer ──────────────────────────────────────────────────── */}
 			<div className="border-t border-slate-200 bg-white px-8 py-3">
 				<p className="text-xs text-slate-400 text-center">
-					HPK Warehouse Management System &nbsp;·&nbsp; รายงานแจ้งเตือนสต็อก &nbsp;·&nbsp; ประจำ{periodLabel}
+					HPK Warehouse Management System &nbsp;·&nbsp; รายงานแจ้งเตือนสต็อก &nbsp;·&nbsp; {periodLabel}
 				</p>
 			</div>
 		</div>

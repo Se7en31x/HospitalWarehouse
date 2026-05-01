@@ -2,28 +2,40 @@
 
 import React, { useState } from "react";
 import { type ReportPage } from "./ReportTypeSelector";
-import RequisitionReportClient from "./RequisitionReportClient";
-import StockBalanceReportClient from "./StockBalanceReportClient";
-import ItemsReportClient from "./ItemsReportClient";
-import LowStockReportClient from "./LowStockReportClient";
-import AssetReportClient from "./AssetReportClient";
-import ReusableItemsReportClient from "./ReusableItemsReportClient";
-import InventoryBalanceReportClient from "./InventoryBalanceReportClient";
-import ReceiveReportClient from "./ReceiveReportClient";
+import RequisitionReportClient from "../_clients/requisition/RequisitionReportClient";
+import StockBalanceReportClient from "../_clients/inventory/StockBalanceReportClient";
+import ItemsReportClient from "../_clients/inventory/ItemsReportClient";
+import LowStockReportClient from "../_clients/inventory/LowStockReportClient";
+import AssetReportClient from "../_clients/assets/AssetReportClient";
+import ReusableItemsReportClient from "../_clients/assets/ReusableItemsReportClient";
+import InventoryBalanceReportClient from "../_clients/inventory/InventoryBalanceReportClient";
+import ReceiveReportClient from "../_clients/receive/ReceiveReportClient";
+import ItemRankingReportClient from "../_clients/inventory/ItemRankingReportClient";
+import InventoryValueReportClient from "../_clients/inventory/InventoryValueReportClient";
+import ExpiredLotsReportClient from "../_clients/inventory/ExpiredLotsReportClient";
+import DeptConsumptionReportClient from "../_clients/requisition/DeptConsumptionReportClient";
+import ReturnConditionReportClient from "../_clients/requisition/ReturnConditionReportClient";
+import OverdueBorrowReportClient from "../_clients/requisition/OverdueBorrowReportClient";
 import { type Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
 import {
-  Boxes,            // all-items  — physical stock boxes
-  Activity,         // stock-balance — live movement activity
-  Warehouse,        // inventory-balance — per-warehouse view
-  ShieldAlert,      // low-stock — warning / urgency
-  ReceiptText,      // requisition — request document
-  Cpu,              // assets — hardware / fixed assets
-  RotateCcw,        // reusable-items — reuse / cycle
-  PackagePlus,      // receive-report — incoming stock
+  Boxes,
+  Activity,
+  Warehouse,
+  ShieldAlert,
+  ReceiptText,
+  Cpu,
+  RotateCcw,
+  PackagePlus,
   ArrowUpRight,
   FileBarChart,
+  TrendingUp,
+  Banknote,
+  CalendarX,
+  Users,
+  PackageCheck,
+  Clock,
 } from "lucide-react";
 
 interface ReportsWrapperProps {
@@ -72,8 +84,8 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานสินค้าทั้งหมด",
         description: "ดูรายการสินค้าทั้งหมดพร้อมตัวกรองหมวดหมู่และคลัง",
         icon: Boxes,
-        iconBg: "bg-blue-50",
-        iconColor: "text-blue-600",
+        iconBg: "bg-blue-600",
+        iconColor: "text-white",
         countKey: "totalItems",
         badgeBg: "bg-blue-50",
         badgeText: "text-blue-700",
@@ -83,8 +95,8 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานความเคลื่อนไหวสต็อก",
         description: "ติดตามการเคลื่อนไหวสต็อกทั้งหมด รับเข้า จ่ายออก และปรับปรุง",
         icon: Activity,
-        iconBg: "bg-sky-50",
-        iconColor: "text-sky-600",
+        iconBg: "bg-sky-600",
+        iconColor: "text-white",
         countKey: null,
         badgeBg: "",
         badgeText: "",
@@ -94,8 +106,8 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานคงคลังรายคลัง",
         description: "สรุปสต็อกแยกตามคลัง พร้อมดูรายละเอียดสินค้าแต่ละคลัง",
         icon: Warehouse,
-        iconBg: "bg-teal-50",
-        iconColor: "text-teal-600",
+        iconBg: "bg-teal-600",
+        iconColor: "text-white",
         countKey: null,
         badgeBg: "",
         badgeText: "",
@@ -105,11 +117,44 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานสต็อกต่ำ & ใกล้หมดอายุ",
         description: "ดูสินค้าที่ต่ำกว่า Min Stock และล็อตที่ใกล้หมดอายุในหน้าเดียว",
         icon: ShieldAlert,
-        iconBg: "bg-orange-50",
-        iconColor: "text-orange-600",
+        iconBg: "bg-orange-600",
+        iconColor: "text-white",
         countKey: "lowStockCount",
         badgeBg: "bg-orange-50",
         badgeText: "text-orange-700",
+      },
+      {
+        id: "expired-lots",
+        label: "รายงานล็อตหมดอายุ",
+        description: "ตรวจสอบล็อตสินค้าที่หมดอายุแล้วหรือใกล้หมดอายุ",
+        icon: CalendarX,
+        iconBg: "bg-red-600",
+        iconColor: "text-white",
+        countKey: null,
+        badgeBg: "",
+        badgeText: "",
+      },
+      {
+        id: "item-ranking",
+        label: "รายงานอันดับสินค้าที่ใช้บ่อย",
+        description: "จัดอันดับสินค้าตามปริมาณการเบิกจ่าย",
+        icon: TrendingUp,
+        iconBg: "bg-indigo-600",
+        iconColor: "text-white",
+        countKey: null,
+        badgeBg: "",
+        badgeText: "",
+      },
+      {
+        id: "inventory-value",
+        label: "รายงานมูลค่าคงคลัง",
+        description: "สรุปมูลค่าสินค้าในคลังแยกตามหมวดหมู่และคลัง",
+        icon: Banknote,
+        iconBg: "bg-green-600",
+        iconColor: "text-white",
+        countKey: null,
+        badgeBg: "",
+        badgeText: "",
       },
     ],
   },
@@ -121,11 +166,11 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานการรับสินค้าเข้าคลัง",
         description: "ดูรายการรับสินค้าทั้งหมด พร้อมจำนวนในใบกำกับ จำนวนรับจริง และราคาต่อหน่วย",
         icon: PackagePlus,
-        iconBg: "bg-blue-50",
-        iconColor: "text-blue-600",
+        iconBg: "bg-emerald-600",
+        iconColor: "text-white",
         countKey: "totalReceives",
-        badgeBg: "bg-blue-50",
-        badgeText: "text-blue-700",
+        badgeBg: "bg-emerald-50",
+        badgeText: "text-emerald-700",
       },
     ],
   },
@@ -137,11 +182,44 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานคำขอเบิก/ยืม",
         description: "แยกดูคำขอเบิกและยืมตามฟิลเตอร์สถานะ",
         icon: ReceiptText,
-        iconBg: "bg-violet-50",
-        iconColor: "text-violet-600",
+        iconBg: "bg-violet-600",
+        iconColor: "text-white",
         countKey: "totalRequisitions",
         badgeBg: "bg-violet-50",
         badgeText: "text-violet-700",
+      },
+      {
+        id: "dept-consumption",
+        label: "รายงานการใช้สินค้าแยกแผนก",
+        description: "สรุปปริมาณการเบิกสินค้าแยกตามแผนกในช่วงเวลาที่กำหนด",
+        icon: Users,
+        iconBg: "bg-sky-600",
+        iconColor: "text-white",
+        countKey: null,
+        badgeBg: "",
+        badgeText: "",
+      },
+      {
+        id: "return-condition",
+        label: "รายงานสภาพสินค้าที่คืน",
+        description: "ตรวจสอบสภาพของสินค้าที่ถูกส่งคืนจากแผนกต่าง ๆ",
+        icon: PackageCheck,
+        iconBg: "bg-cyan-600",
+        iconColor: "text-white",
+        countKey: null,
+        badgeBg: "",
+        badgeText: "",
+      },
+      {
+        id: "overdue-borrow",
+        label: "รายงานการยืมเกินกำหนด",
+        description: "ดูรายการยืมที่เลยกำหนดคืนและยังไม่ได้ส่งคืน",
+        icon: Clock,
+        iconBg: "bg-rose-600",
+        iconColor: "text-white",
+        countKey: null,
+        badgeBg: "",
+        badgeText: "",
       },
     ],
   },
@@ -153,8 +231,8 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานครุภัณฑ์",
         description: "ตรวจสอบสถานะและที่ตั้งของครุภัณฑ์แยกตามแผนก",
         icon: Cpu,
-        iconBg: "bg-purple-50",
-        iconColor: "text-purple-600",
+        iconBg: "bg-purple-600",
+        iconColor: "text-white",
         countKey: null,
         badgeBg: "",
         badgeText: "",
@@ -164,8 +242,8 @@ const reportGroups: ReportGroup[] = [
         label: "รายงานของใช้ซ้ำรายชิ้น",
         description: "ดูสถานะและสภาพของสินค้าประเภทใช้ซ้ำแยกตามแผนก",
         icon: RotateCcw,
-        iconBg: "bg-emerald-50",
-        iconColor: "text-emerald-600",
+        iconBg: "bg-amber-600",
+        iconColor: "text-white",
         countKey: null,
         badgeBg: "",
         badgeText: "",
@@ -196,7 +274,7 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
   const renderReportContent = () => {
     switch (selectedType) {
       case "all-items":
-        return <ItemsReportClient initialItems={initialItems} onBack={handleBackToSelector} />;
+        return <ItemsReportClient onBack={handleBackToSelector} />;
       case "low-stock":
         return (
           <LowStockReportClient
@@ -215,6 +293,18 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
         return <ReusableItemsReportClient onBack={handleBackToSelector} />;
       case "receive-report":
         return <ReceiveReportClient onBack={handleBackToSelector} />;
+      case "item-ranking":
+        return <ItemRankingReportClient onBack={handleBackToSelector} />;
+      case "inventory-value":
+        return <InventoryValueReportClient onBack={handleBackToSelector} />;
+      case "expired-lots":
+        return <ExpiredLotsReportClient onBack={handleBackToSelector} />;
+      case "dept-consumption":
+        return <DeptConsumptionReportClient onBack={handleBackToSelector} />;
+      case "return-condition":
+        return <ReturnConditionReportClient onBack={handleBackToSelector} />;
+      case "overdue-borrow":
+        return <OverdueBorrowReportClient onBack={handleBackToSelector} />;
       default:
         return null;
     }
@@ -223,7 +313,7 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
   // ── Selector screen ──────────────────────────────────────────────────────────
   if (showSelector) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-[#fafafa]">
         <div className="w-full px-6 py-8">
 
           {/* ── Page header ─────────────────────────────────────────────── */}
@@ -261,14 +351,17 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
                         key={report.id}
                         type="button"
                         onClick={() => handleSelectType(report.id)}
-                        className="group relative flex flex-col text-left bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-xl hover:border-[#0055FF] overflow-hidden transition-all duration-200 cursor-pointer"
+                        className="group relative flex flex-col text-left bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg overflow-hidden transition-all duration-200 cursor-pointer"
                       >
+                        {/* Colored top stripe */}
+                        <div className={`absolute top-0 left-0 right-0 h-1 ${report.iconBg}`} />
+
                         {/* Top row: icon + ArrowUpRight */}
-                        <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-start justify-between mb-4 mt-1">
                           <div className={`p-3 rounded-xl ${report.iconBg}`}>
                             <Icon className={`w-6 h-6 ${report.iconColor}`} />
                           </div>
-                          <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-[#0055FF] transition-colors duration-200 mt-0.5" />
+                          <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-slate-600 transition-colors duration-200 mt-0.5" />
                         </div>
 
                         {/* Title */}

@@ -12,7 +12,13 @@ export type ReportPage =
 	| "low-stock"
 	| "assets"
 	| "reusable-items"
-	| "receive-report";
+	| "receive-report"
+	| "item-ranking"
+	| "inventory-value"
+	| "expired-lots"
+	| "dept-consumption"
+	| "return-condition"
+	| "overdue-borrow";
 
 interface ReportTypeSelectorProps {
 	onSelectType: (type: ReportPage) => void;

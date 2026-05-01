@@ -253,7 +253,13 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
+          <div className="p-3 bg-blue-600 rounded-xl">
+            <Package className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ค้นหา เพิ่ม และจัดการพัสดุในคลังสินค้า</p>
+          </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {selectedItems.size > 0 && (

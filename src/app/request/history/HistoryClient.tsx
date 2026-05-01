@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
-  Search, ChevronLeft, ChevronRight, Eye, Package, Loader2, ChevronDown,
+  Search, ChevronLeft, ChevronRight, Eye, Package, Loader2, ChevronDown, Clock,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -167,7 +167,15 @@ export default function HistoryClient() {
       <Toaster position="top-right" />
 
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ประวัติการทำรายการ</h2>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-slate-600 rounded-xl">
+            <Clock className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ประวัติการทำรายการ</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ดูรายการคำขอทั้งหมดและติดตามสถานะการดำเนินการ</p>
+          </div>
+        </div>
       </div>
 
       {/* Search + Type */}
@@ -270,10 +278,10 @@ export default function HistoryClient() {
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => router.push(`/request/history/${r.id}`)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
                         title="ดูรายละเอียด"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-5 h-5" />
                       </button>
                     </div>
                   </td>

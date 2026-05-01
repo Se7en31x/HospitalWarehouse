@@ -10,6 +10,7 @@ import {
   Package,
   X,
   StickyNote,
+  Activity,
 } from "lucide-react";
 import { fmtDateTime } from "@/utils/dateUtils";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
@@ -146,7 +147,15 @@ const StockMovementClient = () => {
   return (
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">การเคลื่อนไหวสต็อก</h2>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-cyan-600 rounded-xl">
+            <Activity className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">การเคลื่อนไหวสต็อก</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ดูประวัติการรับเข้า-จ่ายออกสต็อกทั้งหมดในระบบ</p>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -446,32 +455,59 @@ function NotePopover({ id, note, isOpen, onToggle, onClose }: {
   onToggle: () => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({
+    position: "fixed",
+    visibility: "hidden",
+    zIndex: 9999,
+  });
   const { action, parts } = parseNoteParts(note);
   const allParts = action ? [action, ...parts] : parts;
 
   useEffect(() => {
+    if (!isOpen || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const popoverWidth = 288;
+    let left = rect.right - popoverWidth;
+    if (left < 8) left = 8;
+    setPopoverStyle({
+      position: "fixed",
+      top: rect.bottom + 6,
+      left,
+      width: popoverWidth,
+      zIndex: 9999,
+      visibility: "visible",
+    });
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isOpen) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (
+        btnRef.current && !btnRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) onClose();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen, onClose]);
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div className="relative inline-block">
       <button
+        ref={btnRef}
         type="button"
         onClick={onToggle}
-        className={`inline-flex p-2 rounded-lg transition-all ${isOpen ? "bg-blue-100 text-blue-700" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}
+        className={`inline-flex p-1.5 rounded-md border shadow-sm transition-colors ${isOpen ? "bg-blue-50 text-blue-700 border-blue-300" : "bg-white text-blue-600 hover:bg-blue-50 border-blue-200"}`}
         title="ดูบันทึก"
       >
-        <StickyNote className="w-4 h-4" />
+        <StickyNote className="w-5 h-5" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+        <div ref={popoverRef} style={popoverStyle} className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
           {allParts.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-400 italic">ไม่มีบันทึก</p>
           ) : (

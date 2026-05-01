@@ -6,6 +6,7 @@ import {
   Plus,
   Ruler,
   Settings,
+  Settings2,
   Warehouse as WarehouseIcon,
   Truck,
   Pencil,
@@ -458,7 +459,13 @@ export default function SettingsClient({
     <div className="flex flex-col min-h-screen bg-[#fafafa] p-3 sm:p-4 md:p-6 lg:p-8">
       {/* Header Section */}
       <div className="flex items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">ตั้งค่าระบบ</h1>
+        <div className="p-3 bg-slate-600 rounded-xl">
+          <Settings2 className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">ตั้งค่าระบบ</h1>
+          <p className="text-sm text-slate-500 mt-0.5">จัดการคลังสินค้า หมวดหมู่ หน่วยนับ และผู้ใช้งาน</p>
+        </div>
       </div>
 
       {/* Tabs */}

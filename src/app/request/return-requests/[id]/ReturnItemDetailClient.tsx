@@ -9,6 +9,7 @@ import {
   AlertCircle,
   X,
   Eye,
+  FileText,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
@@ -297,12 +298,18 @@ export default function ReturnItemDetailClient() {
         <RequestedUnitsModal item={unitsModalItem} onClose={() => setUnitsModalItem(null)} />
       ) : null}
 
-      <div className="w-full max-w-5xl mx-auto px-6 py-6 flex flex-col flex-1">
+      <div className="w-full px-6 py-6 flex flex-col flex-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
-              รายละเอียดคำขอคืน
-            </h1>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-600 rounded-lg shrink-0">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
+                รายละเอียดคำขอคืน
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">ดูรายละเอียดและติดตามสถานะคำขอคืนอุปกรณ์</p>
+            </div>
           </div>
           <button
             type="button"
@@ -316,146 +323,110 @@ export default function ReturnItemDetailClient() {
         <div className="space-y-4 flex-1">
           {/* ข้อมูลคำขอคืน */}
           <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
+            <div className="px-5 py-4 border-b border-slate-200">
               <h2 className="text-lg font-bold text-gray-900">ข้อมูลคำขอคืน</h2>
+              <p className="text-xs text-slate-500 mt-0.5">ผู้ดำเนินเรื่อง: {displayOrDash(detail.requested_by_name ?? detail.requested_by)}</p>
             </div>
-            <div className="px-5 sm:px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-5">
+            <div className="px-5 py-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-5">
               <DetailFieldRow
                 label="เลขที่คำขอ"
                 value={detail.doc_no}
                 valueClassName="font-mono font-medium text-slate-800"
               />
-              <DetailFieldRow
-                label="แผนก"
-                value={displayOrDash(detail.department_name)}
-              />
+              <DetailFieldRow label="แผนก" value={displayOrDash(detail.department_name)} />
               <div>
                 <p className="text-sm font-bold text-gray-900 mb-1">สถานะ</p>
-                <span
-                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold items-center gap-1 ${getStatusBadgeColor(detail.status)}`}
-                >
+                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold items-center gap-1 ${getStatusBadgeColor(detail.status)}`}>
                   {getStatusIcon(detail.status)}
                   {getStatusLabel(detail.status)}
                 </span>
               </div>
-              <DetailFieldRow
-                label="วันที่สร้าง"
-                value={fmtDateTime(detail.created_at)}
-              />
-              {detail.requested_by_name || detail.requested_by ? (
-                <DetailFieldRow
-                  label="ผู้แจ้งคำขอ"
-                  value={displayOrDash(
-                    detail.requested_by_name ?? detail.requested_by
-                  )}
-                />
-              ) : null}
-              {detail.preferred_pickup_at ? (
-                <DetailFieldRow
-                  label="วันเวลานัดรับของ"
-                  value={fmtDateTime(detail.preferred_pickup_at)}
-                />
-              ) : null}
+              <DetailFieldRow label="วันที่สร้าง" value={fmtDateTime(detail.created_at)} />
+              {(detail.requested_by_name || detail.requested_by) && (
+                <DetailFieldRow label="ผู้แจ้งคำขอ" value={displayOrDash(detail.requested_by_name ?? detail.requested_by)} />
+              )}
+              {detail.preferred_pickup_at && (
+                <DetailFieldRow label="วันเวลานัดรับของ" value={fmtDateTime(detail.preferred_pickup_at)} />
+              )}
             </div>
-            {detail.note ? (
-              <div className="px-5 sm:px-6 py-4 border-t border-slate-100">
+            {detail.note && (
+              <div className="px-5 py-4 border-t border-slate-100">
                 <DetailFieldRow label="หมายเหตุ" value={detail.note} />
               </div>
-            ) : null}
+            )}
           </section>
 
           {/* รายการครุภัณฑ์ */}
           <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 sm:px-6 py-4 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-gray-900">
-                รายการครุภัณฑ์
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                ทั้งหมด {itemCount} รายการ
-              </p>
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-gray-900">รายการครุภัณฑ์</h2>
+              <p className="text-xs text-slate-500 mt-0.5">ทั้งหมด {itemCount} รายการ</p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] table-auto border-collapse">
+              <table className="w-full table-fixed border-collapse">
+                <colgroup>
+                  <col style={{ width: "52px" }} />
+                  <col style={{ width: "150px" }} />
+                  <col style={{ width: "400px" }} />
+                  <col style={{ width: "160px" }} />
+                  <col style={{ width: "90px" }} />
+                  <col style={{ width: "100px" }} />
+                </colgroup>
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5 w-14">
-                      #
-                    </th>
-                    <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
-                      รหัส
-                    </th>
-                    <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 min-w-[10rem]">
-                      รายการ
-                    </th>
-                    <th className="text-left text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
-                      หมวดหมู่
-                    </th>
-                    <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5 whitespace-nowrap">
-                      จำนวน
-                    </th>
-                    <th className="text-center text-base font-bold text-slate-800 px-4 py-3.5 min-w-[10rem]">
-                      ตรวจสอบ
-                    </th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-4 py-4">#</th>
+                    <th className="text-left text-sm font-bold text-slate-700 px-4 py-4">รหัส</th>
+                    <th className="text-left text-sm font-bold text-slate-700 px-4 py-4">รายการ</th>
+                    <th className="text-left text-sm font-bold text-slate-700 px-4 py-4">หมวดหมู่</th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-4 py-4">จำนวน</th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-4 py-4">ตรวจสอบ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(detail.items ?? []).map((item, idx) => {
                     const nUnits = unitCountForItem(item);
                     return (
-                    <tr
-                      key={`${item.item_id}-${idx}`}
-                      className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/40 transition-colors"
-                    >
-                      <td className="px-4 py-3.5 text-center text-sm font-medium text-slate-500 align-middle">
-                        {idx + 1}
-                      </td>
-                      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                        <span className="font-mono text-sm font-medium text-slate-800">
-                          {item.item_code || "—"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 align-middle min-w-[10rem] max-w-md">
-                        <p className="text-sm font-medium text-slate-800 leading-snug">
-                          {item.item_name || "—"}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                        <span className="text-sm font-medium text-slate-600">
-                          {item.category_name || "—"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
-                        <span className="text-sm font-semibold text-blue-600">
-                          {item.requested_qty}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 align-middle text-center">
-                        {nUnits <= 0 ? (
-                          <span className="text-sm text-slate-400">—</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setUnitsModalItem(item)}
-                            className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
-                            title={nUnits > 1 ? `ดูหน่วยทั้งหมด (${nUnits} หน่วย)` : "ดูหน่วย"}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
+                      <tr
+                        key={`${item.item_id}-${idx}`}
+                        className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors"
+                        style={{ height: "64px" }}
+                      >
+                        <td className="px-4 py-4 text-center text-sm text-slate-400 align-middle">{idx + 1}</td>
+                        <td className="px-4 py-4 align-middle">
+                          <span className="font-mono text-sm font-medium text-slate-800 truncate block">{item.item_code || "—"}</span>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <p className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">{item.item_name || "—"}</p>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <span className="text-sm font-medium text-slate-600 truncate block">{item.category_name || "—"}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <span className="text-sm font-semibold text-blue-600">{item.requested_qty}</span>
+                        </td>
+                        <td className="px-4 py-4 align-middle text-center">
+                          {nUnits <= 0 ? (
+                            <span className="text-sm text-slate-300">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setUnitsModalItem(item)}
+                              className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
+                              title={nUnits > 1 ? `ดูหน่วยทั้งหมด (${nUnits} หน่วย)` : "ดูหน่วย"}
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
                   })}
                   {itemCount === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-0">
-                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
-                          <Package className="w-12 h-12 text-slate-200" />
-                          <p className="text-sm font-medium text-slate-500">
-                            ไม่พบรายการ
-                          </p>
-                        </div>
+                      <td colSpan={6} className="px-6 py-16 text-center">
+                        <Package className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-slate-500">ไม่พบรายการ</p>
                       </td>
                     </tr>
                   )}

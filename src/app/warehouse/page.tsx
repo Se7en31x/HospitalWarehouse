@@ -20,7 +20,6 @@ import {
   CalendarX,
   ClipboardList,
   PackageMinus,
-  Building2,
   Truck,
   ArrowDownToLine,
   Loader2,
@@ -473,7 +472,7 @@ export default function WarehouseDashboard() {
         </div>
       </div>
 
-      {/* KPI หลัก */}
+      {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           icon={Package}
@@ -504,10 +503,6 @@ export default function WarehouseDashboard() {
           iconBg="bg-emerald-500"
           valueClass="text-emerald-800"
         />
-      </div>
-
-      {/* KPI รอง */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <StatCard
           icon={CalendarClock}
           label="ล็อตใกล้หมดอายุ"
@@ -524,21 +519,12 @@ export default function WarehouseDashboard() {
           valueClass="text-violet-900"
         />
         <StatCard
-          icon={Building2}
-          label="จำนวนแผนกทั้งหมด"
-          value={summary?.totalDepartments ?? 0}
-          iconBg="bg-cyan-600"
-          valueClass="text-cyan-900"
+          icon={Truck}
+          label="จำนวนผู้จำหน่ายทั้งหมด"
+          value={summary?.totalSuppliers ?? 0}
+          iconBg="bg-indigo-500"
+          valueClass="text-indigo-900"
         />
-        <div className="col-span-2 lg:col-span-1">
-          <StatCard
-            icon={Truck}
-            label="จำนวนผู้จำหน่ายทั้งหมด"
-            value={summary?.totalSuppliers ?? 0}
-            iconBg="bg-indigo-500"
-            valueClass="text-indigo-900"
-          />
-        </div>
       </div>
 
       {/* กราฟ */}

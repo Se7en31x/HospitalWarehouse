@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Search, Plus, ShoppingCart, Package, ChevronLeft, ChevronRight, ChevronDown, X, Printer } from "lucide-react";
+import { Search, Plus, ShoppingCart, Package, ChevronLeft, ChevronRight, ChevronDown, X } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as ItemSvc from "@/services/itemsService";
@@ -9,7 +9,6 @@ import * as Item from "@/types/items_type";
 import { useAuth } from "@/hooks/useAuth";
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { printLabels, type LabelData } from "@/lib/printLabel";
 import CartModal from "./CartModal";
 import ItemDetailModal from "./ItemDetailModal";
 
@@ -54,10 +53,8 @@ export default function WithdrawClient({ initialItems }: Props) {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("หมวดหมู่ทั้งหมด");
-  const [selectedStatus, setSelectedStatus] = useState("สถานะทั้งหมด");
   const [selectedLocation, setSelectedLocation] = useState("ตำแหน่งทั้งหมด");
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
-  const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -72,7 +69,6 @@ export default function WithdrawClient({ initialItems }: Props) {
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<Item.UiItem | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
-  const [selectedLabelRows, setSelectedLabelRows] = useState<Map<string, LabelData>>(new Map());
 
   const fetchAll = useCallback(async () => {
     setIsFetching(true);
@@ -197,15 +193,14 @@ export default function WithdrawClient({ initialItems }: Props) {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest("[data-filter-category]")) setIsCategoryOpen(false);
-      if (!target.closest("[data-filter-status]")) setIsStatusOpen(false);
       if (!target.closest("[data-filter-location]")) setIsLocationOpen(false);
     };
 
-    if (isCategoryOpen || isStatusOpen || isLocationOpen) {
+    if (isCategoryOpen || isLocationOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [isCategoryOpen, isStatusOpen, isLocationOpen]);
+  }, [isCategoryOpen, isLocationOpen]);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
@@ -229,9 +224,8 @@ export default function WithdrawClient({ initialItems }: Props) {
       item.name.toLowerCase().includes(keyword) ||
       item.code.toLowerCase().includes(keyword);
     const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
-    const matchesStatus = selectedStatus === "สถานะทั้งหมด" || item.status === selectedStatus;
     const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
-    return matchesSearch && matchesCat && matchesStatus && matchesLocation;
+    return matchesSearch && matchesCat && matchesLocation;
   });
 
   const totalPages = Math.ceil(filteredItems.length / PAGE_LIMIT);
@@ -244,28 +238,6 @@ export default function WithdrawClient({ initialItems }: Props) {
     const tp = Math.max(1, Math.ceil(filteredItems.length / PAGE_LIMIT));
     if (currentPage > tp) setCurrentPage(tp);
   }, [filteredItems.length, currentPage]);
-
-  const toggleSelect = (item: Item.UiItem) =>
-    setSelectedLabelRows((prev) => {
-      const s = new Map(prev);
-      s.has(item.id) ? s.delete(item.id) : s.set(item.id, { name: item.name, code: item.code });
-      return s;
-    });
-
-  const toggleSelectAll = () => {
-    const allSelected = paginatedItems.length > 0 && paginatedItems.every((i) => selectedLabelRows.has(i.id));
-    setSelectedLabelRows((prev) => {
-      const s = new Map(prev);
-      allSelected
-        ? paginatedItems.forEach((i) => s.delete(i.id))
-        : paginatedItems.forEach((i) => s.set(i.id, { name: i.name, code: i.code }));
-      return s;
-    });
-  };
-
-  const handleBulkPrint = () => {
-    printLabels(Array.from(selectedLabelRows.values()));
-  };
 
   const Badge = ({ status }: { status: string }) => {
     const statusMap: Record<string, string> = {
@@ -287,15 +259,6 @@ export default function WithdrawClient({ initialItems }: Props) {
         {displayStatus}
       </span>
     );
-  };
-
-  const getTypeDisplay = (type: string): string => {
-    const typeMap: Record<string, string> = {
-      MED_ASSET: "ครุภัณฑ์ภายในองค์กร",
-      REUSABLE: "ของใช้ซ้ำรายชิ้น",
-      CONSUMABLE: "วัสดุสิ้นเปลือง",
-    };
-    return typeMap[type] || type;
   };
 
   const openItemDetail = useCallback((item: Item.UiItem) => {
@@ -363,19 +326,15 @@ export default function WithdrawClient({ initialItems }: Props) {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
+          <div className="p-3 bg-blue-600 rounded-xl">
+            <ShoppingCart className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ค้นหาพัสดุและยื่นคำขอเบิก-ยืมจากคลังสินค้า</p>
+          </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {selectedLabelRows.size > 0 && (
-            <button
-              type="button"
-              onClick={handleBulkPrint}
-              className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
-            >
-              <Printer className="w-4 h-4" />
-              พิมพ์บาร์โค้ด ({selectedLabelRows.size})
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setShowCartModal(true)}
@@ -406,7 +365,7 @@ export default function WithdrawClient({ initialItems }: Props) {
             type="button"
             onClick={() => {
               setIsCategoryOpen(!isCategoryOpen);
-              setIsStatusOpen(false);
+              setIsLocationOpen(false);
             }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
@@ -441,60 +400,12 @@ export default function WithdrawClient({ initialItems }: Props) {
           )}
         </div>
 
-        <div className="relative w-full sm:w-auto" data-filter-status>
-          <button
-            type="button"
-            onClick={() => {
-              setIsStatusOpen(!isStatusOpen);
-              setIsCategoryOpen(false);
-              setIsLocationOpen(false);
-            }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
-          >
-            <span className="text-slate-800 font-medium">{selectedStatus === "สถานะทั้งหมด" ? "สถานะทั้งหมด" : selectedStatus}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {isStatusOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
-              <ul className="py-1">
-                {[
-                  { value: "สถานะทั้งหมด", label: "สถานะทั้งหมด" },
-                  { value: "ปกติ", label: "ปกติ" },
-                  { value: "ต่ำ", label: "ต่ำ" },
-                  { value: "หมด", label: "หมด" },
-                  { value: "ระงับ", label: "ระงับ" },
-                ].map((s) => (
-                  <li key={s.value}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedStatus(s.value);
-                        setIsStatusOpen(false);
-                        setCurrentPage(1);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                        selectedStatus === s.value
-                          ? "bg-blue-50 text-blue-700 font-medium"
-                          : "text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
         <div className="relative w-full sm:w-auto" data-filter-location>
           <button
             type="button"
             onClick={() => {
               setIsLocationOpen(!isLocationOpen);
               setIsCategoryOpen(false);
-              setIsStatusOpen(false);
             }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
@@ -530,13 +441,12 @@ export default function WithdrawClient({ initialItems }: Props) {
         </div>
 
         {/* Clear filters */}
-        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedStatus !== "สถานะทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
+        {(searchTerm || selectedCategory !== "หมวดหมู่ทั้งหมด" || selectedLocation !== "ตำแหน่งทั้งหมด") && (
           <button
             type="button"
             onClick={() => {
               setSearchTerm("");
               setSelectedCategory("หมวดหมู่ทั้งหมด");
-              setSelectedStatus("สถานะทั้งหมด");
               setSelectedLocation("ตำแหน่งทั้งหมด");
               setCurrentPage(1);
             }}
@@ -589,14 +499,12 @@ export default function WithdrawClient({ initialItems }: Props) {
           `}</style>
               <table className="w-full table-fixed text-sm text-left">
                 <colgroup>
-                  <col className="w-[44px]" />
-                  <col className="w-[80px]" />
+                  <col className="w-[48px]" />
+                  <col className="w-[72px]" />
                   <col className="w-[13%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[14%]" />
+                  <col className="w-[20%]" />
                   <col className="w-[14%]" />
                   <col className="w-[8%]" />
-                  <col className="w-[7%]" />
                   <col className="w-[8%]" />
                   <col className="w-[13%]" />
                   <col className="w-[9%]" />
@@ -604,22 +512,12 @@ export default function WithdrawClient({ initialItems }: Props) {
                 </colgroup>
                 <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
                   <tr>
-                    <th className="px-4 py-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedLabelRows.has(i.id))}
-                        onChange={toggleSelectAll}
-                        className="w-4 h-4 accent-blue-600 cursor-pointer"
-                        title="เลือกทั้งหมดในหน้านี้"
-                      />
-                    </th>
+                    <th className="px-4 py-4 text-center whitespace-nowrap">#</th>
                     <th className="px-6 py-4">รูป</th>
                     <th className="px-3 py-4 whitespace-nowrap">รหัสรายการ</th>
                     <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
                     <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                    <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
                     <th className="px-6 py-4 w-[120px] whitespace-nowrap">คงเหลือ</th>
-                    <th className="px-6 py-4 w-[120px] whitespace-nowrap">ขั้นต่ำ</th>
                     <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
                     <th className="px-6 py-4 whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
                     <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
@@ -627,18 +525,13 @@ export default function WithdrawClient({ initialItems }: Props) {
                   </tr>
                 </thead>
                 <tbody className="text-slate-600">
-                  {paginatedItems.map((item) => (
+                  {paginatedItems.map((item, index) => (
                     <tr
                       key={item.id}
                       className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                     >
-                      <td className="px-6 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedLabelRows.has(item.id)}
-                          onChange={() => toggleSelect(item)}
-                          className="w-6 h-4 accent-blue-600 cursor-pointer"
-                        />
+                      <td className="px-4 py-3 text-center text-slate-500 text-sm font-semibold">
+                        {(currentPage - 1) * PAGE_LIMIT + index + 1}
                       </td>
                       <td className="px-6 py-3">
                         <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
@@ -662,7 +555,6 @@ export default function WithdrawClient({ initialItems }: Props) {
                         </span>
                       </td>
                       <td className="px-6 py-3 text-slate-600 truncate">{item.category}</td>
-                      <td className="px-6 py-3 text-sm truncate">{getTypeDisplay(item.type)}</td>
                       <td className="px-6 py-3 w-[120px]">
                         {item.type === "REUSABLE" ? (
                           <div className="relative group inline-block cursor-help">
@@ -694,13 +586,6 @@ export default function WithdrawClient({ initialItems }: Props) {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-3 w-[120px]">
-                        {item.minStock > 0 ? (
-                          <span className="text-black font-semibold">{item.minStock}</span>
-                        ) : (
-                          <span className="text-black">-</span>
-                        )}
-                      </td>
                       <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
                       <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>
                       <td className="px-6 py-3">
@@ -723,7 +608,7 @@ export default function WithdrawClient({ initialItems }: Props) {
                   ))}
                   {paginatedItems.length === 0 && (
                     <tr>
-                      <td colSpan={12}>
+                      <td colSpan={10}>
                         <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                           <svg
                             xmlns="http://www.w3.org/2000/svg"

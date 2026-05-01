@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import React from "react";
-import ReportsWrapper from "./ReportsWrapper";
+import ReportsWrapper from "./_components/ReportsWrapper";
 
 import type { Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";

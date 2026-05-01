@@ -77,7 +77,7 @@ export default function ItemDetailModal({
               {/* Left Column */}
               <div className="space-y-[1.1rem]">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">รหัสพัสดุ</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">รหัสรายการ</label>
                   <p className="text-sm font-normal text-slate-800">{item.code}</p>
                 </div>
                 <div>
@@ -89,7 +89,7 @@ export default function ItemDetailModal({
               {/* Right Column */}
               <div className="space-y-[1.1rem]">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">ชื่อรายการ</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">ชื่อพัสดุ</label>
                   <p className="text-sm font-normal text-slate-800 line-clamp-3">{item.name}</p>
                 </div>
                 <div>

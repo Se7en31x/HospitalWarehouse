@@ -259,9 +259,19 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
           {/* Left: doc no + title */}
           <div className="flex-1 min-w-0">
 
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-              {isBorrow ? "รายละเอียดคำร้องยืมครุภัณฑ์" : "รายละเอียดคำร้องเบิกพัสดุ"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-600 rounded-lg shrink-0">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+                  {isBorrow ? "รายละเอียดคำร้องยืมครุภัณฑ์" : "รายละเอียดคำร้องเบิกพัสดุ"}
+                </h1>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {isBorrow ? "ดูสถานะและรายละเอียดคำร้องยืมครุภัณฑ์ทางการแพทย์" : "ดูสถานะและรายละเอียดคำร้องเบิกพัสดุ"}
+                </p>
+              </div>
+            </div>
           </div>
           {/* Right: action group */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -454,7 +464,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
                 <tr>
                   <th className="px-4 py-3 text-center w-10">#</th>
                   <th className="px-4 py-3 text-center w-14">รูป</th>
-                  <th className="px-4 py-3 text-left w-32">รหัสพัสดุ</th>
+                  <th className="px-4 py-3 text-left w-32">รหัสรายการ</th>
                   <th className="px-4 py-3 text-left">รายการ</th>
                   <th className="px-4 py-3 text-left w-36">หมวดหมู่</th>
                   <th className="px-4 py-3 text-center w-24">จำนวนขอ</th>

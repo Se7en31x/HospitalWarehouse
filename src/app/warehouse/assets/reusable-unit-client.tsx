@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search, X, Stethoscope } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
@@ -187,7 +187,15 @@ export default function ReusableUnitClient() {
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการอุปกรณ์ทางการแพทย์</h2>
+          <div className="flex items-center gap-4 mb-1">
+            <div className="p-3 bg-teal-600 rounded-xl">
+              <Stethoscope className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการอุปกรณ์ทางการแพทย์</h2>
+              <p className="text-sm text-slate-500 mt-0.5">ลงทะเบียนและจัดการอุปกรณ์ทางการแพทย์แบบยืม-คืน</p>
+            </div>
+          </div>
           <div className="flex border-b border-slate-200 mt-2">
             <button
               onClick={() => router.push('/warehouse/assets?mode=reusable')}
@@ -356,7 +364,7 @@ export default function ReusableUnitClient() {
                     </th>
                     <th className="px-6 py-4">รูป</th>
                     <th className="px-3 py-4 whitespace-nowrap">รหัส</th>
-                    <th className="px-3 py-4 whitespace-nowrap">ชื่อรายการ</th>
+                    <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
                     <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
                     <th className="px-6 py-4 whitespace-nowrap">คงเหลือ</th>
                     <th className="px-6 py-4 whitespace-nowrap">พร้อมใช้งาน</th>

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     AlertCircle, ChevronDown, ChevronLeft, ChevronRight,
-    Eye, Plus, Search, X,
+    Eye, Plus, Search, X, PackagePlus,
 } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import * as receiveService from "@/services/receiveService";
@@ -171,7 +171,15 @@ export default function ReceiveClient() {
 
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">รับสินค้าเข้าคลัง</h2>
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-emerald-600 rounded-xl">
+                        <PackagePlus className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับสินค้าเข้าคลัง</h2>
+                        <p className="text-sm text-slate-500 mt-0.5">บันทึกการรับสินค้าเข้าคลังและสร้างใบรับสินค้า</p>
+                    </div>
+                </div>
                 <button onClick={() => router.push("/warehouse/receives/createform")}
                     className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm font-semibold flex items-center gap-2 shadow-sm">
                     <Plus className="w-4 h-4" /> สร้างใบรับสินค้า
@@ -347,9 +355,9 @@ export default function ReceiveClient() {
                                                 <td className="px-6 py-3 text-center">
                                                     <button
                                                         onClick={() => viewBatch(batch.id)}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
                                                     >
-                                                        <Eye className="w-4 h-4" />
+                                                        <Eye className="w-5 h-5" />
                                                     </button>
                                                 </td>
                                             </tr>

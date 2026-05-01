@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { Loader2, Plus, Search, X, ChevronDown, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Search, X, ChevronDown, ArrowLeft, RotateCcw } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
@@ -255,7 +255,15 @@ export default function ReturnRequestsClient() {
       <Toaster position="top-right" />
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ส่งคืนอุปกรณ์ทางการแพทย์</h2>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-amber-600 rounded-lg">
+            <RotateCcw className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ส่งคืนอุปกรณ์ทางการแพทย์</h2>
+            <p className="text-sm text-slate-500 mt-0.5">เลือกอุปกรณ์ที่ต้องการคืนและกรอกข้อมูลการส่งคืน</p>
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => router.push("/request/return-requests")}

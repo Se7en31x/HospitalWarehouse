@@ -260,7 +260,12 @@ export default function NotificationCenterClient({ title, entityType }: Notifica
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-600 rounded-lg shrink-0">
+              <Bell className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleMarkAllRead}

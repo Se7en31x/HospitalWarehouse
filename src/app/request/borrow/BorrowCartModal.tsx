@@ -1037,7 +1037,7 @@ export default function BorrowCartModal({
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase">
                               <th className="px-3 py-2.5 text-left w-14">รูป</th>
-                              <th className="px-3 py-2.5 text-left">ชื่อรายการ</th>
+                              <th className="px-3 py-2.5 text-left">ชื่อพัสดุ</th>
                               <th className="px-3 py-2.5 text-left w-40">หมวดหมู่</th>
                               <th className="px-3 py-2.5 text-center w-32">จำนวน</th>
                               <th className="px-3 py-2.5 w-10"></th>
@@ -1721,7 +1721,7 @@ export default function BorrowCartModal({
                             <tr>
                               <th className="px-2 py-2.5 w-14">รูป</th>
                               <th className="px-3 py-2.5 whitespace-nowrap">รหัส</th>
-                              <th className="px-3 py-2.5 min-w-[120px]">ชื่อรายการ</th>
+                              <th className="px-3 py-2.5 min-w-[120px]">ชื่อพัสดุ</th>
                               <th className="px-3 py-2.5">หมวดหมู่</th>
                               <th className="px-3 py-2.5 text-right w-24 whitespace-nowrap">จำนวน</th>
                               <th className="px-3 py-2.5 text-right w-24 max-w-[6rem] whitespace-nowrap">หน่วยนับ</th>

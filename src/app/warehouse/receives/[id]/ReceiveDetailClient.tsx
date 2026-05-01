@@ -370,7 +370,15 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
     <div className="flex flex-col min-h-screen bg-[#fafafa]">
       <div className="w-full px-6 py-6 flex flex-col flex-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-          <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">รายละเอียดการรับเข้า</h2>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-600 rounded-lg shrink-0">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">รายละเอียดการรับเข้า</h2>
+              <p className="text-sm text-slate-500 mt-0.5">ดูรายละเอียดใบรับสินค้า ล็อต และสถานะการตรวจรับ</p>
+            </div>
+          </div>
           <button
             onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0"

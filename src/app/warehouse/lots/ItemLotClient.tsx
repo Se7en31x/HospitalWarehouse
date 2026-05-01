@@ -5,7 +5,7 @@ import {
   Search,
   Wrench,
   ChevronLeft, ChevronRight, ChevronDown,
-  ToggleRight, ToggleLeft, Printer, X
+  ToggleRight, ToggleLeft, Printer, X, Layers
 } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
@@ -434,7 +434,15 @@ export default function LotClient({
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตสินค้า</h2>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-violet-600 rounded-xl">
+            <Layers className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตสินค้า</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ติดตามล็อตสินค้า วันหมดอายุ และปริมาณคงเหลือ</p>
+          </div>
+        </div>
         <div className="flex items-center gap-3 flex-wrap">
           {selectedItems.size > 0 && (
             <button

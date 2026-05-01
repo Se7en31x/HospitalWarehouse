@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
-  X, Eye, Package,
+  X, Eye, Package, RotateCcw,
 } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { getAllRequisitions } from "@/services/requisitionService";
@@ -207,7 +207,13 @@ export default function ReturnsClient() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
+          <div className="p-3 bg-orange-600 rounded-xl">
+            <RotateCcw className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
+            <p className="text-sm text-slate-500 mt-0.5">รับคืนพัสดุที่ยืมและบันทึกสภาพสิ่งของที่ส่งคืน</p>
+          </div>
         </div>
       </div>
 
@@ -459,7 +465,7 @@ export default function ReturnsClient() {
                         <button
                           type="button"
                           onClick={() => openDetail(r.id)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
                           title="ดูรายละเอียดและรับคืน"
                         >
                           <Eye className="w-5 h-5" />

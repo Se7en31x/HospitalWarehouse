@@ -245,7 +245,7 @@ export default function CartModal({
                   <thead className="bg-slate-100 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left font-bold text-slate-700 w-20">รูป</th>
-                      <th className="px-4 py-3 text-left font-bold text-slate-700">ชื่อรายการ</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-700">ชื่อพัสดุ</th>
                       <th className="px-4 py-3 text-left font-bold text-slate-700 w-[9.5rem]">หมวดหมู่</th>
                       <th className="px-4 py-3 text-left font-bold text-slate-700 w-52">จำนวนที่ต้องการเบิก</th>
                     </tr>

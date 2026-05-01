@@ -33,7 +33,7 @@ interface MenuGroup {
 const menuGroups: MenuGroup[] = [
   {
     title: 'ภาพรวม',
-    items: [{ name: 'แดชบอร์ด', path: '/warehouse', icon: LayoutDashboard }],
+    items: [{ name: 'ภาพรวมระบบ', path: '/warehouse', icon: LayoutDashboard }],
   },
   {
     title: 'คลังพัสดุ',
@@ -82,14 +82,16 @@ function NavContent({
 
   return (
     <div className="flex flex-col h-full select-none bg-white">
-      <div className="flex items-center border-b border-slate-100 px-5 py-4 transition-all duration-300">
+
+      {/* Hamburger — same px-2 container + px-3 button as nav rows so icon aligns */}
+      <div className="border-b border-slate-100 px-2 py-2">
         <button
           type="button"
           onClick={onClose ?? toggleSidebar}
-          className="p-2 rounded-lg text-slate-500 bg-white border border-slate-200 shadow-sm hover:bg-slate-50 hover:text-slate-700 transition-all shrink-0 active:scale-95"
+          className="ml-1 p-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all active:scale-95"
           title={onClose ? 'ปิดเมนู' : collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
         >
-          {onClose ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {onClose ? <X className="w-5 h-5 shrink-0" /> : <Menu className="w-5 h-5 shrink-0" />}
         </button>
       </div>
 
@@ -100,7 +102,7 @@ function NavContent({
               {collapsed ? (
                 <div className="ml-3 w-6 h-px bg-black/10" />
               ) : (
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   {group.title}
                 </span>
               )}
@@ -118,28 +120,18 @@ function NavContent({
                     onClick={onLinkClick}
                     title={collapsed ? item.name : ''}
                     className={`
-                      relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-300 group
-                      ${
-                        isActive
-                          ? 'bg-blue-50 shadow-sm ring-1 ring-blue-100/80 hover:bg-blue-100'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      flex items-center gap-3 rounded-xl px-3 py-2 transition-all duration-200
+                      ${isActive
+                        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100/80 hover:bg-blue-100/80'
+                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                       }
                     `}
                   >
-                    {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-[66%] min-h-[1.25rem] bg-blue-600 rounded-r-full" />
-                    )}
-                    <Icon
-                      className={`w-[20px] h-[20px] shrink-0 ${
-                        isActive ? 'text-blue-700' : 'text-slate-400 group-hover:text-slate-600'
-                      }`}
-                    />
+                    <Icon className="w-5 h-5 shrink-0" />
                     {!collapsed && (
-                      <span
-                        className={`text-[14px] font-semibold whitespace-nowrap ${
-                          isActive ? 'text-blue-700' : 'text-slate-700'
-                        }`}
-                      >
+                      <span className={`text-[14px] whitespace-nowrap ${
+                        isActive ? 'font-semibold' : 'font-medium'
+                      }`}>
                         {item.name}
                       </span>
                     )}
@@ -163,7 +155,6 @@ export default function WarehouseSidebar() {
 
   return (
     <>
-      {/* Mobile: open drawer control (desktop sidebar is hidden) */}
       <button
         type="button"
         onClick={() => setIsMobileOpen(true)}
@@ -194,7 +185,7 @@ export default function WarehouseSidebar() {
       <aside
         className={`
           lg:hidden fixed inset-y-0 left-0 z-50 w-72 flex flex-col
-          bg-slate-100 transition-transform duration-300 ease-in-out
+          bg-white transition-transform duration-300 ease-in-out
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >

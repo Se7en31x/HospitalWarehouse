@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, X } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, X, ClipboardList } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { getAllRequisitionsPages } from "../../../services/requisitionService";
 import { RequisitionHeader } from "../../../types/requisition_type";
@@ -237,7 +237,15 @@ const RequestClient = () => {
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6 font-sans">
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการคำขอเบิก-ยืม</h2>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-indigo-600 rounded-xl">
+            <ClipboardList className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการคำขอเบิก-ยืม</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ตรวจสอบและดำเนินการคำขอเบิก-ยืมพัสดุจากแผนก</p>
+          </div>
+        </div>
       </div>
 
       {/* Filters Area */}
@@ -432,10 +440,10 @@ const RequestClient = () => {
                       <td className="px-1 py-2.5 text-center">
                         <button
                           onClick={() => router.push(`/warehouse/requests/${req.id}`)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
                           title="ดูรายละเอียด"
                         >
-                          <Eye size={18} />
+                          <Eye className="w-5 h-5" />
                         </button>
                       </td>
                     </tr>

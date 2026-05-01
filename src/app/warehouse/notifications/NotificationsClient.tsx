@@ -50,11 +50,21 @@ export default function NotificationsClient({ initialNotifications }: { initialN
     <div className="flex flex-col min-h-screen bg-white p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-800">การแจ้งเตือน</h2>
-          {unreadCount > 0 && (
-            <p className="text-sm text-slate-500 mt-1">ยังไม่อ่าน {unreadCount} รายการ</p>
-          )}
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-rose-600 rounded-xl">
+            <Bell className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">การแจ้งเตือน</h2>
+              {unreadCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                  {unreadCount} ยังไม่อ่าน
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">แจ้งเตือนสต็อกต่ำกว่าเกณฑ์และพัสดุใกล้หมดอายุ</p>
+          </div>
         </div>
         {unreadCount > 0 && (
           <button

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Save, FileText, Package } from "lucide-react";
+import { Loader2, Save, FileText, Package, ScanLine } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Link from "next/link";
 
 import * as reusableSvc from "@/services/reusableUnitService";
@@ -18,27 +19,43 @@ import {
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
 
-const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number => {
-  return items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
-};
+const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number =>
+  items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
 
-// ─── Sub-Components ───────────────────────────────────────────────────────────
+// ─── Shared UI ────────────────────────────────────────────────────────────────
+
+function FieldRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-bold text-gray-900 mb-1">{label}</p>
+      <div className="text-sm text-gray-600">{children}</div>
+    </div>
+  );
+}
+
+const displayOrDash = (v: string | null | undefined): string =>
+  v != null && String(v).trim() !== "" ? String(v).trim() : "—";
 
 function StatusBadge({ status }: { status: string }) {
   const displayStatus = RETURN_REQUEST_STATUS_LABEL[status] || status;
-  
-  const getStatusColor = (s: string): string => {
+  const getColor = (s: string): string => {
     switch (s) {
-      case "REQUESTED": return "bg-amber-100 text-amber-500 border border-amber-200";
-      case "COMPLETED": return "bg-green-100 text-green-500 border border-green-200";
-      case "CANCELLED": return "bg-red-100 text-red-500 border border-red-200";
-      default: return "bg-slate-100 text-slate-500 border border-slate-200";
+      case "REQUESTED": return "bg-amber-50 text-amber-700 border-amber-200";
+      case "COMPLETED": return "bg-green-50 text-green-700 border-green-200";
+      case "CANCELLED": return "bg-red-50 text-red-700 border-red-200";
+      default:          return "bg-slate-50 text-slate-600 border-slate-200";
     }
   };
-  
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${getStatusColor(status)}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border whitespace-nowrap ${getColor(status)}`}>
       {displayStatus}
     </span>
   );
@@ -51,7 +68,6 @@ export default function ProcessReturnClient() {
   const searchParams = useSearchParams();
   const requestId = searchParams.get("id");
 
-  // State
   const [activeRequest, setActiveRequest] = useState<reusableSvc.ReusableReturnRequest | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [forms, setForms] = useState<ProcessItemForm[]>([]);
@@ -63,7 +79,6 @@ export default function ProcessReturnClient() {
   const [processNote, setProcessNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load request details
   useEffect(() => {
     if (!requestId) {
       router.push("/warehouse/returns-department");
@@ -136,14 +151,10 @@ export default function ProcessReturnClient() {
         return;
       }
 
-      const resolvedUnitCode = resolved && resolved.type === "UNIT"
-        ? resolved.unit.unit_code.toLowerCase()
-        : "";
-      const resolvedSerial = resolved && resolved.type === "UNIT"
-        ? (resolved.unit.serial_no || "").toLowerCase()
-        : "";
-
+      const resolvedUnitCode = resolved?.type === "UNIT" ? resolved.unit.unit_code.toLowerCase() : "";
+      const resolvedSerial   = resolved?.type === "UNIT" ? (resolved.unit.serial_no || "").toLowerCase() : "";
       const key = raw.toLowerCase();
+
       const target = unitForms.find((row) =>
         row.unit_code.toLowerCase() === key ||
         row.serial_no.toLowerCase() === key ||
@@ -161,14 +172,8 @@ export default function ProcessReturnClient() {
         prev.map((row) => {
           if (row.unit_id !== target.unit_id) return row;
           const marker = `[SCN:${raw}]`;
-          const nextNote = row.note?.includes(marker)
-            ? row.note
-            : [row.note, marker].filter(Boolean).join(" ");
-          return {
-            ...row,
-            condition: "GOOD",
-            note: nextNote,
-          };
+          const nextNote = row.note?.includes(marker) ? row.note : [row.note, marker].filter(Boolean).join(" ");
+          return { ...row, condition: "GOOD", note: nextNote };
         })
       );
 
@@ -202,7 +207,6 @@ export default function ProcessReturnClient() {
           setIsSaving(false);
           return;
         }
-
         await reusableSvc.processReusableReturnRequest(activeRequest.id, {
           items: validItems.map((row) => ({
             item_id: row.item_id,
@@ -226,355 +230,334 @@ export default function ProcessReturnClient() {
 
   if (isLoadingDetail) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin">
-          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] bg-[#fafafa] p-3 sm:p-4 md:p-6">
+        <DotLottieReact src={LOTTIE_SRC} loop autoplay style={{ width: 160, height: 160 }} />
       </div>
     );
   }
 
-  if (!activeRequest) {
-    return null;
-  }
+  if (!activeRequest) return null;
+
+  const isCompleted = activeRequest.status === "COMPLETED";
 
   return (
-    <div className="flex flex-col min-h-screen bg-white p-8 font-sans">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-bold text-gray-800">ตรวจรับคืน</h2>
-        <Link
-          href="/warehouse/returns-department"
-          className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors"
-        >
-          ย้อนกลับ
-        </Link>
-      </div>
+    <div className="flex flex-col min-h-screen bg-[#fafafa]">
+      <div className="w-full px-6 py-6 flex flex-col flex-1">
 
-      <div className="space-y-6 flex-1">
-        {/* Document Info */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-            <FileText className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-semibold">ข้อมูลใบคำขอ</h2>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <div>
-              <p className="text-xs text-slate-500">เลขที่ใบขอ</p>
-              <p className="font-mono text-base font-semibold text-slate-800">{activeRequest.doc_no}</p>
+        {/* ── Page header ───────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-sky-600 rounded-lg shrink-0">
+              <FileText className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="text-xs text-slate-500">แผนก</p>
-              <p className="text-base font-medium text-slate-800">{deptDisplayName(activeRequest.department_name || "") || "-"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">สถานะ</p>
-              <StatusBadge status={activeRequest.status || "REQUESTED"} />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">วันที่ขอ</p>
-              <p className="text-base text-slate-800">{fmtDateTime(activeRequest.created_at)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">นัดรับของ</p>
-              <p className="text-base text-slate-800">{fmtDateTime(activeRequest.preferred_pickup_at)}</p>
+              <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
+                ตรวจรับคืน
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">ตรวจสอบสภาพและบันทึกผลการรับคืนอุปกรณ์จากแผนก</p>
             </div>
           </div>
-        </section>
+          <Link
+            href="/warehouse/returns-department"
+            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0"
+          >
+            ย้อนกลับ
+          </Link>
+        </div>
 
-        {/* Requester Info */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-            <FileText className="h-5 w-5 text-emerald-600" />
-            <h2 className="text-lg font-semibold">ข้อมูลผู้ขอ</h2>
-          </div>
+        <div className="space-y-4 flex-1">
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">ชื่อผู้ขอ</p>
-              <p className="text-base text-slate-800">{activeRequest.requested_by_name || "-"}</p>
+          {/* ── ข้อมูลใบคำขอ ──────────────────────────────────────────────── */}
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-gray-900">ข้อมูลใบคำขอ</h2>
+              <p className="text-xs text-slate-500 mt-0.5">ผู้ขอ: {displayOrDash(activeRequest.requested_by_name)}</p>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">จำนวนรายการ</p>
-              <p className="text-base font-semibold text-slate-800">{getTotalItems(activeRequest.items || [])} หน่วย</p>
+            <div className="px-5 py-5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-x-6 gap-y-5">
+              <FieldRow label="เลขที่ใบขอ">
+                <span className="font-mono font-medium text-slate-800">{activeRequest.doc_no}</span>
+              </FieldRow>
+              <FieldRow label="แผนก">
+                {displayOrDash(deptDisplayName(activeRequest.department_name || ""))}
+              </FieldRow>
+              <FieldRow label="สถานะ">
+                <StatusBadge status={activeRequest.status || "REQUESTED"} />
+              </FieldRow>
+              <FieldRow label="จำนวนรายการ">
+                <span className="font-semibold text-slate-800">{getTotalItems(activeRequest.items || [])} หน่วย</span>
+              </FieldRow>
+              <FieldRow label="วันที่ขอ">
+                {fmtDateTime(activeRequest.created_at)}
+              </FieldRow>
+              <FieldRow label="นัดรับของ">
+                {fmtDateTime(activeRequest.preferred_pickup_at)}
+              </FieldRow>
+              <FieldRow label="ผู้ขอ">
+                {displayOrDash(activeRequest.requested_by_name)}
+              </FieldRow>
             </div>
             {activeRequest.note && (
-              <div>
-                <p className="text-xs text-slate-500 mb-1">หมายเหตุ</p>
-                <p className="text-base text-slate-800">{activeRequest.note}</p>
+              <div className="px-5 py-4 border-t border-slate-100">
+                <FieldRow label="หมายเหตุ">{activeRequest.note}</FieldRow>
               </div>
             )}
-          </div>
-        </section>
+          </section>
 
-        {/* Unit Forms Section */}
-        {unitForms.length > 0 && (
-          <>
-            {/* Scan Section */}
-            <section className="rounded-lg bg-white border border-slate-300 p-6">
-              <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-                <Package className="h-5 w-5 text-blue-600" />
-                <h2 className="text-lg font-semibold">สแกนบาร์โค้ด</h2>
+          {/* ── สแกนบาร์โค้ด (เฉพาะเมื่อมี unitForms) ───────────────────── */}
+          {unitForms.length > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-bold text-gray-900">สแกนบาร์โค้ด</h2>
+                <p className="text-xs text-slate-500 mt-0.5">ป้อน Unit Code หรือ Serial เพื่อทำเครื่องหมาย</p>
               </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">ป้อนรหัส (Unit Code / Serial)</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={scanInput}
-                      onChange={(e) => setScanInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleScanUnit();
-                        }
-                      }}
-                      placeholder="เช่น UNT-000123 หรือ SN-ABC"
-                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={handleScanUnit}
-                      className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition"
-                    >
-                      สแกน
-                    </button>
-                  </div>
+              <div className="px-5 py-5 space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScanUnit(); } }}
+                    placeholder="เช่น UNT-000123 หรือ SN-ABC"
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none bg-white"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleScanUnit}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shrink-0"
+                  >
+                    <ScanLine className="w-4 h-4" />
+                    สแกน
+                  </button>
                 </div>
-
-                {scanResolvedType && (
-                  <div>
-                    <span className="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700">
+                <div className="flex items-center gap-3">
+                  {scanResolvedType && (
+                    <span className="inline-flex rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600">
                       TYPE: {scanResolvedType}
                     </span>
-                  </div>
-                )}
-                {scanMessage && (
-                  <p className={`text-sm font-medium ${scanOk ? "text-emerald-700" : "text-rose-700"}`}>{scanMessage}</p>
-                )}
+                  )}
+                  {scanMessage && (
+                    <p className={`text-sm font-semibold ${scanOk ? "text-emerald-700" : "text-rose-600"}`}>
+                      {scanMessage}
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
+          )}
 
-            {/* Units Table */}
-            <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col" style={{ height: "450px" }}>
-              <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-                <Package className="h-5 w-5 text-blue-600" />
-                <h2 className="text-lg font-semibold">รายชิ้นอุปกรณ์ ({unitForms.length} รายการ)</h2>
+          {/* ── รายชิ้นอุปกรณ์ (Unit Forms) ──────────────────────────────── */}
+          {unitForms.length > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-bold text-gray-900">รายชิ้นอุปกรณ์</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{unitForms.length} รายการ</p>
               </div>
-
-              <div
-                className="flex-1 border border-slate-200 rounded-lg overflow-hidden"
-                style={{
-                  overflowX: "auto",
-                  overflowY: "auto",
-                  scrollbarWidth: "auto",
-                  msOverflowStyle: "auto",
-                } as React.CSSProperties}
-              >
-                <style>{`
-                  div::-webkit-scrollbar {
-                    width: 0;
-                    height: 8px;
-                  }
-                  div::-webkit-scrollbar-track {
-                    background: #f1f5f9;
-                  }
-                  div::-webkit-scrollbar-thumb {
-                    background: #cbd5e1;
-                    border-radius: 4px;
-                  }
-                  div::-webkit-scrollbar-thumb:hover {
-                    background: #94a3b8;
-                  }
-                `}</style>
-                <table className="w-full text-sm text-left table-fixed">
-                  <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+              <div className="overflow-x-auto" style={{ maxHeight: 480, overflowY: "auto" }}>
+                <table className="w-full table-fixed border-collapse">
+                  <colgroup>
+                    <col style={{ width: "52px" }} />
+                    <col style={{ width: "160px" }} />
+                    <col style={{ width: "160px" }} />
+                    <col />
+                    <col style={{ width: "170px" }} />
+                    <col style={{ width: "220px" }} />
+                  </colgroup>
+                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="px-6 py-4 w-[50px]">#</th>
-                      <th className="px-6 py-4 w-[140px]">Unit Code</th>
-                      <th className="px-6 py-4 w-[140px]">Serial</th>
-                      <th className="px-6 py-4 w-[200px]">รายการ</th>
-                      <th className="px-6 py-4 w-[160px]">ผลตรวจสภาพ</th>
-                      <th className="px-6 py-4">หมายเหตุ</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700">#</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700 whitespace-nowrap">Unit Code</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700 whitespace-nowrap">Serial</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">ชื่อพัสดุ</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">ผลตรวจสภาพ</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">หมายเหตุ</th>
                     </tr>
                   </thead>
-                  <tbody className="text-slate-600">
+                  <tbody className="divide-y divide-slate-100">
                     {unitForms.map((row, idx) => (
-                      <tr key={row.unit_id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                        <td className="px-6 py-3 text-slate-400 text-sm">{idx + 1}</td>
-                        <td className="px-6 py-3 font-mono text-xs text-slate-700 font-semibold">{row.unit_code}</td>
-                        <td className="px-6 py-3 text-sm text-slate-700">{row.serial_no}</td>
-                        <td className="px-6 py-3 text-sm text-slate-700 font-medium">{row.item_name}</td>
-                        <td className="px-6 py-3 w-[160px]">
+                      <tr key={row.unit_id} className="hover:bg-slate-50/50 transition-colors" style={{ height: "64px" }}>
+                        <td className="px-4 py-4 text-center text-slate-400 text-sm align-middle">{idx + 1}</td>
+                        <td className="px-4 py-4 align-middle">
+                          <span className="font-mono text-sm font-semibold text-slate-800 truncate block">{row.unit_code}</span>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <span className="text-sm text-slate-600 truncate block">{row.serial_no}</span>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <span className="text-sm font-medium text-slate-700 line-clamp-2">{row.item_name}</span>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
                           <select
                             value={row.condition}
-                            onChange={(e) => updateUnitForm(row.unit_id, { condition: e.target.value as any })}
-                            className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                            onChange={(e) => updateUnitForm(row.unit_id, { condition: e.target.value as ProcessUnitForm["condition"] })}
+                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-white"
                           >
-                            <option value="GOOD">ปกติ</option>
+                            <option value="GOOD">สภาพดี</option>
                             <option value="DAMAGED">ชำรุด</option>
                             <option value="LOST">สูญหาย</option>
                             <option value="INCOMPLETE">คืนไม่ครบ</option>
                           </select>
                         </td>
-                        <td className="px-6 py-3">
+                        <td className="px-4 py-4 align-middle">
                           <input
                             type="text"
                             value={row.note}
                             onChange={(e) => updateUnitForm(row.unit_id, { note: e.target.value })}
                             placeholder="หมายเหตุ"
-                            className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50"
+                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-slate-50"
                           />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-
                 {unitForms.length === 0 && (
                   <div className="flex flex-col items-center justify-center gap-2 text-slate-400 py-16">
-                    <Package className="w-12 h-12 text-slate-300" />
-                    <p className="text-sm font-medium">ไม่พบรายการ</p>
+                    <Package className="w-10 h-10 text-slate-200" />
+                    <p className="text-sm text-slate-500">ไม่พบรายการ</p>
                   </div>
                 )}
               </div>
             </section>
-          </>
-        )}
-
-        {/* Item Forms Section */}
-        {unitForms.length === 0 && (
-          <section className="rounded-lg bg-white border border-slate-300 p-6 overflow-hidden flex flex-col" style={{ height: "450px" }}>
-            <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-              <Package className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-semibold">รายการพัสดุ ({forms.length} รายการ)</h2>
-            </div>
-
-            <div
-              className="flex-1"
-              style={{
-                overflowX: "auto",
-                overflowY: "auto",
-                scrollbarWidth: "auto",
-                msOverflowStyle: "auto",
-              } as React.CSSProperties}
-            >
-              <style>{`
-                div::-webkit-scrollbar {
-                  width: 0;
-                  height: 8px;
-                }
-                div::-webkit-scrollbar-track {
-                  background: #f1f5f9;
-                }
-                div::-webkit-scrollbar-thumb {
-                  background: #cbd5e1;
-                  border-radius: 4px;
-                }
-                div::-webkit-scrollbar-thumb:hover {
-                  background: #94a3b8;
-                }
-              `}</style>
-              <table className="w-full text-sm text-left table-fixed">
-                <thead className="bg-slate-50 text-slate-700 font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
-                  <tr>
-                    <th className="px-6 py-4 w-[50px]">#</th>
-                    <th className="px-6 py-4 w-[200px]">รายการ</th>
-                    <th className="px-6 py-4 w-[120px] text-center">จำนวนขอคืน</th>
-                    <th className="px-6 py-4 w-[120px] text-center">รับคืนจริง</th>
-                    <th className="px-6 py-4 w-[160px]">ผลตรวจสภาพ</th>
-                    <th className="px-6 py-4">หมายเหตุ</th>
-                  </tr>
-                </thead>
-                <tbody className="text-slate-600">
-                  {forms.map((row, idx) => (
-                    <tr key={row.item_id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                      <td className="px-6 py-3 text-slate-400 text-sm">{idx + 1}</td>
-                      <td className="px-6 py-3 text-sm font-medium text-slate-700">{row.item_name}</td>
-                      <td className="px-6 py-3 text-center text-sm text-slate-700">{row.requested_qty}</td>
-                      <td className="px-6 py-3 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          max={row.requested_qty}
-                          value={row.return_qty}
-                          onChange={(e) => updateForm(row.item_id, { return_qty: Math.max(0, Math.min(row.requested_qty, Number(e.target.value || 0))) })}
-                          className="w-16 rounded-lg border border-slate-300 px-2 py-2 text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                        />
-                      </td>
-                      <td className="px-6 py-3 w-[160px]">
-                        <select
-                          value={row.condition}
-                          onChange={(e) => updateForm(row.item_id, { condition: e.target.value as any })}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                        >
-                          <option value="GOOD">ปกติ</option>
-                          <option value="DAMAGED">ชำรุด</option>
-                          <option value="LOST">สูญหาย</option>
-                          <option value="INCOMPLETE">คืนไม่ครบ</option>
-                        </select>
-                      </td>
-                      <td className="px-6 py-3">
-                        <input
-                          type="text"
-                          value={row.note}
-                          onChange={(e) => updateForm(row.item_id, { note: e.target.value })}
-                          placeholder="หมายเหตุ"
-                          className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {forms.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-2 text-slate-400 py-16">
-                  <Package className="w-12 h-12 text-slate-300" />
-                  <p className="text-sm font-medium">ไม่พบรายการ</p>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Process Note Section */}
-        <section className="rounded-lg bg-white border border-slate-300 p-6">
-          <div className="mb-6 flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-4">
-            <FileText className="h-5 w-5 text-slate-600" />
-            <h2 className="text-lg font-semibold">บันทึกการตรวจรับ</h2>
-          </div>
-
-          <textarea
-            rows={3}
-            value={processNote}
-            onChange={(e) => setProcessNote(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-            placeholder="เช่น รับของครบตามนัด ไม่พบข้อผิดพลาด"
-          />
-        </section>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-end mt-4">
-          <Link
-            href="/warehouse/returns-department"
-            className="px-6 py-2.5 text-sm font-bold text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            ปิด
-          </Link>
-          {activeRequest.status !== "COMPLETED" && (
-            <button
-              onClick={handleProcess}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              บันทึกผลตรวจรับ
-            </button>
           )}
+
+          {/* ── รายการพัสดุ (Item Forms) ───────────────────────────────────── */}
+          {unitForms.length === 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-bold text-gray-900">รายการพัสดุ</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{forms.length} รายการ</p>
+              </div>
+              <div className="overflow-x-auto" style={{ maxHeight: 480, overflowY: "auto" }}>
+                <table className="w-full table-fixed border-collapse">
+                  <colgroup>
+                    <col style={{ width: "52px" }} />
+                    <col />
+                    <col style={{ width: "120px" }} />
+                    <col style={{ width: "120px" }} />
+                    <col style={{ width: "170px" }} />
+                    <col style={{ width: "220px" }} />
+                  </colgroup>
+                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700">#</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">รายการ</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700 whitespace-nowrap">จำนวนขอคืน</th>
+                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700 whitespace-nowrap">รับคืนจริง</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">ผลตรวจสภาพ</th>
+                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">หมายเหตุ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {forms.map((row, idx) => (
+                      <tr key={row.item_id} className="hover:bg-slate-50/50 transition-colors" style={{ height: "64px" }}>
+                        <td className="px-4 py-4 text-center text-slate-400 text-sm align-middle">{idx + 1}</td>
+                        <td className="px-4 py-4 align-middle">
+                          <span className="text-sm font-medium text-slate-700 line-clamp-2">{row.item_name}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <span className="text-sm text-slate-600">{row.requested_qty}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <input
+                            type="number"
+                            min={0}
+                            max={row.requested_qty}
+                            value={row.return_qty}
+                            onChange={(e) => updateForm(row.item_id, { return_qty: Math.max(0, Math.min(row.requested_qty, Number(e.target.value || 0))) })}
+                            className="w-16 rounded-lg border border-slate-200 px-2 py-2 text-sm text-center focus:ring-2 focus:ring-indigo-300 outline-none bg-white mx-auto block"
+                          />
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <select
+                            value={row.condition}
+                            onChange={(e) => updateForm(row.item_id, { condition: e.target.value as ProcessItemForm["condition"] })}
+                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-white"
+                          >
+                            <option value="GOOD">สภาพดี</option>
+                            <option value="DAMAGED">ชำรุด</option>
+                            <option value="LOST">สูญหาย</option>
+                            <option value="INCOMPLETE">คืนไม่ครบ</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <input
+                            type="text"
+                            value={row.note}
+                            onChange={(e) => updateForm(row.item_id, { note: e.target.value })}
+                            placeholder="หมายเหตุ"
+                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-slate-50"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {forms.length === 0 && (
+                  <div className="flex flex-col items-center justify-center gap-2 py-16">
+                    <Package className="w-10 h-10 text-slate-200" />
+                    <p className="text-sm text-slate-500">ไม่พบรายการ</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* ── บันทึกการตรวจรับ + Action bar ────────────────────────────── */}
+          {!isCompleted && (
+            <div className="flex flex-col lg:flex-row gap-4">
+              <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex-1">
+                <div className="px-5 py-4 border-b border-slate-200">
+                  <h2 className="text-lg font-bold text-gray-900">บันทึกการตรวจรับ</h2>
+                </div>
+                <div className="px-5 py-5">
+                  <textarea
+                    rows={3}
+                    value={processNote}
+                    onChange={(e) => setProcessNote(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none bg-slate-50/50 resize-none"
+                    placeholder="เช่น รับของครบตามนัด ไม่พบข้อผิดพลาด"
+                  />
+                </div>
+              </section>
+
+              <div className="flex items-stretch lg:w-72 shrink-0">
+                <div className="flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 rounded-xl px-6 py-5 w-full">
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-slate-800">บันทึกผลตรวจรับ</p>
+                    <p className="text-xs text-slate-500 mt-0.5">ตรวจสอบรายการและสภาพครุภัณฑ์ก่อนกดยืนยัน</p>
+                  </div>
+                  <button
+                    onClick={handleProcess}
+                    disabled={isSaving}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 w-full shrink-0"
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    บันทึกผลตรวจรับ
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isCompleted && (
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-bold text-gray-900">บันทึกการตรวจรับ</h2>
+              </div>
+              <div className="px-5 py-5">
+                <textarea
+                  rows={3}
+                  value={processNote}
+                  onChange={(e) => setProcessNote(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none bg-slate-50/50 resize-none"
+                  placeholder="เช่น รับของครบตามนัด ไม่พบข้อผิดพลาด"
+                  disabled
+                />
+              </div>
+            </section>
+          )}
+
         </div>
       </div>
     </div>

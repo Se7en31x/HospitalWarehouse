@@ -31,6 +31,15 @@ export interface PrintedBy {
   department?: string | null;
 }
 
+export interface SignerBox {
+  /** Role label, e.g. "ผู้ออกรายงาน" */
+  role: string;
+  /** Pre-filled full name (optional). If provided, replaces the dotted name line. */
+  name?: string | null;
+  /** Pre-filled date string (optional). If provided, replaces the dotted date line. */
+  date?: string | null;
+}
+
 export interface PrintWarehouseReportOptions {
   reportTitle: string;
   /** e.g. "1 มี.ค. 2568 – 31 มี.ค. 2568" */
@@ -41,6 +50,11 @@ export interface PrintWarehouseReportOptions {
   columns: PrintColumn[];
   rows: Record<string, string | number | undefined | null>[];
   printedBy?: PrintedBy;
+  /**
+   * Structured signer boxes with optional pre-filled names.
+   * Takes priority over `signatureRoles` when provided.
+   */
+  signers?: SignerBox[];
   /** Roles shown in signature boxes. Default: ['ผู้ออกรายงาน', 'ผู้ตรวจสอบ'] */
   signatureRoles?: string[];
   /** Set false to hide the signature area. Default: true */
@@ -65,9 +79,15 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     columns,
     rows,
     printedBy,
+    signers,
     signatureRoles = ["ผู้ออกรายงาน", "ผู้ตรวจสอบ"],
     showSignature = true,
   } = options;
+
+  // Normalise to SignerBox[] — prefer `signers`, fall back to `signatureRoles`
+  const resolvedSigners: SignerBox[] = signers
+    ? signers
+    : signatureRoles.map((role) => ({ role }));
 
   const printDate = new Date().toLocaleDateString("th-TH", {
     timeZone: "Asia/Bangkok",
@@ -112,14 +132,14 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
   // ── Signature section ─────────────────────────────────────────────────────
   const sigSection = showSignature
     ? `<div class="sig-section">
-        ${signatureRoles
+        ${resolvedSigners
           .map(
-            (role) => `
+            ({ role, name, date }) => `
           <div class="sig-box">
             <p class="sig-line">(ลงชื่อ)&nbsp;...................................................</p>
             <p class="sig-role">${esc(role)}</p>
-            <p class="sig-name">(.......................................................)</p>
-            <p class="sig-date">วันที่&nbsp;........./........./.........</p>
+            <p class="sig-name">${name ? `(${esc(name)})` : "(.......................................................)"}</p>
+            <p class="sig-date">${date ? `วันที่&nbsp;${esc(date)}` : "วันที่&nbsp;........./........./........."}</p>
           </div>`
           )
           .join("")}

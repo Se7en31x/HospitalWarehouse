@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, Package, ChevronLeft, ChevronRight,
-  ChevronDown, ClipboardList, X, Printer
+  ChevronDown, ClipboardList, X, Printer, Cpu
 } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
@@ -241,7 +241,15 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการครุภัณฑ์ภายในองค์กร</h2>
+          <div className="flex items-center gap-4 mb-1">
+            <div className="p-3 bg-amber-600 rounded-xl">
+              <Cpu className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการครุภัณฑ์ภายในองค์กร</h2>
+              <p className="text-sm text-slate-500 mt-0.5">ลงทะเบียนและติดตามครุภัณฑ์ทางการแพทย์ขององค์กร</p>
+            </div>
+          </div>
           <div className="flex border-b border-slate-200 mt-2">
             <button
               onClick={() => router.push('/warehouse/assets?mode=reusable')}

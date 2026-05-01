@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Trash2, X, Package, Search, Eye } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Trash2, X, Package, Search, Eye, Building2 } from "lucide-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
@@ -233,7 +233,13 @@ export default function ReturnsDepartmentClient() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
+          <div className="p-3 bg-sky-600 rounded-xl">
+            <Building2 className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ตรวจสอบและรับคืนอุปกรณ์จากแผนกต่างๆ</p>
+          </div>
         </div>
       </div>
 
@@ -447,7 +453,7 @@ export default function ReturnsDepartmentClient() {
                       <button
                         type="button"
                         onClick={() => openProcessPage(rec)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                        className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
                         title="ดู"
                       >
                         <Eye className="w-5 h-5" />

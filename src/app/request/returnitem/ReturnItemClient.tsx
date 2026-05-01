@@ -252,8 +252,14 @@ export default function ReturnItemClient() {
       <Toaster position="top-right" />
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-violet-600 rounded-xl">
+            <Clock className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
+            <p className="text-sm text-slate-500 mt-0.5">ติดตามสถานะการคืนอุปกรณ์ที่ยืมออกไปภายนอก</p>
+          </div>
         </div>
       </div>
 
@@ -498,10 +504,10 @@ export default function ReturnItemClient() {
                           <button
                             type="button"
                             onClick={() => openDetail(r.id)}
-                            className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
+                            className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
                             title="ดูรายละเอียด / รับคืน"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-5 h-5" />
                           </button>
                         </td>
                       </tr>
