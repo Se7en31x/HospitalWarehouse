@@ -536,7 +536,7 @@ export default function WarehouseDashboard() {
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-8 py-2">
-              <div className="w-full max-w-[320px] h-[300px] shrink-0">
+              <div className="relative w-full max-w-[300px] h-[280px] shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                     <Pie
@@ -545,13 +545,12 @@ export default function WarehouseDashboard() {
                       nameKey="label"
                       cx="50%"
                       cy="50%"
-                      innerRadius={0}
+                      innerRadius={72}
                       outerRadius={118}
-                      paddingAngle={2}
+                      paddingAngle={3}
                       stroke="#fff"
                       strokeWidth={2}
                       labelLine={false}
-                      label={LotPiePercentLabel}
                       activeShape={LotPieActiveShape}
                     >
                       {pieData.map((entry, i) => (
@@ -565,10 +564,12 @@ export default function WarehouseDashboard() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                <p className="text-center text-sm text-gray-500 mt-1">
-                  ล็อตทั้งหมด{" "}
-                  <span className="font-bold tabular-nums text-gray-900">{lotTotal.toLocaleString()}</span>
-                </p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-3xl font-black tabular-nums text-slate-800 leading-none">
+                    {lotTotal.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-slate-400 mt-1.5 font-medium tracking-wide uppercase">ล็อตทั้งหมด</span>
+                </div>
               </div>
 
               <div className="flex flex-col gap-3 w-full sm:w-auto sm:min-w-[240px] justify-center">
