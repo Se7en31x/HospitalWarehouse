@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-	ClipboardCheck,
 	Search,
 	ChevronDown,
 	ChevronLeft,
@@ -17,6 +16,7 @@ import { useUser } from "@/context/UserContext";
 import { getAllRequisitionsPages } from "@/services/requisitionService";
 import { getDepartmentOptions } from "@/services/departmentService";
 import type { RequisitionHeader } from "@/types/requisition_type";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -326,26 +326,12 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
 
-			{/* ── Header bar ──────────────────────────────────────────────────── */}
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow">
-							<ClipboardCheck className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานคำขอเบิก/ยืม</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK &nbsp;·&nbsp; พิมพ์วันที่ {printDate}</p>
-						</div>
-					</div>
-					{onBack && (
-						<button type="button" onClick={onBack}
-							className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm">
-							ย้อนกลับ
-						</button>
-					)}
-				</div>
-			</div>
+			<ReportDetailPageHeader
+				reportPage="requisition"
+				title="รายงานคำขอเบิก/ยืม"
+				subtitle={`ระบบบริหารคลังสินค้า HPK · พิมพ์วันที่ ${printDate}`}
+				onBack={onBack}
+			/>
 
 			{/* ── Content ──────────────────────────────────────────────────────── */}
 			<div className="flex-1 px-8 py-6">

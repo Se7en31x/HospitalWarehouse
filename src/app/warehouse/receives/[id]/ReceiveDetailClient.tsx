@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   FileText, Layers, Loader2, Package, CheckCircle, Clock, X,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import * as receiveService from "@/services/receiveService";
@@ -16,10 +15,11 @@ import type {
   ReceiveBatchHeader,
   ReceiveStatus,
 } from "@/services/receiveService";
+import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 const MySwal = withReactContent(Swal);
 const getErrorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -201,12 +201,12 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
               {(doc.receive_item ?? []).map((item, idx) => (
                 <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                   <td className="px-6 py-3 w-[56px] text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
-                  <td className="px-3 py-3 align-middle min-w-0">
+                  <td className="px-6 py-3 align-middle min-w-0">
                     <p className="text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
                       {item.item_code ?? String(item.item_id)}
                     </p>
                   </td>
-                  <td className="px-3 py-3 align-middle min-w-0">
+                  <td className="px-6 py-3 align-middle min-w-0">
                     <p className="text-slate-800 leading-snug truncate" title={item.item_name ?? ""}>
                       {item.item_name ?? "—"}
                     </p>
@@ -350,16 +350,7 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
   }, [parsedId]);
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] bg-[#fafafa] p-3 sm:p-4 md:p-6">
-        <DotLottieReact
-          src={LOTTIE_SRC}
-          loop
-          autoplay
-          style={{ width: 160, height: 160 }}
-        />
-      </div>
-    );
+    return <WarehouseDetailPageSkeleton ariaLabel="กำลังโหลดรายละเอียดการรับเข้า" />;
   }
 
   if (!batch) return null;
@@ -371,9 +362,7 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
       <div className="w-full px-6 py-6 flex flex-col flex-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-600 rounded-lg shrink-0">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
+            <PageHeadingIconBox icon={FileText} tone="inbound" className="shrink-0" />
             <div>
               <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">รายละเอียดการรับเข้า</h2>
               <p className="text-sm text-slate-500 mt-0.5">ดูรายละเอียดใบรับสินค้า ล็อต และสถานะการตรวจรับ</p>

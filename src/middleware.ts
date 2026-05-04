@@ -1,5 +1,14 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { userMayOperateWarehouseBorrowFlows } from "@/lib/departmentAccess";
+
+function isWarehouseOnlyRequestPath(pathname: string): boolean {
+  const paths = ["/request/borrow", "/request/returnitem", "/request/return-requests"];
+  return paths.some(
+    (prefix) =>
+      pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -59,7 +68,8 @@ export async function middleware(request: NextRequest) {
   // systems เดิมเป็น [{id: 1, name: "OPD"}, ...] 
   // เราจะแปลงเป็น ["OPD", "Warehouse", ...] เพื่อให้ใช้ .includes() ได้ง่ายๆ
   const allowedSystems: string[] = (user.app_metadata?.systems || []).map(
-    (s: any) => (typeof s === "string" ? s : s.name)
+    (s: unknown) =>
+      typeof s === "string" ? s : String((s as { name?: string }).name ?? "")
   );
 
   const path = request.nextUrl.pathname;
@@ -90,12 +100,28 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // เช็คหน้า Request (เบิกยืม)
+  // เช็คหน้า Request (เบิกยืม) — session จาก cookie ผ่าน supabase.auth.getUser()
   if (path.startsWith("/request")) {
     const hasBorrowSystem = allowedSystems.includes("Borrow-Return");
     if (!hasBorrowSystem) {
       console.log("🚫 [Denied]: No Borrow-Return access");
       return NextResponse.redirect(new URL("https://hpk-hms.site/unauthorized", request.url));
+    }
+
+    // หน้ายืมและคืน (ผู้ปฏิบัติ = คลังหลัก) + admin จาก role ใน JWT
+    if (isWarehouseOnlyRequestPath(path)) {
+      const meta = user.app_metadata as Record<string, unknown> | undefined;
+      const isWarehouseStaffRole =
+        ["warehouse_manager", "warehouse_staff"].includes(userRole) &&
+        allowedSystems.includes("Warehouse");
+
+      const allowedWarehouseBorrow =
+        isWarehouseStaffRole || userMayOperateWarehouseBorrowFlows(meta);
+
+      if (!allowedWarehouseBorrow) {
+        console.log("🚫 [Denied]: Borrow/return routes require main warehouse department, warehouse role, or admin");
+        return NextResponse.redirect(new URL("https://hpk-hms.site/unauthorized", request.url));
+      }
     }
   }
 

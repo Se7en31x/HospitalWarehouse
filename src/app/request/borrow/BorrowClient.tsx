@@ -1,13 +1,24 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Search, Plus, ShoppingCart, Package, ChevronLeft, ChevronRight, ChevronDown, X, Stethoscope } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH,
+  LIST_TABLE_TH_ICON,
+  LIST_TABLE_TH_ROWNUM_TIGHT,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
 import { useAuth } from "@/hooks/useAuth";
+import { pickWarehouseJwtDepartmentId } from "@/lib/departmentAccess";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import BorrowCartModal from "./BorrowCartModal";
 import ItemDetailModal from "./ItemDetailModal";
@@ -60,7 +71,12 @@ const PAGE_LIMIT = 10;
 export default function BorrowClient({ initialItems }: Props) {
   const { departments, user, isLoading: isAuthLoading } = useAuth();
 
-  const [allItems, setAllItems] = useState<Item.UiItem[]>(mapBorrowableStock(initialItems || []));
+  const jwtWarehouseDeptId = useMemo(
+    () => pickWarehouseJwtDepartmentId(user?.app_metadata as Record<string, unknown> | undefined),
+    [user]
+  );
+
+  const [allItems, setAllItems] = useState<Item.UiItem[]>([]);
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
@@ -75,10 +91,7 @@ export default function BorrowClient({ initialItems }: Props) {
   const [showCartModal, setShowCartModal] = useState(false);
   const [isCartBouncing, setIsCartBouncing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isRefreshingRef = useRef(false);
-  const isVisibleRef = useRef(true);
+  const [isFetching, setIsFetching] = useState(false);
 
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<Item.UiItem | null>(null);
@@ -97,8 +110,8 @@ export default function BorrowClient({ initialItems }: Props) {
     },
   ]);
 
-  const fetchAll = useCallback(async () => {
-    setIsFetching(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const result = await ItemSvc.getAllInventoryItems({ allowed_borrow: true, type: "REUSABLE" });
       setAllItems(mapBorrowableStock(result || []));
@@ -106,61 +119,27 @@ export default function BorrowClient({ initialItems }: Props) {
       const msg = getErrorMessage(error);
       console.error("Fetch error:", msg);
       const status = (error as Record<string, unknown>)?.status;
-      if (status !== 401) {
+      if (!silent && status !== 401) {
         SweetAlertUtils.error("เกิดข้อผิดพลาด", msg || "โหลดข้อมูลล้มเหลว");
       }
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
-  const refreshData = useCallback(async () => {
-    fetchAll();
-  }, [fetchAll]);
-
   useEffect(() => {
-    const onVisibilityChange = () => {
-      isVisibleRef.current = document.visibilityState === "visible";
-    };
-
-    onVisibilityChange();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
     if (!socket.connected) socket.connect();
 
-    const scheduleRefresh = () => {
-      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
-
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
-
-      refreshTimerRef.current = setTimeout(async () => {
-        isRefreshingRef.current = true;
-        try {
-          await refreshData();
-        } finally {
-          isRefreshingRef.current = false;
-          refreshTimerRef.current = null;
-        }
-      }, 220);
-    };
-
     const handleRefreshSignal = (message: string) => {
-      if (message === "ITEMS") scheduleRefresh();
+      if (message === "ITEMS") fetchAll(true);
     };
 
     socket.on("REFRESH_DATA", handleRefreshSignal);
 
     return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-      document.removeEventListener("visibilitychange", onVisibilityChange);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData, isFetching]);
+  }, [fetchAll]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -248,17 +227,25 @@ export default function BorrowClient({ initialItems }: Props) {
     ...Array.from(new Set(allItems.map((item) => item.location).filter(Boolean))),
   ];
 
-  const filteredItems = allItems.filter((item) => {
-    if (item.type !== "REUSABLE") return false;
-    const keyword = searchTerm.toLowerCase();
-    const matchesSearch =
-      !keyword ||
-      item.name.toLowerCase().includes(keyword) ||
-      item.code.toLowerCase().includes(keyword);
-    const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
-    const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
-    return matchesSearch && matchesCat && matchesLocation;
-  });
+  const filteredItems = allItems
+    .filter((item) => {
+      if (item.type !== "REUSABLE") return false;
+      const keyword = searchTerm.toLowerCase();
+      const matchesSearch =
+        !keyword ||
+        item.name.toLowerCase().includes(keyword) ||
+        item.code.toLowerCase().includes(keyword);
+      const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
+      const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
+      return matchesSearch && matchesCat && matchesLocation;
+    })
+    .sort((a, b) => {
+      const sa = getEffectiveStock(a);
+      const sb = getEffectiveStock(b);
+      if (sa > 0 && sb <= 0) return -1;
+      if (sa <= 0 && sb > 0) return 1;
+      return 0;
+    });
 
   const totalPages = Math.ceil(filteredItems.length / PAGE_LIMIT);
   const paginatedItems = filteredItems.slice((currentPage - 1) * PAGE_LIMIT, currentPage * PAGE_LIMIT);
@@ -328,9 +315,7 @@ export default function BorrowClient({ initialItems }: Props) {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-teal-600 rounded-xl">
-            <Stethoscope className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Stethoscope} tone="teal" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ยืมอุปกรณ์ทางการแพทย์</h2>
             <p className="text-sm text-slate-500 mt-0.5">เลือกอุปกรณ์ทางการแพทย์และยื่นคำขอยืมจากคลังสินค้า</p>
@@ -461,14 +446,14 @@ export default function BorrowClient({ initialItems }: Props) {
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
-            />
-          </div>
+          <DataTableSkeleton
+            headers={["#", "รูป", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คงเหลือ", "หน่วย", "ตำแหน่งจัดเก็บ", "สถานะ", "จัดการ"]}
+            rowCount={10}
+            ariaLabel="กำลังโหลดรายการพัสดุ"
+            minHeight="min-h-[22rem]"
+            thClassName="px-2 py-4 whitespace-nowrap"
+            tdClassName="px-2 py-3"
+          />
         ) : (
           <>
             <div
@@ -500,8 +485,8 @@ export default function BorrowClient({ initialItems }: Props) {
           `}</style>
               <table className="w-full table-fixed text-sm text-left">
                 <colgroup>
-                  <col className="w-[48px]" />
-                  <col className="w-[72px]" />
+                  <col className="w-[44px]" />
+                  <col className="w-[88px]" />
                   <col className="w-[13%]" />
                   <col className="w-[20%]" />
                   <col className="w-[14%]" />
@@ -511,31 +496,31 @@ export default function BorrowClient({ initialItems }: Props) {
                   <col className="w-[9%]" />
                   <col className="w-[9%]" />
                 </colgroup>
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 text-center whitespace-nowrap">#</th>
-                    <th className="px-6 py-4">รูป</th>
-                    <th className="px-3 py-4 whitespace-nowrap">รหัสรายการ</th>
-                    <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                    <th className="px-6 py-4 w-[120px] whitespace-nowrap">คงเหลือ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
-                    <th className="px-6 py-4 whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={LIST_TABLE_TH_ROWNUM_TIGHT}>#</th>
+                    <th className={LIST_TABLE_TH_ICON}>รูป</th>
+                    <th className={LIST_TABLE_TH}>รหัสรายการ</th>
+                    <th className={`${LIST_TABLE_TH} px-3`}>ชื่อพัสดุ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หมวดหมู่</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} w-[120px]`}>คงเหลือ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หน่วย</th>
+                    <th className={LIST_TABLE_TH_WIDE}>ตำแหน่งจัดเก็บ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {paginatedItems.map((item, index) => (
                     <tr
                       key={item.id}
                       className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                     >
-                      <td className="px-4 py-3 text-center text-slate-500 text-sm font-semibold">
+                      <td className="px-2 py-3 text-center text-slate-500 text-sm font-semibold">
                         {(currentPage - 1) * PAGE_LIMIT + index + 1}
                       </td>
-                      <td className="px-6 py-3">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden">
+                      <td className="px-3 py-3 text-center">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden mx-auto">
                           {item.imageUrl ? (
                             <button
                               type="button"
@@ -549,7 +534,7 @@ export default function BorrowClient({ initialItems }: Props) {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3">{item.code}</td>
+                      <td className="px-5 py-3">{item.code}</td>
                       <td className="px-3 py-3">
                         <span className="block truncate" title={item.name}>
                           {item.name}
@@ -684,6 +669,7 @@ export default function BorrowClient({ initialItems }: Props) {
         selectedDeptId={selectedDeptId}
         departments={departments}
         onDeptChange={setSelectedDeptId}
+        jwtWarehouseDeptId={jwtWarehouseDeptId}
       />
 
       {lightboxImage && (

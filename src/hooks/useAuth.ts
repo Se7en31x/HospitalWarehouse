@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client"; 
 import { User } from "@supabase/supabase-js";
 import { getProfile, ProfileDepartment } from "@/services/profileService";
+import { userMayOperateWarehouseBorrowFlows } from "@/lib/departmentAccess";
 
 // กำหนดโครงสร้างรอไว้เลยครับ
 interface SystemOption {
@@ -46,14 +47,27 @@ export const useAuth = () => {
     fetchAuth();
   }, []);
 
-  // คืนค่าออกไปใช้งาน
+  const roleName = user?.app_metadata?.role?.name || "guest";
+  const meta = user?.app_metadata as Record<string, unknown> | undefined;
+  const allowedSystemsFromUser: string[] = (
+    (user?.app_metadata?.systems as unknown[]) || []
+  ).map((s: unknown) => (typeof s === "string" ? s : String((s as { name?: string })?.name ?? "")));
+  const isWarehouseStaffRole =
+    ["warehouse_manager", "warehouse_staff"].includes(roleName) &&
+    allowedSystemsFromUser.includes("Warehouse");
+  const canAccessWarehouseBorrowFlows =
+    roleName === "admin" ||
+    userMayOperateWarehouseBorrowFlows(meta) ||
+    isWarehouseStaffRole;
   return { 
     user, 
     departments, 
     isLoading,
     // แกะ Role Name ออกมาตรงๆ (จากเดิมที่เป็น Object)
-    roleName: user?.app_metadata?.role?.name || "guest",
+    roleName,
     roleId: user?.app_metadata?.role?.id || null,
+    /** ให้ตรงกับ middleware: admin, แผนกคลังหลักใน JWT, หรือพนักงานคลัง */
+    canAccessWarehouseBorrowFlows,
     allMetadata: user?.app_metadata // เผื่ออยากเอาไปแงะอย่างอื่นต่อเอง
   };
 };

@@ -6,7 +6,16 @@ import {
   Search, Package, ChevronLeft, ChevronRight,
   ChevronDown, ClipboardList, X, Printer, Cpu
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+  LIST_TABLE_TH_ICON,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
 
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
@@ -32,8 +41,8 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
   const isVisibleRef = useRef(true);
 
   // --- [Data Fetching] ---
-  const fetchAll = useCallback(async () => {
-    setIsFetching(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const result = await ItemSvc.getAllInventoryItems({ type: "MED_ASSET" });
       setAllItems(result || []);
@@ -45,23 +54,22 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
       }
     } catch (error) {
       console.error("Fetch error:", error);
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลพัสดุไม่สำเร็จ");
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
   const refreshData = useCallback(async () => {
-    fetchAll();
+    fetchAll(true);
   }, [fetchAll]);
 
   // --- [Real-time Socket.io Connection] ---
   useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) refreshData();
     };
-
-    onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     if (!socket.connected) socket.connect();
@@ -242,9 +250,7 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-4 mb-1">
-            <div className="p-3 bg-amber-600 rounded-xl">
-              <Cpu className="w-6 h-6 text-white" />
-            </div>
+            <PageHeadingIconBox icon={Cpu} tone="assets" />
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการครุภัณฑ์ภายในองค์กร</h2>
               <p className="text-sm text-slate-500 mt-0.5">ลงทะเบียนและติดตามครุภัณฑ์ทางการแพทย์ขององค์กร</p>
@@ -369,12 +375,15 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
       {/* Table Content */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดครุภัณฑ์</span>
+            <DataTableSkeleton
+              headers={["", "รูป", "รหัส", "ชื่อครุภัณฑ์", "หมวดหมู่", "คงเหลือ", "หน่วย", "สถานะ", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดครุภัณฑ์"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -406,9 +415,9 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
                   <col className="w-[10%]" />
                   <col className="w-[8%]" />
                 </colgroup>
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 text-center">
+                    <th className="px-4 py-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
@@ -417,17 +426,17 @@ export default function AssetClient({ initialItems }: { initialItems: Item.UiIte
                         title="เลือกทั้งหมดในหน้านี้"
                       />
                     </th>
-                    <th className="px-6 py-4">รูป</th>
-                    <th className="px-3 py-4 whitespace-nowrap">รหัส</th>
-                    <th className="px-3 py-4 whitespace-nowrap">ชื่อครุภัณฑ์</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                    <th className="px-6 py-4 whitespace-nowrap">คงเหลือ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
-                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={`${LIST_TABLE_TH_ICON} px-6`}>รูป</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>รหัส</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>ชื่อครุภัณฑ์</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หมวดหมู่</th>
+                    <th className={LIST_TABLE_TH_WIDE}>คงเหลือ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หน่วย</th>
+                    <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {paginatedItems.map((item) => (
                     <tr
                       key={item.id}

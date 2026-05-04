@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
+import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { useUser } from "@/context/UserContext";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 const XlsxIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -69,6 +71,7 @@ const getStockLevel = (item: ItemSummary) => {
 const ITEMS_PER_PAGE = 10;
 
 const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> = ({ onBack }) => {
+	const { profile } = useUser();
 	const [warehouses, setWarehouses] = useState<WarehouseGroup[]>([]);
 	const [isFetching, setIsFetching] = useState(true);
 	const [searchTerm, setSearchTerm] = useState("");
@@ -196,13 +199,12 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 	const pdfSubtitle = useMemo(
 		() =>
 			[
-				selectedWarehouse ? `คลัง: ${selectedWarehouse}` : "คลัง: ทุกคลัง",
-				selectedCategory ? `หมวด: ${selectedCategory}` : null,
-				selectedUnit ? `หน่วย: ${selectedUnit}` : null,
-				selectedStockLevel ? `ระดับสต็อก: ${selectedStockLevel}` : null,
-				`รวม ${allItemsFlattened.length} รายการ`,
-			].filter(Boolean).join(" | "),
-		[selectedWarehouse, selectedCategory, selectedUnit, selectedStockLevel, allItemsFlattened.length],
+				selectedWarehouse  ? `คลัง: ${selectedWarehouse}`            : null,
+				selectedCategory   ? `หมวด: ${selectedCategory}`             : null,
+				selectedUnit       ? `หน่วย: ${selectedUnit}`                : null,
+				selectedStockLevel ? `ระดับสต็อก: ${selectedStockLevel}`     : null,
+			].filter(Boolean).join(" | ") || undefined,
+		[selectedWarehouse, selectedCategory, selectedUnit, selectedStockLevel],
 	);
 
 	const handleExportXlsx = async () => {
@@ -333,7 +335,7 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 	};
 
 	const handleExportPdf = () => {
-		const columns: PdfColumn[] = [
+		const columns: PrintColumn[] = [
 			{ header: "#",           key: "_no",       align: "center" },
 			{ header: "คลัง",        key: "warehouse" },
 			{ header: "รหัสรายการ",  key: "code" },
@@ -361,12 +363,18 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 				});
 			});
 		});
-		printAsPdf(
-			"รายงานคงคลังรายคลัง",
-			pdfSubtitle,
+		printWarehouseReport({
+			reportTitle:   "รายงานคงคลังรายคลัง",
+			filterSummary: pdfSubtitle,
 			columns,
-			pdfRows,
-		);
+			rows: pdfRows,
+			printedBy: {
+				title:      profile?.title?.name,
+				firstName:  profile?.firstname_th,
+				lastName:   profile?.lastname_th,
+				department: profile?.departments?.[0]?.name,
+			},
+		});
 	};
 
 	const filteredTotalStock = useMemo(
@@ -376,30 +384,12 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 shadow">
-							<Warehouse className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานคงคลังรายคลัง</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						{onBack && (
-							<button
-								type="button"
-								onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
-							>
-								ย้อนกลับ
-							</button>
-						)}
-					</div>
-				</div>
-			</div>
+			<ReportDetailPageHeader
+				reportPage="inventory-balance"
+				title="รายงานคงคลังรายคลัง"
+				subtitle="ระบบบริหารคลังสินค้า HPK"
+				onBack={onBack}
+			/>
 
 			<div className="flex-1 px-8 py-6">
 				<div

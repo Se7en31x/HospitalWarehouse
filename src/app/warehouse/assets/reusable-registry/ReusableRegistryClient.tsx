@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Edit, Printer, Search, Trash2, X } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Edit, Printer, Search, Stethoscope, Trash2, X } from "lucide-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { LIST_TABLE_HEAD_ROW, LIST_TABLE_TH_WIDE, LIST_TABLE_TBODY } from "@/lib/tableUi";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
@@ -402,10 +405,23 @@ export default function ReusableRegistryClient({
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
-          {masterItem?.name || "กำลังโหลด..."}
-        </h2>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-4 mb-1 min-w-0">
+            <PageHeadingIconBox icon={Stethoscope} tone="teal" className="shrink-0" />
+            <div className="min-w-0">
+              <h2
+                className="text-2xl sm:text-3xl font-bold text-gray-800 truncate"
+                title={masterItem?.name || undefined}
+              >
+                {masterItem?.name || "กำลังโหลด..."}
+              </h2>
+              <p className="text-sm text-slate-500 mt-0.5">
+                ดูและจัดการหน่วยรายชิ้นที่ลงทะเบียนไว้ — สถานะ สภาพ แผนกที่เกี่ยวข้อง และพิมพ์บาร์โค้ด
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap shrink-0">
           {selectedUnits.size > 0 && (
             <button
               onClick={handleBulkPrint}
@@ -520,12 +536,15 @@ export default function ReusableRegistryClient({
       {/* Table Content */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดทะเบียน Reusable</span>
+            <DataTableSkeleton
+              headers={["", "Unit Code", "Serial", "แผนก", "สถานะ", "สภาพ", "เอกสารรับเข้า", "หมายเหตุ", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดทะเบียน Reusable"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -552,9 +571,9 @@ export default function ReusableRegistryClient({
                   <col className="w-[14%]" />
                   <col className="w-[8%]" />
                 </colgroup>
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 text-center">
+                    <th className="px-4 py-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedUnits.has(r.id))}
@@ -563,17 +582,17 @@ export default function ReusableRegistryClient({
                         title="เลือกทั้งหมดในหน้านี้"
                       />
                     </th>
-                    <th className="px-6 py-4 whitespace-nowrap">Unit Code</th>
-                    <th className="px-6 py-4 whitespace-nowrap">Serial</th>
-                    <th className="px-6 py-4 whitespace-nowrap">แผนก</th>
-                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">สภาพ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">เอกสารรับเข้า</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หมายเหตุ</th>
-                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>Unit Code</th>
+                    <th className={LIST_TABLE_TH_WIDE}>Serial</th>
+                    <th className={LIST_TABLE_TH_WIDE}>แผนก</th>
+                    <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>สภาพ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>เอกสารรับเข้า</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หมายเหตุ</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {paginatedRecords.map((rec) => (
                     <tr key={rec.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                       <td className="px-4 py-2.5 text-center">

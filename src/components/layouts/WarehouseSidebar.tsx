@@ -40,7 +40,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { name: 'รายการพัสดุ', path: '/warehouse/items', icon: PackageSearch },
       { name: 'ล็อตสินค้า', path: '/warehouse/lots', icon: Layers },
-      { name: 'ครุภัณฑ์', path: '/warehouse/assets', icon: Tags },
+      { name: 'จัดการครุภัณฑ์', path: '/warehouse/assets', icon: Tags },
       { name: 'รับพัสดุเข้าคลัง', path: '/warehouse/receives', icon: ArrowDownToLine },
     ],
   },
@@ -102,7 +102,7 @@ function NavContent({
               {collapsed ? (
                 <div className="ml-3 w-6 h-px bg-black/10" />
               ) : (
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                   {group.title}
                 </span>
               )}
@@ -120,16 +120,16 @@ function NavContent({
                     onClick={onLinkClick}
                     title={collapsed ? item.name : ''}
                     className={`
-                      flex items-center gap-3 rounded-xl px-3 py-2 transition-all duration-200
+                      flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200
                       ${isActive
                         ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100/80 hover:bg-blue-100/80'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                       }
                     `}
                   >
-                    <Icon className="w-5 h-5 shrink-0" />
+                    <Icon className="w-[22px] h-[22px] shrink-0" />
                     {!collapsed && (
-                      <span className={`text-[14px] whitespace-nowrap ${
+                      <span className={`text-[15px] whitespace-nowrap ${
                         isActive ? 'font-semibold' : 'font-medium'
                       }`}>
                         {item.name}
@@ -176,7 +176,7 @@ export default function WarehouseSidebar() {
         className={`
           hidden lg:flex flex-col shrink-0 h-full overflow-hidden
           bg-white border-r border-slate-200 transition-all duration-300 ease-in-out
-          ${isCollapsed ? 'w-[68px]' : 'w-60'}
+          ${isCollapsed ? 'w-[72px]' : 'w-64'}
         `}
       >
         <NavContent collapsed={isCollapsed} toggleSidebar={toggleSidebar} />

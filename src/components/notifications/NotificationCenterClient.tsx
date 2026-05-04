@@ -12,6 +12,7 @@ import {
 } from "@/services/notificationService";
 import { socket } from "@/lib/socket";
 import { fmtDateCompact } from "@/utils/dateUtils";
+import { NotificationListSkeleton } from "@/components/skeletons/NotificationListSkeleton";
 
 type ReadFilter = "all" | "unread" | "read";
 
@@ -312,10 +313,7 @@ export default function NotificationCenterClient({ title, entityType }: Notifica
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 px-3 py-2">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-400">
-              <Loader2 className="w-10 h-10 animate-spin" />
-              <span className="text-base font-medium">กำลังโหลด...</span>
-            </div>
+            <NotificationListSkeleton />
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">

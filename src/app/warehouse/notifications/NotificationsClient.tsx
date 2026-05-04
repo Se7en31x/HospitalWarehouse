@@ -5,6 +5,7 @@ import {
   Bell, AlertCircle, CheckCircle, Info, XCircle,
   CheckCheck, Trash2,
 } from 'lucide-react';
+import { PageHeadingIconBox } from '@/components/PageHeadingIconBox';
 
 export type NotifType = 'warning' | 'success' | 'info' | 'error';
 
@@ -51,9 +52,7 @@ export default function NotificationsClient({ initialNotifications }: { initialN
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-rose-600 rounded-xl">
-            <Bell className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Bell} tone="rose" />
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">การแจ้งเตือน</h2>

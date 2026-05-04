@@ -124,20 +124,8 @@ export async function getDashboardAnalytics(params?: {
 }
 
 async function getAllLotsRaw(): Promise<Array<Record<string, unknown>>> {
-  const limit = 10;
-  let page = 1;
-  const allLots: Array<Record<string, unknown>> = [];
-
-  while (true) {
-    const res = await api.list<Record<string, unknown>>("/v1/lots", { page, limit });
-    const batch = res.data || [];
-    allLots.push(...batch);
-
-    if (page >= (res.meta?.totalPages || 1) || batch.length < limit) break;
-    page += 1;
-  }
-
-  return allLots;
+  const res = await api.list<Record<string, unknown>>("/v1/lots", { limit: 1000, _t: Date.now() });
+  return res.data || [];
 }
 
 export async function getExpiringLots(days = 90): Promise<ExpiringLot[]> {

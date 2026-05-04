@@ -2,13 +2,15 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-	ChevronDown, ChevronLeft, ChevronRight, Inbox, PackagePlus, Search, X,
+	ChevronDown, ChevronLeft, ChevronRight, Inbox, Search, X,
 } from "lucide-react";
 import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { apiClient } from "@/lib/apiClient";
-import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
+import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { useUser } from "@/context/UserContext";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -105,6 +107,7 @@ const fmtCurrency = (n: number) =>
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => {
+	const { profile } = useUser();
 	const [rows,       setRows]       = useState<ReceiveRow[]>([]);
 	const [total,      setTotal]      = useState(0);
 	const [totalPages, setTotalPages] = useState(1);
@@ -209,7 +212,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 	};
 
 	const handleExportPdf = () => {
-		const columns: PdfColumn[] = [
+		const columns: PrintColumn[] = [
 			{ header: "วันที่รับเข้า",   key: "receiveDateFmt" },
 			{ header: "Batch No",         key: "batchNo" },
 			{ header: "เลขที่เอกสาร",    key: "docNo" },
@@ -233,12 +236,19 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 			costPriceFmt:   fmtCurrency(r.costPrice),
 			subtotalFmt:    fmtCurrency(r.qty * r.costPrice),
 		}));
-		printAsPdf(
-			"รายงานการรับสินค้าเข้าคลัง",
-			`${dateFrom ? `จาก ${fmtDate(dateFrom)} ` : ""}${dateTo ? `ถึง ${fmtDate(dateTo)}` : ""}`.trim() || "ทั้งหมด",
+		const period = `${dateFrom ? `จาก ${fmtDate(dateFrom)} ` : ""}${dateTo ? `ถึง ${fmtDate(dateTo)}` : ""}`.trim() || undefined;
+		printWarehouseReport({
+			reportTitle: "รายงานการรับสินค้าเข้าคลัง",
+			period,
 			columns,
-			pdfRows,
-		);
+			rows: pdfRows,
+			printedBy: {
+				title:      profile?.title?.name,
+				firstName:  profile?.firstname_th,
+				lastName:   profile?.lastname_th,
+				department: profile?.departments?.[0]?.name,
+			},
+		});
 	};
 
 	const currentTypeLabel = TYPE_OPTIONS.find(t => t.value === typeFilter)?.label ?? "ประเภททั้งหมด";
@@ -246,28 +256,12 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
 
-			{/* ── Header bar ──────────────────────────────────────────────────── */}
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow">
-							<PackagePlus className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานการรับสินค้าเข้าคลัง</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK &nbsp;·&nbsp; พิมพ์วันที่ {printDate}</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						{onBack && (
-							<button type="button" onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm">
-								ย้อนกลับ
-							</button>
-						)}
-					</div>
-				</div>
-			</div>
+			<ReportDetailPageHeader
+				reportPage="receive-report"
+				title="รายงานการรับสินค้าเข้าคลัง"
+				subtitle={`ระบบบริหารคลังสินค้า HPK · พิมพ์วันที่ ${printDate}`}
+				onBack={onBack}
+			/>
 
 			{/* ── Content ──────────────────────────────────────────────────────── */}
 			<div className="flex-1 px-8 py-6">

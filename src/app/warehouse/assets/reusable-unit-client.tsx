@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Package, Printer, Search, X, Stethoscope } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+  LIST_TABLE_TH_ICON,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 import * as ItemSvc from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
@@ -60,29 +69,28 @@ export default function ReusableUnitClient() {
     printLabels(Array.from(selectedItems.values()));
   };
 
-  const fetchAll = useCallback(async () => {
-    setIsFetching(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const result = await ItemSvc.getAllInventoryItems({ type: "REUSABLE" });
       setAllItems(result || []);
     } catch (error) {
       console.error("Fetch error:", error);
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลของใช้ซ้ำไม่สำเร็จ");
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
   const refreshData = useCallback(async () => {
-    fetchAll();
+    fetchAll(true);
   }, [fetchAll]);
 
   useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) refreshData();
     };
-
-    onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     if (!socket.connected) socket.connect();
@@ -188,9 +196,7 @@ export default function ReusableUnitClient() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-4 mb-1">
-            <div className="p-3 bg-teal-600 rounded-xl">
-              <Stethoscope className="w-6 h-6 text-white" />
-            </div>
+            <PageHeadingIconBox icon={Stethoscope} tone="teal" />
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการอุปกรณ์ทางการแพทย์</h2>
               <p className="text-sm text-slate-500 mt-0.5">ลงทะเบียนและจัดการอุปกรณ์ทางการแพทย์แบบยืม-คืน</p>
@@ -318,12 +324,15 @@ export default function ReusableUnitClient() {
       {/* Table Content */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดหน่วย Reusable</span>
+            <DataTableSkeleton
+              headers={["", "รูป", "รหัส", "ชื่อพัสดุ", "หมวดหมู่", "คงเหลือ", "พร้อมใช้งาน", "หน่วย", "สถานะ", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดหน่วย Reusable"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -351,9 +360,9 @@ export default function ReusableUnitClient() {
                   <col className="w-[10%]" />
                   <col className="w-[8%]" />
                 </colgroup>
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 text-center">
+                    <th className="px-4 py-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
@@ -362,18 +371,18 @@ export default function ReusableUnitClient() {
                         title="เลือกทั้งหมดในหน้านี้"
                       />
                     </th>
-                    <th className="px-6 py-4">รูป</th>
-                    <th className="px-3 py-4 whitespace-nowrap">รหัส</th>
-                    <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                    <th className="px-6 py-4 whitespace-nowrap">คงเหลือ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">พร้อมใช้งาน</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
-                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={`${LIST_TABLE_TH_ICON} px-6`}>รูป</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>รหัส</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>ชื่อพัสดุ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หมวดหมู่</th>
+                    <th className={LIST_TABLE_TH_WIDE}>คงเหลือ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>พร้อมใช้งาน</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หน่วย</th>
+                    <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {paginatedItems.map((item) => (
                     <tr
                       key={item.id}

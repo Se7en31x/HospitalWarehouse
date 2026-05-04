@@ -1,13 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search,
   Wrench,
   ChevronLeft, ChevronRight, ChevronDown,
   ToggleRight, ToggleLeft, Printer, X, Layers
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 import { socket } from "../../../lib/socket";
 import AdjustQuantityModal from "@/app/warehouse/lots/AdjustQuantityModal";
@@ -117,6 +125,9 @@ export default function LotClient({
   const [endDateFocused, setEndDateFocused] = useState(false);
 
   const searchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
 
   // Dropdown open states
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -149,8 +160,8 @@ export default function LotClient({
   };
 
   // โหลดข้อมูลทั้งหมดมาครั้งเดียว แล้วทำ filter + pagination ใน client
-  const fetchAllLots = async () => {
-    setLoading(true);
+  const fetchAllLots = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const result = await getLots(1, 9999);
       const sortedLots = [...result.items].sort((a, b) => {
@@ -160,21 +171,23 @@ export default function LotClient({
       });
       setAllLots(sortedLots);
     } catch (error: any) {
-      const status_code = error?.status;
-      let userMessage = error?.message || 'ไม่ทราบข้อผิดพลาด';
-      if (status_code === 401 || status_code === 403) {
-        userMessage = 'กรุณาเข้าสู่ระบบก่อน หรือ session หมดอายุ กรุณา Refresh หน้าเว็บ';
-      } else if (status_code === 500) {
-        userMessage = 'เซิร์ฟเวอร์มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
-      } else if (status_code === 0 || !status_code) {
-        userMessage = 'ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบการเชื่อมต่อ';
+      if (!silent) {
+        const status_code = error?.status;
+        let userMessage = error?.message || 'ไม่ทราบข้อผิดพลาด';
+        if (status_code === 401 || status_code === 403) {
+          userMessage = 'กรุณาเข้าสู่ระบบก่อน หรือ session หมดอายุ กรุณา Refresh หน้าเว็บ';
+        } else if (status_code === 500) {
+          userMessage = 'เซิร์ฟเวอร์มีข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
+        } else if (status_code === 0 || !status_code) {
+          userMessage = 'ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบการเชื่อมต่อ';
+        }
+        console.error("Failed to fetch lots:", error);
+        SweetAlertUtils.error('ไม่สามารถโหลดข้อมูลได้', userMessage);
       }
-      console.error("Failed to fetch lots:", error);
-      SweetAlertUtils.error('ไม่สามารถโหลดข้อมูลได้', userMessage);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   const fetchAllData = async () => {
     try {
@@ -222,6 +235,37 @@ export default function LotClient({
     void boot();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) fetchAllLots(true);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current || isRefreshingRef.current) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try { await fetchAllLots(true); }
+        finally { isRefreshingRef.current = false; refreshTimerRef.current = null; }
+      }, 220);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "LOTS" || message === "ITEMS") scheduleRefresh();
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [fetchAllLots]);
 
   // --- [Client-side Filtering] ---
   const filteredLots = allLots.filter((lot) => {
@@ -435,9 +479,7 @@ export default function LotClient({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-violet-600 rounded-xl">
-            <Layers className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Layers} tone="violet" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตสินค้า</h2>
             <p className="text-sm text-slate-500 mt-0.5">ติดตามล็อตสินค้า วันหมดอายุ และปริมาณคงเหลือ</p>
@@ -613,12 +655,15 @@ export default function LotClient({
       {/* Table Content */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดล็อต</span>
+            <DataTableSkeleton
+              headers={["", "รหัสรายการ", "รหัส LOT", "ชื่อพัสดุ", "หมวดหมู่", "คงเหลือ", "หน่วย", "วันที่รับเข้า", "วันหมดอายุ", "สถานะ", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดล็อต"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -647,9 +692,9 @@ export default function LotClient({
                   <col className="w-[9%]" />
                   <col className="w-[9%]" />
                 </colgroup>
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 text-center">
+                    <th className="px-4 py-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={currentItems.length > 0 && currentItems.every((l) => selectedItems.has(l.id))}
@@ -671,19 +716,19 @@ export default function LotClient({
                         className="w-4 h-4 accent-blue-600 cursor-pointer"
                       />
                     </th>
-                    <th className="px-6 py-4 whitespace-nowrap">รหัสรายการ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">รหัส LOT</th>
-                    <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                    <th className="px-6 py-4 whitespace-nowrap">คงเหลือ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
-                    <th className="px-6 py-4 whitespace-nowrap">วันที่รับเข้า</th>
-                    <th className="px-6 py-4 whitespace-nowrap">วันหมดอายุ</th>
-                    <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>รหัสรายการ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>รหัส LOT</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>ชื่อพัสดุ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หมวดหมู่</th>
+                    <th className={LIST_TABLE_TH_WIDE}>คงเหลือ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>หน่วย</th>
+                    <th className={LIST_TABLE_TH_WIDE}>วันที่รับเข้า</th>
+                    <th className={LIST_TABLE_TH_WIDE}>วันหมดอายุ</th>
+                    <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {currentItems.map((lot, idx) => {
                     const currentStatus = calculateStatus(lot.expiryDate);
                     const isExpiredLot = currentStatus === "หมดอายุ";

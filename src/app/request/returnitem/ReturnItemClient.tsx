@@ -7,7 +7,14 @@ import {
   Clock, Eye,
   Phone, X,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH,
+  LIST_TABLE_TH_NUM,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 import toast, { Toaster } from "react-hot-toast";
 import { getBorrowActive } from "@/services/requisitionService";
 import type { RequisitionHeader, BorrowerDetails } from "@/types/requisition_type";
@@ -79,8 +86,8 @@ export default function ReturnItemClient() {
   const [isFetching, setIsFetching] = useState(true);
 
   // --- [Data Fetching Logic] ---
-  const fetchData = useCallback(async () => {
-    setIsFetching(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const result = await getBorrowActive(1, 200);
       if (result.success !== false) {
@@ -92,14 +99,12 @@ export default function ReturnItemClient() {
         }
         setRecords(data);
       } else {
-        toast.error(result.message || "ไม่สามารถดึงข้อมูลได้");
-        setRecords([]);
+        if (!silent) { toast.error(result.message || "ไม่สามารถดึงข้อมูลได้"); setRecords([]); }
       }
     } catch (error) {
-      toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
-      setRecords([]);
+      if (!silent) { toast.error(getErrorMessage(error) || "เกิดข้อผิดพลาดในการเชื่อมต่อ"); setRecords([]); }
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
@@ -107,11 +112,11 @@ export default function ReturnItemClient() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) fetchData(true);
     };
-
-    onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, []);
@@ -129,7 +134,7 @@ export default function ReturnItemClient() {
       refreshTimerRef.current = setTimeout(async () => {
         isRefreshingRef.current = true;
         try {
-          await fetchData();
+          await fetchData(true);
         } finally {
           isRefreshingRef.current = false;
           refreshTimerRef.current = null;
@@ -253,11 +258,9 @@ export default function ReturnItemClient() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-violet-600 rounded-xl">
-            <Clock className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Clock} tone="violet" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ติดตามคืนของภายนอก</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">คืนพัสดุที่ยืม</h2>
             <p className="text-sm text-slate-500 mt-0.5">ติดตามสถานะการคืนอุปกรณ์ที่ยืมออกไปภายนอก</p>
           </div>
         </div>
@@ -423,12 +426,14 @@ export default function ReturnItemClient() {
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดรายการคืนพัสดุ</span>
+            <DataTableSkeleton
+              headers={["#", "เลขที่คำขอ", "ชื่อผู้ยืม", "ช่องทางติดต่อ", "จำนวน", "วันที่ยืม", "กำหนดคืน", "สถานะ", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดรายการคืนพัสดุ"
+              tdClassName="px-4 py-3"
             />
           </div>
         ) : (
@@ -451,21 +456,20 @@ export default function ReturnItemClient() {
             div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
           `}</style>
               <table className="w-full table-fixed text-sm text-left">
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 w-12 text-center whitespace-nowrap">#</th>
-                    <th className="px-5 py-4 whitespace-nowrap">เลขที่คำขอ</th>
-                    <th className="px-5 py-4 whitespace-nowrap">ชื่อผู้ยืม</th>
-                    <th className="px-5 py-4 whitespace-nowrap">ช่องทางติดต่อ</th>
-                    <th className="px-5 py-4 whitespace-nowrap">แผนก</th>
-                    <th className="px-5 py-4 text-center whitespace-nowrap">จำนวน</th>
-                    <th className="px-5 py-4 whitespace-nowrap">วันที่ยืม</th>
-                    <th className="px-5 py-4 whitespace-nowrap">กำหนดคืน</th>
-                    <th className="px-5 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-5 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={`${LIST_TABLE_TH_NUM} w-12`}>#</th>
+                    <th className={LIST_TABLE_TH}>เลขที่คำขอ</th>
+                    <th className={LIST_TABLE_TH}>ชื่อผู้ยืม</th>
+                    <th className={LIST_TABLE_TH}>ช่องทางติดต่อ</th>
+                    <th className={`${LIST_TABLE_TH} text-center`}>จำนวน</th>
+                    <th className={LIST_TABLE_TH}>วันที่ยืม</th>
+                    <th className={LIST_TABLE_TH}>กำหนดคืน</th>
+                    <th className={LIST_TABLE_TH}>สถานะ</th>
+                    <th className={`${LIST_TABLE_TH} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {paginatedItems.map((r, idx) => {
                     const overdue = isOverdue(r.due_date);
                     const borrower = r.borrower_details as BorrowerDetails | undefined | null;
@@ -486,9 +490,6 @@ export default function ReturnItemClient() {
                             <Phone className="w-4 h-4 text-slate-400 shrink-0" />
                             {borrower?.phone || "—"}
                           </div>
-                        </td>
-                        <td className="px-5 py-3 text-slate-600 truncate" title={r.department_name ?? undefined}>
-                          {r.department_name ?? `แผนก ${r.department_id}`}
                         </td>
                         <td className="px-5 py-3 text-center font-medium text-slate-700">{r.item_count ?? 0}</td>
                         <td className="px-5 py-3 text-slate-600">{fmtDate(r.request_date)}</td>

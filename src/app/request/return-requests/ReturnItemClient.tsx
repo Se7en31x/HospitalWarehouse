@@ -6,11 +6,17 @@ import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
   Eye, X, Plus, RotateCcw,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 import toast, { Toaster } from "react-hot-toast";
 import * as reusableSvc from "@/services/reusableUnitService";
 import { socket } from "@/lib/socket";
 import { fmtDateTime } from "@/utils/dateUtils";
+import {
+  REUSABLE_RETURN_STATUS_BADGES,
+  getReturnRequestListStatusLabel,
+} from "@/constants/labels";
+import { LIST_TABLE_HEAD_ROW, LIST_TABLE_TBODY, LIST_TABLE_TH, LIST_TABLE_TH_NUM } from "@/lib/tableUi";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -30,16 +36,22 @@ interface ReturnRequest {
   requester?: string;
   item_count?: number;
 }
-// 
+
 const StatusBadge = ({ status }: { status: string }) => {
-  const statusMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  const requisitionOnly: Record<string, { label: string; bg: string; text: string; border: string }> = {
     PENDING: { label: "รออนุมัติ", bg: "bg-amber-100", text: "text-amber-900", border: "border-amber-200" },
     APPROVED: { label: "อนุมัติแล้ว", bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200" },
     REJECTED: { label: "ถูกปฏิเสธ", bg: "bg-rose-100", text: "text-rose-800", border: "border-rose-200" },
-    COMPLETED: { label: "เสร็จสิ้น", bg: "bg-green-100", text: "text-green-800", border: "border-green-200" },
     PENDING_RETURN_CHECK: { label: "รอตรวจรับคืน", bg: "bg-sky-100", text: "text-sky-800", border: "border-sky-200" },
+    CANCELLED: { label: "ยกเลิก", bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" },
+    DRAFT: { label: "ร่าง", bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" },
+    BORROWING: { label: "กำลังยืม", bg: "bg-indigo-100", text: "text-indigo-800", border: "border-indigo-200" },
   };
-  const s = statusMap[status] || { label: status, bg: "bg-slate-100", text: "text-slate-800", border: "border-slate-200" };
+
+  const s =
+    REUSABLE_RETURN_STATUS_BADGES[status] ??
+    requisitionOnly[status] ??
+    { label: status, bg: "bg-slate-100", text: "text-slate-800", border: "border-slate-200" };
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-semibold whitespace-nowrap ${s.bg} ${s.text} ${s.border}`}>
       {s.label}
@@ -68,16 +80,15 @@ export default function ReturnItemClient() {
   const isVisibleRef = useRef(true);
   const [isFetching, setIsFetching] = useState(true);
 
-  const fetchData = useCallback(async () => {
-    setIsFetching(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const res = await reusableSvc.getReusableReturnRequests();
       setRecords(res.items || []);
     } catch (error) {
-      toast.error(getErrorMessage(error) || "โหลดข้อมูลไม่สำเร็จ");
-      setRecords([]);
+      if (!silent) { toast.error(getErrorMessage(error) || "โหลดข้อมูลไม่สำเร็จ"); setRecords([]); }
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
@@ -86,11 +97,11 @@ export default function ReturnItemClient() {
   }, [fetchData]);
 
   useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) fetchData(true);
     };
-
-    onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, []);
@@ -108,7 +119,7 @@ export default function ReturnItemClient() {
       refreshTimerRef.current = setTimeout(async () => {
         isRefreshingRef.current = true;
         try {
-          await fetchData();
+          await fetchData(true);
         } finally {
           isRefreshingRef.current = false;
           refreshTimerRef.current = null;
@@ -218,11 +229,9 @@ export default function ReturnItemClient() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-amber-600 rounded-xl">
-            <RotateCcw className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={RotateCcw} tone="amber" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการคำขอคืน</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">คืนพัสดุนำกลับ</h2>
             <p className="text-sm text-slate-500 mt-0.5">รายการคำขอส่งคืนอุปกรณ์ทางการแพทย์</p>
           </div>
         </div>
@@ -299,7 +308,9 @@ export default function ReturnItemClient() {
             }}
             className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium truncate">{selectedStatus}</span>
+            <span className="text-slate-800 font-medium truncate">
+              {selectedStatus === "สถานะทั้งหมด" ? selectedStatus : getReturnRequestListStatusLabel(selectedStatus)}
+            </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
@@ -321,7 +332,7 @@ export default function ReturnItemClient() {
                           : "text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      {s}
+                      {s === "สถานะทั้งหมด" ? s : getReturnRequestListStatusLabel(s)}
                     </button>
                   </li>
                 ))}
@@ -395,12 +406,14 @@ export default function ReturnItemClient() {
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดรายการคืนคลัง</span>
+            <DataTableSkeleton
+              headers={["#", "เลขที่คำขอ", "แผนก", "ผู้ทำรายการ", "สถานะ", "วันที่สร้าง", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดรายการคืนคลัง"
+              tdClassName="px-4 py-3"
             />
           </div>
         ) : (
@@ -423,18 +436,18 @@ export default function ReturnItemClient() {
             div::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
           `}</style>
               <table className="w-full table-fixed text-sm text-left">
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-4 py-4 w-[52px] text-center whitespace-nowrap">#</th>
-                    <th className="px-5 py-4 whitespace-nowrap">เลขที่คำขอ</th>
-                    <th className="px-5 py-4 whitespace-nowrap">แผนก</th>
-                    <th className="px-5 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
-                    <th className="px-5 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-5 py-4 whitespace-nowrap">วันที่สร้าง</th>
-                    <th className="px-5 py-4 text-center whitespace-nowrap">จัดการ</th>
+                    <th className={`${LIST_TABLE_TH_NUM} w-[52px]`}>#</th>
+                    <th className={LIST_TABLE_TH}>เลขที่คำขอ</th>
+                    <th className={LIST_TABLE_TH}>แผนก</th>
+                    <th className={LIST_TABLE_TH}>ผู้ทำรายการ</th>
+                    <th className={LIST_TABLE_TH}>สถานะ</th>
+                    <th className={LIST_TABLE_TH}>วันที่สร้าง</th>
+                    <th className={`${LIST_TABLE_TH} text-center`}>จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className={LIST_TABLE_TBODY}>
                   {paginatedItems.map((r, idx) => (
                     <tr
                       key={r.id}

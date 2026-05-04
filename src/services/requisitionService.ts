@@ -45,31 +45,19 @@ export const getAllRequisitions = async (
 };
 
 /**
- * ดึงข้อมูลทุกหน้ามาต่อกัน (Recursive/Loop fetch)
+ * ดึงข้อมูลทั้งหมดในครั้งเดียว
  */
 export const getAllRequisitionsPages = async (
   filters: RequisitionFilters = {}
 ): Promise<RequisitionHeader[]> => {
-  const limit = Number(filters.limit) || 100;
-  let page = Number(filters.page) || 1;
-  const allRecords: RequisitionHeader[] = [];
-
-  while (true) {
-    const response = await getAllRequisitions({ ...filters, page, limit });
-
-    if (!response.success || !Array.isArray(response.data)) break;
-
-    allRecords.push(...response.data);
-
-    const fetchedCount = response.data.length;
-    const totalPages = response.totalPages || 0;
-
-    if (fetchedCount < limit || page >= totalPages) break;
-
-    page += 1;
-  }
-
-  return allRecords;
+  const response = await getAllRequisitions({
+    ...filters,
+    page: 1,
+    limit: 1000,
+    _t: Date.now(),
+  } as unknown as RequisitionFilters);
+  if (!response.success || !Array.isArray(response.data)) return [];
+  return response.data;
 };
 
 /**

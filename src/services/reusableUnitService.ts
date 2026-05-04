@@ -14,6 +14,7 @@ export interface ReusableUnit {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
+  item_image_url?: string | null;
   receive_item_id: number | null;
   receive_doc_no: string | null;
   serial_no: string | null;
@@ -51,6 +52,7 @@ export interface ReturnableSummaryItem {
   item_code: string | null;
   item_name: string | null;
   category_name?: string | null;
+  image_url?: string | null;
   in_use_qty: number;
 }
 
@@ -189,7 +191,7 @@ export async function processReusableReturnRequest(
   id: number | string,
   payload: {
     items?: Array<{ item_id: string; return_qty: number; condition?: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE"; note?: string }>;
-    units?: Array<{ unit_id: string; condition?: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE"; note?: string }>;
+    units?: Array<{ unit_id: string; condition?: "GOOD" | "DAMAGED" | "LOST"; note?: string }>;
     complete?: boolean;
     note?: string;
   }

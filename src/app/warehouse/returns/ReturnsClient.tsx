@@ -7,8 +7,18 @@ import {
   Search, ChevronLeft, ChevronRight, ChevronDown,
   X, Eye, Package, RotateCcw,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+  LIST_TABLE_TH_NUM,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
 import { getAllRequisitions } from "@/services/requisitionService";
+import { socket } from "@/lib/socket";
 import type { RequisitionHeader } from "@/types/requisition_type";
 import toast from "react-hot-toast";
 import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
@@ -107,8 +117,12 @@ export default function ReturnsClient() {
     activeTabRef.current = activeTab;
   }, [activeTab]);
 
-  const fetchPage = useCallback(async (page: number, keyword: string, tab: ReturnsTab) => {
-    setIsFetching(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
+
+  const fetchPage = useCallback(async (page: number, keyword: string, tab: ReturnsTab, silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const statusFilter =
         tab === "PENDING" ? ("PENDING_RETURN_CHECK" as const) : ("COMPLETED" as const);
@@ -137,17 +151,50 @@ export default function ReturnsClient() {
       }
     } catch (err) {
       console.error("fetch borrows failed", err);
-      toast.error(getErrorMessage(err));
-      setRecords([]);
-      setServerTotalPages(0);
+      if (!silent) { toast.error(getErrorMessage(err)); setRecords([]); setServerTotalPages(0); }
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
+
+  const refreshData = useCallback(async () => {
+    fetchPage(pageRef.current, keywordRef.current, activeTabRef.current, true);
+  }, [fetchPage]);
 
   useEffect(() => {
     fetchPage(1, "", "PENDING");
   }, [fetchPage]);
+
+  useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) refreshData();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current || isRefreshingRef.current) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try { await refreshData(); }
+        finally { isRefreshingRef.current = false; refreshTimerRef.current = null; }
+      }, 220);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "REQUISITIONS") scheduleRefresh();
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [refreshData]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -207,18 +254,16 @@ export default function ReturnsClient() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-orange-600 rounded-xl">
-            <RotateCcw className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={RotateCcw} tone="orange" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">จัดการรับคืนพัสดุ</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนพัสดุยืม</h2>
             <p className="text-sm text-slate-500 mt-0.5">รับคืนพัสดุที่ยืมและบันทึกสภาพสิ่งของที่ส่งคืน</p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200 overflow-x-auto">
+      <div className="flex gap-1 mb-6 border-b border-slate-200 ">
         {(["PENDING", "HISTORY"] as const).map((tab) => {
           const tabLabel = tab === "PENDING" ? "รอดำเนินการ" : "ประวัติการคืน";
           const isActive = activeTab === tab;
@@ -350,12 +395,15 @@ export default function ReturnsClient() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดรายการรับคืน</span>
+            <DataTableSkeleton
+              headers={["#", "เลขที่คำขอ", "ผู้ทำรายการ", "ผู้ยืม", "เบอร์ติดต่อ", "รายการ", "วันที่ทำรายการ", "กำหนดคืน", "วันที่คืนสำเร็จ", "สถานะ", "ตรวจสอบ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดรายการรับคืน"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -387,25 +435,24 @@ export default function ReturnsClient() {
             }
           `}</style>
           <table className="w-full table-fixed text-sm text-left">
-            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+            <thead className={LIST_TABLE_HEAD_ROW}>
               <tr>
-                <th className="px-4 py-4 whitespace-nowrap w-[50px]">#</th>
-                <th className="px-3 py-4 whitespace-nowrap">เลขที่คำขอ</th>
-                <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
-                <th className="px-6 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
-                <th className="px-6 py-4 whitespace-nowrap">ผู้ยืม</th>
-                <th className="px-6 py-4 whitespace-nowrap">เบอร์ติดต่อ</th>
-                <th className="px-6 py-4 whitespace-nowrap w-[80px]">รายการ</th>
-                <th className="px-6 py-4 whitespace-nowrap">วันที่ทำรายการ</th>
-                <th className="px-6 py-4 whitespace-nowrap">กำหนดคืน</th>
+                <th className={`${LIST_TABLE_TH_NUM} w-[50px]`}>#</th>
+                <th className={LIST_TABLE_TH_COMPACT}>เลขที่คำขอ</th>
+                <th className={LIST_TABLE_TH_WIDE}>ผู้ทำรายการ</th>
+                <th className={LIST_TABLE_TH_WIDE}>ผู้ยืม</th>
+                <th className={LIST_TABLE_TH_WIDE}>เบอร์ติดต่อ</th>
+                <th className={`${LIST_TABLE_TH_WIDE} w-[80px]`}>รายการ</th>
+                <th className={LIST_TABLE_TH_WIDE}>วันที่ทำรายการ</th>
+                <th className={LIST_TABLE_TH_WIDE}>กำหนดคืน</th>
                 {activeTab === "HISTORY" && (
-                  <th className="px-6 py-4 whitespace-nowrap">วันที่คืนสำเร็จ</th>
+                  <th className={LIST_TABLE_TH_WIDE}>วันที่คืนสำเร็จ</th>
                 )}
-                <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
+                <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                <th className={`${LIST_TABLE_TH_WIDE} text-center`}>ตรวจสอบ</th>
               </tr>
             </thead>
-            <tbody className="text-slate-600">
+            <tbody className={LIST_TABLE_TBODY}>
               {displayRecords.map((r, idx) => {
                 const uiStatus = mapUiStatus(r);
                 const overdue = getDaysOverdue(r);
@@ -415,9 +462,6 @@ export default function ReturnsClient() {
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                     <td className="px-4 py-3">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
                     <td className="px-3 py-3 font-mono text-sm text-black">{r.doc_no}</td>
-                    <td className="px-6 py-3 text-sm">
-                      {ext ? "ภายนอก" : "ภายใน"}
-                    </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm truncate">{r.requester || "-"}</span>

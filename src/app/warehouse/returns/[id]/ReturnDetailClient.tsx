@@ -6,16 +6,16 @@ import {
   X, FileText, Package,
   Loader2, CheckCircle, Clock, Eye,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import { getRequisitionById, verifyReturn } from "@/services/requisitionService";
 import type { RequisitionHeader, RequisitionItem, IssuedUnit, PendingReturnItem } from "@/types/requisition_type";
 import { fmtDate } from "@/utils/dateUtils";
+import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 const MySwal = withReactContent(Swal);
 const getErr = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
 
 const parseIdCardUrls = (raw: string | null | undefined): string[] => {
   if (!raw) return [];
@@ -191,11 +191,7 @@ export default function ReturnDetailClient({ returnId }: ReturnDetailClientProps
   }, [parsedId, router]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] bg-[#fafafa] p-3 sm:p-4 md:p-6">
-        <DotLottieReact src={LOTTIE_SRC} loop autoplay style={{ width: 160, height: 160 }} />
-      </div>
-    );
+    return <WarehouseDetailPageSkeleton ariaLabel="กำลังโหลดรายละเอียดการรับคืน" />;
   }
 
   if (!header) return null;
@@ -294,9 +290,7 @@ function DetailContent({
         {/* ── Page header ─────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-orange-600 rounded-lg shrink-0">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
+            <PageHeadingIconBox icon={FileText} tone="orange" className="shrink-0" />
             <div>
               <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
                 รายละเอียดการรับคืน
@@ -377,45 +371,62 @@ function DetailContent({
                 )}
 
                 {attachmentThumbs.length > 0 && (
-                  <div className="border-t border-slate-100 pt-4">
-                    <p className="text-sm font-bold text-gray-900 mb-3">
-                      เอกสารแนบ
-                      <span className="ml-2 text-xs font-normal text-slate-400">{attachmentThumbs.length} ไฟล์</span>
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      {attachmentThumbs.map((att, i) => {
-                        const fname = att.filename || att.name || `ไฟล์ ${i + 1}`;
-                        const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(att.url) || att.url.includes("image");
-                        const wrapClass = "flex flex-col w-[90px] shrink-0 group";
-                        const thumbBoxClass = "aspect-square rounded-lg border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center group-hover:border-blue-300 transition-colors";
+                  <div className="border-t border-slate-200 pt-4">
+                    <h3 className="text-sm font-bold text-gray-900 mb-2.5">เอกสารแนบ</h3>
+                    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 list-none min-w-0">
+                      {attachmentThumbs.map((att, idx) => {
+                        const fname = att.filename || att.name || `ไฟล์ ${idx + 1}`;
+                        const isImg =
+                          /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(att.url) ||
+                          att.url.includes("image");
+
+                        const iconBox =
+                          "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-300 bg-white";
+
+                        const cardClass =
+                          "flex min-h-[48px] w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-2 shadow-sm outline-none ring-slate-200 transition hover:border-blue-400 hover:ring-1 focus-visible:ring-2 focus-visible:ring-blue-500";
 
                         if (isImg) {
                           return (
-                            <div key={`${att.url}-${i}`} className={wrapClass}>
+                            <li key={`${att.url}-${idx}`} className="min-w-0">
                               <button
                                 type="button"
                                 aria-label={`ขยายรูป ${fname}`}
+                                title={fname}
                                 onClick={() => setAttachmentLightbox({ url: att.url, name: fname })}
-                                className="w-full text-left rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+                                className={cardClass}
                               >
-                                <div className={thumbBoxClass}>
-                                  <img src={att.url} alt={fname} className="w-full h-full object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
+                                <p className="min-w-0 flex-1 truncate text-left text-xs font-medium leading-tight text-slate-900">
+                                  {fname}
+                                </p>
+                                <div className={iconBox}>
+                                  <Eye className="h-5 w-5 text-blue-600" strokeWidth={1.75} aria-hidden />
                                 </div>
                               </button>
-                              <p className="text-[11px] text-slate-600 mt-1.5 line-clamp-2 break-all text-center leading-tight" title={fname}>{fname}</p>
-                            </div>
+                            </li>
                           );
                         }
+
                         return (
-                          <a key={`${att.url}-${i}`} href={att.url} target="_blank" rel="noopener noreferrer" className={wrapClass}>
-                            <div className={thumbBoxClass}>
-                              <FileText className="w-8 h-8 text-slate-300" />
-                            </div>
-                            <p className="text-[11px] text-slate-600 mt-1.5 line-clamp-2 break-all text-center leading-tight" title={fname}>{fname}</p>
-                          </a>
+                          <li key={`${att.url}-${idx}`} className="min-w-0">
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={fname}
+                              className={cardClass}
+                            >
+                              <span className="min-w-0 flex-1 truncate text-left text-xs font-medium leading-tight text-slate-900">
+                                {fname}
+                              </span>
+                              <span className={iconBox}>
+                                <FileText className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
+                              </span>
+                            </a>
+                          </li>
                         );
                       })}
-                    </div>
+                    </ul>
                   </div>
                 )}
               </div>
@@ -553,12 +564,12 @@ function DetailContent({
       {/* ─ Lightbox ─ */}
       {attachmentLightbox && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setAttachmentLightbox(null)}
           role="presentation"
         >
           <div
-            className="relative bg-white rounded-lg shadow-2xl p-2 max-w-[min(90vw,520px)]"
+            className="relative flex size-[min(92vw,min(92vh,420px))] flex-col rounded-2xl bg-white p-3 shadow-2xl"
             onClick={e => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -567,19 +578,26 @@ function DetailContent({
             <button
               type="button"
               onClick={() => setAttachmentLightbox(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-lg shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors z-10"
+              className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800"
               aria-label="ปิด"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" strokeWidth={2.25} />
             </button>
-            <img
-              src={attachmentLightbox.url}
-              alt={attachmentLightbox.name}
-              className="w-[min(90vw,480px)] h-[min(70vh,400px)] object-contain rounded-lg mx-auto block"
-            />
-            <p className="text-center text-sm text-slate-600 mt-2 pb-1 px-2 truncate" title={attachmentLightbox.name}>
-              {attachmentLightbox.name}
-            </p>
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-1 pt-1">
+              <div className="flex min-h-0 flex-1 items-center justify-center">
+                <img
+                  src={attachmentLightbox.url}
+                  alt=""
+                  className="max-h-full max-w-full rounded-lg object-contain"
+                />
+              </div>
+              <p
+                className="shrink-0 truncate px-1 text-center text-sm font-medium text-slate-700"
+                title={attachmentLightbox.name}
+              >
+                {attachmentLightbox.name}
+              </p>
+            </div>
           </div>
         </div>
       )}

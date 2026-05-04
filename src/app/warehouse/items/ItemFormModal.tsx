@@ -352,12 +352,24 @@ export default function ItemFormModal({
       {/* Overlay */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
-        onClick={onCloseAction}
+        onClick={() => {
+          if (!isLoading) onCloseAction();
+        }}
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div className="relative bg-white rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto pointer-events-auto">
+          {isLoading ? (
+            <div
+              className="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-lg bg-white/85 backdrop-blur-sm"
+              aria-busy="true"
+              aria-live="polite"
+            >
+              <Loader2 className="h-10 w-10 animate-spin text-[#0055FF]" strokeWidth={2.25} />
+              <p className="text-sm font-medium text-slate-600">กำลังบันทึก...</p>
+            </div>
+          ) : null}
           {/* Header */}
           <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
@@ -368,8 +380,10 @@ export default function ItemFormModal({
               </div>
             </div>
             <button
+              type="button"
               onClick={onCloseAction}
-              className="p-2 hover:bg-slate-50 rounded-full transition-colors"
+              disabled={isLoading}
+              className="p-2 hover:bg-slate-50 rounded-full transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               <X className="w-5 h-5 text-slate-400" />
             </button>
@@ -913,17 +927,19 @@ export default function ItemFormModal({
           {/* Footer */}
           <div className="sticky bottom-0 py-3 px-8 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-lg">
             <button
+              type="button"
               onClick={onCloseAction}
-              className="px-6 py-2.5 font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              disabled={isLoading}
+              className="px-6 py-2.5 font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
               ยกเลิก
             </button>
             <button
+              type="button"
               disabled={isLoading}
               onClick={handleSubmit}
-              className="px-8 py-2.5 font-semibold text-white bg-[#0055FF] hover:bg-[#0044DD] disabled:bg-gray-300 rounded-lg shadow-md flex items-center gap-2 transition-colors"
+              className="px-8 py-2.5 font-semibold text-white bg-[#0055FF] hover:bg-[#0044DD] disabled:bg-gray-300 rounded-lg shadow-md transition-colors disabled:pointer-events-none"
             >
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEdit ? "บันทึก" : "บันทึก"}
             </button>
           </div>

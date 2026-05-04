@@ -8,6 +8,7 @@ import { fmtDate } from "@/utils/dateUtils";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 const PdfIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -293,30 +294,12 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-600 shadow">
-							<FlaskConical className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงาน LOT หมดอายุ</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						{onBack && (
-							<button
-								type="button"
-								onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
-							>
-								ย้อนกลับ
-							</button>
-						)}
-					</div>
-				</div>
-			</div>
+			<ReportDetailPageHeader
+				reportPage="expired-lots"
+				title="รายงาน LOT หมดอายุ"
+				subtitle="ระบบบริหารคลังสินค้า HPK"
+				onBack={onBack}
+			/>
 
 			<div className="flex-1 px-8 py-6">
 				<div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -391,7 +374,6 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 									<th className="px-3 py-4 w-[200px] whitespace-nowrap">ชื่อพัสดุ</th>
 									<th className="px-6 py-4 w-[120px] whitespace-nowrap text-center">วันหมดอายุ</th>
 									<th className="px-6 py-4 w-[110px] whitespace-nowrap text-center">เกินมา (วัน)</th>
-									<th className="px-3 py-4 w-[120px] whitespace-nowrap">คลัง</th>
 									<th className="px-6 py-4 w-[100px] whitespace-nowrap text-right">จำนวน</th>
 									<th className="px-6 py-4 w-[80px] whitespace-nowrap">หน่วย</th>
 								</tr>
@@ -423,7 +405,6 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 														{expired} วัน
 													</span>
 												</td>
-												<td className="px-3 py-3 truncate text-slate-600" title={row.warehouse}>{row.warehouse}</td>
 												<td className="px-6 py-3 text-right font-bold text-slate-800">{row.quantity}</td>
 												<td className="px-6 py-3 truncate max-w-0" title={row.unit}>{row.unit}</td>
 											</tr>

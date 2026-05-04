@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Save, FileText, Package, ScanLine } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { Loader2, Save, FileText, Package } from "lucide-react";
 import Link from "next/link";
+import Swal from "sweetalert2";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import { deptDisplayName } from "@/utils/departmentUtils";
@@ -15,11 +15,11 @@ import {
   RETURN_REQUEST_STATUS_LABEL,
   showToast,
 } from "../ReturnForms";
+import { ProcessReturnPageSkeleton } from "@/components/skeletons/ProcessReturnPageSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
-
-const LOTTIE_SRC = "https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie";
 
 const getTotalItems = (items: reusableSvc.ReusableReturnRequestItem[]): number =>
   items.reduce((sum, item) => sum + Number(item.requested_qty || 0), 0);
@@ -72,10 +72,6 @@ export default function ProcessReturnClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [forms, setForms] = useState<ProcessItemForm[]>([]);
   const [unitForms, setUnitForms] = useState<ProcessUnitForm[]>([]);
-  const [scanInput, setScanInput] = useState("");
-  const [scanMessage, setScanMessage] = useState("");
-  const [scanOk, setScanOk] = useState<boolean | null>(null);
-  const [scanResolvedType, setScanResolvedType] = useState<"UNIT" | "LOT" | "ITEM" | null>(null);
   const [processNote, setProcessNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -93,7 +89,7 @@ export default function ProcessReturnClient() {
 
         const unitRows: ProcessUnitForm[] = (detail.items || []).flatMap((item) =>
           (item.requested_units || []).map((unit) => ({
-            unit_id: unit.id ? String(unit.id) : `CODE:${unit.unit_code}`,
+            unit_id: unit.id ? String(unit.id).trim().toLowerCase() : `CODE:${(unit.unit_code || "").trim()}`,
             unit_code: unit.unit_code || "-",
             serial_no: unit.serial_no || "-",
             item_id: item.item_id,
@@ -129,6 +125,15 @@ export default function ProcessReturnClient() {
     loadDetail();
   }, [requestId, router]);
 
+  useEffect(() => {
+    if (!isSaving) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isSaving]);
+
   const updateForm = useCallback((itemId: string, patch: Partial<ProcessItemForm>) => {
     setForms((prev) => prev.map((row) => (row.item_id === itemId ? { ...row, ...patch } : row)));
   }, []);
@@ -137,56 +142,23 @@ export default function ProcessReturnClient() {
     setUnitForms((prev) => prev.map((row) => (row.unit_id === unitId ? { ...row, ...patch } : row)));
   }, []);
 
-  const handleScanUnit = useCallback(() => {
-    const run = async () => {
-      const raw = scanInput.trim();
-      if (!raw || !unitForms.length) return;
-
-      const resolved = await reusableSvc.resolveReusableBarcode(raw, activeRequest?.department_id);
-      setScanResolvedType(resolved?.type || null);
-
-      if (resolved && resolved.type !== "UNIT") {
-        setScanOk(false);
-        setScanMessage(`สแกนได้เป็น ${resolved.type} แต่หน้านี้รองรับเฉพาะ UNIT`);
-        return;
-      }
-
-      const resolvedUnitCode = resolved?.type === "UNIT" ? resolved.unit.unit_code.toLowerCase() : "";
-      const resolvedSerial   = resolved?.type === "UNIT" ? (resolved.unit.serial_no || "").toLowerCase() : "";
-      const key = raw.toLowerCase();
-
-      const target = unitForms.find((row) =>
-        row.unit_code.toLowerCase() === key ||
-        row.serial_no.toLowerCase() === key ||
-        (resolvedUnitCode && row.unit_code.toLowerCase() === resolvedUnitCode) ||
-        (resolvedSerial && row.serial_no.toLowerCase() === resolvedSerial)
-      );
-
-      if (!target) {
-        setScanOk(false);
-        setScanMessage(`ไม่พบรหัส ${raw} ในใบคำขอนี้`);
-        return;
-      }
-
-      setUnitForms((prev) =>
-        prev.map((row) => {
-          if (row.unit_id !== target.unit_id) return row;
-          const marker = `[SCN:${raw}]`;
-          const nextNote = row.note?.includes(marker) ? row.note : [row.note, marker].filter(Boolean).join(" ");
-          return { ...row, condition: "GOOD", note: nextNote };
-        })
-      );
-
-      setScanOk(true);
-      setScanMessage(`พบ ${target.unit_code} และทำเครื่องหมายให้แล้ว`);
-      setScanInput("");
-    };
-
-    void run();
-  }, [scanInput, unitForms, activeRequest?.department_id]);
-
   const handleProcess = useCallback(async () => {
     if (!activeRequest) return;
+
+    let validItems: ProcessItemForm[] = [];
+    if (!unitForms.length) {
+      validItems = forms.filter((row) => row.return_qty > 0);
+      if (!validItems.length) {
+        await Swal.fire({
+          title: "ตรวจสอบข้อมูล",
+          text: "กรุณาระบุจำนวนรับคืนอย่างน้อย 1 รายการ",
+          icon: "warning",
+          confirmButtonText: "ตกลง",
+          confirmButtonColor: "#1d4ed8",
+        });
+        return;
+      }
+    }
 
     setIsSaving(true);
     try {
@@ -201,12 +173,6 @@ export default function ProcessReturnClient() {
           note: processNote || undefined,
         });
       } else {
-        const validItems = forms.filter((row) => row.return_qty > 0);
-        if (!validItems.length) {
-          showToast.error("กรุณาระบุจำนวนรับคืนอย่างน้อย 1 รายการ");
-          setIsSaving(false);
-          return;
-        }
         await reusableSvc.processReusableReturnRequest(activeRequest.id, {
           items: validItems.map((row) => ({
             item_id: row.item_id,
@@ -219,21 +185,33 @@ export default function ProcessReturnClient() {
         });
       }
 
-      showToast.success(`ปิดงานใบ ${activeRequest.doc_no} สำเร็จ`);
+      setIsSaving(false);
+
+      await Swal.fire({
+        title: "สำเร็จ!",
+        text: `ปิดงานใบ ${activeRequest.doc_no} เรียบร้อย`,
+        icon: "success",
+        timer: 1800,
+        showConfirmButton: false,
+      });
+
       router.push("/warehouse/returns-department");
     } catch (error) {
-      showToast.error(getErrorMessage(error) || "บันทึกผลตรวจรับไม่สำเร็จ");
+      setIsSaving(false);
+      await Swal.fire({
+        title: "บันทึกไม่สำเร็จ",
+        text: getErrorMessage(error) || "บันทึกผลตรวจรับไม่สำเร็จ",
+        icon: "error",
+        confirmButtonText: "ตกลง",
+        confirmButtonColor: "#1d4ed8",
+      });
     } finally {
       setIsSaving(false);
     }
   }, [activeRequest, unitForms, forms, processNote, router]);
 
   if (isLoadingDetail) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] bg-[#fafafa] p-3 sm:p-4 md:p-6">
-        <DotLottieReact src={LOTTIE_SRC} loop autoplay style={{ width: 160, height: 160 }} />
-      </div>
-    );
+    return <ProcessReturnPageSkeleton />;
   }
 
   if (!activeRequest) return null;
@@ -247,9 +225,7 @@ export default function ProcessReturnClient() {
         {/* ── Page header ───────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-sky-600 rounded-lg shrink-0">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
+            <PageHeadingIconBox icon={FileText} tone="sky" />
             <div>
               <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
                 ตรวจรับคืน
@@ -259,7 +235,10 @@ export default function ProcessReturnClient() {
           </div>
           <Link
             href="/warehouse/returns-department"
-            className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0"
+            className={`px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors self-start sm:self-auto shrink-0 ${isSaving ? "pointer-events-none opacity-60" : ""}`}
+            onClick={(e) => {
+              if (isSaving) e.preventDefault();
+            }}
           >
             ย้อนกลับ
           </Link>
@@ -303,49 +282,6 @@ export default function ProcessReturnClient() {
             )}
           </section>
 
-          {/* ── สแกนบาร์โค้ด (เฉพาะเมื่อมี unitForms) ───────────────────── */}
-          {unitForms.length > 0 && (
-            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-200">
-                <h2 className="text-lg font-bold text-gray-900">สแกนบาร์โค้ด</h2>
-                <p className="text-xs text-slate-500 mt-0.5">ป้อน Unit Code หรือ Serial เพื่อทำเครื่องหมาย</p>
-              </div>
-              <div className="px-5 py-5 space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={scanInput}
-                    onChange={(e) => setScanInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScanUnit(); } }}
-                    placeholder="เช่น UNT-000123 หรือ SN-ABC"
-                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none bg-white"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={handleScanUnit}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shrink-0"
-                  >
-                    <ScanLine className="w-4 h-4" />
-                    สแกน
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  {scanResolvedType && (
-                    <span className="inline-flex rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600">
-                      TYPE: {scanResolvedType}
-                    </span>
-                  )}
-                  {scanMessage && (
-                    <p className={`text-sm font-semibold ${scanOk ? "text-emerald-700" : "text-rose-600"}`}>
-                      {scanMessage}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
           {/* ── รายชิ้นอุปกรณ์ (Unit Forms) ──────────────────────────────── */}
           {unitForms.length > 0 && (
             <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -353,58 +289,61 @@ export default function ProcessReturnClient() {
                 <h2 className="text-lg font-bold text-gray-900">รายชิ้นอุปกรณ์</h2>
                 <p className="text-xs text-slate-500 mt-0.5">{unitForms.length} รายการ</p>
               </div>
-              <div className="overflow-x-auto" style={{ maxHeight: 480, overflowY: "auto" }}>
-                <table className="w-full table-fixed border-collapse">
+              <div className="max-h-[min(60vh,28rem)] overflow-x-auto overflow-y-auto">
+                <table className="w-full table-fixed border-collapse text-sm">
                   <colgroup>
-                    <col style={{ width: "52px" }} />
-                    <col style={{ width: "160px" }} />
-                    <col style={{ width: "160px" }} />
+                    <col style={{ width: "44px" }} />
+                    <col style={{ width: "140px" }} />
+                    <col style={{ width: "120px" }} />
                     <col />
-                    <col style={{ width: "170px" }} />
-                    <col style={{ width: "220px" }} />
+                    <col style={{ width: "150px" }} />
+                    <col style={{ width: "26%" }} />
                   </colgroup>
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700">#</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700 whitespace-nowrap">Unit Code</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700 whitespace-nowrap">Serial</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">ชื่อพัสดุ</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">ผลตรวจสภาพ</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">หมายเหตุ</th>
+                      <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-slate-600">#</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600 whitespace-nowrap">Unit Code</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600 whitespace-nowrap">Serial</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600">ชื่อพัสดุ</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600">ผลตรวจสภาพ</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600">หมายเหตุรายชิ้น</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {unitForms.map((row, idx) => (
-                      <tr key={row.unit_id} className="hover:bg-slate-50/50 transition-colors" style={{ height: "64px" }}>
-                        <td className="px-4 py-4 text-center text-slate-400 text-sm align-middle">{idx + 1}</td>
-                        <td className="px-4 py-4 align-middle">
-                          <span className="font-mono text-sm font-semibold text-slate-800 truncate block">{row.unit_code}</span>
+                      <tr key={row.unit_id} className="hover:bg-slate-50/60 transition-colors align-top">
+                        <td className="px-3 py-2 text-center text-slate-400 tabular-nums align-middle">{idx + 1}</td>
+                        <td className="px-3 py-2 align-middle">
+                          <span className="font-mono text-xs font-semibold text-slate-800 truncate block" title={row.unit_code}>
+                            {row.unit_code}
+                          </span>
                         </td>
-                        <td className="px-4 py-4 align-middle">
-                          <span className="text-sm text-slate-600 truncate block">{row.serial_no}</span>
+                        <td className="px-3 py-2 align-middle">
+                          <span className="text-xs text-slate-600 truncate block" title={row.serial_no}>
+                            {row.serial_no}
+                          </span>
                         </td>
-                        <td className="px-4 py-4 align-middle">
-                          <span className="text-sm font-medium text-slate-700 line-clamp-2">{row.item_name}</span>
+                        <td className="px-3 py-2 align-middle">
+                          <span className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">{row.item_name}</span>
                         </td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="px-3 py-2 align-middle">
                           <select
                             value={row.condition}
                             onChange={(e) => updateUnitForm(row.unit_id, { condition: e.target.value as ProcessUnitForm["condition"] })}
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-white"
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 outline-none bg-white"
                           >
                             <option value="GOOD">สภาพดี</option>
                             <option value="DAMAGED">ชำรุด</option>
                             <option value="LOST">สูญหาย</option>
-                            <option value="INCOMPLETE">คืนไม่ครบ</option>
                           </select>
                         </td>
-                        <td className="px-4 py-4 align-middle">
-                          <input
-                            type="text"
+                        <td className="px-3 py-2 align-top">
+                          <textarea
+                            rows={2}
                             value={row.note}
                             onChange={(e) => updateUnitForm(row.unit_id, { note: e.target.value })}
-                            placeholder="หมายเหตุ"
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-slate-50"
+                            placeholder="เพิ่มเติมรายชิ้น (ไม่บังคับ)"
+                            className="w-full min-h-[2.75rem] max-h-24 resize-y rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm leading-snug focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 outline-none bg-white placeholder:text-slate-400"
                           />
                         </td>
                       </tr>
@@ -428,51 +367,51 @@ export default function ProcessReturnClient() {
                 <h2 className="text-lg font-bold text-gray-900">รายการพัสดุ</h2>
                 <p className="text-xs text-slate-500 mt-0.5">{forms.length} รายการ</p>
               </div>
-              <div className="overflow-x-auto" style={{ maxHeight: 480, overflowY: "auto" }}>
-                <table className="w-full table-fixed border-collapse">
+              <div className="max-h-[min(60vh,28rem)] overflow-x-auto overflow-y-auto">
+                <table className="w-full table-fixed border-collapse text-sm">
                   <colgroup>
-                    <col style={{ width: "52px" }} />
+                    <col style={{ width: "44px" }} />
                     <col />
-                    <col style={{ width: "120px" }} />
-                    <col style={{ width: "120px" }} />
-                    <col style={{ width: "170px" }} />
-                    <col style={{ width: "220px" }} />
+                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "150px" }} />
+                    <col style={{ width: "26%" }} />
                   </colgroup>
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700">#</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">รายการ</th>
-                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700 whitespace-nowrap">จำนวนขอคืน</th>
-                      <th className="px-4 py-4 text-center text-sm font-bold text-slate-700 whitespace-nowrap">รับคืนจริง</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">ผลตรวจสภาพ</th>
-                      <th className="px-4 py-4 text-left text-sm font-bold text-slate-700">หมายเหตุ</th>
+                      <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-slate-600">#</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600">รายการ</th>
+                      <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-slate-600 whitespace-nowrap">ขอคืน</th>
+                      <th className="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-slate-600 whitespace-nowrap">รับจริง</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600">ผลตรวจสภาพ</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-slate-600">หมายเหตุรายการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {forms.map((row, idx) => (
-                      <tr key={row.item_id} className="hover:bg-slate-50/50 transition-colors" style={{ height: "64px" }}>
-                        <td className="px-4 py-4 text-center text-slate-400 text-sm align-middle">{idx + 1}</td>
-                        <td className="px-4 py-4 align-middle">
-                          <span className="text-sm font-medium text-slate-700 line-clamp-2">{row.item_name}</span>
+                      <tr key={row.item_id} className="hover:bg-slate-50/60 transition-colors align-top">
+                        <td className="px-3 py-2 text-center text-slate-400 tabular-nums align-middle">{idx + 1}</td>
+                        <td className="px-3 py-2 align-middle">
+                          <span className="text-sm font-medium text-slate-800 line-clamp-2 leading-snug">{row.item_name}</span>
                         </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <span className="text-sm text-slate-600">{row.requested_qty}</span>
+                        <td className="px-3 py-2 text-center align-middle">
+                          <span className="text-sm text-slate-600 tabular-nums">{row.requested_qty}</span>
                         </td>
-                        <td className="px-4 py-4 text-center align-middle">
+                        <td className="px-3 py-2 text-center align-middle">
                           <input
                             type="number"
                             min={0}
                             max={row.requested_qty}
                             value={row.return_qty}
                             onChange={(e) => updateForm(row.item_id, { return_qty: Math.max(0, Math.min(row.requested_qty, Number(e.target.value || 0))) })}
-                            className="w-16 rounded-lg border border-slate-200 px-2 py-2 text-sm text-center focus:ring-2 focus:ring-indigo-300 outline-none bg-white mx-auto block"
+                            className="w-14 rounded-lg border border-slate-200 px-1.5 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 outline-none bg-white mx-auto block"
                           />
                         </td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="px-3 py-2 align-middle">
                           <select
                             value={row.condition}
                             onChange={(e) => updateForm(row.item_id, { condition: e.target.value as ProcessItemForm["condition"] })}
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-white"
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 outline-none bg-white"
                           >
                             <option value="GOOD">สภาพดี</option>
                             <option value="DAMAGED">ชำรุด</option>
@@ -480,13 +419,13 @@ export default function ProcessReturnClient() {
                             <option value="INCOMPLETE">คืนไม่ครบ</option>
                           </select>
                         </td>
-                        <td className="px-4 py-4 align-middle">
-                          <input
-                            type="text"
+                        <td className="px-3 py-2 align-top">
+                          <textarea
+                            rows={2}
                             value={row.note}
                             onChange={(e) => updateForm(row.item_id, { note: e.target.value })}
-                            placeholder="หมายเหตุ"
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none bg-slate-50"
+                            placeholder="เพิ่มเติมต่อรายการ (ไม่บังคับ)"
+                            className="w-full min-h-[2.75rem] max-h-24 resize-y rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm leading-snug focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 outline-none bg-white placeholder:text-slate-400"
                           />
                         </td>
                       </tr>
@@ -503,41 +442,39 @@ export default function ProcessReturnClient() {
             </section>
           )}
 
-          {/* ── บันทึกการตรวจรับ + Action bar ────────────────────────────── */}
+          {/* ── บันทึกการตรวจรับ (รวมหมายเหตุ + ปุ่มแบบหน้าอื่น) ─────────── */}
           {!isCompleted && (
-            <div className="flex flex-col lg:flex-row gap-4">
-              <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex-1">
-                <div className="px-5 py-4 border-b border-slate-200">
-                  <h2 className="text-lg font-bold text-gray-900">บันทึกการตรวจรับ</h2>
-                </div>
-                <div className="px-5 py-5">
-                  <textarea
-                    rows={3}
-                    value={processNote}
-                    onChange={(e) => setProcessNote(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none bg-slate-50/50 resize-none"
-                    placeholder="เช่น รับของครบตามนัด ไม่พบข้อผิดพลาด"
-                  />
-                </div>
-              </section>
-
-              <div className="flex items-stretch lg:w-72 shrink-0">
-                <div className="flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 rounded-xl px-6 py-5 w-full">
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-slate-800">บันทึกผลตรวจรับ</p>
-                    <p className="text-xs text-slate-500 mt-0.5">ตรวจสอบรายการและสภาพครุภัณฑ์ก่อนกดยืนยัน</p>
-                  </div>
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-bold text-gray-900">บันทึกการตรวจรับ</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  หมายเหตุรวมสำหรับทั้งใบ (ไม่บังคับ) — ตรวจรายการและผลตรวจสภาพข้างบนก่อนยืนยัน
+                </p>
+              </div>
+              <div className="px-5 py-4 space-y-4">
+                <textarea
+                  rows={3}
+                  value={processNote}
+                  onChange={(e) => setProcessNote(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 outline-none bg-white resize-y min-h-[5rem]"
+                  placeholder="เช่น รับของครบตามนัด ไม่พบข้อผิดพลาด"
+                />
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between pt-3 border-t border-slate-100">
+                  <p className="text-xs text-slate-500 sm:max-w-md">
+                    เมื่อกดบันทึก ระบบจะปิดใบคำขอและอัปเดตสถานะหน่วยในคลังตามผลตรวจแต่ละรายการ
+                  </p>
                   <button
+                    type="button"
                     onClick={handleProcess}
                     disabled={isSaving}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 w-full shrink-0"
+                    className="inline-flex items-center justify-center gap-2 shrink-0 rounded-lg bg-blue-700 px-5 py-2 text-sm font-semibold text-white shadow-md transition-colors hover:bg-blue-800 disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none"
                   >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <Save className="h-4 w-4" />
                     บันทึกผลตรวจรับ
                   </button>
                 </div>
               </div>
-            </div>
+            </section>
           )}
 
           {isCompleted && (
@@ -550,7 +487,7 @@ export default function ProcessReturnClient() {
                   rows={3}
                   value={processNote}
                   onChange={(e) => setProcessNote(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none bg-slate-50/50 resize-none"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm bg-slate-50 text-slate-600 resize-none"
                   placeholder="เช่น รับของครบตามนัด ไม่พบข้อผิดพลาด"
                   disabled
                 />
@@ -560,6 +497,25 @@ export default function ProcessReturnClient() {
 
         </div>
       </div>
+
+      {isSaving ? (
+        <>
+          <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm" aria-hidden />
+          <div
+            className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <div className="pointer-events-auto flex flex-col items-center justify-center gap-4 rounded-lg border border-slate-200 bg-white/85 px-10 py-9 shadow-xl backdrop-blur-sm min-w-[260px]">
+              <Loader2 className="h-10 w-10 animate-spin text-[#0055FF]" strokeWidth={2.25} />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-800">กำลังบันทึก...</p>
+                <p className="mt-1 text-xs text-slate-500">กรุณารอสักครู่</p>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

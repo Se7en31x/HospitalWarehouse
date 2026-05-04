@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   PackagePlus, Search, Edit, Package, RefreshCw,
   ChevronLeft, ChevronRight, ChevronDown,
   Trash2, X, Printer
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+  LIST_TABLE_TH_ICON,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
+import { getAssetCounts } from "@/services/assetService";
 import { socket } from "../../../lib/socket";
 import ItemFormModal from "./ItemFormModal";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -22,7 +32,6 @@ const getErrorMessage = (error: unknown): string => {
 
 const PAGE_LIMIT = 10;
 
-
 // Returns the stock number that should be displayed and used for threshold checks
 const getEffectiveStock = (item: Item.UiItem): number =>
   item.type === "REUSABLE"
@@ -30,76 +39,44 @@ const getEffectiveStock = (item: Item.UiItem): number =>
     : item.stock;
 
 export default function ItemsClient({ initialItems }: { initialItems: Item.UiItem[] }) {
-  const [allItems, setAllItems] = useState<Item.UiItem[]>(initialItems || []);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
-
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isRefreshingRef = useRef(false);
-  const isVisibleRef = useRef(true);
+  const [allItems, setAllItems] = useState<Item.UiItem[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const [registeredCounts, setRegisteredCounts] = useState<Record<string, number>>({});
 
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
 
-  const fetchAll = useCallback(async () => {
-    setIsFetching(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const result = await ItemSvc.getAllInventoryItems({});
       setAllItems(result || []);
+      const medAssetIds = (result || []).filter(i => i.type === "MED_ASSET").map(i => i.id);
+      if (medAssetIds.length > 0) {
+        const counts = await getAssetCounts(medAssetIds);
+        setRegisteredCounts(counts || {});
+      } else {
+        setRegisteredCounts({});
+      }
     } catch (error) {
       console.error("Fetch error:", error);
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", "โหลดข้อมูลล้มเหลว");
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
-  const refreshData = useCallback(async () => {
-    fetchAll();
-  }, [fetchAll]);
-
   useEffect(() => {
-    const onVisibilityChange = () => {
-      isVisibleRef.current = document.visibilityState === "visible";
-    };
-
-    onVisibilityChange();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
     if (!socket.connected) socket.connect();
 
-    const scheduleRefresh = () => {
-      if (!isVisibleRef.current || isFetching || isRefreshingRef.current) return;
-
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
-
-      refreshTimerRef.current = setTimeout(async () => {
-        isRefreshingRef.current = true;
-        try {
-          await refreshData();
-        } finally {
-          isRefreshingRef.current = false;
-          refreshTimerRef.current = null;
-        }
-      }, 220);
-    };
-
     const handleRefreshSignal = (message: string) => {
-      if (message === "ITEMS") scheduleRefresh();
+      if (message === "ITEMS") fetchAll(true);
     };
 
     socket.on("REFRESH_DATA", handleRefreshSignal);
 
     return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-      document.removeEventListener("visibilitychange", onVisibilityChange);
       socket.off("REFRESH_DATA", handleRefreshSignal);
     };
-  }, [refreshData, isFetching]);
+  }, [fetchAll]);
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -200,6 +177,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     try {
       await ItemSvc.deleteInventoryItem(id);
       SweetAlertUtils.success("สำเร็จ", "ลบรายการเรียบร้อย");
+      fetchAll();
     } catch (error) {
       SweetAlertUtils.error("เกิดข้อผิดพลาด", getErrorMessage(error));
     }
@@ -218,6 +196,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
   const handleModalSuccess = () => {
     handleModalClose();
+    fetchAll();
   };
 
   const Badge = ({ status }: { status: string }) => {
@@ -253,9 +232,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-600 rounded-xl">
-            <Package className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Package} tone="stock" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการพัสดุ</h2>
             <p className="text-sm text-slate-500 mt-0.5">ค้นหา เพิ่ม และจัดการพัสดุในคลังสินค้า</p>
@@ -391,12 +368,15 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดรายการพัสดุ</span>
+            <DataTableSkeleton
+              headers={["", "รูป", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "ประเภท", "คงเหลือ", "ขั้นต่ำ", "หน่วย", "ตำแหน่งจัดเก็บ", "สถานะ", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดรายการพัสดุ"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -441,9 +421,9 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
               <col className="w-[9%]" />
               <col className="w-[9%]" />
             </colgroup>
-            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+            <thead className={LIST_TABLE_HEAD_ROW}>
               <tr>
-                <th className="px-4 py-4 text-center">
+                <th className="px-4 py-3.5 text-center">
                   <input
                     type="checkbox"
                     checked={paginatedItems.length > 0 && paginatedItems.every((i) => selectedItems.has(i.id))}
@@ -452,31 +432,31 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     title="เลือกทั้งหมดในหน้านี้"
                   />
                 </th>
-                <th className="px-6 py-4">รูป</th>
-                <th className="px-3 py-4 whitespace-nowrap">รหัสรายการ</th>
-                <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
-                <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                <th className="px-6 py-4 whitespace-nowrap">ประเภท</th>
-                <th className="px-6 py-4 w-[120px] whitespace-nowrap">คงเหลือ</th>
-                <th className="px-6 py-4 w-[120px] whitespace-nowrap">ขั้นต่ำ</th>
-                <th className="px-6 py-4 whitespace-nowrap">หน่วย</th>
-                <th className="px-6 py-4 whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
-                <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                <th className={`${LIST_TABLE_TH_ICON} px-6`}>รูป</th>
+                <th className={LIST_TABLE_TH_COMPACT}>รหัสรายการ</th>
+                <th className={LIST_TABLE_TH_COMPACT}>ชื่อพัสดุ</th>
+                <th className={LIST_TABLE_TH_WIDE}>หมวดหมู่</th>
+                <th className={LIST_TABLE_TH_WIDE}>ประเภท</th>
+                <th className={`${LIST_TABLE_TH_WIDE} w-[120px]`}>คงเหลือ</th>
+                <th className={`${LIST_TABLE_TH_WIDE} w-[120px]`}>ขั้นต่ำ</th>
+                <th className={LIST_TABLE_TH_WIDE}>หน่วย</th>
+                <th className={LIST_TABLE_TH_WIDE}>ตำแหน่งจัดเก็บ</th>
+                <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
               </tr>
             </thead>
-            <tbody className="text-slate-600">
+            <tbody className={LIST_TABLE_TBODY}>
               {paginatedItems.map((item) => (
                 <tr
                   key={item.id}
                   className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                 >
-                  <td className="px-6 py-3 text-center">
+                  <td className="px-4 py-3 text-center">
                     <input
                       type="checkbox"
                       checked={selectedItems.has(item.id)}
                       onChange={() => toggleSelect(item)}
-                      className="w-6 h-4 accent-blue-600 cursor-pointer"
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </td>
                   <td className="px-6 py-3">
@@ -518,6 +498,16 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
                         </div>
                       </div>
+                    ) : item.type === "MED_ASSET" ? (
+                      <div className="flex flex-col">
+                        <span className={`font-bold ${
+                          (registeredCounts[item.id] ?? 0) <= 0 ? "text-red-500" :
+                          (registeredCounts[item.id] ?? 0) <= item.minStock ? "text-orange-500" :
+                          "text-emerald-600"
+                        }`}>
+                          {registeredCounts[item.id] ?? 0}
+                        </span>
+                      </div>
                     ) : (
                       <div className="flex flex-col">
                         <span className={`font-bold ${
@@ -531,13 +521,9 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     )}
                   </td>
                   <td className="px-6 py-3 w-[120px]">
-                    {item.minStock > 0 ? (
-                      <span className="text-black font-semibold">
-                        {item.minStock}
-                      </span>
-                    ) : (
-                      <span className="text-black">-</span>
-                    )}
+                    <span className="text-black font-semibold">
+                      {item.minStock ?? 0}
+                    </span>
                   </td>
                   <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
                   <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>

@@ -11,6 +11,8 @@ import Swal from "sweetalert2";
 import { getRequisitionById, cancelRequisition } from "@/services/requisitionService";
 import type { RequisitionHeader, RequisitionItem, BorrowerDetails, AllocatedLot, IssuedUnit } from "@/types/requisition_type";
 import { fmtDate } from "@/utils/dateUtils";
+import { RequisitionDetailPageSkeleton } from "@/components/skeletons/RequestPageSkeletons";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -230,12 +232,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
   // ── Loading ──────────────────────────────────────────────────────────────────
 
   if (isFetching) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 gap-4">
-        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-        <p className="text-blue-600 font-medium animate-pulse">กำลังโหลดข้อมูล...</p>
-      </div>
-    );
+    return <RequisitionDetailPageSkeleton />;
   }
 
   if (!requisition) return null;
@@ -260,9 +257,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
           <div className="flex-1 min-w-0">
 
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-600 rounded-lg shrink-0">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
+              <PageHeadingIconBox icon={FileText} tone="blue" className="shrink-0" />
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
                   {isBorrow ? "รายละเอียดคำร้องยืมครุภัณฑ์" : "รายละเอียดคำร้องเบิกพัสดุ"}

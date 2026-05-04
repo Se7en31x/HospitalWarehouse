@@ -25,6 +25,7 @@ export interface GetItemsFilters {
     type?: string;
     page?: number;
     limit?: number;
+    _t?: number;
 }
 
 export interface PagedItems {
@@ -145,20 +146,9 @@ export async function getInventoryItemsPage(
     };
 }
 
-// ดึงข้อมูลทั้งหมด (ทำ Pagination วนลูปจนครบ)
+// ดึงข้อมูลทั้งหมดในครั้งเดียว — backend รองรับ limit สูงสุด 1000
 export async function getAllInventoryItems(filters: Omit<GetItemsFilters, "page" | "limit"> = {}): Promise<Item.UiItem[]> {
-    const allItems: Item.UiItem[] = [];
-    const limit = 10;
-    let page = 1;
-
-    while (true) {
-        const batch = await getInventoryItems({ ...filters, page, limit });
-        allItems.push(...batch);
-        if (batch.length < limit) break;
-        page += 1;
-    }
-
-    return allItems;
+    return getInventoryItems({ ...filters, limit: 1000, _t: Date.now() });
 }
 
 // ดึงพัสดุหลายรายการด้วย Array ของ ID

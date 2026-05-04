@@ -65,12 +65,12 @@ export default function WarehouseNavbar() {
                 className="object-contain"
               />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <h1 className="text-[20px] font-bold tracking-tight text-white leading-none">
                 โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
               </h1>
-              <span className="text-[14px] font-semibold text-blue-100/90 tracking-wide uppercase">
-                ระบบจัดการแผนกคลังหลักโรงพยาบาล
+              <span className="text-[16px] font-bold text-blue-100/90 tracking-wide uppercase">
+                ระบบจัดการแผนกคลังหลักโรงพยาบาล 
               </span>
             </div>
           </a>

@@ -1,6 +1,5 @@
 /**
- * printWarehouseReport — Upgraded PDF print utility with hospital header,
- * printed-by info, and signature section. Replaces the basic printAsPdf.
+ * printWarehouseReport — PDF print utility with hospital-standard header/footer.
  *
  * Usage:
  *   printWarehouseReport({
@@ -16,7 +15,7 @@
 const LOGO_URL =
   "https://res.cloudinary.com/dgoxbpj1j/image/upload/v1773921237/logo-removebg-preview_frzye8.png";
 
-const ACCENT_COLOR = "#0786F5";
+const ACCENT = "#2563EB";
 
 export interface PrintColumn {
   header: string;
@@ -32,32 +31,21 @@ export interface PrintedBy {
 }
 
 export interface SignerBox {
-  /** Role label, e.g. "ผู้ออกรายงาน" */
   role: string;
-  /** Pre-filled full name (optional). If provided, replaces the dotted name line. */
   name?: string | null;
-  /** Pre-filled date string (optional). If provided, replaces the dotted date line. */
   date?: string | null;
 }
 
 export interface PrintWarehouseReportOptions {
   reportTitle: string;
-  /** e.g. "1 มี.ค. 2568 – 31 มี.ค. 2568" */
   period?: string;
-  /** e.g. "หมวดหมู่: ยาสามัญ | คลัง: คลังกลาง" */
   filterSummary?: string;
   docNo?: string;
   columns: PrintColumn[];
   rows: Record<string, string | number | undefined | null>[];
   printedBy?: PrintedBy;
-  /**
-   * Structured signer boxes with optional pre-filled names.
-   * Takes priority over `signatureRoles` when provided.
-   */
   signers?: SignerBox[];
-  /** Roles shown in signature boxes. Default: ['ผู้ออกรายงาน', 'ผู้ตรวจสอบ'] */
   signatureRoles?: string[];
-  /** Set false to hide the signature area. Default: true */
   showSignature?: boolean;
 }
 
@@ -84,10 +72,12 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     showSignature = true,
   } = options;
 
-  // Normalise to SignerBox[] — prefer `signers`, fall back to `signatureRoles`
-  const resolvedSigners: SignerBox[] = signers
-    ? signers
-    : signatureRoles.map((role) => ({ role }));
+  const todayShort = new Date().toLocaleDateString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 
   const printDate = new Date().toLocaleDateString("th-TH", {
     timeZone: "Asia/Bangkok",
@@ -106,51 +96,45 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
         .filter(Boolean)
         .join("")
     : "";
-  const printedByDept = printedBy?.department ?? "";
 
-  // ── Table header cells ────────────────────────────────────────────────────
+  // First signer auto-filled with reporter name + today's date
+  const resolvedSigners: SignerBox[] = signers
+    ? signers
+    : signatureRoles.map((role, i) => ({
+        role,
+        name: i === 0 && printedByName ? printedByName : null,
+        date: i === 0 && printedByName ? todayShort : null,
+      }));
+
+  // ── Table cells ───────────────────────────────────────────────────────────
   const thCells = columns
-    .map(
-      (c) =>
-        `<th class="align-${c.align ?? "left"}">${esc(c.header)}</th>`
-    )
+    .map((c) => `<th class="align-${c.align ?? "left"}">${esc(c.header)}</th>`)
     .join("");
 
-  // ── Table rows ────────────────────────────────────────────────────────────
   const trRows = rows
     .map((row) => {
       const cells = columns
-        .map(
-          (c) =>
-            `<td class="align-${c.align ?? "left"}">${esc(row[c.key])}</td>`
-        )
+        .map((c) => `<td class="align-${c.align ?? "left"}">${esc(row[c.key])}</td>`)
         .join("");
       return `<tr>${cells}</tr>`;
     })
     .join("");
 
-  // ── Signature section ─────────────────────────────────────────────────────
+  // ── Signature boxes ───────────────────────────────────────────────────────
   const sigSection = showSignature
     ? `<div class="sig-section">
         ${resolvedSigners
           .map(
             ({ role, name, date }) => `
           <div class="sig-box">
-            <p class="sig-line">(ลงชื่อ)&nbsp;...................................................</p>
-            <p class="sig-role">${esc(role)}</p>
-            <p class="sig-name">${name ? `(${esc(name)})` : "(.......................................................)"}</p>
-            <p class="sig-date">${date ? `วันที่&nbsp;${esc(date)}` : "วันที่&nbsp;........./........./........."}</p>
+            <p class="sig-line">(ลงชื่อ)..................................................${esc(role)}</p>
+            <p class="sig-name">${name ? `(..........${esc(name)}..........)` : "(..................................................)"}</p>
+            <p class="sig-date">วันที่${date ? `&nbsp;${esc(date)}` : "........./........./........."}</p>
           </div>`
           )
           .join("")}
       </div>`
     : "";
-
-  // ── Printed-by line ───────────────────────────────────────────────────────
-  const printedByLine =
-    printedByName
-      ? `<p class="printed-by">ออกรายงานโดย: <strong>${esc(printedByName)}</strong>${printedByDept ? `&nbsp;|&nbsp;${esc(printedByDept)}` : ""}</p>`
-      : "";
 
   // ── HTML document ─────────────────────────────────────────────────────────
   const html = `<!DOCTYPE html>
@@ -159,19 +143,25 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
   <meta charset="utf-8" />
   <title>${esc(reportTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* Remove browser print decorations (URL, page#, date) */
+    @page { size: A4 portrait; margin: 0; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Sarabun', 'TH Sarabun New', 'Tahoma', sans-serif;
+      font-family: 'Sarabun', 'Noto Sans Thai', 'TH Sarabun New', 'Tahoma', sans-serif;
       font-size: 13px;
       color: #111827;
       background: #fff;
-      padding: 1.1cm 1.4cm;
-      max-width: 210mm;
+      padding: 1.2cm 1.5cm;
+      width: 210mm;
       margin: 0 auto;
-      line-height: 1.65;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      min-height: 270mm;
     }
 
     /* ── PAGE HEADER ─────────────────────────────────────── */
@@ -180,78 +170,59 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
       justify-content: space-between;
       align-items: center;
       padding-bottom: 12px;
-      margin-bottom: 12px;
-      border-bottom: 2px solid ${ACCENT_COLOR};
+      margin-bottom: 14px;
+      border-bottom: 1px solid #e5e7eb;
     }
-    .org-info { display: flex; align-items: center; gap: 12px; }
-    .org-logo { width: 50px; height: 50px; object-fit: contain; }
-    .org-name { font-size: 15px; font-weight: 700; color: #111827; }
-    .org-sub  { font-size: 11px; color: #6b7280; margin-top: 1px; }
-    .print-meta { text-align: right; font-size: 11px; color: #6b7280; line-height: 1.5; }
-    .print-meta strong { color: #374151; }
+    .org-info  { display: flex; align-items: center; gap: 12px; }
+    .org-logo  { width: 56px; height: 56px; object-fit: contain; }
+    .org-name  { font-size: 17px; font-weight: 700; color: #111827; }
+    .org-dept  { font-size: 12px; color: #4b5563; margin-top: 1px; }
+    .org-addr  { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .print-meta { text-align: right; font-size: 11px; color: #6b7280; line-height: 1.6; }
+    .print-meta .doc-no { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 2px; }
 
     /* ── TITLE BLOCK ─────────────────────────────────────── */
-    .report-title  { text-align: center; font-size: 19px; font-weight: 700; margin: 10px 0 4px; letter-spacing: 0.02em; }
+    .report-title  { text-align: center; font-size: 19px; font-weight: 700; margin: 16px 0 4px; letter-spacing: 0.03em; }
     .report-period { text-align: center; font-size: 12px; color: #4b5563; margin-bottom: 2px; }
     .report-filter { text-align: center; font-size: 11px; color: #9ca3af; margin-bottom: 12px; }
 
-    /* ── META ROW ────────────────────────────────────────── */
-    .meta-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: #6b7280;
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #f1f5f9;
-    }
-
     /* ── TABLE ───────────────────────────────────────────── */
-    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 2px; }
-    thead tr { background: ${ACCENT_COLOR}; color: #fff; }
-    thead th { padding: 9px 12px; font-weight: 600; white-space: nowrap; }
-    tbody tr:nth-child(even) { background: #f8fafc; }
-    td { padding: 7px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 2px; }
+    thead tr { background: ${ACCENT}; color: #fff; }
+    thead th { padding: 10px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; letter-spacing: 0.02em; }
+    tbody tr:nth-child(even) { background: #f0f6ff; }
+    tbody tr:hover { background: #e8f0fe; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; color: #111827; font-size: 13px; }
     .align-right  { text-align: right; }
     .align-center { text-align: center; }
     .align-left   { text-align: left; }
 
-    /* ── SIGNATURE ───────────────────────────────────────── */
-    .sig-section {
-      margin-top: 52px;
-      display: flex;
-      justify-content: space-around;
-      gap: 24px;
-    }
-    .sig-box   { text-align: center; font-size: 13px; flex: 1; }
-    .sig-line  { margin-bottom: 4px; }
-    .sig-role  { font-weight: 700; margin-top: 2px; }
-    .sig-name  { color: #4b5563; }
-    .sig-date  { color: #9ca3af; margin-top: 4px; }
+    /* ── SPACER — pushes sig/footer to bottom on last page ── */
+    .spacer { flex: 1; min-height: 20px; }
 
-    /* ── PRINTED BY ──────────────────────────────────────── */
-    .printed-by {
-      margin-top: 14px;
-      font-size: 11px;
-      color: #6b7280;
-    }
+    /* ── SIGNATURE ───────────────────────────────────────── */
+    .sig-section { display: flex; justify-content: space-around; }
+    .sig-box  { text-align: center; font-size: 13px; }
+    .sig-line { margin-bottom: 6px; }
+    .sig-name { margin-bottom: 6px; }
+    .sig-date { margin: 0; }
 
     /* ── FOOTER ──────────────────────────────────────────── */
     .page-footer {
-      margin-top: 20px;
+      margin-top: 14px;
       padding-top: 8px;
       border-top: 1px solid #e5e7eb;
-      display: flex;
-      justify-content: space-between;
+      text-align: right;
       font-size: 10px;
       color: #9ca3af;
+      font-style: italic;
     }
 
     @media print {
-      body { padding: 0.7cm 1cm; }
+      body { padding: 1.2cm 1.5cm; height: auto; min-height: auto; }
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; page-break-after: auto; }
-      .sig-section { margin-top: 40px; }
+      .sig-section { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -262,26 +233,21 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     <div class="org-info">
       <img class="org-logo" src="${LOGO_URL}" alt="logo" />
       <div>
-        <div class="org-name">ระบบบริหารคลังพัสดุ HPK</div>
-        <div class="org-sub">Warehouse Management System</div>
+        <div class="org-name">โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม</div>
+        <div class="org-dept">คลังหลักโรงพยาบาล</div>
+        <div class="org-addr">เลขที่ 553/11 หมู่ 14 ตำบลริมกก อำเภอเมืองเชียงราย จังหวัดเชียงราย 57100</div>
       </div>
     </div>
     <div class="print-meta">
-      <div>วันที่พิมพ์: <strong>${printDate}</strong> เวลา ${printTime} น.</div>
-      ${docNo ? `<div>เลขที่เอกสาร: <strong>${esc(docNo)}</strong></div>` : ""}
+      ${docNo ? `<div class="doc-no">${esc(docNo)}</div>` : ""}
+      <div>วันที่พิมพ์:${printDate}เวลา ${printTime} น.</div>
     </div>
   </div>
 
   <!-- TITLE BLOCK -->
-  <div class="report-title">${esc(reportTitle)}</div>
+  <h1 class="report-title">${esc(reportTitle)}</h1>
   ${period ? `<div class="report-period">ช่วงเวลา: ${esc(period)}</div>` : ""}
   ${filterSummary ? `<div class="report-filter">${esc(filterSummary)}</div>` : ""}
-
-  <!-- META ROW -->
-  <div class="meta-row">
-    <span>รวมทั้งหมด <strong>${rows.length.toLocaleString()}</strong> รายการ</span>
-    ${printedByName ? `<span>ออกโดย: ${esc(printedByName)}</span>` : ""}
-  </div>
 
   <!-- TABLE -->
   <table>
@@ -289,27 +255,34 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     <tbody>${trRows}</tbody>
   </table>
 
+  <!-- SPACER (pushes sig to bottom of last page) -->
+  <div class="spacer"></div>
+
   <!-- SIGNATURE -->
   ${sigSection}
 
-  <!-- PRINTED BY (below signature) -->
-  ${printedByLine}
-
   <!-- FOOTER -->
   <div class="page-footer">
-    <span>เอกสารนี้ออกจากระบบอิเล็กทรอนิกส์ ไม่ต้องลงนามหากใช้ภายในหน่วยงาน</span>
-    <span>HPK Warehouse Management System</span>
+    หมายเหตุ: เอกสารนี้ถูกสร้างจากระบบอิเล็กทรอนิกส์ ไม่ต้องลงนามหากใช้ภายในหน่วยงาน
   </div>
 
   <script>window.onload = () => { window.print(); }<\/script>
 </body>
 </html>`;
 
-  const win = window.open("", "_blank", "width=1100,height=750");
-  if (!win) {
-    alert("กรุณาอนุญาตให้เปิด Pop-up เพื่อพิมพ์รายงาน");
+  // ── Print via hidden iframe — no new tab, no URL in address bar ───────────
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;";
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    iframe.remove();
     return;
   }
-  win.document.write(html);
-  win.document.close();
+  doc.open();
+  doc.write(html);
+  doc.close();
+  setTimeout(() => iframe.remove(), 60_000);
 }

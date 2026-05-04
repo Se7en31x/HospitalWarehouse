@@ -13,9 +13,13 @@ import {
   Activity,
 } from "lucide-react";
 import { fmtDateTime } from "@/utils/dateUtils";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { LIST_TABLE_HEAD_ROW, LIST_TABLE_TBODY } from "@/lib/tableUi";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { getAllStockMovements } from "@/services/stockMovementService";
+import { socket } from "@/lib/socket";
 import {
   StockMovement,
   StockMovementType,
@@ -64,8 +68,12 @@ const StockMovementClient = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [openPopover, setOpenPopover] = useState<number | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    setIsFetching(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const isVisibleRef = useRef(true);
+
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const all = await getAllStockMovements({});
       const sorted = [...all].sort(
@@ -77,16 +85,50 @@ const StockMovementClient = () => {
       const errorMessage =
         error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
       console.error("Failed to fetch stock movements:", error);
-      SweetAlertUtils.error(errorMessage);
-      setAllMovements([]);
+      if (!silent) SweetAlertUtils.error(errorMessage);
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
+
+  const refreshData = useCallback(async () => {
+    fetchAll(true);
+  }, [fetchAll]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
+    const onVisibilityChange = () => {
+      isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) refreshData();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    if (!socket.connected) socket.connect();
+
+    const scheduleRefresh = () => {
+      if (!isVisibleRef.current || isRefreshingRef.current) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(async () => {
+        isRefreshingRef.current = true;
+        try { await refreshData(); }
+        finally { isRefreshingRef.current = false; refreshTimerRef.current = null; }
+      }, 220);
+    };
+
+    const handleRefreshSignal = (message: string) => {
+      if (message === "STOCK_MOVEMENTS" || message === "LOTS" || message === "ITEMS") scheduleRefresh();
+    };
+
+    socket.on("REFRESH_DATA", handleRefreshSignal);
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      socket.off("REFRESH_DATA", handleRefreshSignal);
+    };
+  }, [refreshData]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -148,11 +190,9 @@ const StockMovementClient = () => {
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-cyan-600 rounded-xl">
-            <Activity className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Activity} tone="cyan" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">การเคลื่อนไหวสต็อก</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ประวัติการเคลื่อนไหว</h2>
             <p className="text-sm text-slate-500 mt-0.5">ดูประวัติการรับเข้า-จ่ายออกสต็อกทั้งหมดในระบบ</p>
           </div>
         </div>
@@ -265,12 +305,15 @@ const StockMovementClient = () => {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดการเคลื่อนไหวสต็อก</span>
+            <DataTableSkeleton
+              headers={["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "หน่วยนับ", "จำนวน", "ยอดคงเหลือ", "ประเภท", "ผู้ดำเนินการ", "วันที่/เวลา", "ตรวจสอบ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดการเคลื่อนไหวสต็อก"
+              thClassName="px-2 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-2 py-3"
             />
           </div>
         ) : (
@@ -302,22 +345,22 @@ const StockMovementClient = () => {
             }
           `}</style>
           <table className="w-max min-w-full table-auto border-collapse text-sm text-left">
-            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+            <thead className={LIST_TABLE_HEAD_ROW}>
               <tr>
-                <th className="pl-3 pr-2 py-4 whitespace-nowrap w-10 text-center">#</th>
-                <th className="px-2 py-4 whitespace-nowrap">รหัสรายการ</th>
-                <th className="px-3 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
-                <th className="px-3 py-4 whitespace-nowrap">หมวดหมู่</th>
-                <th className="px-2 py-4 whitespace-nowrap">หน่วยนับ</th>
-                <th className="px-2 py-4 whitespace-nowrap text-center">จำนวน</th>
-                <th className="px-2 py-4 whitespace-nowrap">ยอดคงเหลือ</th>
-                <th className="px-2 py-4 whitespace-nowrap">ประเภท</th>
-                <th className="px-3 py-4 whitespace-nowrap">ผู้ดำเนินการ</th>
-                <th className="px-2 py-4 whitespace-nowrap">วันที่/เวลา</th>
-                <th className="pr-3 pl-1 py-4 whitespace-nowrap text-center w-11">ตรวจสอบ</th>
+                <th className="pl-3 pr-2 py-3.5 whitespace-nowrap w-10 text-center">#</th>
+                <th className="px-2 py-3.5 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-3 py-3.5 whitespace-nowrap">ชื่อพัสดุ</th>
+                <th className="px-3 py-3.5 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-2 py-3.5 whitespace-nowrap">หน่วยนับ</th>
+                <th className="px-2 py-3.5 whitespace-nowrap text-center">จำนวน</th>
+                <th className="px-2 py-3.5 whitespace-nowrap">ยอดคงเหลือ</th>
+                <th className="px-2 py-3.5 whitespace-nowrap">ประเภท</th>
+                <th className="px-3 py-3.5 whitespace-nowrap">ผู้ดำเนินการ</th>
+                <th className="px-2 py-3.5 whitespace-nowrap">วันที่/เวลา</th>
+                <th className="pr-3 pl-1 py-3.5 whitespace-nowrap text-center w-11">ตรวจสอบ</th>
               </tr>
             </thead>
-            <tbody className="text-slate-600">
+            <tbody className={LIST_TABLE_TBODY}>
               {paginatedMovements.map((mv, idx) => {
                 const isOut = OUT_TYPES.has(mv.type);
                 const badge = TYPE_BADGE[mv.type] ?? { label: mv.type, cls: "bg-slate-100 text-slate-600 border border-slate-200" };

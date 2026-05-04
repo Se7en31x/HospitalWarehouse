@@ -15,6 +15,7 @@ import * as DeptSvc from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
 import { resolveBarcode } from "@/services/barcodeService";
 import { fmtDate } from "@/utils/dateUtils";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -665,9 +666,7 @@ export default function ReceiveFormPage() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-emerald-600 rounded-xl">
-              <PackagePlus className="w-6 h-6 text-white" />
-            </div>
+            <PageHeadingIconBox icon={PackagePlus} tone="inbound" />
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับสินค้าเข้าคลัง</h2>
               <p className="text-sm text-slate-500 mt-0.5">กรอกรายละเอียดและเพิ่มรายการสินค้าเพื่อสร้างใบรับสินค้า</p>

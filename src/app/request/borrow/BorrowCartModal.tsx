@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Loader2,
   User,
+  Building2,
   MapPin,
   Phone,
   Upload,
@@ -34,6 +35,7 @@ import * as LookupSvc from "@/services/lookupService";
 import type { ProvinceOption, DistrictOption, SubdistrictOption, TitleOption } from "@/services/lookupService";
 import { RequisitionPayload } from "@/types/requisition_type";
 import { fmtDate } from "@/utils/dateUtils";
+import { pickMainWarehouseDepartment } from "@/lib/departmentAccess";
 
 const MySwal = withReactContent(Swal);
 
@@ -221,6 +223,8 @@ interface BorrowCartModalProps {
   selectedDeptId: number | null;
   departments: Department[];
   onDeptChange: (deptId: number) => void;
+  /** จาก JWT เมื่อโปรไฟล์ API ไม่มีแผนกคลังหลัก */
+  jwtWarehouseDeptId?: number | null;
 }
 
 const initialExternalForm: ExternalPersonForm = {
@@ -307,6 +311,7 @@ export default function BorrowCartModal({
   selectedDeptId,
   departments,
   onDeptChange,
+  jwtWarehouseDeptId = null,
 }: BorrowCartModalProps) {
   const [attachmentLightbox, setAttachmentLightbox] = useState<{
     url: string;
@@ -318,9 +323,23 @@ export default function BorrowCartModal({
   // ✅ State สำหรับ Loading ตอนกดปุ่ม
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ แผนกของผู้ดำเนินการ (EXTERNAL tab)
+  // ✅ แผนกผู้ดำเนินการ = ล็อกเป็นแผนกคลังหลัก (EXTERNAL tab)
   const [externalOperatorDeptId, setExternalOperatorDeptId] = useState<number | null>(null);
-  const [isDeptOpen, setIsDeptOpen] = useState(false);
+
+  const resolvedWarehouseDept = useMemo((): Department | undefined => {
+    const fromProfile = pickMainWarehouseDepartment(departments);
+    if (fromProfile != null && typeof fromProfile.id === "number") {
+      return fromProfile as Department;
+    }
+    if (jwtWarehouseDeptId != null && Number.isFinite(jwtWarehouseDeptId)) {
+      return {
+        id: jwtWarehouseDeptId,
+        name: "Warehouse",
+        code: "Warehouse",
+      };
+    }
+    return undefined;
+  }, [departments, jwtWarehouseDeptId]);
 
   // ✅ External Person Form State
   const [externalForm, setExternalForm] =
@@ -335,9 +354,6 @@ export default function BorrowCartModal({
   const titleTriggerRef = useRef<HTMLDivElement>(null);
   const titleDropdownRef = useRef<HTMLDivElement>(null);
   const [titleDropdownStyle, setTitleDropdownStyle] = useState<React.CSSProperties>({});
-
-  // ── Dept dropdown inline state ────────────────────────────────────────────
-  const deptWrapperRef = useRef<HTMLDivElement>(null);
 
   // ── Address lookup state ─────────────────────────────────────────────────
   const [provinces, setProvinces]             = useState<ProvinceOption[]>([]);
@@ -358,25 +374,20 @@ export default function BorrowCartModal({
   const [addressSearch, setAddressSearch]       = useState("");
   const addressPickerRef                        = useRef<HTMLDivElement>(null);
 
-  // ✅ Handle click-outside to close dept dropdown
-  React.useEffect(() => {
-    if (!isDeptOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (deptWrapperRef.current && !deptWrapperRef.current.contains(e.target as Node)) {
-        setIsDeptOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [isDeptOpen]);
-
-  // ✅ Close dropdown when modal closes
+  // ✅ Close pickers when modal closes
   React.useEffect(() => {
     if (!showCartModal) {
-      setIsDeptOpen(false);
       setIsAddressOpen(false);
     }
   }, [showCartModal]);
+
+  React.useEffect(() => {
+    if (!showCartModal) return;
+    const wh = resolvedWarehouseDept;
+    if (wh != null && typeof wh.id === "number") {
+      setExternalOperatorDeptId(wh.id);
+    }
+  }, [showCartModal, resolvedWarehouseDept]);
 
   // ✅ Close title combobox on outside click (trigger + portal)
   React.useEffect(() => {
@@ -822,8 +833,13 @@ export default function BorrowCartModal({
   const submitExternalBorrow = async () => {
     const { titleCode, firstname, lastname, address, subdistrict, district, province, postalCode, phone, returnDate } = externalForm;
 
-    if (externalOperatorDeptId === null) {
-      MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาระบุแผนกของผู้ดำเนินการ", icon: "warning" });
+    const opDept = resolvedWarehouseDept;
+    if (!opDept?.id) {
+      MySwal.fire({
+        title: "แจ้งเตือน",
+        text: "ไม่พบแผนกคลังหลักในระบบ กรุณาติดต่อผู้ดูแล เพื่อกำหนดแผนกผู้ดำเนินการยืม",
+        icon: "warning",
+      });
       return;
     }
 
@@ -846,7 +862,7 @@ export default function BorrowCartModal({
     try {
       const payload: RequisitionPayload = {
         type: "BORROW",
-        department_id: externalOperatorDeptId as number,
+        department_id: opDept.id,
         due_date: returnDate,
         items: selectedItems.map((i) => ({ item_id: i.id, qty: i.quantity, note: "" })),
         note: externalForm.notes || "ยืมโดยบุคคลภายนอก",
@@ -1106,7 +1122,7 @@ export default function BorrowCartModal({
                     </div>
                   </div>
 
-                  {/* Operator Department Section */}
+                  {/* Operator department — locked to main warehouse */}
                   <div className="border border-slate-200 rounded-xl bg-white shadow-sm">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
                       <User className="w-4 h-4 text-slate-500" />
@@ -1114,54 +1130,26 @@ export default function BorrowCartModal({
                         แผนกของผู้ดำเนินการ <span className="text-red-500">*</span>
                       </span>
                     </div>
-                    <div className="p-4">
-                      {/* Inline wrapper — dropdown flows in document, never drifts on scroll */}
-                      <div ref={deptWrapperRef} className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setIsDeptOpen((o) => !o)}
-                          disabled={isSubmitting}
-                          className={`flex items-center justify-between gap-2 w-full border rounded-lg px-4 py-2.5 text-sm bg-white transition-colors disabled:opacity-50 ${
-                            isDeptOpen
-                              ? "border-blue-500 ring-2 ring-blue-200"
-                              : "border-slate-200 hover:border-blue-400"
-                          }`}
-                        >
-                          <span className={externalOperatorDeptId !== null ? "text-slate-800 font-medium" : "text-gray-400"}>
-                            {externalOperatorDeptId !== null
-                              ? (departments.find((d) => d.id === externalOperatorDeptId)?.name ?? "-- เลือกแผนก --")
-                              : "-- เลือกแผนก --"}
-                          </span>
-                          <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isDeptOpen ? "rotate-180" : ""}`} />
-                        </button>
-
-                        {/* Inline dropdown — anchored to trigger, scrolls with page */}
-                        {isDeptOpen && (
-                          <div className="absolute left-0 right-0 mt-1 z-50 border border-slate-200 rounded-xl bg-white shadow-xl overflow-hidden">
-                            <ul className="overflow-y-auto" style={{ maxHeight: "220px" }}>
-                              {(departments || []).map((d) => (
-                                <li key={d.id}>
-                                  <button
-                                    type="button"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => {
-                                      setExternalOperatorDeptId(d.id);
-                                      setIsDeptOpen(false);
-                                    }}
-                                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-l-4 ${
-                                      d.id === externalOperatorDeptId
-                                        ? "bg-indigo-50 border-indigo-600 text-indigo-700 font-bold"
-                                        : "border-transparent text-slate-700 hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    {d.name}
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                    <div className="p-4 space-y-1">
+                      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                        <Building2 className="w-4 h-4 shrink-0 text-slate-500" aria-hidden />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">
+                            {resolvedWarehouseDept
+                              ? deptDisplayName(resolvedWarehouseDept.name) ?? resolvedWarehouseDept.name
+                              : "—"}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            ผู้ปฏิบัติยืมให้บุคคลภายนอกต้องเป็นแผนกคลังหลัก (ล็อกอัตโนมัติ)
+                          </p>
+                        </div>
                       </div>
+                      {!resolvedWarehouseDept && (
+                        <p className="text-xs text-amber-700 flex items-start gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          ไม่พบแผนกคลังหลักในโปรไฟล์ กรุณาติดต่อผู้ดูแลระบบ
+                        </p>
+                      )}
                     </div>
                   </div>
 

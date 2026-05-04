@@ -16,7 +16,10 @@ import {
   Landmark,
   Search,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { LIST_TABLE_HEAD_ROW } from "@/lib/tableUi";
 import SettingsModals from "./SettingsModals";
 import { formatThaiDateTime } from "@/utils/formatters";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -459,9 +462,7 @@ export default function SettingsClient({
     <div className="flex flex-col min-h-screen bg-[#fafafa] p-3 sm:p-4 md:p-6 lg:p-8">
       {/* Header Section */}
       <div className="flex items-center gap-4 mb-8">
-        <div className="p-3 bg-slate-600 rounded-xl">
-          <Settings2 className="w-6 h-6 text-white" />
-        </div>
+        <PageHeadingIconBox icon={Settings2} tone="slate" />
         <div>
           <h1 className="text-3xl font-bold text-gray-800">ตั้งค่าระบบ</h1>
           <p className="text-sm text-slate-500 mt-0.5">จัดการคลังสินค้า หมวดหมู่ หน่วยนับ และผู้ใช้งาน</p>
@@ -522,12 +523,14 @@ export default function SettingsClient({
       {/* Table Container — โหลดและแบ่งหน้าแบบ ItemsClient */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col mb-6">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem] mb-6">
+            <span className="sr-only">กำลังโหลดข้อมูลตั้งค่า</span>
+            <DataTableSkeleton
+              headers={["#", "ชื่อประเภท", "Prefix", "ประเภท", "รายละเอียด", "สร้าง", "แก้ไข", "จัดการ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดข้อมูลตั้งค่า"
+              tdClassName="px-4 py-3"
             />
           </div>
         ) : (
@@ -559,16 +562,16 @@ export default function SettingsClient({
           `}</style>
           {activeTab === "categories" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+              <thead className={LIST_TABLE_HEAD_ROW}>
                 <tr>
-                  <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[160px]">ชื่อประเภท</th>
-                  <th className="px-6 py-4 w-[100px]">Prefix</th>
-                  <th className="px-6 py-4 w-[150px]">ประเภท</th>
-                  <th className="px-6 py-4 w-[250px]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
-                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
-                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
+                  <th className="px-6 py-3.5 w-[50px]">#</th>
+                  <th className="px-6 py-3.5 w-[160px]">ชื่อประเภท</th>
+                  <th className="px-6 py-3.5 w-[100px]">Prefix</th>
+                  <th className="px-6 py-3.5 w-[150px]">ประเภท</th>
+                  <th className="px-6 py-3.5 w-[250px]">รายละเอียด</th>
+                  <th className="px-6 py-3.5 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-3.5 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-500">
@@ -646,14 +649,14 @@ export default function SettingsClient({
 
           {activeTab === "units" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+              <thead className={LIST_TABLE_HEAD_ROW}>
                 <tr>
-                  <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[100px]">ชื่อหน่วยนับ</th>
-                  <th className="px-6 py-4 w-[350px]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
-                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
-                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
+                  <th className="px-6 py-3.5 w-[50px]">#</th>
+                  <th className="px-6 py-3.5 w-[100px]">ชื่อหน่วยนับ</th>
+                  <th className="px-6 py-3.5 w-[350px]">รายละเอียด</th>
+                  <th className="px-6 py-3.5 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-3.5 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-500">
@@ -715,15 +718,15 @@ export default function SettingsClient({
 
           {activeTab === "warehouses" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+              <thead className={LIST_TABLE_HEAD_ROW}>
                 <tr>
-                  <th className="px-6 py-4 w-[50px]">#</th>
-                  <th className="px-6 py-4 w-[150px]">ชื่อคลังสินค้า</th>
-                  <th className="px-6 py-4 w-[150px]">สถานที่ตั้ง</th>
-                  <th className="px-6 py-4 w-[250px]">รายละเอียด</th>
-                  <th className="px-6 py-4 w-[100px]">สร้าง</th>
-                  <th className="px-6 py-4 w-[100px]">แก้ไข</th>
-                  <th className="px-6 py-4 w-[100px] text-center">จัดการ</th>
+                  <th className="px-6 py-3.5 w-[50px]">#</th>
+                  <th className="px-6 py-3.5 w-[150px]">ชื่อคลังสินค้า</th>
+                  <th className="px-6 py-3.5 w-[150px]">สถานที่ตั้ง</th>
+                  <th className="px-6 py-3.5 w-[250px]">รายละเอียด</th>
+                  <th className="px-6 py-3.5 w-[100px]">สร้าง</th>
+                  <th className="px-6 py-3.5 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-500">
@@ -787,17 +790,17 @@ export default function SettingsClient({
 
           {activeTab === "suppliers" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10">
+              <thead className={LIST_TABLE_HEAD_ROW}>
                 <tr>
-                  <th className="px-4 py-4 w-[50px]">#</th>
-                  <th className="px-1 py-4 w-[180px]">ชื่อผู้จำหน่าย</th>
-                  <th className="px-4 py-4 w-[170px]">อีเมล</th>
-                  <th className="px-4 py-4 w-[140px]">ผู้ติดต่อ</th>
-                  <th className="px-4 py-4 w-[150px]">เบอร์โทรศัพท์บริษัท</th>
-                  <th className="px-4 py-4 w-[150px]">เบอร์ติดต่อส่วนตัว</th>
-                  <th className="px-4 py-4 w-[140px]">เลขผู้เสียภาษี</th>
-                  <th className="px-4 py-4 w-[140px]">ข้อมูลธนาคาร</th>
-                  <th className="px-2 py-4 w-[100px] text-center">จัดการ</th>
+                  <th className="px-4 py-3.5 w-[50px]">#</th>
+                  <th className="px-1 py-3.5 w-[180px]">ชื่อผู้จำหน่าย</th>
+                  <th className="px-4 py-3.5 w-[170px]">อีเมล</th>
+                  <th className="px-4 py-3.5 w-[140px]">ผู้ติดต่อ</th>
+                  <th className="px-4 py-3.5 w-[150px]">เบอร์โทรศัพท์บริษัท</th>
+                  <th className="px-4 py-3.5 w-[150px]">เบอร์ติดต่อส่วนตัว</th>
+                  <th className="px-4 py-3.5 w-[140px]">เลขผู้เสียภาษี</th>
+                  <th className="px-4 py-3.5 w-[140px]">ข้อมูลธนาคาร</th>
+                  <th className="px-2 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-500">

@@ -147,9 +147,6 @@ export default function ItemDetailModal({
                   </div>
                   <span className="text-slate-500 font-medium text-xs ml-1 min-w-0 truncate" title={item.unit}>{item.unit}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-2 truncate" title={`สูงสุด: ${item.stock} ${item.unit}`}>
-                  สูงสุด: {item.stock} {item.unit}
-                </p>
               </div>
             </div>
           </div>

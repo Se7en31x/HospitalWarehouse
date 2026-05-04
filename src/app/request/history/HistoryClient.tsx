@@ -11,6 +11,9 @@ import { getAllRequisitions, cancelRequisition } from "@/services/requisitionSer
 import type { RequisitionHeader } from "@/types/requisition_type";
 import { socket } from "@/lib/socket";
 import { fmtDateTime } from "@/utils/dateUtils";
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { LIST_TABLE_HEAD_ROW, LIST_TABLE_TBODY, LIST_TABLE_TH, LIST_TABLE_TH_NUM } from "@/lib/tableUi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,8 +86,8 @@ export default function HistoryClient() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const fetchData = useCallback(async () => {
-    setIsFetching(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const result = await getAllRequisitions({ limit: 100 });
       let data: RequisitionHeader[] = [];
@@ -95,10 +98,9 @@ export default function HistoryClient() {
       }
       setRecords(data);
     } catch {
-      toast.error("เกิดข้อผิดพลาดในการดึงข้อมูล");
-      setRecords([]);
+      if (!silent) { toast.error("เกิดข้อผิดพลาดในการดึงข้อมูล"); setRecords([]); }
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
@@ -107,7 +109,7 @@ export default function HistoryClient() {
   useEffect(() => {
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
-      if (isVisibleRef.current) fetchData();
+      if (isVisibleRef.current) fetchData(true);
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -123,7 +125,7 @@ export default function HistoryClient() {
       refreshTimerRef.current = setTimeout(async () => {
         isRefreshingRef.current = true;
         try {
-          await fetchData();
+          await fetchData(true);
         } finally {
           isRefreshingRef.current = false;
           refreshTimerRef.current = null;
@@ -168,9 +170,7 @@ export default function HistoryClient() {
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-slate-600 rounded-xl">
-            <Clock className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Clock} tone="slate" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ประวัติการทำรายการ</h2>
             <p className="text-sm text-slate-500 mt-0.5">ดูรายการคำขอทั้งหมดและติดตามสถานะการดำเนินการ</p>
@@ -239,32 +239,37 @@ export default function HistoryClient() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col relative" style={{ height: "65vh" }}>
-        {isFetching && (
-          <div className="absolute inset-0 bg-white/60 z-20 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-          </div>
-        )}
+        {isFetching ? (
+          <DataTableSkeleton
+            headers={["#", "เลขที่คำขอ", "ประเภท", "แผนก", "วันที่ทำรายการ", "จำนวนรายการ", "สถานะ", "จัดการ"]}
+            rowCount={10}
+            ariaLabel="กำลังโหลดประวัติคำขอ"
+            className="h-full min-h-0"
+            minHeight="min-h-0"
+            tdClassName="px-4 py-3"
+          />
+        ) : (
         <div className="flex-1 overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <table className="w-full table-fixed text-sm text-left">
-            <thead className="bg-slate-50 text-slate-700 font-semibold uppercase border-b border-slate-200 sticky top-0 z-10 text-xs">
+            <thead className={LIST_TABLE_HEAD_ROW}>
               <tr>
-                <th className="px-5 py-4 w-[48px]">#</th>
-                <th className="px-5 py-4 w-[150px]">เลขที่คำขอ</th>
-                <th className="px-5 py-4 w-[96px]">ประเภท</th>
-                <th className="px-5 py-4 hidden sm:table-cell w-[180px]">แผนก</th>
-                <th className="px-5 py-4 w-[220px]">วันที่ทำรายการ</th>
-                <th className="px-5 py-4 w-[112px]">จำนวนรายการ</th>
-                <th className="px-5 py-4 w-[148px]">สถานะ</th>
-                <th className="px-5 py-4 w-[72px] text-center">จัดการ</th>
+                <th className={`${LIST_TABLE_TH_NUM} w-[48px]`}>#</th>
+                <th className={`${LIST_TABLE_TH} w-[150px]`}>เลขที่คำขอ</th>
+                <th className={`${LIST_TABLE_TH} w-[96px]`}>ประเภท</th>
+                <th className={`${LIST_TABLE_TH} hidden sm:table-cell w-[180px]`}>แผนก</th>
+                <th className={`${LIST_TABLE_TH} w-[220px]`}>วันที่ทำรายการ</th>
+                <th className={`${LIST_TABLE_TH} w-[112px]`}>จำนวนรายการ</th>
+                <th className={`${LIST_TABLE_TH} w-[148px]`}>สถานะ</th>
+                <th className={`${LIST_TABLE_TH} w-[72px] text-center`}>จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-600">
+            <tbody className={LIST_TABLE_TBODY}>
               {displayed.map((r, idx) => (
-                <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3 w-[48px] text-slate-600">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-5 py-3 w-[150px] text-slate-600 truncate" title={r.doc_no}>{r.doc_no}</td>
-                  <td className="px-5 py-3 w-[96px] text-slate-600"><TypeBadge type={r.type} /></td>
-                  <td className="px-5 py-3 hidden sm:table-cell w-[180px] min-w-0 text-slate-600">
+                <tr key={r.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                  <td className="px-4 py-3 w-[48px] text-center text-sm text-slate-500 tabular-nums">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-5 py-3 w-[150px] truncate font-mono font-medium text-slate-800" title={r.doc_no}>{r.doc_no}</td>
+                  <td className="px-5 py-3 w-[96px]"><TypeBadge type={r.type} /></td>
+                  <td className="px-5 py-3 hidden sm:table-cell w-[180px] min-w-0">
                     <p className="truncate" title={r.department_name ?? ""}>{r.department_name ?? "-"}</p>
                   </td>
                   <td className="px-5 py-3 w-[220px] text-slate-600">
@@ -300,6 +305,7 @@ export default function HistoryClient() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Pagination */}

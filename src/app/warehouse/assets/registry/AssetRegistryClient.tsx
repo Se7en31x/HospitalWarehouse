@@ -4,9 +4,12 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     Search, ChevronLeft, ChevronRight, ChevronDown, Edit, X, Trash2,
-    AlertTriangle, Printer
+    AlertTriangle, Printer, Cpu
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { LIST_TABLE_HEAD_ROW, LIST_TABLE_TH_WIDE, LIST_TABLE_TBODY } from "@/lib/tableUi";
 import { printLabels, type LabelData } from "@/lib/printLabel";
 
 import * as assetService from "@/services/assetService";
@@ -302,10 +305,23 @@ export default function AssetRegistryClient({
 
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
-                    {masterItem?.name || "กำลังโหลด..."}
-                </h2>
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-4 mb-1 min-w-0">
+                        <PageHeadingIconBox icon={Cpu} tone="assets" className="shrink-0" />
+                        <div className="min-w-0">
+                            <h2
+                                className="text-2xl sm:text-3xl font-bold text-gray-800 truncate"
+                                title={masterItem?.name || undefined}
+                            >
+                                {masterItem?.name || "กำลังโหลด..."}
+                            </h2>
+                            <p className="text-sm text-slate-500 mt-0.5">
+                                ดูและจัดการครุภัณฑ์รายเครื่องที่ลงทะเบียนไว้ — สถานะ แผนกประจำการ และพิมพ์ป้ายครุภัณฑ์
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap shrink-0">
                     {selectedAssets.size > 0 && (
                         <button
                             onClick={handleBulkPrint}
@@ -420,12 +436,15 @@ export default function AssetRegistryClient({
             {/* Table Content */}
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
                 {isFetching ? (
-                    <div className="flex items-center justify-center py-16">
-                        <DotLottieReact
-                            src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-                            loop
-                            autoplay
-                            style={{ width: 160, height: 160 }}
+                    <div className="flex flex-col flex-1 min-h-[22rem]">
+                        <span className="sr-only">กำลังโหลดทะเบียนครุภัณฑ์</span>
+                        <DataTableSkeleton
+                            headers={["", "รหัสครุภัณฑ์", "Serial Number", "แผนกประจำการ", "เลขที่เอกสารรับเข้า", "วันหมดอายุประกัน", "สถานะ", "จัดการ"]}
+                            rowCount={10}
+                            showPaginationFooter
+                            ariaLabel="กำลังโหลดทะเบียนครุภัณฑ์"
+                            thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+                            tdClassName="px-3 py-3"
                         />
                     </div>
                 ) : (
@@ -451,9 +470,9 @@ export default function AssetRegistryClient({
                                     <col className="w-[12%]" />
                                     <col className="w-[9%]" />
                                 </colgroup>
-                                <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+                                <thead className={LIST_TABLE_HEAD_ROW}>
                                     <tr>
-                                        <th className="px-4 py-4 text-center">
+                                        <th className="px-4 py-3.5 text-center">
                                             <input
                                                 type="checkbox"
                                                 checked={paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedAssets.has(r.id))}
@@ -462,16 +481,16 @@ export default function AssetRegistryClient({
                                                 title="เลือกทั้งหมดในหน้านี้"
                                             />
                                         </th>
-                                        <th className="px-6 py-4 whitespace-nowrap">รหัสครุภัณฑ์</th>
-                                        <th className="px-6 py-4 whitespace-nowrap">Serial Number</th>
-                                        <th className="px-6 py-4 whitespace-nowrap">แผนกประจำการ</th>
-                                        <th className="px-6 py-4 whitespace-nowrap">เลขที่เอกสารรับเข้า</th>
-                                        <th className="px-6 py-4 whitespace-nowrap">วันหมดอายุประกัน</th>
-                                        <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                                        <th className="px-6 py-4 text-center whitespace-nowrap">จัดการ</th>
+                                        <th className={LIST_TABLE_TH_WIDE}>รหัสครุภัณฑ์</th>
+                                        <th className={LIST_TABLE_TH_WIDE}>Serial Number</th>
+                                        <th className={LIST_TABLE_TH_WIDE}>แผนกประจำการ</th>
+                                        <th className={LIST_TABLE_TH_WIDE}>เลขที่เอกสารรับเข้า</th>
+                                        <th className={LIST_TABLE_TH_WIDE}>วันหมดอายุประกัน</th>
+                                        <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                                        <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-slate-600">
+                                <tbody className={LIST_TABLE_TBODY}>
                                     {paginatedRecords.map((rec) => {
                                         const isExpired = rec.warranty_expire && new Date(rec.warranty_expire) < new Date();
                                         return (

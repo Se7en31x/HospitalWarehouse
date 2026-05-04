@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Settings, LogOut, User } from "lucide-react";
+import { ChevronDown, LogOut, User } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import NotificationBell from "./NotificationBell";
 import { useNavProfile } from "@/hooks/useNavProfile";
@@ -65,11 +65,11 @@ export default function RequestNavbar() {
                 className="object-contain"
               />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <h1 className="text-[20px] font-bold tracking-tight text-white leading-none">
                 โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
               </h1>
-              <span className="text-[14px] font-semibold text-blue-100/90 tracking-wide uppercase">
+              <span className="text-[16px] font-bold text-blue-100/90 tracking-wide uppercase">
                 ระบบเบิก-ยืม-คืน
               </span>
             </div>
@@ -116,13 +116,6 @@ export default function RequestNavbar() {
                       className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors"
                     >
                       <User className="w-4 h-4 text-blue-600" /> โปรไฟล์ส่วนตัว
-                    </Link>
-                    <Link
-                      href="/request/settings"
-                      onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors"
-                    >
-                      <Settings className="w-4 h-4 text-blue-600" /> ตั้งค่า
                     </Link>
                     <div className="h-[1px] bg-slate-100 my-1.5 mx-2" />
                     <button

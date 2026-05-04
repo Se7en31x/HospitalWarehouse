@@ -10,15 +10,17 @@ import {
 	Clock,
 	Search,
 	X,
-	FileText,
 	RefreshCw,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { getcategoriesOptions, getWarehousesOptions } from "@/services/itemsService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
+import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { useUser } from "@/context/UserContext";
 import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
+import { REPORT_HEADER, SECTION_TAB_ACTIVE } from "../../_components/reportHeaderTheme";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -145,6 +147,7 @@ const Dropdown: React.FC<DropdownProps> = ({ dataAttr, value, options, open, onT
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) => {
+	const { profile } = useUser();
 	const [activeTab, setActiveTab] = useState<ActiveTab>("low-stock");
 
 	// Shared date range (used by both tabs)
@@ -415,7 +418,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	};
 
 	const handleLsExportPdf = () => {
-		const columns: PdfColumn[] = [
+		const columns: PrintColumn[] = [
 			{ header: "#",              key: "_no",       align: "center" },
 			{ header: "รหัสรายการ",     key: "code" },
 			{ header: "ชื่อพัสดุ",     key: "name" },
@@ -434,11 +437,22 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			minStock: item.minStock.toLocaleString(), shortfall: item.shortfall.toLocaleString(),
 			status: item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่า Min",
 		}));
-		printAsPdf(
-			"รายงานสินค้าต่ำกว่า Min Stock",
-			`${lsCategory} | ${lsWarehouse} | ${periodLabel} | รวม ${lsFiltered.length} รายการ`,
-			columns, pdfRows,
-		);
+		printWarehouseReport({
+			reportTitle:   "รายงานสินค้าต่ำกว่า Min Stock",
+			period:        periodLabel,
+			filterSummary: [
+				lsCategory  !== "หมวดหมู่ทั้งหมด" ? `หมวดหมู่: ${lsCategory}`  : null,
+				lsWarehouse !== "ทุกคลัง"          ? `คลัง: ${lsWarehouse}`      : null,
+			].filter(Boolean).join(" | ") || undefined,
+			columns,
+			rows: pdfRows,
+			printedBy: {
+				title:      profile?.title?.name,
+				firstName:  profile?.firstname_th,
+				lastName:   profile?.lastname_th,
+				department: profile?.departments?.[0]?.name,
+			},
+		});
 	};
 
 	const handleNeExportXlsx = async () => {
@@ -569,7 +583,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	};
 
 	const handleNeExportPdf = () => {
-		const columns: PdfColumn[] = [
+		const columns: PrintColumn[] = [
 			{ header: "#",          key: "_no",       align: "center" },
 			{ header: "รหัส LOT",   key: "lotCode" },
 			{ header: "รหัสรายการ", key: "itemCode" },
@@ -584,11 +598,19 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			warehouse: r.warehouse, qty: r.quantity.toLocaleString() + " " + r.unit,
 			dateFmt: fmtDate(r.expiredAt), daysLabel: getUrgencyLabel(r.daysLeft),
 		}));
-		printAsPdf(
-			`รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`,
-			`${neWarehouse} | ${periodLabel}`,
-			columns, pdfRows,
-		);
+		printWarehouseReport({
+			reportTitle:   `รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`,
+			period:        periodLabel,
+			filterSummary: neWarehouse !== "ทุกคลัง" ? `คลัง: ${neWarehouse}` : undefined,
+			columns,
+			rows: pdfRows,
+			printedBy: {
+				title:      profile?.title?.name,
+				firstName:  profile?.firstname_th,
+				lastName:   profile?.lastname_th,
+				department: profile?.departments?.[0]?.name,
+			},
+		});
 	};
 
 	// Close dropdowns on outside click
@@ -611,46 +633,29 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		{ id: "near-expiry", label: "สินค้าใกล้หมดอายุ",      icon: <Clock className="w-4 h-4" />,       badge: neFetched ? neRows.length : undefined },
 	];
 
+	const tabActiveCls = SECTION_TAB_ACTIVE[REPORT_HEADER["low-stock"].section];
+
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
 
-			{/* ── Page Header ─────────────────────────────────────────────────── */}
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow">
-							<FileText className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานแจ้งเตือนสต็อก</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK &nbsp;·&nbsp; พิมพ์วันที่ {printDate}</p>
-						</div>
-					</div>
-
-					<div className="flex items-center gap-2">
-						<button
-							type="button"
-							onClick={() => { loadLowStock(); setNeFetched(false); }}
-							disabled={lsFetching || neFetching}
-							className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 text-slate-600 shadow-sm disabled:opacity-50 transition-colors"
-							title="รีเฟรชข้อมูล"
-						>
-							<RefreshCw className={`w-4 h-4 ${lsFetching || neFetching ? "animate-spin" : ""}`} />
-							รีเฟรช
-						</button>
-						{onBack && (
-							<button
-								type="button"
-								onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-							>
-								ย้อนกลับ
-							</button>
-						)}
-					</div>
-				</div>
-
-				{/* Tabs */}
+			<ReportDetailPageHeader
+				reportPage="low-stock"
+				title="รายงานแจ้งเตือนสต็อก"
+				subtitle={`ระบบบริหารคลังสินค้า HPK · พิมพ์วันที่ ${printDate}`}
+				onBack={onBack}
+				trailingActions={
+					<button
+						type="button"
+						onClick={() => { loadLowStock(); setNeFetched(false); }}
+						disabled={lsFetching || neFetching}
+						className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 text-slate-600 shadow-sm disabled:opacity-50 transition-colors"
+						title="รีเฟรชข้อมูล"
+					>
+						<RefreshCw className={`w-4 h-4 ${lsFetching || neFetching ? "animate-spin" : ""}`} />
+						รีเฟรช
+					</button>
+				}
+			>
 				<div className="flex gap-1 mt-5">
 					{tabs.map((tab) => (
 						<button
@@ -659,7 +664,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 							onClick={() => setActiveTab(tab.id)}
 							className={`flex items-center gap-2 px-5 py-2.5 rounded-t-lg text-sm font-semibold transition-all border-b-2 ${
 								activeTab === tab.id
-									? "bg-blue-600 text-white border-blue-600"
+									? tabActiveCls
 									: "bg-white text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-50"
 							}`}
 						>
@@ -675,7 +680,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 						</button>
 					))}
 				</div>
-			</div>
+			</ReportDetailPageHeader>
 
 			{/* ── Content ──────────────────────────────────────────────────────── */}
 			<div className="flex-1 px-8 py-6">

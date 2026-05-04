@@ -104,18 +104,10 @@ export async function getAllReceives(params: GetReceivesParams = {}): Promise<Re
     };
 }
 
-/** โหลดข้อมูลทั้งหมด (วนลูปทุกหน้า) สำหรับ client-side filter */
+/** โหลดข้อมูลทั้งหมดในครั้งเดียว สำหรับ client-side filter */
 export async function getAllReceivesAll(): Promise<ReceiveBatch[]> {
-    const all: ReceiveBatch[] = [];
-    const limit = 50;
-    let page = 1;
-    while (true) {
-        const res = await getAllReceives({ page, limit });
-        all.push(...res.items);
-        if (res.items.length < limit) break;
-        page += 1;
-    }
-    return all;
+    const res = await api.list<ReceiveBatch>(`/v1/receives`, { limit: 1000, _t: Date.now() });
+    return res.data || [];
 }
 
 // ── Header API ─────────────────────────────────────────────────────────────────

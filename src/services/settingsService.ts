@@ -17,23 +17,11 @@ const SETTINGS_BASE = "/v1";
 // ============ Helper Functions ============
 
 /**
- * ดึงข้อมูลทุกหน้ามาต่อกันเป็น Array เดียว (ใช้สำหรับพวก Master Data ใน Settings)
+ * ดึงข้อมูลทั้งหมดในครั้งเดียว (ใช้สำหรับพวก Master Data ใน Settings)
  */
 async function fetchAllPages<T>(basePath: string, token?: string): Promise<T[]> {
-    const all: T[] = [];
-    let page = 1;
-    const limit = 10;
-
-    while (true) {
-        // ใช้ api.list เพื่อเข้าถึงข้อมูลทั้ง data และ meta
-        const res = await api.list<T>(basePath, { page, limit, keyword: "" }, token);
-        all.push(...(res.data || []));
-
-        if (!res.meta?.nextPage) break;
-        page = res.meta.nextPage;
-    }
-
-    return all;
+    const res = await api.list<T>(basePath, { limit: 1000, _t: Date.now() }, token);
+    return res.data || [];
 }
 
 // ============ API Functions ============

@@ -2,8 +2,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight, Eye, ChevronDown, X, ClipboardList } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { getAllRequisitionsPages } from "../../../services/requisitionService";
+import { RequestListTableSkeleton } from "@/components/skeletons/RequestPageSkeletons";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+} from "@/lib/tableUi";
 import { RequisitionHeader } from "../../../types/requisition_type";
 import { useRouter } from "next/navigation";
 import { socket } from "@/lib/socket";
@@ -44,8 +49,8 @@ const RequestClient = () => {
     return req.requester || req.requester_id || "ไม่ระบุผู้ทำรายการ";
   };
 
-  const fetchAll = useCallback(async () => {
-    setIsFetching(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const all = await getAllRequisitionsPages({});
       const sortedRows = [...all].sort((a, b) =>
@@ -54,15 +59,14 @@ const RequestClient = () => {
       setAllRequests(sortedRows);
     } catch (err) {
       console.error("Fetch error:", err);
-      SweetAlertUtils.error(getErrorMessage(err));
-      setAllRequests([]);
+      if (!silent) setAllRequests([]);
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, []);
 
   const refreshData = useCallback(async () => {
-    fetchAll();
+    fetchAll(true);
   }, [fetchAll]);
 
   // --- [Effects] ---
@@ -238,9 +242,7 @@ const RequestClient = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-600 rounded-xl">
-            <ClipboardList className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={ClipboardList} tone="indigo" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รายการคำขอเบิก-ยืม</h2>
             <p className="text-sm text-slate-500 mt-0.5">ตรวจสอบและดำเนินการคำขอเบิก-ยืมพัสดุจากแผนก</p>
@@ -367,13 +369,9 @@ const RequestClient = () => {
       {/* Table Section */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
-            />
+          <div className="flex flex-col flex-1 min-h-[22rem]" aria-busy="true" aria-live="polite">
+            <span className="sr-only">กำลังโหลดรายการคำขอ</span>
+            <RequestListTableSkeleton />
           </div>
         ) : (
           <>
@@ -403,41 +401,41 @@ const RequestClient = () => {
                   <col className="w-[4.5rem] min-w-[4.5rem]" />
                   <col className="min-w-[1rem]" />
                 </colgroup>
-                <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-200 sticky top-0 z-10">
+                <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
-                    <th className="px-2 py-4 whitespace-nowrap text-center">#</th>
-                    <th className="px-2 py-4 whitespace-nowrap">เลขที่คำขอ</th>
-                    <th className="px-2 py-4 whitespace-nowrap">วันที่/เวลา</th>
-                    <th className="px-2 py-4 whitespace-nowrap">ผู้ทำรายการ</th>
-                    <th className="px-2 py-4 whitespace-nowrap">แผนก</th>
-                    <th className="px-2 py-4 whitespace-nowrap">ประเภท</th>
-                    <th className="px-2 py-4 whitespace-nowrap">สถานะ</th>
-                    <th className="px-1 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
+                    <th className={`${LIST_TABLE_TH_COMPACT} text-center`}>#</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>เลขที่คำขอ</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>วันที่/เวลา</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>ผู้ทำรายการ</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>แผนก</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>ประเภท</th>
+                    <th className={LIST_TABLE_TH_COMPACT}>สถานะ</th>
+                    <th className={`${LIST_TABLE_TH_COMPACT} px-2 text-center`}>ตรวจสอบ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-600">
+                <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
                   {paginatedItems.map((req, idx) => {
                     const style = getRowStyle(req.request_date, req.status);
                     return (
                     <tr key={req.id} className={`bg-white transition-colors ${style.row}`}>
-                      <td className="px-2 py-2.5 text-slate-600 text-center tabular-nums">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
-                      <td className="px-2 py-2.5 font-mono text-slate-600">{req.doc_no}</td>
-                      <td className={`px-2 py-2.5 whitespace-nowrap ${style.date}`}>
+                      <td className="px-3 py-3 text-slate-600 text-center tabular-nums text-sm">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
+                      <td className="px-3 py-3 font-mono text-sm text-slate-600">{req.doc_no}</td>
+                      <td className={`px-3 py-3 whitespace-nowrap text-sm ${style.date}`}>
                         {new Date(req.request_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
                       </td>
-                      <td className="px-2 py-2.5 truncate text-slate-600" title={displayRequesterName(req)}>
+                      <td className="px-3 py-3 truncate text-sm text-slate-600" title={displayRequesterName(req)}>
                         {displayRequesterName(req)}
                       </td>
-                      <td className="px-2 py-2.5 text-slate-600">
+                      <td className="px-3 py-3 text-sm text-slate-600">
                         {req.department_name || "-"}
                       </td>
-                      <td className="px-2 py-2.5 text-slate-600 text-sm">
+                      <td className="px-3 py-3 text-sm text-slate-600">
                         {req.type === "WITHDRAW" ? "เบิก" : "ยืม"}
                       </td>
-                      <td className="px-2 py-2.5">
+                      <td className="px-3 py-3">
                         <StatusBadge status={req.status} />
                       </td>
-                      <td className="px-1 py-2.5 text-center">
+                      <td className="px-2 py-3 text-center">
                         <button
                           onClick={() => router.push(`/warehouse/requests/${req.id}`)}
                           className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"

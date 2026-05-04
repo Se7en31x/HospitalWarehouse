@@ -1,16 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { REUSABLE_RETURN_STATUS_LABELS } from "@/constants/labels";
+import { REUSABLE_RETURN_STATUS_LABELS, REUSABLE_UNIT_CONDITION_LABELS } from "@/constants/labels";
 
 // ─── Types & Interfaces ───────────────────────────────────────────────────────
+
+export type ProcessItemCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+
+/** ผลตรวจรายชิ้น — ไม่มี INCOMPLETE (ใช้เฉพาะเมื่อรับคืนเป็นจำนวนไม่ครบในโหมดรายการใหญ่) */
+export type ProcessUnitCondition = "GOOD" | "DAMAGED" | "LOST";
 
 export interface ProcessItemForm {
   item_id: string;
   item_name: string;
   requested_qty: number;
   return_qty: number;
-  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+  condition: ProcessItemCondition;
   note: string;
 }
 
@@ -20,7 +25,7 @@ export interface ProcessUnitForm {
   serial_no: string;
   item_id: string;
   item_name: string;
-  condition: "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
+  condition: ProcessUnitCondition;
   note: string;
 }
 
@@ -42,10 +47,10 @@ export type ReturnCondition = "GOOD" | "DAMAGED" | "LOST" | "INCOMPLETE";
 export const RETURN_REQUEST_STATUS_LABEL: Record<string, string> = REUSABLE_RETURN_STATUS_LABELS;
 
 export const CONDITION_LABEL: Record<string, string> = {
-  GOOD: "ปกติ",
-  DAMAGED: "ชำรุด",
-  LOST: "สูญหาย",
-  INCOMPLETE: "คืนไม่ครบ",
+  GOOD: REUSABLE_UNIT_CONDITION_LABELS.GOOD,
+  DAMAGED: REUSABLE_UNIT_CONDITION_LABELS.DAMAGED,
+  LOST: REUSABLE_UNIT_CONDITION_LABELS.LOST,
+  INCOMPLETE: REUSABLE_UNIT_CONDITION_LABELS.INCOMPLETE,
 };
 
 export const conditionOptions: { value: ReturnCondition; label: string }[] = [
@@ -53,6 +58,12 @@ export const conditionOptions: { value: ReturnCondition; label: string }[] = [
   { value: "DAMAGED", label: CONDITION_LABEL.DAMAGED },
   { value: "LOST", label: CONDITION_LABEL.LOST },
   { value: "INCOMPLETE", label: CONDITION_LABEL.INCOMPLETE },
+];
+
+export const conditionOptionsUnitRow: { value: ProcessUnitCondition; label: string }[] = [
+  { value: "GOOD", label: CONDITION_LABEL.GOOD },
+  { value: "DAMAGED", label: CONDITION_LABEL.DAMAGED },
+  { value: "LOST", label: CONDITION_LABEL.LOST },
 ];
 
 // ─── Alert Helpers ──────────────────────────────────────────────────────────────
@@ -74,13 +85,16 @@ export const showToast = {
 interface ConditionDropdownProps {
   value: ReturnCondition;
   onChange: (value: ReturnCondition) => void;
+  /** รายชิ้น: ไม่แสดง「คืนไม่ครบ」 */
+  variant?: "item" | "unit";
 }
 
-function ConditionDropdown({ value, onChange }: ConditionDropdownProps) {
+function ConditionDropdown({ value, onChange, variant = "item" }: ConditionDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const options = variant === "unit" ? conditionOptionsUnitRow : conditionOptions;
   const selectedLabel = CONDITION_LABEL[value] || value;
 
   useEffect(() => {
@@ -125,12 +139,12 @@ function ConditionDropdown({ value, onChange }: ConditionDropdownProps) {
           }}
         >
           <ul className="py-1">
-            {conditionOptions.map((opt) => (
+            {options.map((opt) => (
               <li key={opt.value}>
                 <button
                   type="button"
                   onClick={() => {
-                    onChange(opt.value);
+                    onChange(opt.value as ReturnCondition);
                     setIsOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-sm transition-colors whitespace-nowrap ${
@@ -173,8 +187,9 @@ export function UnitFormTable({ unitForms, onUpdate }: UnitFormTableProps) {
               <td className="px-4 py-3 font-medium">{row.item_name}</td>
               <td className="px-4 py-3">
                 <ConditionDropdown
+                  variant="unit"
                   value={row.condition}
-                  onChange={(cond) => onUpdate(row.unit_id, { condition: cond })}
+                  onChange={(cond) => onUpdate(row.unit_id, { condition: cond as ProcessUnitCondition })}
                 />
               </td>
               <td className="px-4 py-3">

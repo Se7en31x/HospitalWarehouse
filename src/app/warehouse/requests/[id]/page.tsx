@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import {
   FileText, PackageCheck, User, Loader2, Minus, Plus, ScanLine,
   Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown, MessageSquare,
+  Eye,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import {
   getRequisitionById,
   approveRequisition,
@@ -24,6 +24,8 @@ import {
   BorrowerDetails,
 } from "../../../../types/requisition_type";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
+import { RequisitionDetailPageSkeleton } from "@/components/skeletons/RequestPageSkeletons";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 export interface ItemAllocation {
   qty: number;
@@ -47,12 +49,6 @@ const formatCloudinaryUrl = (url: string): string => {
     return url.replace("/image/upload/", "/raw/upload/");
   }
   return url;
-};
-
-/** Returns true when the Cloudinary URL points to a PDF/doc document. */
-const isPdfUrl = (url: string): boolean => {
-  const lower = url.toLowerCase();
-  return DOC_EXTENSIONS.some((ext) => lower.includes(ext)) || lower.includes("/raw/upload/");
 };
 
 /**
@@ -205,7 +201,22 @@ export default function RequisitionDetailsPage({
   const [scanInput, setScanInput] = useState("");
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [isBorrowerDetailsOpen, setIsBorrowerDetailsOpen] = useState(false);
-  const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
+
+  const attachmentThumbs = useMemo((): Array<{ url: string; filename?: string; name?: string }> => {
+    if (!requisition) return [];
+    const bdLocal = requisition.borrower_details;
+    const fromHeader = (requisition.attachments ?? []).filter((a): a is { url: string; filename?: string; name?: string } =>
+      Boolean(a?.url)
+    );
+    const idUrls = parseIdCardUrls(bdLocal?.id_card_url);
+    const fromBorrower = idUrls
+      .map((url, i) => ({
+        url,
+        filename: i === 0 ? "บัตรประชาชน" : `เอกสารแนบ ${i + 1}`,
+      }))
+      .filter((e) => !fromHeader.some((a) => a.url === e.url));
+    return [...fromBorrower, ...fromHeader];
+  }, [requisition]);
 
   const isPending = requisition?.status === "PENDING";
   const isApproved = requisition?.status === "APPROVED";
@@ -439,16 +450,7 @@ export default function RequisitionDetailsPage({
   // ── Loading / empty states ───────────────────────────────────────────────────
 
   if (isFetching) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#fafafa] gap-4">
-        <DotLottieReact
-          src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-          loop
-          autoplay
-          style={{ width: 160, height: 160 }}
-        />
-      </div>
-    );
+    return <RequisitionDetailPageSkeleton />;
   }
 
   if (!requisition) return null;
@@ -469,9 +471,7 @@ export default function RequisitionDetailsPage({
           {/* Left: title */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-600 rounded-lg shrink-0">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
+              <PageHeadingIconBox icon={FileText} tone="indigo" className="shrink-0" />
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
                   {isBorrow ? "รายละเอียดคำขอยืมครุภัณฑ์" : "รายละเอียดคำขอเบิกพัสดุ"}
@@ -497,48 +497,48 @@ export default function RequisitionDetailsPage({
         <section className="flex-shrink-0 rounded-xl bg-white border border-slate-200 shadow-sm p-5">
           <div className="mb-4 flex items-center gap-2.5 border-l-4 border-blue-500 pl-3 pb-0">
             <FileText className="h-4 w-4 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-700">
+            <h3 className="text-base font-bold text-slate-700">
               ข้อมูลการ{isBorrow ? "ยืม" : "เบิก"}
             </h3>
           </div>
           <div className="border-b border-gray-100 mb-4" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">เลขที่คำขอ</p>
-              <p className="font-mono text-sm text-slate-700 font-semibold">{requisition.doc_no}</p>
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">เลขที่คำขอ</p>
+              <p className="font-mono text-sm text-slate-600 font-normal">{requisition.doc_no}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ประเภท</p>
-              <p className="text-sm text-slate-700">{isBorrow ? "ยืมครุภัณฑ์" : "เบิกของสิ้นเปลือง"}</p>
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">ประเภท</p>
+              <p className="text-sm font-normal text-slate-600">{isBorrow ? "ยืมครุภัณฑ์" : "เบิกของสิ้นเปลือง"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">สถานะ</p>
-              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(requisition.status)}`}>
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">สถานะ</p>
+              <span className={`inline-flex px-2.5 py-1 rounded-full text-sm font-normal ${getStatusBadgeClass(requisition.status)}`}>
                 {getStatusLabel(requisition.status)}
               </span>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">วันที่ทำรายการ</p>
-              <p className="text-sm text-slate-700">
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">วันที่ทำรายการ</p>
+              <p className="text-sm font-normal text-slate-600">
                 {new Date(requisition.request_date).toLocaleDateString("th-TH")}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ผู้ทำรายการ</p>
-              <p className="text-sm text-slate-700 font-medium">{requisition.requester ?? "-"}</p>
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">ผู้ทำรายการ</p>
+              <p className="text-sm font-normal text-slate-600">{requisition.requester ?? "-"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">แผนก</p>
-              <p className="text-sm text-slate-700">{requisition.department_name ?? "-"}</p>
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">แผนก</p>
+              <p className="text-sm font-normal text-slate-600">{requisition.department_name ?? "-"}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ผู้อนุมัติ</p>
-              <p className="text-sm text-slate-700 font-medium">{requisition.approver ?? "-"}</p>
+              <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">ผู้อนุมัติ</p>
+              <p className="text-sm font-normal text-slate-600">{requisition.approver ?? "-"}</p>
             </div>
             {isBorrow && (
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">กำหนดคืน</p>
-                <p className="text-sm text-slate-700">
+                <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1">กำหนดคืน</p>
+                <p className="text-sm font-normal text-slate-600">
                   {requisition.due_date
                     ? new Date(requisition.due_date).toLocaleDateString("th-TH")
                     : "-"}
@@ -558,7 +558,7 @@ export default function RequisitionDetailsPage({
             >
               <div className="flex items-center gap-2.5 border-l-4 border-emerald-500 pl-3">
                 <User className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-700">ข้อมูลผู้ยืม</h3>
+                <h3 className="text-base font-bold text-slate-700">ข้อมูลผู้ยืม</h3>
               </div>
               <ChevronDown
                 className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isBorrowerDetailsOpen ? "rotate-180" : ""
@@ -574,33 +574,33 @@ export default function RequisitionDetailsPage({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
                   {/* Name (with title prefix) */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">ชื่อ-นามสกุล</p>
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1.5">ชื่อ-นามสกุล</p>
+                    <p className="text-sm font-normal text-slate-600">
                       {[bd.lookup_titles?.short_name, bd.firstname, bd.lastname].filter(Boolean).join(" ") || "-"}
                     </p>
                   </div>
 
                   {/* ID Card Number */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">เลขบัตรประชาชน</p>
-                    <p className="text-sm font-mono text-slate-700 tracking-wider">{bd.id_card || "-"}</p>
+                    <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1.5">เลขบัตรประชาชน</p>
+                    <p className="text-sm font-mono font-normal text-slate-600 tracking-wider">{bd.id_card || "-"}</p>
                   </div>
 
                   {/* Phone */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">เบอร์โทรศัพท์</p>
+                    <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1.5">เบอร์โทรศัพท์</p>
                     <div className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <p className="text-sm font-mono text-slate-700">{bd.phone || "-"}</p>
+                      <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      <p className="text-sm font-mono font-normal text-slate-600">{bd.phone || "-"}</p>
                     </div>
                   </div>
 
                   {/* Address — full width */}
                   <div className="md:col-span-3">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">ที่อยู่</p>
+                    <p className="text-base font-semibold text-slate-700 uppercase tracking-wide mb-1.5">ที่อยู่</p>
                     <div className="flex items-start gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-slate-700 leading-relaxed">{formatBorrowerAddress(bd)}</p>
+                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm font-normal text-slate-600 leading-relaxed">{formatBorrowerAddress(bd)}</p>
                     </div>
                   </div>
                 </div>
@@ -608,136 +608,86 @@ export default function RequisitionDetailsPage({
                 {/* ── Divider ──────────────────────────────────────────────────── */}
                 <div className="border-t border-slate-100" />
 
-                {/* ── Attachments + Notes ───────────────────────────────────────── */}
+                {/* ── เอกสารแนบ + หมายเหตุ (รูปแบบเดียวกับ ReturnItemDetailClient) ─ */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                  {/* Left: Attachments (collapsible) */}
-                  <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-                    {/* Collapsible header */}
-                    <button
-                      onClick={() => setIsAttachmentsOpen(!isAttachmentsOpen)}
-                      className="w-full flex items-center justify-between px-4 py-3.5 border-b border-slate-200 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                        <h4 className="text-sm font-bold text-slate-700">หลักฐานและเอกสาร</h4>
-                      </div>
-                      <ChevronDown
-                        className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isAttachmentsOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
+                  {attachmentThumbs.length > 0 && (
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-gray-900 mb-2.5">เอกสารแนบ</h3>
+                      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 list-none min-w-0">
+                        {attachmentThumbs.map((att, idx) => {
+                          const fname = att.filename || att.name || `ไฟล์ ${idx + 1}`;
+                          const url = formatCloudinaryUrl(att.url);
+                          const isImg =
+                            /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(att.url) ||
+                            att.url.includes("image");
 
-                    {/* Collapsible content */}
-                    {isAttachmentsOpen && (
-                      <div className="p-4 animate-in fade-in duration-300">
-                        {(() => {
-                          const urls = parseIdCardUrls(bd.id_card_url);
-                          if (urls.length === 0) {
+                          const iconBox =
+                            "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-300 bg-white";
+
+                          const cardClass =
+                            "flex min-h-[48px] w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-2 shadow-sm outline-none ring-slate-200 transition hover:border-blue-400 hover:ring-1 focus-visible:ring-2 focus-visible:ring-blue-500";
+
+                          if (isImg) {
                             return (
-                              <div className="text-center py-6 text-slate-400">
-                                <p className="text-sm">ไม่มีไฟล์แนบ</p>
-                              </div>
+                              <li key={`${att.url}-${idx}`} className="min-w-0">
+                                <button
+                                  type="button"
+                                  aria-label={`ขยายรูป ${fname}`}
+                                  title={fname}
+                                  onClick={() => setPreviewImage({ url, name: fname })}
+                                  className={cardClass}
+                                >
+                                  <p className="min-w-0 flex-1 truncate text-left text-sm font-normal leading-tight text-slate-700">
+                                    {fname}
+                                  </p>
+                                  <div className={iconBox}>
+                                    <Eye className="h-5 w-5 text-blue-600" strokeWidth={1.75} aria-hidden />
+                                  </div>
+                                </button>
+                              </li>
                             );
                           }
+
                           return (
-                            <div className="space-y-2">
-                              {urls.map((rawUrl, idx) => {
-                                const url = formatCloudinaryUrl(rawUrl);
-                                const fileName = url.split('/').pop()?.split('?')[0] || `ไฟล์ ${idx + 1}`;
-                                const fileExt = fileName.split('.').pop()?.toLowerCase() || '';
-                                const isImage = /^(jpg|jpeg|png|gif|webp)$/.test(fileExt);
-                                const isPdf = /^pdf$/.test(fileExt);
-                                const isVideo = /^(mp4|webm|mov|avi)$/.test(fileExt);
-                                
-                                // Estimate file size (in real scenario, get from server)
-                                let sizeText = "—";
-                                if (fileName.includes('picture') || isImage) sizeText = "8.1 Kb";
-                                else if (fileName.includes('movie') || isVideo) sizeText = "311 Kb";
-                                
-                                let iconColor = "text-slate-400";
-                                let bgColor = "bg-slate-100";
-                                if (isImage) { iconColor = "text-blue-600"; bgColor = "bg-blue-50"; }
-                                else if (isPdf) { iconColor = "text-red-600"; bgColor = "bg-red-50"; }
-                                else if (isVideo) { iconColor = "text-purple-600"; bgColor = "bg-purple-50"; }
-                                
-                                return (
-                                  <button
-                                    key={idx}
-                                    onClick={() => {
-                                      if (isImage) {
-                                        setPreviewImage({ url, name: fileName });
-                                      } else {
-                                        window.open(url, '_blank');
-                                      }
-                                    }}
-                                    className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-blue-300 transition-all cursor-pointer group"
-                                  >
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${bgColor}`}>
-                                        {isImage ? (
-                                          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
-                                          </svg>
-                                        ) : isPdf ? (
-                                          <FileText className={`w-5 h-5 ${iconColor}`} />
-                                        ) : isVideo ? (
-                                          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                                          </svg>
-                                        ) : (
-                                          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.414l4 4V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
-                                          </svg>
-                                        )}
-                                      </div>
-                                      <div className="min-w-0 text-left">
-                                        <p className="text-sm font-medium text-slate-800 truncate group-hover:text-blue-600 transition-colors">{fileName}</p>
-                                        <p className="text-xs text-slate-400">{sizeText}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex-shrink-0 ml-2">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (isImage) {
-                                            setPreviewImage({ url, name: fileName });
-                                          } else {
-                                            window.open(url, '_blank');
-                                          }
-                                        }}
-                                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                                        title="เปิดดู"
-                                      >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            <li key={`${att.url}-${idx}`} className="min-w-0">
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={fname}
+                                className={cardClass}
+                              >
+                                <span className="min-w-0 flex-1 truncate text-left text-sm font-normal leading-tight text-slate-700">
+                                  {fname}
+                                </span>
+                                <span className={iconBox}>
+                                  <FileText className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
+                                </span>
+                              </a>
+                            </li>
                           );
-                        })()}
-                      </div>
-                    )}
-                  </div>
+                        })}
+                      </ul>
+                    </div>
+                  )}
 
 
-                  {/* Right: Notes (collapsible) */}
+                  {/* Right: Notes */}
                   {bd.notes && (
-                    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-                      {/* Collapsible header */}
+                    <div
+                      className={`rounded-lg border border-slate-200 bg-white overflow-hidden ${attachmentThumbs.length === 0 ? "md:col-span-2" : ""}`}
+                    >
                       <div className="px-4 py-3.5 border-b border-slate-200 bg-white">
                         <div className="flex items-center gap-2.5 border-l-4 border-amber-500 pl-3">
                           <MessageSquare className="w-4 h-4 text-amber-600" />
-                          <h4 className="text-sm font-bold text-slate-700">หมายเหตุ</h4>
+                          <h4 className="text-base font-bold text-slate-700">หมายเหตุ</h4>
                         </div>
                       </div>
 
                       {/* Content */}
                       <div className="p-4">
-                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{bd.notes}</p>
+                        <p className="text-base font-normal text-slate-600 leading-relaxed whitespace-pre-line">{bd.notes}</p>
                       </div>
                     </div>
                   )}
@@ -753,51 +703,62 @@ export default function RequisitionDetailsPage({
 
             {/* ── Left Panel (60%) — Items table ───────────────────────────── */}
             <div className="flex-[3_1_0%] min-w-0 flex flex-col rounded-lg overflow-hidden border border-slate-200 bg-white shadow-sm relative">
-              <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/70 flex justify-between items-center flex-shrink-0">
-                <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm border-l-4 border-blue-500 pl-3">
+              <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex justify-between items-center flex-shrink-0">
+                <h3 className="font-medium text-slate-600 flex items-center gap-2 text-sm border-l-4 border-blue-400 pl-3">
                   รายการที่ต้องเบิกจ่าย
-                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-normal">
                     {requisition.items?.length || 0}
                   </span>
                 </h3>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                <table className="w-full table-fixed text-sm text-left">
+              <div className="flex-1 overflow-y-auto bg-white">
+                <table className="w-full table-fixed text-left">
                   <colgroup>
-                    <col className="w-[80px]" />
-                    <col />
-                    <col className="w-[110px]" />
-                    <col className="w-[110px]" />
-                    <col className="w-[140px]" />
+                    <col className="w-[72px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[140px]"/>
+                    <col className="w-[108px]" />
+                    <col className="w-[84px]" />
+                    <col className="w-[84px]" />
+                    <col className="w-[100px]" />
                     <col className="w-[48px]" />
                   </colgroup>
-                  <thead className="bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0]">
-                    <tr>
-                      <th className="px-5 py-4 text-left whitespace-nowrap">รูป</th>
-                      <th className="px-5 py-4 text-left whitespace-nowrap">รายละเอียดสินค้า</th>
-                      <th className="px-5 py-4 text-right whitespace-nowrap">ยอดคงคลัง</th>
-                      <th className="px-5 py-4 text-right whitespace-nowrap">ยอดที่ขอ</th>
-                      <th className="px-5 py-4 text-right whitespace-nowrap">ยอดเตรียมจ่าย</th>
-                      <th className="px-3 py-4 w-[48px]" />
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 border-b border-slate-200 shadow-[inset_0_-1px_0_0_#e2e8f0]">
+                      <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">รูป</th>
+                      <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">รหัสรายการ</th>
+                      <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">ชื่อพัสดุ</th>
+                      <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">หมวดหมู่</th>
+                      <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">คงเหลือ</th>
+                      <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">จำนวนที่ขอ</th>
+                      <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">จำนวนเตรียมจ่าย</th>
+                      <th className="px-3 py-3.5 w-[48px]" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 bg-white text-sm leading-normal">
                     {requisition.items?.map((item: RequisitionItem) => {
                       const alloc = allocations[item.id] || { qty: 0, lots: {}, units: [] };
                       const isSel = selectedItemId === item.id;
                       const isComplete = alloc.qty === item.qty;
                       const isOver = alloc.qty > item.qty;
+                      const cell =
+                        "px-5 py-3 bg-inherit align-middle text-sm font-normal";
+
+                      let prepCls = `${cell} text-right tabular-nums text-slate-600`;
+                      if (isPending && isOver) prepCls = `${cell} text-right tabular-nums text-rose-500`;
+                      else if (isPending && !isComplete && alloc.qty <= 0) prepCls = `${cell} text-right tabular-nums text-slate-400`;
+
                       return (
                         <tr
                           key={item.id}
                           onClick={() => setSelectedItemId(item.id)}
-                          className={`cursor-pointer transition-colors group ${isSel ? "bg-blue-50/80" : "bg-white hover:bg-slate-50"}`}
+                          className={`cursor-pointer transition-colors group bg-white ${isSel ? "outline outline-1 outline-blue-200/80 outline-offset-[-1px]" : ""} hover:bg-slate-50/60`}
                         >
-                          <td className="px-5 py-3">
+                          <td className="px-5 py-3 bg-inherit align-middle">
                             <div className="flex items-stretch gap-2">
-                              <div className={`w-1 rounded-full transition-opacity ${isSel ? "bg-blue-600 opacity-100" : "bg-transparent opacity-0"}`} />
-                              <div className="w-11 h-11 rounded-lg overflow-hidden flex items-center justify-center bg-slate-100 border border-slate-100 flex-shrink-0">
+                              <div className={`w-1 shrink-0 rounded-full self-stretch transition-opacity ${isSel ? "bg-blue-400 opacity-100" : "bg-transparent opacity-0"}`} />
+                              <div className="w-11 h-11 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 border border-slate-100 flex-shrink-0">
                                 {item.image_url
                                   ? <img src={item.image_url} className="w-full h-full object-cover" alt=""
                                     onClick={(e) => { e.stopPropagation(); setPreviewImage({ url: item.image_url!, name: item.name }); }} />
@@ -805,36 +766,28 @@ export default function RequisitionDetailsPage({
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-3">
-                            <p className="font-bold text-slate-800 text-sm">{item.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <p className="text-xs text-slate-400 font-mono">{item.code}</p>
-                              {item.category_name && (
-                                <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">
-                                  {item.category_name}
-                                </span>
-                              )}
-                            </div>
+                          <td className={`${cell} text-slate-600 truncate`} title={item.code ?? undefined}>
+                            {item.code ?? "-"}
                           </td>
-                          <td className="px-5 py-3 text-right">
-                            <span className={`font-bold text-sm ${item.current_stock > 0 ? "text-slate-600" : "text-rose-500"}`}>
-                              {item.current_stock}
-                            </span>
+                          <td className={`${cell} text-slate-600`} title={item.name}>
+                            <span className="line-clamp-2 block">{item.name}</span>
                           </td>
-                          <td className="px-5 py-3 text-right">
-                            <span className="font-black text-slate-400 text-lg">{item.qty}</span>
+                          <td className={`${cell} text-slate-600 truncate`} title={item.category_name ?? undefined}>
+                            {item.category_name ?? "—"}
                           </td>
-                          <td className="px-5 py-3 text-right">
-                            {isPending ? (
-                              <span className={`font-black text-xl ${isComplete ? "text-blue-600" : isOver ? "text-rose-600" : alloc.qty > 0 ? "text-blue-600" : "text-slate-300"}`}>
-                                {alloc.qty}
-                              </span>
-                            ) : (
-                              <span className="font-black text-lg text-blue-600">{item.issued}</span>
-                            )}
+                          <td
+                            className={`${cell} text-right tabular-nums ${item.current_stock <= 0 ? "text-rose-500" : "text-slate-600"}`}
+                          >
+                            {item.current_stock}
                           </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${isSel ? "bg-blue-600 text-white" : "text-slate-300 -translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0"}`}>
+                          <td className={`${cell} text-right tabular-nums text-slate-600`}>
+                            {item.qty}
+                          </td>
+                          <td className={prepCls}>
+                            {isPending ? alloc.qty : item.issued}
+                          </td>
+                          <td className="px-4 py-3 text-center bg-inherit align-middle">
+                            <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${isSel ? "bg-blue-500/90 text-white" : "text-slate-300 -translate-x-2 opacity-0 group-hover:opacity-60 group-hover:translate-x-0"}`}>
                               <ArrowRight size={14} />
                             </div>
                           </td>
@@ -1073,21 +1026,40 @@ export default function RequisitionDetailsPage({
       {/* ── Image lightbox ─────────────────────────────────────────────────── */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setPreviewImage(null)}
+          role="presentation"
         >
-          <div className="relative max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={previewImage.url}
-              alt={previewImage.name}
-              className="w-full h-auto max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/20"
-            />
+          <div
+            className="relative flex size-[min(92vw,min(92vh,420px))] flex-col rounded-2xl bg-white p-3 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="ดูภาพเอกสารแนบ"
+          >
             <button
+              type="button"
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-12 right-0 text-white flex items-center gap-2 font-bold hover:text-rose-400 transition-colors"
+              className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800"
+              aria-label="ปิด"
             >
-              ปิดรูปภาพ <X size={24} />
+              <X className="h-4 w-4" strokeWidth={2.25} />
             </button>
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-1 pt-1">
+              <div className="flex min-h-0 flex-1 items-center justify-center">
+                <img
+                  src={previewImage.url}
+                  alt=""
+                  className="max-h-full max-w-full rounded-lg object-contain"
+                />
+              </div>
+              <p
+                className="shrink-0 truncate px-1 text-center text-sm font-medium text-slate-700"
+                title={previewImage.name}
+              >
+                {previewImage.name}
+              </p>
+            </div>
           </div>
         </div>
       )}

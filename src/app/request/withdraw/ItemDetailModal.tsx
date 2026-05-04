@@ -18,7 +18,7 @@ interface ItemDetailModalProps {
   onClose: () => void;
   onConfirm: (quantity: number) => void;
 }
-// 
+
 export default function ItemDetailModal({
   isOpen,
   item,
@@ -45,7 +45,7 @@ export default function ItemDetailModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-[min(100%,42rem)] min-h-[min(32rem,85vh)] shadow-xl overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl w-full max-w-[min(100%,42rem)] max-h-[85vh] shadow-xl overflow-hidden flex flex-col">
         {/* Header — กว้างตาม max-w-2xl (~672px) บนจอใหญ่ */}
         <div className="px-[1.65rem] py-[1.25rem] border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
           <h2 className="font-bold text-slate-800">รายละเอียดสินค้า</h2>
@@ -58,9 +58,9 @@ export default function ItemDetailModal({
         </div>
 
         {/* Content */}
-        <div className="p-[1.65rem] pb-[2rem] space-y-[2rem] flex-1 flex flex-col min-h-0">
+        <div className="p-[1.65rem] pb-[1.5rem] space-y-[1.25rem] max-h-[calc(85vh-10rem)] overflow-y-auto min-h-0">
           {/* Product Image & Info Container */}
-          <div className="flex gap-[1.65rem] flex-1 min-h-[9.5rem]">
+          <div className="flex gap-[1.65rem] min-h-[9.5rem]">
             {/* Image Left */}
             <div className="flex-shrink-0">
               <div className="w-[9.25rem] h-[9.25rem] rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-300">
@@ -101,14 +101,14 @@ export default function ItemDetailModal({
           </div>
 
           {/* Stock & Quantity Selection */}
-          <div className="border-t border-slate-200 pt-[2rem] mt-auto">
-            <div className="grid grid-cols-2 gap-[1.1rem] gap-y-6">
+          <div className="border-t border-slate-200 pt-[1.25rem]">
+            <div className="grid grid-cols-2 gap-[1.1rem] gap-y-4">
               {/* Stock Info Left */}
               <div className="flex flex-col">
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
                   คงเหลือ
                 </label>
-                <div className="flex-1 flex items-center min-w-0">
+                <div className="flex items-center min-w-0 py-0.5">
                   <p className="text-lg font-bold text-emerald-600 flex items-baseline gap-1 min-w-0 max-w-full">
                     <span className="shrink-0 tabular-nums">{item.stock}</span>
                     <span className="truncate min-w-0" title={item.unit}>{item.unit}</span>
@@ -121,7 +121,7 @@ export default function ItemDetailModal({
                 <label className="text-xs font-semibold text-slate-500 uppercase block mb-2">
                   จำนวนที่ต้องการเบิก
                 </label>
-                <div className="flex-1 flex items-center min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap py-0.5">
                   <div className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1 shrink-0">
                     <button
                       onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
@@ -136,7 +136,7 @@ export default function ItemDetailModal({
                       value={quantity}
                       onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleConfirm(); } }}
-                      className="w-6 text-center font-bold text-lg text-indigo-600 border-0 outline-none focus:ring-0 bg-transparent [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0"
+                      className="min-w-[1.85rem] w-8 shrink-0 text-center font-bold text-lg text-indigo-600 border-0 outline-none focus:ring-0 bg-transparent [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0"
                     />
                     <button
                       onClick={() => handleQuantityChange(Math.min(item.stock, quantity + 1))}
@@ -145,11 +145,8 @@ export default function ItemDetailModal({
                       <Plus size={20} />
                     </button>
                   </div>
-                  <span className="text-slate-500 font-medium text-xs ml-1 min-w-0 truncate" title={item.unit}>{item.unit}</span>
+                  <span className="text-slate-500 font-medium text-xs min-w-0 truncate" title={item.unit}>{item.unit}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-2 truncate" title={`สูงสุด: ${item.stock} ${item.unit}`}>
-                  สูงสุด: {item.stock} {item.unit}
-                </p>
               </div>
             </div>
           </div>

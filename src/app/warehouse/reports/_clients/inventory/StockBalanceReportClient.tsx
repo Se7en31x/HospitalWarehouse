@@ -12,8 +12,10 @@ import {
 import { fmtDateTime } from "@/utils/dateUtils";
 import { apiClient } from "@/lib/apiClient";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
+import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { useUser } from "@/context/UserContext";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 const XlsxIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -81,6 +83,7 @@ const IN_TYPES = new Set(["RECEIVE_IN", "ADJUST_IN"]);
 
 
 const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onBack }) => {
+	const { profile } = useUser();
 	const [allRows, setAllRows] = useState<MovementRow[]>([]);
 	const [isFetching, setIsFetching] = useState(true);
 	const [currentPage, setCurrentPage] = useState(1);
@@ -267,7 +270,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 	};
 
 	const handleExportPdf = () => {
-		const columns: PdfColumn[] = [
+		const columns: PrintColumn[] = [
 			{ header: "#",             key: "_no",         align: "center" },
 			{ header: "วันที่/เวลา",    key: "dateFmt" },
 			{ header: "ประเภท",        key: "typeLabel",   align: "center" },
@@ -285,39 +288,34 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 			qtyFmt:         (IN_TYPES.has(r.type) ? "+" : "-") + r.quantity.toLocaleString() + " " + r.unit,
 			operatorName:   r.operatorName,
 		}));
-		const subtitle = [
-			selectedType ? `ประเภท: ${TYPE_LABEL[selectedType]}` : "ทุกประเภท",
+		const period = [
 			startDate ? `ตั้งแต่: ${startDate}` : null,
 			endDate   ? `ถึง: ${endDate}`        : null,
-		].filter(Boolean).join(" | ");
-		printAsPdf("รายงานความเคลื่อนไหวสต็อก", subtitle, columns, pdfRows);
+		].filter(Boolean).join(" – ") || undefined;
+		printWarehouseReport({
+			reportTitle:   "รายงานความเคลื่อนไหวสต็อก",
+			period,
+			filterSummary: selectedType ? `ประเภท: ${TYPE_LABEL[selectedType]}` : undefined,
+			columns,
+			rows: pdfRows,
+			printedBy: {
+				title:      profile?.title?.name,
+				firstName:  profile?.firstname_th,
+				lastName:   profile?.lastname_th,
+				department: profile?.departments?.[0]?.name,
+			},
+		});
 	};
 
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
 
-			{/* Header bar */}
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow">
-							<ArrowDownUp className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานความเคลื่อนไหวสต็อก</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						{onBack && (
-							<button type="button" onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm">
-								ย้อนกลับ
-							</button>
-						)}
-					</div>
-				</div>
-			</div>
+			<ReportDetailPageHeader
+				reportPage="stock-balance"
+				title="รายงานความเคลื่อนไหวสต็อก"
+				subtitle="ระบบบริหารคลังสินค้า HPK"
+				onBack={onBack}
+			/>
 
 			{/* Content */}
 			<div className="flex-1 px-8 py-6">

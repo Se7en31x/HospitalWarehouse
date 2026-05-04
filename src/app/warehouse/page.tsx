@@ -437,16 +437,16 @@ export default function WarehouseDashboard() {
   const currentWeekTotal = weeklyData.reduce((sum, item) => sum + item.total, 0);
 
   const lotTotal = lotStats?.total ?? 0;
-  const lotBelowMin = lotStats?.belowMinimum ?? 0;
   const lotNearExp = lotStats?.nearExpiry ?? 0;
-  const lotNormal = lotStats?.normal ?? Math.max(0, lotTotal - lotBelowMin - lotNearExp);
+  const lotNormalActive = Math.max(0, lotTotal - expiredCount - lotNearExp);
 
   const lotSegments: { label: string; value: number; fill: string; textColor: string }[] = [
-    { label: "ใช้งานได้", value: lotNormal, fill: "#3b82f6", textColor: "text-blue-700" },
-    { label: "ต่ำกว่าจุดต่ำสุด", value: lotBelowMin, fill: "#ef4444", textColor: "text-red-700" },
+    { label: "พร้อมใช้งาน", value: lotNormalActive, fill: "#10b981", textColor: "text-emerald-700" },
     { label: "ใกล้หมดอายุ", value: lotNearExp, fill: "#f59e0b", textColor: "text-amber-700" },
+    { label: "หมดอายุแล้ว", value: expiredCount, fill: "#ef4444", textColor: "text-red-700" },
   ];
 
+  const pieTotal = lotNormalActive + lotNearExp + expiredCount;
   const pieData = lotSegments.filter((s) => s.value > 0);
 
   return (
@@ -559,7 +559,7 @@ export default function WarehouseDashboard() {
                     </Pie>
                     <Tooltip
                       content={(props) => (
-                        <LotPieTooltip active={props.active} payload={props.payload as never} total={lotTotal} />
+                        <LotPieTooltip active={props.active} payload={props.payload as never} total={pieTotal} />
                       )}
                     />
                   </PieChart>
@@ -574,7 +574,7 @@ export default function WarehouseDashboard() {
 
               <div className="flex flex-col gap-3 w-full sm:w-auto sm:min-w-[240px] justify-center">
                 {lotSegments.map((seg, i) => {
-                  const pct = lotTotal > 0 ? ((seg.value / lotTotal) * 100).toFixed(1) : "0.0";
+                  const pct = pieTotal > 0 ? ((seg.value / pieTotal) * 100).toFixed(1) : "0.0";
                   return (
                     <div key={i} className="flex items-center gap-3">
                       <span className="shrink-0 w-4 h-4 rounded-md shadow-sm" style={{ backgroundColor: seg.fill }} />

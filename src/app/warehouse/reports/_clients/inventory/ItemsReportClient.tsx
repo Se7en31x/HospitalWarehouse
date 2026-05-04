@@ -12,7 +12,9 @@ import {
 import * as ItemSvc from "@/services/itemsService";
 import type { UiItem } from "@/services/itemsService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
-import { printAsPdf, type PdfColumn } from "@/utils/printAsPdf";
+import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { useUser } from "@/context/UserContext";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons (ขนาดเดียวกับ StockBalanceReportClient) ─────────────────────────────
 
@@ -94,6 +96,7 @@ const getEffectiveStock = (item: UiItem): number =>
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
+	const { profile } = useUser();
 	const [items, setItems]     = useState<UiItem[]>([]);
 	const [loading, setLoading] = useState(true);
 
@@ -279,7 +282,7 @@ const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
 	};
 
 	const handleExportPdf = () => {
-		const columns: PdfColumn[] = [
+		const columns: PrintColumn[] = [
 			{ header: "#",            key: "_no",         align: "center" },
 			{ header: "รหัสรายการ",   key: "code" },
 			{ header: "ชื่อพัสดุ",    key: "name" },
@@ -301,11 +304,22 @@ const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
 			unit:     item.unit,
 			storage:  item.location,
 		}));
-		printAsPdf(
-			"รายงานพัสดุทั้งหมด",
-			[selectedCategory, selectedWarehouse, selectedUnit, `รวม ${filtered.length} รายการ`].join(" | "),
-			columns, pdfRows,
-		);
+		printWarehouseReport({
+			reportTitle:   "รายงานพัสดุทั้งหมด",
+			filterSummary: [
+				selectedCategory  !== "หมวดหมู่ทั้งหมด" ? `หมวดหมู่: ${selectedCategory}`  : null,
+				selectedWarehouse !== "คลังทั้งหมด"     ? `คลัง: ${selectedWarehouse}`      : null,
+				selectedUnit      !== "หน่วยทั้งหมด"    ? `หน่วย: ${selectedUnit}`          : null,
+			].filter(Boolean).join(" | ") || undefined,
+			columns,
+			rows: pdfRows,
+			printedBy: {
+				title:      profile?.title?.name,
+				firstName:  profile?.firstname_th,
+				lastName:   profile?.lastname_th,
+				department: profile?.departments?.[0]?.name,
+			},
+		});
 	};
 
 	// ── Render ───────────────────────────────────────────────────────────────────
@@ -313,31 +327,12 @@ const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
 
-			{/* ── Header ────────────────────────────────────────────────────────── */}
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow">
-							<Package className="w-6 h-6 text-white" />
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานพัสดุทั้งหมด</h1>
-							<p className="text-sm text-slate-500 mt-0.5">ระบบบริหารคลังสินค้า HPK</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						{onBack && (
-							<button
-								type="button"
-								onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
-							>
-								ย้อนกลับ
-							</button>
-						)}
-					</div>
-				</div>
-			</div>
+			<ReportDetailPageHeader
+				reportPage="all-items"
+				title="รายงานพัสดุทั้งหมด"
+				subtitle="ระบบบริหารคลังสินค้า HPK"
+				onBack={onBack}
+			/>
 
 			{/* ── Content ───────────────────────────────────────────────────────── */}
 			<div className="flex-1 px-8 py-6">

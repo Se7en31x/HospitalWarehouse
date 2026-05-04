@@ -2,17 +2,28 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Menu,
   X,
   History,
-  FileBarChart,
   HandHelping,
   Archive,
   RefreshCw,
   RotateCcw,
 } from 'lucide-react';
+import { useUser } from '@/context/UserContext';
+
+const WAREHOUSE_BORROW_NAV_PATH_PREFIXES = [
+  '/request/borrow',
+  '/request/returnitem',
+] as const;
+
+function isWarehouseBorrowNavPath(path: string): boolean {
+  return WAREHOUSE_BORROW_NAV_PATH_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+  );
+}
 
 interface NavItem {
   name: string;
@@ -57,11 +68,13 @@ function NavContent({
   onLinkClick,
   toggleSidebar,
   onClose,
+  menuGroups: groups,
 }: {
   collapsed: boolean;
   onLinkClick?: () => void;
   toggleSidebar: () => void;
   onClose?: () => void;
+  menuGroups: MenuGroup[];
 }) {
   const pathname = usePathname();
 
@@ -81,13 +94,13 @@ function NavContent({
       </div>
 
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
-        {menuGroups.map((group, gi) => (
+        {groups.map((group, gi) => (
           <div key={group.title} className={gi > 0 ? 'mt-3' : ''}>
             <div className={`mb-1 transition-all duration-200 ${collapsed ? 'px-2 py-1' : 'px-5'}`}>
               {collapsed ? (
                 <div className="ml-3 w-6 h-px bg-black/10" />
               ) : (
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                   {group.title}
                 </span>
               )}
@@ -105,16 +118,16 @@ function NavContent({
                     onClick={onLinkClick}
                     title={collapsed ? item.name : ''}
                     className={`
-                      flex items-center gap-3 rounded-xl px-3 py-2 transition-all duration-200
+                      flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200
                       ${isActive
                         ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100/80 hover:bg-blue-100/80'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                       }
                     `}
                   >
-                    <Icon className="w-5 h-5 shrink-0" />
+                    <Icon className="w-[22px] h-[22px] shrink-0" />
                     {!collapsed && (
-                      <span className={`text-[14px] whitespace-nowrap ${
+                      <span className={`text-[15px] whitespace-nowrap ${
                         isActive ? 'font-semibold' : 'font-medium'
                       }`}>
                         {item.name}
@@ -134,6 +147,19 @@ function NavContent({
 export default function RequestSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const { profile, isLoading } = useUser();
+
+  const visibleMenuGroups = useMemo(() => {
+    const roleEn = profile?.role?.name_en ?? profile?.role?.name ?? "guest";
+    const showBorrowNav = !isLoading && ['admin', 'warehouse_manager', 'warehouse_staff'].includes(roleEn);
+    if (showBorrowNav) return menuGroups;
+    return menuGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((item) => !isWarehouseBorrowNavPath(item.path)),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [isLoading, profile]);
 
   const toggleSidebar = () => setIsCollapsed((c) => !c);
   const onMobileClose = () => setIsMobileOpen(false);
@@ -161,10 +187,10 @@ export default function RequestSidebar() {
         className={`
           hidden lg:flex flex-col shrink-0 h-full overflow-hidden
           bg-white border-r border-slate-200 transition-all duration-300 ease-in-out
-          ${isCollapsed ? 'w-[68px]' : 'w-60'}
+          ${isCollapsed ? 'w-[72px]' : 'w-64'}
         `}
       >
-        <NavContent collapsed={isCollapsed} toggleSidebar={toggleSidebar} />
+        <NavContent collapsed={isCollapsed} toggleSidebar={toggleSidebar} menuGroups={visibleMenuGroups} />
       </aside>
 
       <aside
@@ -179,6 +205,7 @@ export default function RequestSidebar() {
           toggleSidebar={toggleSidebar}
           onClose={onMobileClose}
           onLinkClick={onMobileClose}
+          menuGroups={visibleMenuGroups}
         />
       </aside>
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, Package, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -78,8 +78,6 @@ export default function NotificationBell({ title = "การแจ้งเต�
   const rootRef = useRef<HTMLDivElement>(null);
   const prevItemCountRef = useRef(4);
   const seenNotifIdsRef = useRef<Set<number>>(new Set());
-
-  const badgeText = useMemo(() => (unreadCount > 99 ? "99+" : String(unreadCount)), [unreadCount]);
 
   const loadUnreadCount = useCallback(async () => {
     try {
@@ -216,15 +214,26 @@ export default function NotificationBell({ title = "การแจ้งเต�
     <div className="relative self-stretch flex items-center" ref={rootRef}>
       {/* Bell button */}
       <button
+        type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="p-2.5 hover:bg-white/10 rounded-full transition-colors relative group"
-        title="การแจ้งเตือน"
+        className="flex h-11 w-11 shrink-0 items-center justify-center hover:bg-white/10 rounded-full transition-colors relative group"
+        title={
+          unreadCount > 0
+            ? `การแจ้งเตือน (${unreadCount.toLocaleString("th-TH")} ยังไม่ได้อ่าน)`
+            : "การแจ้งเตือน"
+        }
+        aria-label={
+          unreadCount > 0
+            ? `การแจ้งเตือน มี ${unreadCount.toLocaleString("th-TH")} รายการยังไม่ได้อ่าน`
+            : "การแจ้งเตือน"
+        }
       >
-        <Bell className="w-5 h-5 text-blue-100 group-hover:text-white transition-colors" />
+        <Bell className="w-6 h-6 text-blue-100 group-hover:text-white transition-colors" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[9px] text-white font-bold flex items-center justify-center ring-2 ring-blue-900 leading-none">
-            {badgeText}
-          </span>
+          <span
+            className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[#0A1931]"
+            aria-hidden
+          />
         )}
       </button>
 
@@ -260,7 +269,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
                 >
                   {tab === "all" ? "ทั้งหมด" : "ยังไม่ได้อ่าน"}
                   {tab === "unread" && unreadCount > 0 && (
-                    <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] flex items-center justify-center px-1">
+                    <span className="text-[10px] font-extrabold tabular-nums text-red-600 min-w-[17px] flex items-center justify-center px-0.5">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}

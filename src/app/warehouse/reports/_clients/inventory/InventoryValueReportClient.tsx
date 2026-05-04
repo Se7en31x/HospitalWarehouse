@@ -8,6 +8,7 @@ import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseRe
 import { fmtDateLong } from "@/utils/dateUtils";
 import { getcategoriesOptions, getWarehousesOptions } from "@/services/itemsService";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
+import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -423,46 +424,35 @@ export default function InventoryValueReportClient({ onBack }: Props) {
 	return (
 		<div className="flex flex-col min-h-screen bg-slate-50">
 
-			{/* ── Header bar ──────────────────────────────────────────────────── */}
-			<div className="bg-white border-b border-slate-200 px-8 py-5 shadow-sm">
-				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-4">
-						<div className={`flex h-12 w-12 items-center justify-center rounded-xl shadow ${isHistorical ? "bg-amber-500" : "bg-blue-600"}`}>
-							{isHistorical ? <Clock className="w-6 h-6 text-white" /> : <DollarSign className="w-6 h-6 text-white" />}
-						</div>
-						<div>
-							<h1 className="text-xl font-bold text-slate-800 tracking-tight">รายงานมูลค่าคงคลัง</h1>
-							<p className="text-sm text-slate-500 mt-0.5">
-								ระบบบริหารคลังสินค้า HPK &nbsp;·&nbsp; พิมพ์วันที่ {printDate}
-							</p>
-							{/* Historical context badge */}
-							{isHistorical && asOfDate && (
-								<div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-semibold">
-									<CalendarDays className="w-3.5 h-3.5" />
-									ข้อมูล ณ วันที่ {asOfLabel}
-								</div>
-							)}
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						<button
-							type="button"
-							onClick={fetchData}
-							disabled={loading}
-							className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 text-slate-600 shadow-sm disabled:opacity-50 transition-colors"
-						>
-							<RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-							รีเฟรช
-						</button>
-						{onBack && (
-							<button type="button" onClick={onBack}
-								className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm">
-								ย้อนกลับ
-							</button>
+			<ReportDetailPageHeader
+				reportPage="inventory-value"
+				title="รายงานมูลค่าคงคลัง"
+				subtitle={
+					<>
+						<p className="text-sm text-slate-500 mt-0.5">
+							ระบบบริหารคลังสินค้า HPK · พิมพ์วันที่ {printDate}
+						</p>
+						{isHistorical && asOfDate && (
+							<div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-semibold">
+								<CalendarDays className="w-3.5 h-3.5" />
+								ข้อมูล ณ วันที่ {asOfLabel}
+							</div>
 						)}
-					</div>
-				</div>
-			</div>
+					</>
+				}
+				onBack={onBack}
+				trailingActions={
+					<button
+						type="button"
+						onClick={fetchData}
+						disabled={loading}
+						className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 text-slate-600 shadow-sm disabled:opacity-50 transition-colors"
+					>
+						<RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+						รีเฟรช
+					</button>
+				}
+			/>
 
 			{/* ── Content ──────────────────────────────────────────────────────── */}
 			<div className="flex-1 px-8 py-6 space-y-5">

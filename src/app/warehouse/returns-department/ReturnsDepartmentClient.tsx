@@ -4,7 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Trash2, X, Package, Search, Eye, Building2 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import {
+  LIST_TABLE_HEAD_ROW,
+  LIST_TABLE_TH_COMPACT,
+  LIST_TABLE_TH_NUM,
+  LIST_TABLE_TH_WIDE,
+  LIST_TABLE_TBODY,
+} from "@/lib/tableUi";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
@@ -79,8 +88,8 @@ export default function ReturnsDepartmentClient() {
   const isVisibleRef = useRef(true);
 
   // Fetch Data
-  const fetchData = useCallback(async (page: number = 1, tabStatus?: "REQUESTED" | "COMPLETED") => {
-    setIsFetching(true);
+  const fetchData = useCallback(async (page: number = 1, tabStatus?: "REQUESTED" | "COMPLETED", silent = false) => {
+    if (!silent) setIsFetching(true);
     try {
       const response = await reusableSvc.getReusableReturnRequests({
         page,
@@ -91,13 +100,12 @@ export default function ReturnsDepartmentClient() {
       setRecords(response.items || []);
       const limit = response.limit || PAGE_LIMIT;
       const total = response.total ?? 0;
-      // ไม่พึ่ง totalPages จาก meta อย่างเดียว — คิดจาก total/limit เพื่อไม่เกิดหน้าเกินเมื่อเหลือ ≤10 รายการ
       setServerTotalPages(total <= 0 ? 1 : Math.max(1, Math.ceil(total / limit)));
     } catch (err) {
       console.error("fetch return requests failed", err);
-      showToast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");
+      if (!silent) showToast.error("ดึงใบคำขอคืนจากแผนกไม่สำเร็จ");
     } finally {
-      setIsFetching(false);
+      if (!silent) setIsFetching(false);
     }
   }, [departmentFilter, activeTab]);
 
@@ -108,14 +116,14 @@ export default function ReturnsDepartmentClient() {
   }, [fetchData]);
 
   useEffect(() => {
+    isVisibleRef.current = document.visibilityState === "visible";
     const onVisibilityChange = () => {
       isVisibleRef.current = document.visibilityState === "visible";
+      if (isVisibleRef.current) fetchData(pageRef.current, undefined, true);
     };
-
-    onVisibilityChange();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
@@ -132,7 +140,7 @@ export default function ReturnsDepartmentClient() {
       refreshTimerRef.current = setTimeout(async () => {
         isRefreshingRef.current = true;
         try {
-          await fetchData(pageRef.current);
+          await fetchData(pageRef.current, undefined, true);
         } finally {
           isRefreshingRef.current = false;
           refreshTimerRef.current = null;
@@ -233,18 +241,16 @@ export default function ReturnsDepartmentClient() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-sky-600 rounded-xl">
-            <Building2 className="w-6 h-6 text-white" />
-          </div>
+          <PageHeadingIconBox icon={Building2} tone="sky" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนจากแผนก</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนพัสดุนำกลับ</h2>
             <p className="text-sm text-slate-500 mt-0.5">ตรวจสอบและรับคืนอุปกรณ์จากแผนกต่างๆ</p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200 overflow-x-auto">
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
         {(["REQUESTED", "COMPLETED"] as const).map((tab) => (
           <button
             type="button"
@@ -385,12 +391,15 @@ export default function ReturnsDepartmentClient() {
       {/* Table Container */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col">
         {isFetching ? (
-          <div className="flex items-center justify-center py-16">
-            <DotLottieReact
-              src="https://lottie.host/50197ea7-8a57-448a-b3ef-b6bd2722fa07/TBa7UxyEPE.lottie"
-              loop
-              autoplay
-              style={{ width: 160, height: 160 }}
+          <div className="flex flex-col flex-1 min-h-[22rem]">
+            <span className="sr-only">กำลังโหลดรายการรับคืนแผนก</span>
+            <DataTableSkeleton
+              headers={["#", "เลขที่คำขอ", "แผนก", "ผู้ขอ", "เวลาคำขอ", "นัดรับของ", "รายการ", "สถานะ", "ตรวจสอบ"]}
+              rowCount={10}
+              showPaginationFooter
+              ariaLabel="กำลังโหลดรายการรับคืนแผนก"
+              thClassName="px-3 py-4 whitespace-nowrap text-base font-semibold"
+              tdClassName="px-3 py-3"
             />
           </div>
         ) : (
@@ -422,28 +431,28 @@ export default function ReturnsDepartmentClient() {
             }
           `}</style>
           <table className="w-full table-fixed text-sm text-left">
-            <thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+            <thead className={LIST_TABLE_HEAD_ROW}>
               <tr>
-                <th className="px-4 py-4 whitespace-nowrap w-[50px]">#</th>
-                <th className="px-3 py-4 whitespace-nowrap">เลขที่คำขอ</th>
-                <th className="px-6 py-4 whitespace-nowrap">แผนก</th>
-                <th className="px-6 py-4 whitespace-nowrap">ผู้ขอ</th>
-                <th className="px-6 py-4 whitespace-nowrap">เวลาคำขอ</th>
-                <th className="px-6 py-4 whitespace-nowrap">นัดรับของ</th>
-                <th className="px-6 py-4 whitespace-nowrap w-[90px]">รายการ</th>
-                <th className="px-6 py-4 whitespace-nowrap">สถานะ</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">ตรวจสอบ</th>
+                <th className={`${LIST_TABLE_TH_NUM} w-[50px]`}>#</th>
+                <th className={`${LIST_TABLE_TH_COMPACT}`}>เลขที่คำขอ</th>
+                <th className={LIST_TABLE_TH_WIDE}>แผนก</th>
+                <th className={LIST_TABLE_TH_WIDE}>ผู้ขอ</th>
+                <th className={LIST_TABLE_TH_WIDE}>เวลาคำขอ</th>
+                <th className={LIST_TABLE_TH_WIDE}>นัดรับของ</th>
+                <th className={`${LIST_TABLE_TH_WIDE} w-[90px]`}>รายการ</th>
+                <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
+                <th className={`${LIST_TABLE_TH_WIDE} text-center`}>ตรวจสอบ</th>
               </tr>
             </thead>
-            <tbody className="text-slate-600">
+            <tbody className={LIST_TABLE_TBODY}>
               {filteredRecords.map((rec, idx) => (
                 <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-3 text-slate-700 text-xs">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
+                  <td className="px-4 py-3 text-slate-600 text-sm tabular-nums text-center">{(currentPage - 1) * PAGE_LIMIT + idx + 1}</td>
                   <td className="px-3 py-3 font-mono text-sm text-black">{rec.doc_no}</td>
                   <td className="px-6 py-3 text-slate-700 text-sm">{deptDisplayName(rec.department_name || "")}</td>
                   <td className="px-6 py-3 text-slate-700 text-sm">{rec.requested_by_name || "-"}</td>
-                  <td className="px-6 py-3 text-slate-600 text-xs">{fmtDateTime(rec.created_at)}</td>
-                  <td className="px-6 py-3 text-slate-600 text-xs">{fmtDateTime(rec.preferred_pickup_at)}</td>
+                  <td className="px-6 py-3 text-slate-600 text-sm tabular-nums">{fmtDateTime(rec.created_at)}</td>
+                  <td className="px-6 py-3 text-slate-600 text-sm tabular-nums">{fmtDateTime(rec.preferred_pickup_at)}</td>
                   <td className="px-6 py-3 text-slate-700 text-sm text-left">{getTotalItems(rec.items)}</td>
                   <td className="px-6 py-3">
                     <StatusBadge status={rec.status} />

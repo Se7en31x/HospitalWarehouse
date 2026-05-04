@@ -10,38 +10,50 @@ import {
   X,
   Eye,
   FileText,
+  ScanLine,
+  HelpCircle,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import * as reusableSvc from "@/services/reusableUnitService";
+import {
+  REUSABLE_RETURN_STATUS_BADGES,
+  getReturnRequestListStatusLabel,
+  getReusableUnitStatusLabel,
+  getReusableUnitConditionLabel,
+  getReusableUnitStatusBadgeClasses,
+  getReusableUnitConditionBadgeClasses,
+} from "@/constants/labels";
 import { fmtDateTime } from "@/utils/dateUtils";
+import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 const getStatusBadgeColor = (status: string) => {
+  const reusable = REUSABLE_RETURN_STATUS_BADGES[status];
+  if (reusable) return `${reusable.bg} ${reusable.text} ${reusable.border}`;
+
   const map: Record<string, string> = {
     PENDING: "bg-amber-100 text-amber-900 border-amber-200",
     APPROVED: "bg-emerald-100 text-emerald-800 border-emerald-200",
     REJECTED: "bg-rose-100 text-rose-800 border-rose-200",
     COMPLETED: "bg-green-100 text-green-800 border-green-200",
     PENDING_RETURN_CHECK: "bg-sky-100 text-sky-800 border-sky-200",
+    CANCELLED: "bg-slate-100 text-slate-600 border-slate-200",
+    DRAFT: "bg-slate-100 text-slate-600 border-slate-200",
+    BORROWING: "bg-indigo-100 text-indigo-800 border-indigo-200",
   };
   return map[status] || "bg-slate-100 text-slate-800 border-slate-200";
 };
 
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    PENDING: "รออนุมัติ",
-    APPROVED: "อนุมัติแล้ว",
-    REJECTED: "ถูกปฏิเสธ",
-    COMPLETED: "เสร็จสิ้น",
-    PENDING_RETURN_CHECK: "รอตรวจรับคืน",
-  };
-  return map[status] || status;
-};
+const getStatusLabel = (status: string) => getReturnRequestListStatusLabel(status);
 
 const getStatusIcon = (status: string) => {
   switch (status) {
+    case "REQUESTED":
+      return <Clock className="w-3 h-3" />;
+    case "PROCESSING":
+      return <Loader2 className="w-3 h-3 animate-spin" />;
     case "PENDING":
       return <Clock className="w-3 h-3" />;
     case "APPROVED":
@@ -52,6 +64,10 @@ const getStatusIcon = (status: string) => {
       return <CheckCircle className="w-3 h-3" />;
     case "PENDING_RETURN_CHECK":
       return <Loader2 className="w-3 h-3 animate-spin" />;
+    case "CANCELLED":
+      return <AlertCircle className="w-3 h-3" />;
+    case "BORROWING":
+      return <Package className="w-3 h-3" />;
     default:
       return <Clock className="w-3 h-3" />;
   }
@@ -120,6 +136,26 @@ function unitCountForItem(item: reusableSvc.ReusableReturnRequestItem): number {
   return item.requested_qty ?? 0;
 }
 
+function UnitStatusChip({ code }: { code: string | null | undefined }) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-normal break-words text-left leading-snug sm:whitespace-nowrap ${getReusableUnitStatusBadgeClasses(code)}`}
+    >
+      {getReusableUnitStatusLabel(code)}
+    </span>
+  );
+}
+
+function UnitConditionChip({ code }: { code: string | null | undefined }) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-normal break-words text-left leading-snug sm:whitespace-nowrap ${getReusableUnitConditionBadgeClasses(code)}`}
+    >
+      {getReusableUnitConditionLabel(code)}
+    </span>
+  );
+}
+
 function RequestedUnitsModal({
   item,
   onClose,
@@ -130,116 +166,195 @@ function RequestedUnitsModal({
   const rows = buildUnitRows(item);
   const title = item.item_name || "รายการ";
   const code = item.item_code || "—";
+  const unitTotal = rows.length > 0 ? rows.length : item.requested_qty ?? 0;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-[3px]"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[min(92vh,640px)]"
+        className="bg-white rounded-2xl border border-slate-200/90 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-900/5 w-full max-w-3xl flex flex-col overflow-hidden max-h-[min(90vh,680px)] sm:max-h-[min(85vh,640px)] animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
+        aria-modal="true"
         aria-labelledby="units-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start gap-3 px-5 sm:px-6 py-4 border-b border-slate-200 flex-shrink-0">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-500">ตรวจสอบหน่วยที่ขอคืน</p>
-            <h2 id="units-modal-title" className="text-lg font-bold text-gray-900 leading-snug mt-0.5">
-              {title}
-            </h2>
-            <p className="text-sm font-mono font-medium text-slate-600 mt-1">{code}</p>
-            <p className="text-xs text-slate-500 mt-2">
-              รวม{" "}
-              <span className="font-semibold text-slate-700">
-                {rows.length > 0 ? rows.length : item.requested_qty ?? 0}
-              </span>{" "}
-              หน่วย
-            </p>
+        <div className="relative flex-shrink-0 border-b border-slate-100 bg-gradient-to-b from-slate-50/90 to-white px-4 py-4 sm:px-6 sm:py-5">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-indigo-500 sm:top-5 sm:bottom-5" aria-hidden />
+          <div className="flex gap-3 sm:gap-4 pl-3 sm:pl-4">
+            <PageHeadingIconBox icon={ScanLine} tone="indigo" className="hidden sm:flex shrink-0" />
+            <div className="min-w-0 flex-1 pr-10">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600/90">
+                ตรวจสอบหน่วยที่ขอคืน
+              </p>
+              <h2 id="units-modal-title" className="mt-1 text-base font-bold leading-snug text-slate-900 sm:text-lg">
+                {title}
+              </h2>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-slate-700 shadow-sm">
+                  {code}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-800 ring-1 ring-indigo-100">
+                  <Package className="h-3.5 w-3.5 opacity-80" />
+                  {unitTotal} หน่วย
+                </span>
+              </div>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/90 hover:bg-white hover:border-slate-300 text-slate-500 flex-shrink-0 transition-colors shadow-sm"
+            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 text-slate-500 shadow-sm transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4"
             aria-label="ปิด"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto min-h-0 px-5 sm:px-6 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           {rows.length > 0 ? (
-            <div className="rounded-lg border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm border-collapse min-w-[520px]">
-                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
-                  <tr>
-                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 w-12">#</th>
-                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
-                      รหัสหน่วย
-                    </th>
-                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
-                      S/N
-                    </th>
-                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
-                      สถานะ
-                    </th>
-                    <th className="text-left font-bold text-slate-800 px-3 py-2.5 whitespace-nowrap">
-                      สภาพ
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => (
-                    <tr key={`${row.unit_code}-${i}`} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60">
-                      <td className="px-3 py-2 text-slate-500 tabular-nums align-middle">{i + 1}</td>
-                      <td className="px-3 py-2 font-mono font-semibold text-slate-800 align-middle whitespace-nowrap">
-                        {row.unit_code}
-                      </td>
-                      <td className="px-3 py-2 text-slate-600 align-middle whitespace-nowrap">
-                        {displayOrDash(row.serial_no)}
-                      </td>
-                      <td className="px-3 py-2 text-slate-600 align-middle">
-                        {displayOrDash(row.status)}
-                      </td>
-                      <td className="px-3 py-2 align-middle">
-                        <span className="text-slate-600">{displayOrDash(row.condition)}</span>
-                        {typeof row.is_found === "boolean" ? (
-                          <span
-                            className={`ml-2 text-xs font-medium ${
-                              row.is_found ? "text-emerald-600" : "text-amber-600"
-                            }`}
-                          >
-                            {row.is_found ? "พบ" : "ยังไม่พบ"}
-                          </span>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="hidden sm:block rounded-xl border border-slate-200/90 overflow-hidden bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/95 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-3 w-12">#</th>
+                        <th className="whitespace-nowrap px-4 py-3">รหัสหน่วย</th>
+                        <th className="whitespace-nowrap px-4 py-3">S/N</th>
+                        <th className="whitespace-nowrap px-4 py-3">สถานะพัสดุ</th>
+                        <th className="whitespace-nowrap px-4 py-3">สภาพ</th>
+                        <th className="whitespace-nowrap px-4 py-3 text-right">ตรวจพบ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {rows.map((row, i) => (
+                        <tr
+                          key={`${row.unit_code}-${i}`}
+                          className="transition-colors hover:bg-slate-50/80"
+                        >
+                          <td className="px-4 py-3 align-middle tabular-nums text-slate-400 text-xs font-medium">
+                            {i + 1}
+                          </td>
+                          <td className="px-4 py-3 align-middle font-mono text-sm font-semibold text-slate-900 whitespace-nowrap">
+                            {row.unit_code}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-slate-600 whitespace-nowrap text-sm">
+                            {displayOrDash(row.serial_no)}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-sm">
+                            <UnitStatusChip code={row.status} />
+                          </td>
+                          <td className="px-4 py-3 align-middle text-sm">
+                            <UnitConditionChip code={row.condition} />
+                          </td>
+                          <td className="px-4 py-3 align-middle text-right">
+                            {typeof row.is_found === "boolean" ? (
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${
+                                  row.is_found
+                                    ? "bg-emerald-50 text-emerald-800 ring-emerald-200/80"
+                                    : "bg-amber-50 text-amber-900 ring-amber-200/80"
+                                }`}
+                              >
+                                {row.is_found ? (
+                                  <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                                ) : (
+                                  <HelpCircle className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                {row.is_found ? "พบในระบบ" : "ยังไม่พบ"}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-sm">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <ul className="sm:hidden space-y-3">
+                {rows.map((row, i) => (
+                  <li
+                    key={`${row.unit_code}-${i}-m`}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          หน่วยที่ {i + 1}
+                        </p>
+                        <p className="mt-0.5 font-mono text-sm font-bold text-slate-900 break-all">
+                          {row.unit_code}
+                        </p>
+                      </div>
+                      {typeof row.is_found === "boolean" ? (
+                        <span
+                          className={`shrink-0 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
+                            row.is_found
+                              ? "bg-emerald-50 text-emerald-800 ring-emerald-200/80"
+                              : "bg-amber-50 text-amber-900 ring-amber-200/80"
+                          }`}
+                        >
+                          {row.is_found ? "พบ" : "ไม่พบ"}
+                        </span>
+                      ) : null}
+                    </div>
+                    <dl className="mt-3 grid gap-2 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-500 shrink-0">S/N</dt>
+                        <dd className="text-right font-medium text-slate-800 break-all">
+                          {displayOrDash(row.serial_no)}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-500 shrink-0">สถานะพัสดุ</dt>
+                        <dd className="text-right">
+                          <UnitStatusChip code={row.status} />
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-500 shrink-0">สภาพ</dt>
+                        <dd className="text-right">
+                          <UnitConditionChip code={row.condition} />
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center">
-              <Package className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-600">
-                ระบบยังไม่ส่งรายการรหัสหน่วยทีละรายการ
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-gradient-to-b from-slate-50/80 to-white px-6 py-12 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                <Package className="h-7 w-7" />
+              </div>
+              <p className="text-sm font-semibold text-slate-800">ยังไม่มีรายการรหัสหน่วยแยกรายตัว</p>
+              <p className="mt-2 max-w-sm text-xs leading-relaxed text-slate-500">
+                ขณะนี้แสดงเฉพาะจำนวนรวมจากคำขอ หากระบบส่งรหัสหน่วยมาครบ รายการจะแสดงที่นี่
               </p>
-              <p className="text-xs text-slate-500 mt-1">
-                จำนวนที่แจ้งคืนในแถวนี้:{" "}
-                <span className="font-semibold text-slate-700">{item.requested_qty ?? 0}</span> หน่วย
+              <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm">
+                จำนวนที่แจ้งคืน:{" "}
+                <span className="tabular-nums text-indigo-600">{item.requested_qty ?? 0}</span> หน่วย
               </p>
             </div>
           )}
         </div>
 
-        <div className="px-5 sm:px-6 py-3 border-t border-slate-200 bg-slate-50/60 flex justify-end flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors"
-          >
-            ปิด
-          </button>
+        <div className="flex-shrink-0 border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-6">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-w-[100px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+            >
+              ปิด
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -301,9 +416,7 @@ export default function ReturnItemDetailClient() {
       <div className="w-full px-6 py-6 flex flex-col flex-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-600 rounded-lg shrink-0">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
+            <PageHeadingIconBox icon={FileText} tone="amber" className="shrink-0" />
             <div>
               <h1 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">
                 รายละเอียดคำขอคืน
@@ -366,21 +479,21 @@ export default function ReturnItemDetailClient() {
             <div className="overflow-x-auto">
               <table className="w-full table-fixed border-collapse">
                 <colgroup>
-                  <col style={{ width: "52px" }} />
-                  <col style={{ width: "150px" }} />
-                  <col style={{ width: "400px" }} />
-                  <col style={{ width: "160px" }} />
-                  <col style={{ width: "90px" }} />
-                  <col style={{ width: "100px" }} />
+                  <col style={{ width: "4%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "32%" }} />
+                  <col style={{ width: "32%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "10%" }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-center text-sm font-bold text-slate-700 px-4 py-4">#</th>
-                    <th className="text-left text-sm font-bold text-slate-700 px-4 py-4">รหัส</th>
-                    <th className="text-left text-sm font-bold text-slate-700 px-4 py-4">รายการ</th>
-                    <th className="text-left text-sm font-bold text-slate-700 px-4 py-4">หมวดหมู่</th>
-                    <th className="text-center text-sm font-bold text-slate-700 px-4 py-4">จำนวน</th>
-                    <th className="text-center text-sm font-bold text-slate-700 px-4 py-4">ตรวจสอบ</th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-3 py-3">#</th>
+                    <th className="text-left text-sm font-bold text-slate-700 px-3 py-3">รหัส</th>
+                    <th className="text-left text-sm font-bold text-slate-700 px-3 py-3">รายการ</th>
+                    <th className="text-left text-sm font-bold text-slate-700 px-3 py-3">หมวดหมู่</th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-3 py-3">จำนวน</th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-3 py-3">ตรวจสอบ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -390,22 +503,21 @@ export default function ReturnItemDetailClient() {
                       <tr
                         key={`${item.item_id}-${idx}`}
                         className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors"
-                        style={{ height: "64px" }}
                       >
-                        <td className="px-4 py-4 text-center text-sm text-slate-400 align-middle">{idx + 1}</td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="px-3 py-3 text-center text-sm text-slate-400 align-middle">{idx + 1}</td>
+                        <td className="px-3 py-3 align-middle">
                           <span className="font-mono text-sm font-medium text-slate-800 truncate block">{item.item_code || "—"}</span>
                         </td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="px-3 py-3 align-middle min-w-0">
                           <p className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">{item.item_name || "—"}</p>
                         </td>
-                        <td className="px-4 py-4 align-middle">
-                          <span className="text-sm font-medium text-slate-600 truncate block">{item.category_name || "—"}</span>
+                        <td className="px-3 py-3 align-middle">
+                          <span className="text-sm font-medium text-slate-600 line-clamp-2 break-words">{item.category_name || "—"}</span>
                         </td>
-                        <td className="px-4 py-4 text-center align-middle">
+                        <td className="px-3 py-3 text-center align-middle">
                           <span className="text-sm font-semibold text-blue-600">{item.requested_qty}</span>
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
+                        <td className="px-3 py-3 align-middle text-center">
                           {nUnits <= 0 ? (
                             <span className="text-sm text-slate-300">—</span>
                           ) : (
