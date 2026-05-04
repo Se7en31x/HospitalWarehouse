@@ -17,12 +17,17 @@ import {
   Settings,
   Undo2,
   PackageCheck,
+  Archive,
 } from 'lucide-react';
+
+const REQUEST_PORTAL_WITHDRAW_URL = 'https://warehouse.hpk-hms.site/request/withdraw';
 
 interface NavItem {
   name: string;
   icon: typeof LayoutDashboard;
   path: string;
+  /** ถ้า path เป็น URL เต็ม ใช้ prefix เหล่านี้ตรวจไฮไลต์เมนูขณะอยู่ในแอป */
+  activePathPrefixes?: string[];
 }
 
 interface MenuGroup {
@@ -47,6 +52,18 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'เบิก-ยืม-คืน',
     items: [
+      {
+        name: 'ระบบเบิก-ยืม-คืน',
+        path: REQUEST_PORTAL_WITHDRAW_URL,
+        icon: Archive,
+        activePathPrefixes: [
+          '/request/withdraw',
+          '/request/borrow',
+          '/request/returnitem',
+          '/request/return-requests',
+          '/request/history',
+        ],
+      },
       { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
       { name: 'รับคืนพัสดุยืม', path: '/warehouse/returns', icon: Undo2 },
       { name: 'รับคืนพัสดุนำกลับ', path: '/warehouse/returns-department', icon: PackageCheck },
@@ -65,6 +82,17 @@ const menuGroups: MenuGroup[] = [
 function pathIsActive(pathname: string, path: string) {
   if (path === '/warehouse') return pathname === '/warehouse';
   return pathname === path || pathname.startsWith(path + '/');
+}
+
+function navItemIsActive(pathname: string, item: NavItem) {
+  if (item.activePathPrefixes?.length) {
+    return item.activePathPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'));
+  }
+  return pathIsActive(pathname, item.path);
+}
+
+function isExternalNavHref(path: string) {
+  return path.startsWith('http://') || path.startsWith('https://');
 }
 
 function NavContent({
@@ -111,7 +139,35 @@ function NavContent({
             <div className="px-2 space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathIsActive(pathname, item.path);
+                const isActive = navItemIsActive(pathname, item);
+                const className = `
+                      flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200
+                      ${isActive
+                        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100/80 hover:bg-blue-100/80'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      }
+                    `;
+
+                if (isExternalNavHref(item.path)) {
+                  return (
+                    <a
+                      key={item.path}
+                      href={item.path}
+                      onClick={onLinkClick}
+                      title={collapsed ? item.name : ''}
+                      className={className}
+                    >
+                      <Icon className="w-[22px] h-[22px] shrink-0" />
+                      {!collapsed && (
+                        <span className={`text-[15px] whitespace-nowrap ${
+                          isActive ? 'font-semibold' : 'font-medium'
+                        }`}>
+                          {item.name}
+                        </span>
+                      )}
+                    </a>
+                  );
+                }
 
                 return (
                   <Link
@@ -119,13 +175,7 @@ function NavContent({
                     href={item.path}
                     onClick={onLinkClick}
                     title={collapsed ? item.name : ''}
-                    className={`
-                      flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200
-                      ${isActive
-                        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100/80 hover:bg-blue-100/80'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                      }
-                    `}
+                    className={className}
                   >
                     <Icon className="w-[22px] h-[22px] shrink-0" />
                     {!collapsed && (

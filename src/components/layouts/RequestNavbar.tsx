@@ -44,14 +44,8 @@ export default function RequestNavbar() {
   };
 
   return (
-    <header className="w-full bg-gradient-to-r from-[#001E5D] via-[#003399] to-[#0A1931] text-white shadow-2xl relative z-[50]">
-      {/* ปรับแต่งแสงเงา Background ให้นวลขึ้น */}
-      <div className="absolute inset-0 opacity-15 pointer-events-none">
-        <div className="absolute -top-10 -left-10 w-64 h-64 bg-blue-400 rounded-full blur-[100px]" />
-        <div className="absolute top-0 right-20 w-48 h-48 bg-indigo-500 rounded-full blur-[80px]" />
-      </div>
-
-      <div className="relative z-10 border-b border-white/10">
+    <header className="w-full bg-gradient-to-r from-[#2876b0] via-[#2d8ec6] to-[#3198ca] text-white shadow-md relative z-[50] border-b border-white/20">
+      <div className="relative z-10">
         <div className="flex items-center justify-between px-8 py-4">
 
           {/* Logo + Title */}
@@ -69,7 +63,7 @@ export default function RequestNavbar() {
               <h1 className="text-[20px] font-bold tracking-tight text-white leading-none">
                 โรงพยาบาลวัดห้วยปลากั้งเพื่อสังคม
               </h1>
-              <span className="text-[16px] font-bold text-blue-100/90 tracking-wide uppercase">
+              <span className="text-[16px] font-bold text-white/90 tracking-wide uppercase">
                 ระบบเบิก-ยืม-คืน
               </span>
             </div>
@@ -90,19 +84,19 @@ export default function RequestNavbar() {
                   className="flex items-center gap-3 p-2 pl-4 hover:bg-white/10 rounded-full transition-all group"
                 >
                   <div className="flex flex-col items-end leading-tight gap-0.5">
-                    <span className="text-[16px] font-bold text-white group-hover:text-blue-200 transition-colors">
+                    <span className="text-[16px] font-bold text-white group-hover:text-white transition-colors">
                       {displayName}
                     </span>
-                    <span className="text-[12px] text-blue-300 font-bold uppercase tracking-wider">
+                    <span className="text-[12px] text-white/85 font-bold uppercase tracking-wider">
                       {roleName}
                     </span>
                   </div>
                   <div className="relative">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 ring-2 ring-white/30 group-hover:ring-white/60 transition-all flex items-center justify-center font-extrabold text-white shadow-lg">
+                    <div className="w-11 h-11 rounded-full bg-white/20 ring-2 ring-white/35 group-hover:bg-white/25 group-hover:ring-white/50 transition-all flex items-center justify-center font-extrabold text-white shadow-md">
                       <User className="w-6 h-6" />
                     </div>
                   </div>
-                  <ChevronDown className={`w-5 h-5 text-blue-200 transition-transform duration-300 ${showProfileMenu ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-5 h-5 text-white/90 transition-transform duration-300 ${showProfileMenu ? "rotate-180" : ""}`} />
                 </button>
               )}
 
