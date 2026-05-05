@@ -231,7 +231,7 @@ export default function ReturnItemClient() {
         <div className="flex items-center gap-4">
           <PageHeadingIconBox icon={RotateCcw} tone="amber" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">คืนพัสดุนำกลับ</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ส่งคืนคลังหลัก</h2>
             <p className="text-sm text-slate-500 mt-0.5">รายการคำขอส่งคืนอุปกรณ์ทางการแพทย์</p>
           </div>
         </div>

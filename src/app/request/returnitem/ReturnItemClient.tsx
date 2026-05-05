@@ -260,7 +260,7 @@ export default function ReturnItemClient() {
         <div className="flex items-center gap-4">
           <PageHeadingIconBox icon={Clock} tone="violet" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">คืนพัสดุที่ยืม</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">คืนพัสดุของบุคคลภายนอก</h2>
             <p className="text-sm text-slate-500 mt-0.5">ติดตามสถานะการคืนอุปกรณ์ที่ยืมออกไปภายนอก</p>
           </div>
         </div>

@@ -469,8 +469,8 @@ export default function SettingsClient({
 
   const getItemTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      CONSUMABLE: "วัสดุสิ้นเปลือง",
-      REUSABLE: "ของใช้ซ้ำรายชิ้น",
+      CONSUMABLE: "ของใช้แล้วหมดไป",
+      REUSABLE: "อุปกรณ์ทางการแพทย์",
       MED_ASSET: "ครุภัณฑ์ภายในองค์กร",
     };
     return labels[type] || type;

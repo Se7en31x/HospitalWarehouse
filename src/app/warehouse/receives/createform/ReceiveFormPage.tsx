@@ -520,8 +520,6 @@ export default function ReceiveFormPage() {
       byKind.get(l.kind)!.push(l);
     }
 
-    const results: Array<{ docNo: string; kind: ItemKind; total: number }> = [];
-
     try {
       // Step 1: Create the batch record
       const acquisitionType = isDonation ? "DONATION" : "PURCHASE";
@@ -542,7 +540,7 @@ export default function ReceiveFormPage() {
         const docNo = `${docNoPrefix(source, kind)}-${ts}`;
 
         if (kind === "REUSABLE") {
-          const res = await ReceiveSvc.createReusableReceive({
+          await ReceiveSvc.createReusableReceive({
             doc_no:   docNo,
             batch_id: batch.id,
             note:     noteStr,
@@ -556,7 +554,6 @@ export default function ReceiveFormPage() {
               })),
             })),
           });
-          results.push({ docNo: res.doc_no, kind, total: kl.reduce((a, l) => a + l.qty, 0) });
 
         } else if (kind === "MED_ASSET") {
           const buildNote = (l: LineItem) => {
@@ -565,7 +562,7 @@ export default function ReceiveFormPage() {
             if (l.qty < l.expectedQty) parts.push(`รับจริง ${l.qty}/${l.expectedQty} ชิ้น`);
             return parts.join(" — ") || null;
           };
-          const res = await ReceiveSvc.createReceive({
+          await ReceiveSvc.createReceive({
             doc_no:   docNo,
             type:     "PURCHASE_ASSET",
             status:   "COMPLETED",
@@ -577,14 +574,15 @@ export default function ReceiveFormPage() {
               expected_qty: l.expectedQty,
               qty:          l.qty,
               cost_price:   l.costPrice || 0,
+              /** วันหมดประกัน — backend เก็บที่ receive_item.expired_at */
+              expired_at:   l.warrantyDate ? new Date(l.warrantyDate).toISOString() : null,
               note:         buildNote(l),
               department_id: l.departmentId || null,
             })),
           });
-          results.push({ docNo: res.doc_no, kind, total: kl.reduce((a, l) => a + l.qty, 0) });
 
         } else {
-          const res = await ReceiveSvc.createReceive({
+          await ReceiveSvc.createReceive({
             doc_no:   docNo,
             type:     isDonation ? "DONATION" : "PURCHASE",
             status:   "COMPLETED",
@@ -604,29 +602,14 @@ export default function ReceiveFormPage() {
               };
             }),
           });
-          results.push({ docNo: res.doc_no, kind, total: kl.reduce((a, l) => a + l.qty, 0) });
         }
       }
 
       // แจ้งเตือนครั้งเดียวรวมทุก header ของ batch นี้
       ReceiveSvc.notifyBatch(batch.id).catch(() => {/* silent */});
 
-      const isMixed = results.length > 1;
-      const summaryRows = results.map(r => (
-        `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f1f5f9">
-          <code style="font-size:12px;color:#374151;font-family:monospace">${r.docNo}</code>
-          <span style="color:#9ca3af;font-size:11px;margin-left:auto">${r.total} ชิ้น</span>
-        </div>`
-      )).join("");
-
       await Swal.fire({
-        title: isMixed ? "Mixed Receive สำเร็จ" : "บันทึกสำเร็จ",
-        html: `
-          <p style="font-size:12px;color:#6b7280;margin-bottom:10px">
-            Batch: <code style="background:#f3f4f6;padding:2px 7px;border-radius:4px;font-size:13px;color:#374151">${batchNo}</code>
-          </p>
-          <div style="text-align:left">${summaryRows}</div>
-        `,
+        title: "บันทึกสำเร็จ",
         icon: "success",
         confirmButtonText: "ดูรายละเอียด",
         confirmButtonColor: "#2563eb",
@@ -1193,14 +1176,33 @@ function ConsumableExistingLotPicker({
   const [isLotOpen, setIsLotOpen] = React.useState(false);
 
   React.useEffect(() => {
+    const itemId = (line.itemId || "").trim();
+    if (!itemId) {
+      setExistingLots([]);
+      setLotsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     setExistingLots([]);
     setLotsLoading(true);
     setLotSearch("");
     setIsLotOpen(false);
-    ReceiveSvc.getActiveLotsByItem(line.itemId)
-      .then((lots: ItemLotOption[]) => setExistingLots(lots))
-      .catch(() => toast.error("โหลดล็อตไม่สำเร็จ"))
-      .finally(() => setLotsLoading(false));
+
+    ReceiveSvc.getActiveLotsByItem(itemId)
+      .then((lots: ItemLotOption[]) => {
+        if (!cancelled) setExistingLots(lots);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("โหลดล็อตไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!cancelled) setLotsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [line.itemId]);
 
   const selectExistingLot = (lot: ItemLotOption) => {
@@ -1341,7 +1343,11 @@ function ConsumableLotSection({
 
       {lotMode === "existing" && (
         <div className="mb-5 mt-1 w-full max-w-xl">
-          <ConsumableExistingLotPicker line={line} onPatch={onPatch} />
+          <ConsumableExistingLotPicker
+            key={`${line.lineId}-${line.itemId}`}
+            line={line}
+            onPatch={onPatch}
+          />
         </div>
       )}
 
@@ -1414,61 +1420,6 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
   const confirmBtnCls =
     line.kind === "CONSUMABLE" ? "bg-blue-600 hover:bg-blue-700"     :
     line.kind === "REUSABLE"   ? "bg-violet-600 hover:bg-violet-700" : "bg-amber-600 hover:bg-amber-700";
-
-  // ── existing lot state (CONSUMABLE only) ──
-  const [existingLots, setExistingLots] = useState<ItemLotOption[]>([]);
-  const [lotsLoading, setLotsLoading] = useState(false);
-  const [lotSearch, setLotSearch] = useState("");
-  const [isLotOpen, setIsLotOpen] = useState(false);
-  const lotMode = line.lotMode ?? "auto";
-
-  // Load existing lots when switching to "existing" mode
-  useEffect(() => {
-    if (line.kind !== "CONSUMABLE" || lotMode !== "existing") return;
-    if (existingLots.length > 0) return; // already loaded
-    setLotsLoading(true);
-    ReceiveSvc.getActiveLotsByItem(line.itemId)
-      .then(lots => setExistingLots(lots))
-      .catch(() => toast.error("โหลดล็อตไม่สำเร็จ"))
-      .finally(() => setLotsLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [line.kind, lotMode, line.itemId]);
-
-  const switchLotMode = (mode: "auto" | "existing") => {
-    if (mode === "auto") {
-      onPatch({
-        lotMode: "auto",
-        lotCode: autoGenLotCode(line.itemCode, receiveDate),
-        expiryDate: "",
-        mfgDate: "",
-      });
-    } else {
-      onPatch({ lotMode: "existing", lotCode: "", expiryDate: "" });
-    }
-    setLotSearch("");
-    setIsLotOpen(false);
-    setExistingLots([]);
-  };
-
-  const selectExistingLot = (lot: ItemLotOption) => {
-    const expStr = lot.expired_at
-      ? new Date(lot.expired_at).toISOString().split("T")[0]
-      : "";
-    onPatch({
-      lotCode: lot.lot_code,
-      expiryDate: expStr,
-    });
-    setIsLotOpen(false);
-    setLotSearch("");
-  };
-
-  const filteredLots = existingLots.filter(l =>
-    l.lot_code.toLowerCase().includes(lotSearch.toLowerCase())
-  );
-  const selectedLot = existingLots.find(l => l.lot_code === line.lotCode) ?? null;
-
-  const fmtLotDate = (d: string | null) =>
-    d ? new Date(d).toLocaleDateString("th-TH", { year: "2-digit", month: "short", day: "numeric" }) : "ไม่มีวันหมดอายุ";
 
   return (
     <div className={`rounded-lg border-2 ${borderCls} bg-white shadow-md overflow-visible`}>

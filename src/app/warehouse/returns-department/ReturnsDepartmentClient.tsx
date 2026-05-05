@@ -243,7 +243,7 @@ export default function ReturnsDepartmentClient() {
         <div className="flex items-center gap-4">
           <PageHeadingIconBox icon={Building2} tone="sky" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนพัสดุนำกลับ</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนจากแผนกต่าง ๆ</h2>
             <p className="text-sm text-slate-500 mt-0.5">ตรวจสอบและรับคืนอุปกรณ์จากแผนกต่างๆ</p>
           </div>
         </div>
@@ -394,7 +394,7 @@ export default function ReturnsDepartmentClient() {
           <div className="flex flex-col flex-1 min-h-[22rem]">
             <span className="sr-only">กำลังโหลดรายการรับคืนแผนก</span>
             <DataTableSkeleton
-              headers={["#", "เลขที่คำขอ", "แผนก", "ผู้ขอ", "เวลาคำขอ", "นัดรับของ", "รายการ", "สถานะ", "ตรวจสอบ"]}
+              headers={["#", "เลขที่คำขอ", "แผนก", "ผู้ขอ", "เวลาคำขอ", "นัดรับของ", "รายการ", "สถานะ", "จัดการ"]}
               rowCount={10}
               showPaginationFooter
               ariaLabel="กำลังโหลดรายการรับคืนแผนก"
@@ -462,7 +462,7 @@ export default function ReturnsDepartmentClient() {
                       <button
                         type="button"
                         onClick={() => openProcessPage(rec)}
-                        className="p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-md border border-blue-200 shadow-sm transition-colors"
+                        className="p-1.5 text-blue-600 hover:bg-blue-50"
                         title="ดู"
                       >
                         <Eye className="w-5 h-5" />

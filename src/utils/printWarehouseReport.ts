@@ -1,6 +1,9 @@
 /**
  * printWarehouseReport — PDF print utility with hospital-standard header/footer.
  *
+ * พิมพ์หลายหน้า: หัวกระดาษ (โลโก้) + บล็อกลายเซ็น/หมายเหตุใช้ position:fixed ใน @media print
+ * เพื่อให้ Chromium (Chrome/Edge) ซ้ำบนทุกหน้า — Firefox อาจส่งผลต่าง
+ *
  * Usage:
  *   printWarehouseReport({
  *     reportTitle: 'รายงานการเบิก/ยืมพัสดุ',
@@ -145,7 +148,12 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
-    /* Remove browser print decorations (URL, page#, date) */
+    /* ระยะเว้นสำหรับ fixed header/footer ตอนพิมพ์ — ปรับให้พอดีกับความสูงจริงของบล็อก */
+    :root {
+      --print-header-block-h: 34mm;
+      --print-footer-block-h: ${showSignature ? "46mm" : "22mm"};
+    }
+
     @page { size: A4 portrait; margin: 0; }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -159,12 +167,9 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
       width: 210mm;
       margin: 0 auto;
       line-height: 1.6;
-      display: flex;
-      flex-direction: column;
-      min-height: 270mm;
     }
 
-    /* ── PAGE HEADER ─────────────────────────────────────── */
+    /* ── PAGE HEADER (บนจอ: อยู่ใน flow; ตอนพิมพ์: fixed ซ้ำทุกหน้าใน Chromium) ── */
     .page-header {
       display: flex;
       justify-content: space-between;
@@ -172,6 +177,7 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
       padding-bottom: 12px;
       margin-bottom: 14px;
       border-bottom: 1px solid #e5e7eb;
+      background: #fff;
     }
     .org-info  { display: flex; align-items: center; gap: 12px; }
     .org-logo  { width: 56px; height: 56px; object-fit: contain; }
@@ -181,6 +187,9 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     .print-meta { text-align: right; font-size: 11px; color: #6b7280; line-height: 1.6; }
     .print-meta .doc-no { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 2px; }
 
+    /* ── เนื้อหารายงาน (ไม่รวมหัวลายเซ็นต์ที่พิมพ์ซ้ำ) ── */
+    .print-main { }
+
     /* ── TITLE BLOCK ─────────────────────────────────────── */
     .report-title  { text-align: center; font-size: 19px; font-weight: 700; margin: 16px 0 4px; letter-spacing: 0.03em; }
     .report-period { text-align: center; font-size: 12px; color: #4b5563; margin-bottom: 2px; }
@@ -188,8 +197,10 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
 
     /* ── TABLE ───────────────────────────────────────────── */
     table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 2px; }
+    thead { display: table-header-group; }
     thead tr { background: ${ACCENT}; color: #fff; }
     thead th { padding: 10px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; letter-spacing: 0.02em; }
+    tbody tr { page-break-inside: avoid; }
     tbody tr:nth-child(even) { background: #f0f6ff; }
     tbody tr:hover { background: #e8f0fe; }
     td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; color: #111827; font-size: 13px; }
@@ -197,21 +208,22 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     .align-center { text-align: center; }
     .align-left   { text-align: left; }
 
-    /* ── SPACER — pushes sig/footer to bottom on last page ── */
-    .spacer { flex: 1; min-height: 20px; }
-
-    /* ── SIGNATURE ───────────────────────────────────────── */
-    .sig-section { display: flex; justify-content: space-around; }
-    .sig-box  { text-align: center; font-size: 13px; }
+    /* ── SIGNATURE + หมายเหตุท้าย (บนจอ: flow; ตอนพิมพ์: fixed ซ้ำทุกหน้า) ── */
+    .print-footer-block {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e7eb;
+      background: #fff;
+    }
+    .sig-section { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 8px; }
+    .sig-box  { text-align: center; font-size: 13px; min-width: 120px; }
     .sig-line { margin-bottom: 6px; }
     .sig-name { margin-bottom: 6px; }
     .sig-date { margin: 0; }
 
-    /* ── FOOTER ──────────────────────────────────────────── */
     .page-footer {
-      margin-top: 14px;
-      padding-top: 8px;
-      border-top: 1px solid #e5e7eb;
+      margin-top: 10px;
+      padding-top: 6px;
       text-align: right;
       font-size: 10px;
       color: #9ca3af;
@@ -219,16 +231,53 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     }
 
     @media print {
-      body { padding: 1.2cm 1.5cm; height: auto; min-height: auto; }
+      body {
+        padding: 0 12mm;
+        padding-top: var(--print-header-block-h);
+        padding-bottom: var(--print-footer-block-h);
+        width: 100%;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .page-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        margin: 0;
+        padding: 6mm 12mm 5mm 12mm;
+        border-bottom: 1px solid #e5e7eb;
+        z-index: 1000;
+      }
+
+      .print-footer-block {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        margin: 0;
+        padding: 4mm 12mm 6mm 12mm;
+        border-top: 1px solid #e5e7eb;
+        z-index: 1000;
+      }
+
+      .print-main {
+        position: relative;
+        z-index: 1;
+      }
+
       table { page-break-inside: auto; }
-      tr { page-break-inside: avoid; page-break-after: auto; }
-      .sig-section { page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      tbody { display: table-row-group; }
     }
   </style>
 </head>
 <body>
 
-  <!-- PAGE HEADER -->
+  <!-- หัวกระดาษ: พิมพ์ซ้ำทุกหน้า (Chrome / Edge) -->
   <div class="page-header">
     <div class="org-info">
       <img class="org-logo" src="${LOGO_URL}" alt="logo" />
@@ -240,30 +289,27 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     </div>
     <div class="print-meta">
       ${docNo ? `<div class="doc-no">${esc(docNo)}</div>` : ""}
-      <div>วันที่พิมพ์:${printDate}เวลา ${printTime} น.</div>
+      <div>วันที่พิมพ์: ${printDate} เวลา ${printTime} น.</div>
     </div>
   </div>
 
-  <!-- TITLE BLOCK -->
-  <h1 class="report-title">${esc(reportTitle)}</h1>
-  ${period ? `<div class="report-period">ช่วงเวลา: ${esc(period)}</div>` : ""}
-  ${filterSummary ? `<div class="report-filter">${esc(filterSummary)}</div>` : ""}
+  <div class="print-main">
+    <h1 class="report-title">${esc(reportTitle)}</h1>
+    ${period ? `<div class="report-period">ช่วงเวลา: ${esc(period)}</div>` : ""}
+    ${filterSummary ? `<div class="report-filter">${esc(filterSummary)}</div>` : ""}
 
-  <!-- TABLE -->
-  <table>
-    <thead><tr>${thCells}</tr></thead>
-    <tbody>${trRows}</tbody>
-  </table>
+    <table>
+      <thead><tr>${thCells}</tr></thead>
+      <tbody>${trRows}</tbody>
+    </table>
+  </div>
 
-  <!-- SPACER (pushes sig to bottom of last page) -->
-  <div class="spacer"></div>
-
-  <!-- SIGNATURE -->
-  ${sigSection}
-
-  <!-- FOOTER -->
-  <div class="page-footer">
-    หมายเหตุ: เอกสารนี้ถูกสร้างจากระบบอิเล็กทรอนิกส์ ไม่ต้องลงนามหากใช้ภายในหน่วยงาน
+  <!-- ลายเซ็น + หมายเหตุ: พิมพ์ซ้ำทุกหน้า -->
+  <div class="print-footer-block">
+    ${sigSection}
+    <div class="page-footer">
+      หมายเหตุ: เอกสารนี้ถูกสร้างจากระบบอิเล็กทรอนิกส์ ไม่ต้องลงนามหากใช้ภายในหน่วยงาน
+    </div>
   </div>
 
   <script>window.onload = () => { window.print(); }<\/script>

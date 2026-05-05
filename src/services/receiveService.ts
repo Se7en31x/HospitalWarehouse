@@ -142,7 +142,7 @@ export async function confirmReceive(
         receive_item_id: number;
         qty: number;
         lot_code?: string;
-        expired_at?: string;
+        expired_at?: string | null;
         warehouse_id?: string;
         assets?: Array<{
             serial_no?: string;
@@ -183,8 +183,10 @@ export interface ItemLotOption {
  * ใช้สำหรับ "เลือกล็อตเดิม" ในฟอร์มรับเข้า
  */
 export async function getActiveLotsByItem(itemId: string): Promise<ItemLotOption[]> {
+    const id = (itemId || "").trim();
+    if (!id) return [];
     const res = await api.get<{ items?: unknown[]; data?: unknown[] }>(
-        `/v1/lots?item_id=${encodeURIComponent(itemId)}&status=ACTIVE&limit=200`
+        `/v1/lots?item_id=${encodeURIComponent(id)}&status=ACTIVE&limit=200`
     );
     const rows: unknown[] = (res as { items?: unknown[]; data?: unknown[] }).items
         ?? (res as { items?: unknown[]; data?: unknown[] }).data

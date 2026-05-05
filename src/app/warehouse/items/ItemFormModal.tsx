@@ -75,7 +75,7 @@ const getItemTypeLabel = (type?: string) => {
   const normalized = normalizeItemType(type);
   if (normalized === "REUSABLE") return "ของใช้ซ้ำรายชิ้น";
   if (normalized === "MED_ASSET") return "ครุภัณฑ์ภายในองค์กร";
-  return "วัสดุสิ้นเปลือง";
+  return "ของใช้แล้วหมดไป";
 };
 
 const mapItemErrorMessage = (message: string) => {

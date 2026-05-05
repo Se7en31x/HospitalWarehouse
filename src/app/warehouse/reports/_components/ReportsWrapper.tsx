@@ -14,15 +14,12 @@ import ItemRankingReportClient from "../_clients/inventory/ItemRankingReportClie
 import InventoryValueReportClient from "../_clients/inventory/InventoryValueReportClient";
 import ExpiredLotsReportClient from "../_clients/inventory/ExpiredLotsReportClient";
 import DeptConsumptionReportClient from "../_clients/requisition/DeptConsumptionReportClient";
-import ReturnConditionReportClient from "../_clients/requisition/ReturnConditionReportClient";
-import OverdueBorrowReportClient from "../_clients/requisition/OverdueBorrowReportClient";
 import { type Report } from "@/types/report_type";
 import type { UiItem } from "@/services/itemsService";
 import type { ExpiringLot } from "@/services/dashboardService";
 import { SECTION_THEME, type SectionTheme } from "./reportHeaderTheme";
 import {
   Warehouse,
-  RotateCcw,
   PackagePlus,
   ArrowUpRight,
   FileBarChart,
@@ -34,7 +31,6 @@ import {
   DollarSign,
   ClipboardCheck,
   BarChart3,
-  AlarmClock,
   Stethoscope,
   Cpu,
 } from "lucide-react";
@@ -161,20 +157,6 @@ const reportGroups: ReportGroup[] = [
         icon: BarChart3,
         countKey: null,
       },
-      {
-        id: "return-condition",
-        label: "รายงานสภาพพัสดุที่คืน",
-        description: "ตรวจสอบสภาพของสินค้าที่ถูกส่งคืนจากแผนกต่าง ๆ",
-        icon: RotateCcw,
-        countKey: null,
-      },
-      {
-        id: "overdue-borrow",
-        label: "รายงานการยืมพัสดุเกินกำหนด",
-        description: "ดูรายการยืมที่เลยกำหนดคืนและยังไม่ได้ส่งคืน",
-        icon: AlarmClock,
-        countKey: null,
-      },
     ],
   },
   {
@@ -183,7 +165,7 @@ const reportGroups: ReportGroup[] = [
     reports: [
       {
         id: "assets",
-        label: "รายงานครุภัณฑ์",
+        label: "รายงานครุภัณฑ์ภายในองค์กรณ์",
         description: "ตรวจสอบสถานะและที่ตั้งของครุภัณฑ์แยกตามแผนก",
         icon: Cpu,
         countKey: null,
@@ -247,10 +229,6 @@ const ReportsWrapper: React.FC<ReportsWrapperProps> = ({
         return <ExpiredLotsReportClient onBack={handleBackToSelector} />;
       case "dept-consumption":
         return <DeptConsumptionReportClient onBack={handleBackToSelector} />;
-      case "return-condition":
-        return <ReturnConditionReportClient onBack={handleBackToSelector} />;
-      case "overdue-borrow":
-        return <OverdueBorrowReportClient onBack={handleBackToSelector} />;
       default:
         return null;
     }

@@ -89,7 +89,7 @@ const reportTypeOptions: {
 	},
 	{
 		id: "assets",
-		label: "รายงานครุภัณฑ์",
+		label: "รายงานครุภัณฑ์ภายในองค์กรณ์",
 		description: "ตรวจสอบสถานะและที่ตั้งของครุภัณฑ์แยกตามแผนก",
 		countBg: "bg-purple-50",
 		countText: "text-purple-700",

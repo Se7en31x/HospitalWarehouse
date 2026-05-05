@@ -64,6 +64,8 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
   const isReusable = doc.type === "REUSABLE_UNIT";
   const isPending  = doc.status === "PENDING";
   const showLot    = !isAsset && !isReusable;
+  /** ครุภัณฑ์: วันหมดประกันเก็บที่ receive_item.expired_at (ไม่ใช่ล็อต) */
+  const showAssetWarranty = isAsset;
 
   const [busy, setBusy] = useState(false);
   const [inputs, setInputs] = useState<Record<number, ItemInput>>(() => {
@@ -114,7 +116,11 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
         receive_item_id: Number(idStr),
         qty: d.qty,
         lot_code:   showLot ? (d.lot_code || undefined) : undefined,
-        expired_at: showLot ? (d.expired_at ? new Date(d.expired_at).toISOString() : undefined) : undefined,
+        expired_at: showLot
+          ? (d.expired_at ? new Date(d.expired_at).toISOString() : undefined)
+          : showAssetWarranty
+            ? (d.expired_at ? new Date(d.expired_at).toISOString() : null)
+            : undefined,
         assets: isAsset && d.qty > 0 ? Array(d.qty).fill({}) : undefined,
       }));
       await receiveService.confirmReceive(doc.id, payload);
@@ -127,7 +133,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
     }
   };
 
-  const colSpan = showLot ? 8 : 6;
+  const colSpan = showLot ? 8 : showAssetWarranty ? 7 : 6;
 
   const itemCategory = (row: { category?: string | null; category_name?: string | null }) =>
     row.category_name?.trim() || row.category?.trim() || "—";
@@ -137,7 +143,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
       <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-slate-800">
         <div className="flex flex-wrap items-center gap-2">
           <FileText className="h-5 w-5 text-indigo-600 shrink-0" />
-          <h2 className="text-lg font-bold text-gray-900">เอกสารรับเข้า</h2>
+          <h2 className="text-base font-semibold text-slate-900">เอกสารรับเข้า</h2>
         </div>
         <span
           className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
@@ -164,7 +170,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           .receive-doc-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
           .receive-doc-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         `}</style>
-        <table className="w-full min-w-[980px] text-left text-sm table-fixed">
+        <table className="w-full min-w-[980px] text-left text-sm leading-normal table-fixed">
             <colgroup>
               <col className="w-[56px]" />
               <col className="w-[160px]" />
@@ -177,42 +183,47 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                   <col className="w-[160px]" />
                   <col className="w-[150px]" />
                 </>
+              ) : showAssetWarranty ? (
+                <col className="w-[150px]" />
               ) : (
                 <col className="w-[80px]" />
               )}
             </colgroup>
-            <thead className="bg-slate-50 text-slate-800 text-base font-bold border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-slate-700 text-sm font-semibold border-b border-slate-200 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 text-center whitespace-nowrap">#</th>
-                <th className="px-6 py-4 whitespace-nowrap">รหัสรายการ</th>
-                <th className="px-6 py-4 whitespace-nowrap">ชื่อพัสดุ</th>
-                <th className="px-6 py-4 whitespace-nowrap">หมวดหมู่</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">สั่ง</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">รับ</th>
+                <th className="px-6 py-3 text-center whitespace-nowrap">#</th>
+                <th className="px-6 py-3 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-6 py-3 whitespace-nowrap">ชื่อพัสดุ</th>
+                <th className="px-6 py-3 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-6 py-3 text-center whitespace-nowrap">สั่ง</th>
+                <th className="px-6 py-3 text-center whitespace-nowrap">รับ</th>
                 {showLot && (
                   <>
-                    <th className="px-6 py-4 whitespace-nowrap">Lot Code</th>
-                    <th className="px-6 py-4 whitespace-nowrap">วันหมดอายุ</th>
+                    <th className="px-6 py-3 whitespace-nowrap">Lot Code</th>
+                    <th className="px-6 py-3 whitespace-nowrap">วันหมดอายุ</th>
                   </>
+                )}
+                {showAssetWarranty && (
+                  <th className="px-6 py-3 whitespace-nowrap">วันหมดประกัน</th>
                 )}
               </tr>
             </thead>
-            <tbody className="text-slate-600">
+            <tbody className="text-sm text-slate-700">
               {(doc.receive_item ?? []).map((item, idx) => (
                 <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                   <td className="px-6 py-3 w-[56px] text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
                   <td className="px-6 py-3 align-middle min-w-0">
-                    <p className="text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
+                    <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
                       {item.item_code ?? String(item.item_id)}
                     </p>
                   </td>
                   <td className="px-6 py-3 align-middle min-w-0">
-                    <p className="text-slate-800 leading-snug truncate" title={item.item_name ?? ""}>
+                    <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_name ?? ""}>
                       {item.item_name ?? "—"}
                     </p>
                   </td>
                   <td className="px-6 py-3 align-middle min-w-0">
-                    <p className="text-slate-700 leading-snug truncate" title={itemCategory(item)}>
+                    <p className="text-sm text-slate-700 leading-snug truncate" title={itemCategory(item)}>
                       {itemCategory(item)}
                     </p>
                   </td>
@@ -255,6 +266,16 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                           </td>
                         </>
                       )}
+                      {showAssetWarranty && (
+                        <td className="px-6 py-3 align-middle">
+                          <input
+                            title="วันหมดประกัน" type="date"
+                            className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                            value={inputs[item.id]?.expired_at ?? ""}
+                            onChange={e => patch(item.id, { expired_at: e.target.value })}
+                          />
+                        </td>
+                      )}
                     </>
                   ) : (
                     <>
@@ -264,14 +285,19 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                       {showLot && (
                         <>
                           <td className="px-6 py-3 align-middle">
-                            <p className="text-xs font-mono text-slate-700 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
+                            <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
                               {item.lot_code ?? "—"}
                             </p>
                           </td>
-                          <td className="px-6 py-3 text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                          <td className="px-6 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
                             {fmtDate(item.expired_at)}
                           </td>
                         </>
+                      )}
+                      {showAssetWarranty && (
+                        <td className="px-6 py-3 text-center text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                          {fmtDate(item.expired_at)}
+                        </td>
                       )}
                     </>
                   )}
@@ -282,7 +308,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                   <td colSpan={colSpan} className="p-0">
                     <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                       <Package className="w-16 h-16 text-slate-300" strokeWidth={1.25} />
-                      <p className="text-base font-medium">ไม่พบรายการสินค้า</p>
+                      <p className="text-sm font-medium text-slate-500">ไม่พบรายการสินค้า</p>
                     </div>
                   </td>
                 </tr>
@@ -364,8 +390,8 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
           <div className="flex items-center gap-3">
             <PageHeadingIconBox icon={FileText} tone="inbound" className="shrink-0" />
             <div>
-              <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 tracking-tight">รายละเอียดการรับเข้า</h2>
-              <p className="text-sm text-slate-500 mt-0.5">ดูรายละเอียดใบรับสินค้า ล็อต และสถานะการตรวจรับ</p>
+              <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">รายละเอียดการรับเข้า</h2>
+              <p className="text-sm text-slate-600 mt-1">ดูรายละเอียดใบรับสินค้า ล็อต และสถานะการตรวจรับ</p>
             </div>
           </div>
           <button
@@ -380,7 +406,7 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
           <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center gap-2 text-slate-800">
             <Layers className="h-5 w-5 text-indigo-600 shrink-0" />
-            <h2 className="text-lg font-bold text-gray-900">ข้อมูลเลขที่นำเข้า</h2>
+            <h2 className="text-base font-semibold text-slate-900">ข้อมูลเลขที่นำเข้า</h2>
             {hasPending && (
               <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800">
                 <Clock className="w-3 h-3" />
@@ -390,40 +416,40 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
           </div>
           <div className="px-5 sm:px-6 py-5 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
-              <p className="text-sm font-bold text-gray-900 mb-1">เลขที่นำเข้า</p>
-              <p className="font-mono text-base font-semibold text-slate-800">{batch.batch_no}</p>
+              <p className="text-sm font-medium text-slate-600 mb-1">เลขที่นำเข้า</p>
+              <p className="text-sm font-mono font-semibold text-slate-900">{batch.batch_no}</p>
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 mb-1">ประเภทการรับเข้า</p>
-              <p className="text-base font-medium text-slate-800">
+              <p className="text-sm font-medium text-slate-600 mb-1">ประเภทการรับเข้า</p>
+              <p className="text-sm text-slate-900">
                 {batch.acquisition_type
                   ? (ACQUISITION_LABEL[batch.acquisition_type] ?? String(batch.acquisition_type))
                   : "—"}
               </p>
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 mb-1">วันที่รับเข้า</p>
-              <p className="text-base text-slate-800">{fmtDateTime(batch.receive_date)}</p>
+              <p className="text-sm font-medium text-slate-600 mb-1">วันที่รับเข้า</p>
+              <p className="text-sm text-slate-900">{fmtDateTime(batch.receive_date)}</p>
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 mb-1">ผู้จำหน่าย / ผู้บริจาค</p>
-              <p className="text-base text-slate-800">{batch.supplier_name ?? batch.donor_name ?? "-"}</p>
+              <p className="text-sm font-medium text-slate-600 mb-1">ผู้จำหน่าย / ผู้บริจาค</p>
+              <p className="text-sm text-slate-900">{batch.supplier_name ?? batch.donor_name ?? "-"}</p>
             </div>
             {batch.acquisition_type === "PURCHASE" && (
               <div>
-                <p className="text-sm font-bold text-gray-900 mb-1">ใบส่งสินค้า / เอกสารนำส่ง</p>
-                <p className="text-base text-slate-800 font-mono">{batch.delivery_doc_no?.trim() || "—"}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">ใบส่งสินค้า / เอกสารนำส่ง</p>
+                <p className="text-sm text-slate-900 font-mono">{batch.delivery_doc_no?.trim() || "—"}</p>
               </div>
             )}
             <div>
-              <p className="text-sm font-bold text-gray-900 mb-1">ผู้บันทึก</p>
-              <p className="text-base text-slate-800">
+              <p className="text-sm font-medium text-slate-600 mb-1">ผู้บันทึก</p>
+              <p className="text-sm text-slate-900">
                 {batch.created_by_name?.trim() || "—"}
               </p>
             </div>
             <div className="md:col-span-3">
-              <p className="text-sm font-bold text-gray-900 mb-1">หมายเหตุ</p>
-              <p className="text-base text-slate-800">{batch.note ?? "-"}</p>
+              <p className="text-sm font-medium text-slate-600 mb-1">หมายเหตุ</p>
+              <p className="text-sm text-slate-900">{batch.note ?? "-"}</p>
             </div>
           </div>
         </section>
@@ -434,7 +460,7 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
           ))}
           {batch.headers.length === 0 && (
             <section className="bg-white border border-slate-200 rounded-xl px-5 sm:px-6 py-6 text-center text-slate-500">
-              <p className="text-base">ไม่พบเอกสารใน Batch นี้</p>
+              <p className="text-sm text-slate-600">ไม่พบเอกสารใน Batch นี้</p>
             </section>
           )}
         </div>

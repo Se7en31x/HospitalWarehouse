@@ -298,7 +298,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 
 			<ReportDetailPageHeader
 				reportPage="assets"
-				title="รายงานครุภัณฑ์"
+				title="รายงานครุภัณฑ์ภายในองค์กรณ์"
 				subtitle={`ระบบบริหารคลังสินค้า HPK · พิมพ์วันที่ ${printDate}`}
 				onBack={onBack}
 			/>
