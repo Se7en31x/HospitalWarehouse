@@ -244,7 +244,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 		if (deptFilter)   filterParts.push(`แผนก: ${deptFilter}`);
 
 		printWarehouseReport({
-			reportTitle:   "รายงานของใช้ซ้ำรายชิ้น",
+			reportTitle:   "รายงานอุปกรณ์ทางการแพทย์",
 			filterSummary: filterParts.length ? filterParts.join(" | ") : undefined,
 			columns,
 			rows: pdfRows,
@@ -274,13 +274,13 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 		const HEADER_BG = "FF37474F";
 		const COLS      = 8;
 
-		const ws = wb.addWorksheet("ของใช้ซ้ำ");
+		const ws = wb.addWorksheet("อุปกรณ์ทางการแพทย์");
 		ws.columns = [
 			{ width: 6  }, { width: 18 }, { width: 18 }, { width: 34 },
 			{ width: 18 }, { width: 22 }, { width: 16 }, { width: 14 },
 		];
 
-		const r1 = ws.addRow(["รายงานของใช้ซ้ำรายชิ้น"]);
+		const r1 = ws.addRow(["รายงานอุปกรณ์ทางการแพทย์"]);
 		ws.mergeCells(r1.number, 1, r1.number, COLS);
 		r1.height = 28;
 		r1.getCell(1).style = { font: { name: FONT, size: 16, bold: true, color: { argb: "FF0D47A1" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } }, alignment: { horizontal: "center", vertical: "middle" } };
@@ -337,7 +337,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 		const url  = URL.createObjectURL(blob);
 		const a    = document.createElement("a");
 		a.href     = url;
-		a.download = `รายงานของใช้ซ้ำ_${new Date().toISOString().slice(0, 10)}.xlsx`;
+		a.download = `รายงานอุปกรณ์ทางการแพทย์_${new Date().toISOString().slice(0, 10)}.xlsx`;
 		a.click();
 		URL.revokeObjectURL(url);
 	};
@@ -348,9 +348,9 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 
 			<ReportDetailPageHeader
 				reportPage="reusable-items"
-				title="รายงานของใช้ซ้ำรายชิ้น"
+				title="รายงานอุปกรณ์ทางการแพทย์"
 				subtitle={
-					<>สรุปหน่วยของใช้ซ้ำทุกชิ้น กรองตามสถานะ สภาพ และแผนก · ส่งออก PDF/XLSX หรือพิมพ์รายงาน · พิมพ์วันที่ {printDate}</>
+					<>สรุปหน่วยอุปกรณ์ทางการแพทย์ทุกชิ้น กรองตามสถานะ สภาพ และแผนก · ส่งออก PDF/XLSX หรือพิมพ์รายงาน · พิมพ์วันที่ {printDate}</>
 				}
 				onBack={onBack}
 			/>
@@ -495,7 +495,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 
 			{/* Footer */}
 			<div className="border-t border-slate-200 bg-white px-8 py-3">
-				<p className="text-xs text-slate-400 text-center">HPK Warehouse Management System &nbsp;·&nbsp; รายงานของใช้ซ้ำรายชิ้น</p>
+				<p className="text-xs text-slate-400 text-center">HPK Warehouse Management System &nbsp;·&nbsp; รายงานอุปกรณ์ทางการแพทย์</p>
 			</div>
 		</div>
 	);

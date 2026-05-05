@@ -97,8 +97,8 @@ const reportTypeOptions: {
 	},
 	{
 		id: "reusable-items",
-		label: "รายงานของใช้ซ้ำรายชิ้น",
-		description: "ดูสถานะและสภาพของสินค้าประเภทใช้ซ้ำแยกตามแผนก",
+		label: "รายงานอุปกรณ์ทางการแพทย์",
+		description: "ดูสถานะและสภาพอุปกรณ์ทางการแพทย์แยกตามแผนก",
 		countBg: "bg-teal-50",
 		countText: "text-teal-700",
 		ringColor: "ring-teal-300",

@@ -47,8 +47,8 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'การคืน',
     items: [
-      { name: 'คืนพัสดุที่ยืม', path: '/request/returnitem', icon: RotateCcw },
-      { name: 'คืนพัสดุนำกลับ', path: '/request/return-requests', icon: RefreshCw },
+      { name: 'คืนพัสดุของบุคคลภายนอก', path: '/request/returnitem', icon: RotateCcw },
+      { name: 'ส่งคืนคลังหลัก', path: '/request/return-requests', icon: RefreshCw },
     ],
   },
   {

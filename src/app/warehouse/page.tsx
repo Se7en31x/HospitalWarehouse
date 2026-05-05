@@ -458,7 +458,7 @@ export default function WarehouseDashboard() {
             <BarChart3 className="w-5 h-5 sm:w-7 sm:h-7 text-white" strokeWidth={2} />
           </div>
           <div>
-            <h1 className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight">ภาพรวมคลังพัสดุ</h1>
+            <h1 className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight">ภาพรวมระบบคลังหลัก</h1>
             <p className="text-xs sm:text-sm text-gray-500 font-medium mt-0.5 max-w-xl">
               ภาพรวมสต็อก ล็อต การเบิก-ยืม และการรับเข้า — อัปเดตตามข้อมูลระบบปัจจุบัน
             </p>
@@ -476,7 +476,7 @@ export default function WarehouseDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           icon={Package}
-          label="จำนวนสินค้าทั้งหมด"
+          label="จำนวนพัสดุทั้งหมด"
           value={summary?.totalItems ?? 0}
           iconBg="bg-teal-500"
           valueClass="text-teal-800"

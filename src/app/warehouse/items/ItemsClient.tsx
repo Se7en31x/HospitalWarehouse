@@ -24,6 +24,10 @@ import { socket } from "../../../lib/socket";
 import ItemFormModal from "./ItemFormModal";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printLabels, type LabelData } from "@/lib/printLabel";
+import {
+  getEffectiveStockForUiItem as getEffectiveStock,
+  getStockLevelLabelForUiItem as getStockLevelLabel,
+} from "@/lib/itemStockUi";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -31,32 +35,6 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const PAGE_LIMIT = 10;
-
-// คงเหลือที่ใช้แสดงในตารางและคำนวณสถานะ — REUSABLE=available, MED_ASSET=จำนวนครุภัณฑ์ที่ลงทะเบียน, อื่นๆ=current_stock
-const getEffectiveStock = (item: Item.UiItem, assetRegisteredByItemId?: Record<string, number>): number => {
-  if (item.type === "REUSABLE") {
-    return typeof item.availableStock === "number" ? item.availableStock : 0;
-  }
-  if (item.type === "MED_ASSET") {
-    return assetRegisteredByItemId?.[item.id] ?? 0;
-  }
-  return item.stock;
-};
-
-/** สถานะคงคลังในตาราง / ฟิลเตอร์ — ยึดตัวเลขเดียวกับคอลัมน์คงเหลือ */
-function getStockLevelLabel(
-  item: Item.UiItem,
-  assetRegisteredByItemId?: Record<string, number>,
-): "ปกติ" | "ต่ำ" | "หมด" | "ระงับ" {
-  const lifecycle = String(item.status ?? "ACTIVE").trim().toUpperCase();
-  if (lifecycle === "INACTIVE" || lifecycle === "UNAVAILABLE") return "ระงับ";
-
-  const qty = getEffectiveStock(item, assetRegisteredByItemId);
-  const min = Math.max(0, Number(item.minStock) || 0);
-  if (qty <= 0) return "หมด";
-  if (min > 0 && qty <= min) return "ต่ำ";
-  return "ปกติ";
-}
 
 export default function ItemsClient({ initialItems }: { initialItems: Item.UiItem[] }) {
   const [allItems, setAllItems] = useState<Item.UiItem[]>([]);

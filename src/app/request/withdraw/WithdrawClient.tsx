@@ -14,6 +14,11 @@ import {
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
+import { getAssetCounts } from "@/services/assetService";
+import {
+  getEffectiveStockForUiItem as getEffectiveStock,
+  getStockLevelLabelForUiItem as getStockLevelLabel,
+} from "@/lib/itemStockUi";
 import { useAuth } from "@/hooks/useAuth";
 import { socket } from "@/lib/socket";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -35,14 +40,6 @@ interface CartItem extends Item.UiItem {
   quantity: number;
 }
 
-// For REUSABLE: available_stock (units ready to lend); for CONSUMABLE: current_stock
-const getEffectiveStock = (item: Item.UiItem): number =>
-  item.type === "REUSABLE"
-    ? (typeof item.availableStock === "number" ? item.availableStock : 0)
-    : item.stock;
-
-// No stock override — item.stock stays as current_stock so ItemDetailModal
-// and tooltip can show the raw total. Display always calls getEffectiveStock().
 const mapRequestableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
 
 const PAGE_LIMIT = 10;
@@ -55,6 +52,7 @@ export default function WithdrawClient({ initialItems }: Props) {
   const { departments, isLoading: isAuthLoading } = useAuth();
 
   const [allItems, setAllItems] = useState<Item.UiItem[]>([]);
+  const [registeredCounts, setRegisteredCounts] = useState<Record<string, number>>({});
   
   // ✅ State สำหรับ Options (Dropdowns)
   const [categories, setCategories] = useState<Item.categoryOptions>([]);
@@ -82,7 +80,15 @@ export default function WithdrawClient({ initialItems }: Props) {
     if (!silent) setIsFetching(true);
     try {
       const result = await ItemSvc.getAllInventoryItems({ allowed_req: true });
-      setAllItems(mapRequestableStock(result || []));
+      const rows = mapRequestableStock(result || []);
+      setAllItems(rows);
+      const medAssetIds = rows.filter((i) => i.type === "MED_ASSET").map((i) => i.id);
+      if (medAssetIds.length > 0) {
+        const counts = await getAssetCounts(medAssetIds);
+        setRegisteredCounts(counts || {});
+      } else {
+        setRegisteredCounts({});
+      }
     } catch (error) {
       const msg = getErrorMessage(error);
       console.error("Fetch error:", msg);
@@ -205,8 +211,8 @@ export default function WithdrawClient({ initialItems }: Props) {
       return matchesSearch && matchesCat && matchesLocation;
     })
     .sort((a, b) => {
-      const sa = getEffectiveStock(a);
-      const sb = getEffectiveStock(b);
+      const sa = getEffectiveStock(a, registeredCounts);
+      const sb = getEffectiveStock(b, registeredCounts);
       if (sa > 0 && sb <= 0) return -1;
       if (sa <= 0 && sb > 0) return 1;
       return 0;
@@ -230,33 +236,27 @@ export default function WithdrawClient({ initialItems }: Props) {
     }
   }, [selectedCategory, categories]);
 
-  const Badge = ({ status }: { status: string }) => {
-    const statusMap: Record<string, string> = {
-      ACTIVE: "เปิดใช้งาน",
-    };
-    const displayStatus = statusMap[status] || status;
-
+  const StockStatusBadge = ({ label }: { label: string }) => {
     const styles: Record<string, string> = {
       ปกติ: "bg-green-100 text-green-500",
       ต่ำ: "bg-amber-100 text-amber-500",
       หมด: "bg-red-100 text-red-500",
       ระงับ: "bg-red-100 text-red-500",
-      เปิดใช้งาน: "bg-green-100 text-green-500",
     };
     return (
       <span
-        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[displayStatus] || "bg-slate-100 text-slate-700"}`}
+        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[label] || "bg-slate-100 text-slate-700"}`}
       >
-        {displayStatus}
+        {label}
       </span>
     );
   };
 
   const openItemDetail = useCallback((item: Item.UiItem) => {
     // Override stock → effective stock so ItemDetailModal caps at the right max
-    setSelectedItemForDetail({ ...item, stock: getEffectiveStock(item) });
+    setSelectedItemForDetail({ ...item, stock: getEffectiveStock(item, registeredCounts) });
     setShowItemDetailModal(true);
-  }, []);
+  }, [registeredCounts]);
 
   const handleItemDetailConfirm = useCallback((quantity: number) => {
     if (!selectedItemForDetail) return;
@@ -289,14 +289,14 @@ export default function WithdrawClient({ initialItems }: Props) {
           if (i.id === id) {
             const n = i.quantity + delta;
             const origItem = allItems.find((orig) => orig.id === id);
-            const maxStock = origItem ? getEffectiveStock(origItem) : 0;
+            const maxStock = origItem ? getEffectiveStock(origItem, registeredCounts) : 0;
             if (n > 0 && n <= maxStock) return { ...i, quantity: n };
           }
           return i;
         })
       );
     },
-    [allItems]
+    [allItems, registeredCounts]
   );
 
   const handleCartSuccess = () => {
@@ -489,13 +489,13 @@ export default function WithdrawClient({ initialItems }: Props) {
               <table className="w-full table-fixed text-sm text-left">
                 <colgroup>
                   <col className="w-[44px]" />
-                  <col className="w-[88px]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[21%]" />
+                  <col className="w-[80px]" />
                   <col className="w-[12%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[13%]" />
                   <col className="w-[8%]" />
                   <col className="w-[8%]" />
                 </colgroup>
@@ -505,10 +505,10 @@ export default function WithdrawClient({ initialItems }: Props) {
                     <th className={LIST_TABLE_TH_ICON}>รูป</th>
                     <th className="px-3 pr-2 py-3.5 text-left whitespace-nowrap">รหัสรายการ</th>
                     <th className="pl-2 pr-3 py-3.5 text-left">ชื่อพัสดุ</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap">หมวดหมู่</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap w-[120px]">คงเหลือ</th>
+                    <th className="px-3 py-3.5 text-left whitespace-nowrap">หมวดหมู่</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap w-[100px]">คงเหลือ</th>
                     <th className="px-3 py-3.5 text-left whitespace-nowrap">หน่วย</th>
-                    <th className="px-3 py-3.5 text-center whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
+                    <th className="px-3 py-3.5 text-left whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
                     <th className="px-3 py-3.5 text-center whitespace-nowrap">สถานะ</th>
                     <th className="px-3 py-3.5 text-center whitespace-nowrap">จัดการ</th>
                   </tr>
@@ -543,38 +543,32 @@ export default function WithdrawClient({ initialItems }: Props) {
                           {item.name}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600 truncate align-top">{item.category}</td>
-                      <td className="px-3 py-3 w-[120px] text-center align-top">
+                      <td className="px-3 py-3 text-left text-slate-600 truncate align-top" title={item.category}>{item.category}</td>
+                      <td className="px-3 py-3 w-[100px] text-center align-top">
                         <div className="flex justify-center">
-                          {item.type === "REUSABLE" ? (
-                            <div className="relative group inline-block cursor-help">
-                              <span
-                                className={`font-bold text-base ${
-                                  getEffectiveStock(item) <= 0
-                                    ? "text-red-500"
-                                    : getEffectiveStock(item) <= item.minStock
-                                      ? "text-orange-500"
-                                      : "text-emerald-600"
-                                }`}
-                              >
-                                {getEffectiveStock(item)}
-                              </span>
-                              <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                                ทั้งหมดในคลัง: {item.stock} {item.unit}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center">
-                              <span
-                                className={`font-bold ${
-                                  item.stock <= 0 ? "text-red-500" : item.stock <= item.minStock ? "text-orange-500" : "text-emerald-600"
-                                }`}
-                              >
-                                {item.stock}
-                              </span>
-                            </div>
-                          )}
+                          {(() => {
+                            const eff = getEffectiveStock(item, registeredCounts);
+                            const colorCls =
+                              eff <= 0
+                                ? "text-red-500"
+                                : eff <= item.minStock
+                                  ? "text-orange-500"
+                                  : "text-emerald-600";
+                            if (item.type === "REUSABLE") {
+                              return (
+                                <div className="relative group inline-block cursor-help">
+                                  <span className={`font-bold text-base ${colorCls}`}>{eff}</span>
+                                  <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                                    ทั้งหมดในคลัง: {item.stock} {item.unit}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span className={`font-bold ${colorCls}`}>{eff}</span>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="px-3 py-3 text-left text-slate-600 align-top">
@@ -582,10 +576,10 @@ export default function WithdrawClient({ initialItems }: Props) {
                           {item.unit}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600 truncate align-top">{item.location || "-"}</td>
+                      <td className="px-3 py-3 text-left text-slate-600 truncate align-top" title={item.location || undefined}>{item.location || "-"}</td>
                       <td className="px-3 py-3 text-center align-top">
                         <div className="flex justify-center">
-                          <Badge status={item.status} />
+                          <StockStatusBadge label={getStockLevelLabel(item, registeredCounts)} />
                         </div>
                       </td>
                       <td className="px-3 py-3 text-center">
@@ -593,7 +587,7 @@ export default function WithdrawClient({ initialItems }: Props) {
                           <button
                             type="button"
                             onClick={() => openItemDetail(item)}
-                            disabled={getEffectiveStock(item) <= 0}
+                            disabled={getEffectiveStock(item, registeredCounts) <= 0}
                             className="p-1.5 bg-blue-700 text-white rounded-md border border-blue-700/90 shadow-sm hover:bg-blue-800 hover:border-blue-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title="เพิ่มเข้าตะกร้า"
                           >

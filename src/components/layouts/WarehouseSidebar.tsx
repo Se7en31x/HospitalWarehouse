@@ -38,15 +38,15 @@ interface MenuGroup {
 const menuGroups: MenuGroup[] = [
   {
     title: 'ภาพรวม',
-    items: [{ name: 'ภาพรวมระบบ', path: '/warehouse', icon: LayoutDashboard }],
+    items: [{ name: 'ภาพรวมระบบคลังหลัก', path: '/warehouse', icon: LayoutDashboard }],
   },
   {
     title: 'คลังพัสดุ',
     items: [
       { name: 'รายการพัสดุ', path: '/warehouse/items', icon: PackageSearch },
+      { name: 'รับพัสดุเข้าคลัง', path: '/warehouse/receives', icon: ArrowDownToLine },
       { name: 'ล็อตสินค้า', path: '/warehouse/lots', icon: Layers },
       { name: 'จัดการครุภัณฑ์', path: '/warehouse/assets', icon: Tags },
-      { name: 'รับพัสดุเข้าคลัง', path: '/warehouse/receives', icon: ArrowDownToLine },
     ],
   },
   {
@@ -65,8 +65,8 @@ const menuGroups: MenuGroup[] = [
         ],
       },
       { name: 'คำขอเบิก-ยืม', path: '/warehouse/requests', icon: ClipboardCheck },
-      { name: 'รับคืนพัสดุยืม', path: '/warehouse/returns', icon: Undo2 },
-      { name: 'รับคืนพัสดุนำกลับ', path: '/warehouse/returns-department', icon: PackageCheck },
+      { name: 'รับคืนจากบุคคลภายนอก', path: '/warehouse/returns', icon: Undo2 },
+      { name: 'รับคืนจากแผนกต่าง ๆ', path: '/warehouse/returns-department', icon: PackageCheck },
     ],
   },
   {

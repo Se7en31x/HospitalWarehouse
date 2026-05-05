@@ -190,8 +190,8 @@ const reportGroups: ReportGroup[] = [
       },
       {
         id: "reusable-items",
-        label: "รายงานของใช้ซ้ำรายชิ้น",
-        description: "ดูสถานะและสภาพของสินค้าประเภทใช้ซ้ำแยกตามแผนก",
+        label: "รายงานอุปกรณ์ทางการแพทย์",
+        description: "ดูสถานะและสภาพอุปกรณ์ทางการแพทย์แยกตามแผนก",
         icon: Stethoscope,
         countKey: null,
       },

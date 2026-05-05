@@ -815,7 +815,7 @@ export default function ReceiveFormPage() {
                       lang="en"
                       autoComplete="off"
                       spellCheck={false}
-                      inputMode="latin"
+                      inputMode="text"
                       onChange={e => setScanInput(e.target.value)}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.code === "NumpadEnter") {

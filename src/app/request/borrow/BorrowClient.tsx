@@ -7,15 +7,17 @@ import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 import {
   LIST_TABLE_HEAD_ROW,
-  LIST_TABLE_TH,
   LIST_TABLE_TH_ICON,
   LIST_TABLE_TH_ROWNUM_TIGHT,
-  LIST_TABLE_TH_WIDE,
   LIST_TABLE_TBODY,
 } from "@/lib/tableUi";
 
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
+import {
+  getEffectiveStockForUiItem as getEffectiveStock,
+  getStockLevelLabelForUiItem as getStockLevelLabel,
+} from "@/lib/itemStockUi";
 import { socket } from "@/lib/socket";
 import { useAuth } from "@/hooks/useAuth";
 import { pickWarehouseJwtDepartmentId } from "@/lib/departmentAccess";
@@ -59,11 +61,6 @@ interface BorrowHistory {
   returnDate: string;
   status: "BORROWED" | "RETURNED" | "PARTIAL";
 }
-
-const getEffectiveStock = (item: Item.UiItem): number =>
-  item.type === "REUSABLE"
-    ? (typeof item.availableStock === "number" ? item.availableStock : 0)
-    : item.stock;
 
 const mapBorrowableStock = (rows: Item.UiItem[] = []): Item.UiItem[] => rows;
 
@@ -226,24 +223,18 @@ export default function BorrowClient({ initialItems }: Props) {
     if (currentPage > tp) setCurrentPage(tp);
   }, [filteredItems.length, currentPage]);
 
-  const Badge = ({ status }: { status: string }) => {
-    const statusMap: Record<string, string> = {
-      ACTIVE: "เปิดใช้งาน",
-    };
-    const displayStatus = statusMap[status] || status;
-
+  const StockStatusBadge = ({ label }: { label: string }) => {
     const styles: Record<string, string> = {
       ปกติ: "bg-green-100 text-green-500",
       ต่ำ: "bg-amber-100 text-amber-500",
       หมด: "bg-red-100 text-red-500",
       ระงับ: "bg-red-100 text-red-500",
-      เปิดใช้งาน: "bg-green-100 text-green-500",
     };
     return (
       <span
-        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[displayStatus] || "bg-slate-100 text-slate-700"}`}
+        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[label] || "bg-slate-100 text-slate-700"}`}
       >
-        {displayStatus}
+        {label}
       </span>
     );
   };
@@ -457,28 +448,28 @@ export default function BorrowClient({ initialItems }: Props) {
               <table className="w-full table-fixed text-sm text-left">
                 <colgroup>
                   <col className="w-[44px]" />
-                  <col className="w-[88px]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[20%]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[22%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[7%]" />
                   <col className="w-[13%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[9%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
                 <thead className={LIST_TABLE_HEAD_ROW}>
                   <tr>
                     <th className={LIST_TABLE_TH_ROWNUM_TIGHT}>#</th>
                     <th className={LIST_TABLE_TH_ICON}>รูป</th>
-                    <th className={LIST_TABLE_TH}>รหัสรายการ</th>
-                    <th className={`${LIST_TABLE_TH} px-3`}>ชื่อพัสดุ</th>
-                    <th className={LIST_TABLE_TH_WIDE}>หมวดหมู่</th>
-                    <th className={`${LIST_TABLE_TH_WIDE} w-[120px]`}>คงเหลือ</th>
-                    <th className={LIST_TABLE_TH_WIDE}>หน่วย</th>
-                    <th className={LIST_TABLE_TH_WIDE}>ตำแหน่งจัดเก็บ</th>
-                    <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
-                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
+                    <th className="px-3 pr-2 py-3.5 text-left whitespace-nowrap">รหัสรายการ</th>
+                    <th className="pl-2 pr-3 py-3.5 text-left">ชื่อพัสดุ</th>
+                    <th className="px-3 py-3.5 text-left whitespace-nowrap">หมวดหมู่</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap w-[100px]">คงเหลือ</th>
+                    <th className="px-3 py-3.5 text-left whitespace-nowrap">หน่วย</th>
+                    <th className="px-3 py-3.5 text-left whitespace-nowrap">ตำแหน่งจัดเก็บ</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap">สถานะ</th>
+                    <th className="px-3 py-3.5 text-center whitespace-nowrap">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className={LIST_TABLE_TBODY}>
@@ -505,50 +496,51 @@ export default function BorrowClient({ initialItems }: Props) {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-3">{item.code}</td>
-                      <td className="px-3 py-3">
-                        <span className="block truncate" title={item.name}>
+                      <td className="px-3 py-3 pr-2 text-left align-top">{item.code}</td>
+                      <td className="pl-2 pr-3 py-3 text-left align-top">
+                        <span className="block min-w-0 truncate" title={item.name}>
                           {item.name}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-slate-600 truncate">{item.category}</td>
-                      <td className="px-6 py-3 w-[120px]">
-                        {item.type === "REUSABLE" ? (
-                          <div className="relative group inline-block cursor-help">
-                            <span
-                              className={`font-bold text-base ${
-                                getEffectiveStock(item) <= 0
-                                  ? "text-red-500"
-                                  : getEffectiveStock(item) <= item.minStock
-                                    ? "text-orange-500"
-                                    : "text-emerald-600"
-                              }`}
-                            >
-                              {getEffectiveStock(item)}
-                            </span>
-                            <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                              ทั้งหมดในคลัง: {item.stock} {item.unit}
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col">
-                            <span
-                              className={`font-bold ${
-                                item.stock <= 0 ? "text-red-500" : item.stock <= item.minStock ? "text-orange-500" : "text-emerald-600"
-                              }`}
-                            >
-                              {item.stock}
-                            </span>
-                          </div>
-                        )}
+                      <td className="px-3 py-3 text-left text-slate-600 truncate align-top" title={item.category}>
+                        {item.category}
                       </td>
-                      <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
-                      <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>
-                      <td className="px-6 py-3">
-                        <Badge status={item.status} />
+                      <td className="px-3 py-3 w-[100px] text-center align-top">
+                        <div className="flex justify-center">
+                          {(() => {
+                            const eff = getEffectiveStock(item);
+                            const colorCls =
+                              eff <= 0
+                                ? "text-red-500"
+                                : eff <= item.minStock
+                                  ? "text-orange-500"
+                                  : "text-emerald-600";
+                            return (
+                              <div className="relative group inline-block cursor-help">
+                                <span className={`font-bold text-base ${colorCls}`}>{eff}</span>
+                                <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                                  ทั้งหมดในคลัง: {item.stock} {item.unit}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </td>
-                      <td className="px-6 py-3 text-center">
+                      <td className="px-3 py-3 text-left text-slate-600 align-top">
+                        <span className="block min-w-0 whitespace-normal break-words leading-snug" title={item.unit}>
+                          {item.unit}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-left text-slate-600 truncate align-top" title={item.location || undefined}>
+                        {item.location || "-"}
+                      </td>
+                      <td className="px-3 py-3 text-center align-top">
+                        <div className="flex justify-center">
+                          <StockStatusBadge label={getStockLevelLabel(item)} />
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
                         <div className="flex justify-center gap-1">
                           <button
                             type="button"
