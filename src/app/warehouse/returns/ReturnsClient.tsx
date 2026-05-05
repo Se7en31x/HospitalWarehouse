@@ -256,7 +256,7 @@ export default function ReturnsClient() {
         <div className="flex items-center gap-4">
           <PageHeadingIconBox icon={RotateCcw} tone="orange" />
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนพัสดุยืม</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">รับคืนจากบุคคลภายนอก</h2>
             <p className="text-sm text-slate-500 mt-0.5">รับคืนพัสดุที่ยืมและบันทึกสภาพสิ่งของที่ส่งคืน</p>
           </div>
         </div>

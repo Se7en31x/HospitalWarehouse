@@ -57,7 +57,7 @@ interface DocSectionProps {
   onRefresh: () => void;
 }
 
-type ItemInput = { qty: number; lot_code: string; expired_at: string };
+type ItemInput = { qty: number; lot_code: string; expired_at: string; mfg_at: string };
 
 function DocSection({ doc, onRefresh }: DocSectionProps) {
   const isAsset    = doc.type === "PURCHASE_ASSET";
@@ -76,6 +76,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           qty: item.qty ?? item.expected_qty ?? 0,
           lot_code: item.lot_code || "",
           expired_at: item.expired_at ? item.expired_at.split("T")[0] : "",
+          mfg_at: "",
         };
       });
     }
@@ -121,6 +122,9 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           : showAssetWarranty
             ? (d.expired_at ? new Date(d.expired_at).toISOString() : null)
             : undefined,
+        mfg_at: showLot && d.mfg_at
+          ? new Date(d.mfg_at).toISOString()
+          : undefined,
         assets: isAsset && d.qty > 0 ? Array(d.qty).fill({}) : undefined,
       }));
       await receiveService.confirmReceive(doc.id, payload);
@@ -133,7 +137,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
     }
   };
 
-  const colSpan = showLot ? 8 : showAssetWarranty ? 7 : 6;
+  const colSpan = showLot ? 9 : showAssetWarranty ? 7 : 6;
 
   const itemCategory = (row: { category?: string | null; category_name?: string | null }) =>
     row.category_name?.trim() || row.category?.trim() || "—";
@@ -180,6 +184,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
               {showLot ? (
                 <>
                   <col className="w-[80px]" />
+                  <col className="w-[120px]" />
                   <col className="w-[160px]" />
                   <col className="w-[150px]" />
                 </>
@@ -200,6 +205,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                 {showLot && (
                   <>
                     <th className="px-6 py-3 whitespace-nowrap">Lot Code</th>
+                    <th className="px-6 py-3 whitespace-nowrap">วันที่ผลิต</th>
                     <th className="px-6 py-3 whitespace-nowrap">วันหมดอายุ</th>
                   </>
                 )}
@@ -258,7 +264,17 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                           </td>
                           <td className="px-6 py-3 align-middle">
                             <input
+                              title="วันที่ผลิต" type="date"
+                              max={new Date().toISOString().split("T")[0]}
+                              className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                              value={inputs[item.id]?.mfg_at ?? ""}
+                              onChange={e => patch(item.id, { mfg_at: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-6 py-3 align-middle">
+                            <input
                               title="Expiry date" type="date"
+                              min={inputs[item.id]?.mfg_at || undefined}
                               className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
                               value={inputs[item.id]?.expired_at ?? ""}
                               onChange={e => patch(item.id, { expired_at: e.target.value })}
@@ -288,6 +304,9 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                             <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
                               {item.lot_code ?? "—"}
                             </p>
+                          </td>
+                          <td className="px-6 py-3 text-sm text-slate-500 tabular-nums align-middle whitespace-nowrap">
+                            —
                           </td>
                           <td className="px-6 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
                             {fmtDate(item.expired_at)}

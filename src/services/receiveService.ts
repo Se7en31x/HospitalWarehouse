@@ -128,6 +128,8 @@ export async function createReceive(payload: {
         cost_price?: number;
         lot_code?: string | null;
         expired_at?: string | null;
+        /** วันที่ผลิต — บันทึกที่ inventory.item_lots.mfg_at เมื่อยืนยันรับเข้า */
+        mfg_at?: string | null;
         warehouse_id?: string | null;
         department_id?: number | null;
         note?: string | null;
@@ -143,6 +145,7 @@ export async function confirmReceive(
         qty: number;
         lot_code?: string;
         expired_at?: string | null;
+        mfg_at?: string | null;
         warehouse_id?: string;
         assets?: Array<{
             serial_no?: string;

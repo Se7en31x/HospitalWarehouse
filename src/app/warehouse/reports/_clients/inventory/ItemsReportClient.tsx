@@ -93,6 +93,12 @@ const getEffectiveStock = (item: UiItem): number =>
 		? (typeof item.availableStock === "number" ? item.availableStock : 0)
 		: item.stock;
 
+/** แสดงในคอลัมน์ขั้นต่ำ: ถ้าไม่ได้ตั้งหรือเป็น 0 ให้โชว์ 0 แทน "—" */
+const displayMinStockForReport = (minStock: number | undefined): number => {
+	const n = Number(minStock);
+	return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
@@ -241,7 +247,7 @@ const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
 				item.category,
 				formatItemType(item.type),
 				item.stock,
-				item.minStock,
+				displayMinStockForReport(item.minStock),
 				item.unit,
 				item.location,
 			]);
@@ -300,7 +306,7 @@ const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
 			category: item.category,
 			typeLabel: formatItemType(item.type),
 			stock:    item.stock.toLocaleString(),
-			minStock: item.minStock.toLocaleString(),
+			minStock: displayMinStockForReport(item.minStock).toLocaleString(),
 			unit:     item.unit,
 			storage:  item.location,
 		}));
@@ -489,11 +495,7 @@ const ItemsReportClient: React.FC<Props> = ({ onBack }) => {
 											)}
 										</td>
 										<td className="px-6 py-3 w-[120px]">
-											{item.minStock > 0 ? (
-												<span className="text-black font-semibold">{item.minStock}</span>
-											) : (
-												<span className="text-black">-</span>
-											)}
+											<span className="text-black font-semibold">{displayMinStockForReport(item.minStock)}</span>
 										</td>
 										<td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
 										<td className="px-6 py-3 text-slate-600 truncate" title={item.location || undefined}>{item.location || "-"}</td>

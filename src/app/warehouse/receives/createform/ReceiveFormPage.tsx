@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, Search, Trash2, X, CheckCircle2, Pencil, PackagePlus,
@@ -205,6 +205,9 @@ export default function ReceiveFormPage() {
 
   const [lines, setLines]     = useState<LineItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
+  /** หลังยืนยันรับเข้าสำเร็จ — กัน useEffect บันทึกร่างเขียนทับหลัง clearDraft */
+  const skipDraftAutosaveRef = useRef(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Scanner state
@@ -285,7 +288,7 @@ export default function ReceiveFormPage() {
   // ── Save to localStorage ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || skipDraftAutosaveRef.current) return;
     saveDraft(source, docMeta, lines, pendingLine);
   }, [source, docMeta, lines, pendingLine, isHydrated]);
 
@@ -451,7 +454,12 @@ export default function ReceiveFormPage() {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
+    if (saveInFlightRef.current || isSaving) return;
     if (lines.length === 0) { toast.error("ไม่มีรายการ"); return; }
+    if (pendingLine) {
+      toast.error("กรุณากด “เพิ่มรายการ” หรือ “ยกเลิก” ให้จบแถวที่กำลังกรอกก่อนยืนยันรับเข้า");
+      return;
+    }
 
     const missingDoc: string[] = [];
     if (!docMeta.receiveDate.trim()) missingDoc.push("วันที่รับเข้า");
@@ -504,6 +512,7 @@ export default function ReceiveFormPage() {
     }
 
     setIsSaving(true);
+    saveInFlightRef.current = true;
     const ts         = Date.now();
     const batchNo    = `RCV-${ts}`;
     const isDonation = source === "donation";
@@ -598,6 +607,7 @@ export default function ReceiveFormPage() {
                 lot_code:     l.lotCode   || null,
                 cost_price:   l.costPrice || 0,
                 expired_at:   l.expiryDate ? new Date(l.expiryDate).toISOString() : null,
+                mfg_at:       l.mfgDate ? new Date(l.mfgDate).toISOString() : null,
                 note:         discrepancy,
               };
             }),
@@ -615,13 +625,17 @@ export default function ReceiveFormPage() {
         confirmButtonColor: "#2563eb",
       });
 
+      skipDraftAutosaveRef.current = true;
       setLines([]);
       setDocMeta(INIT_DOC);
+      setPendingLine(null);
+      setEditingLineId(null);
       clearDraft();
       router.push(`/warehouse/receives/${batch.id}`);
     } catch (err) {
       toast.error("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : String(err)));
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   };
@@ -657,7 +671,7 @@ export default function ReceiveFormPage() {
               <p className="text-sm text-slate-500 mt-0.5">กรอกรายละเอียดและเพิ่มรายการสินค้าเพื่อสร้างใบรับสินค้า</p>
             </div>
           </div>
-          <button onClick={() => router.back()}
+          <button type="button" onClick={() => router.back()}
             className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-sm font-medium transition-colors">
             ย้อนกลับ
           </button>
@@ -671,8 +685,8 @@ export default function ReceiveFormPage() {
               const isActive = source === opt.val;
               return (
                 <button
-                  key={opt.val}
                   type="button"
+                  key={opt.val}
                   onClick={() => handleSourceChange(opt.val)}
                   className={`px-5 py-3.5 text-base font-semibold border-b-2 transition-colors ${
                     isActive
@@ -955,7 +969,7 @@ export default function ReceiveFormPage() {
 
           {/* Save Button */}
           <div className="flex justify-end mt-auto pt-6">
-            <button onClick={handleSave}
+            <button type="button" onClick={() => void handleSave()}
               disabled={lines.length === 0 || isSaving}
               className="flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium shadow disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
