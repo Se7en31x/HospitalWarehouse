@@ -67,6 +67,7 @@ export async function getStockMovementReports(params?: T.ReportQueryParams): Pro
 /** 3. รายงานสินค้าหมดอายุ */
 export async function getExpiredLotsReports(params?: T.ReportQueryParams): Promise<T.Report[]> {
   const queryParams: Record<string, unknown> = {};
+  if (params?.dateFrom) queryParams.dateFrom = params.dateFrom;
   if (params?.dateTo) queryParams.dateTo = params.dateTo;
 
   const res = await api.list<T.ExpiredLotRaw>(`/reports/expired-lots`, queryParams);

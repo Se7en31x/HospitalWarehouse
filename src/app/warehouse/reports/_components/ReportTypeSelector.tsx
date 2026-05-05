@@ -81,7 +81,7 @@ const reportTypeOptions: {
 	{
 		id: "low-stock",
 		label: "รายงานสต็อกต่ำ & ใกล้หมดอายุ",
-		description: "ดูสินค้าที่ต่ำกว่า Min Stock และล็อตที่ใกล้หมดอายุในหน้าเดียว",
+		description: "ดูสินค้าที่ต่ำกว่ากำหนด และล็อตที่ใกล้หมดอายุในหน้าเดียว",
 		countBg: "bg-amber-50",
 		countText: "text-amber-700",
 		ringColor: "ring-amber-300",

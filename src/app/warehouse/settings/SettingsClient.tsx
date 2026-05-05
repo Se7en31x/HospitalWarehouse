@@ -62,6 +62,15 @@ const PAGE_LIMIT = 10;
 /** หน่วยนับ: แสดง 6 รายการต่อหน้า */
 const PAGE_LIMIT_UNITS = 6;
 
+function formatSettingsError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  return fallback;
+}
+
 function buildSystemSettingsDraft(sys: SystemSettingsMap): Record<string, string> {
   const draft: Record<string, string> = {};
   for (const [k, v] of Object.entries(sys || {})) {
@@ -172,7 +181,7 @@ export default function SettingsClient({
       setSystemSettings(sys || {});
       setSystemSettingsDraft(buildSystemSettingsDraft(sys || {}));
     } catch (error) {
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", formatSettingsError(error, "โหลดข้อมูลไม่สำเร็จ"));
     } finally {
       setIsFetching(false);
     }
@@ -351,7 +360,7 @@ export default function SettingsClient({
       setSystemSettingsDraft(draft);
       SweetAlertUtils.success("สำเร็จ", "บันทึกการตั้งค่าเรียบร้อย");
     } catch (error) {
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", formatSettingsError(error, "บันทึกไม่สำเร็จ"));
     } finally {
       setIsSaving(false);
     }
@@ -395,6 +404,15 @@ export default function SettingsClient({
     try {
       if (activeTab === "categories") {
         if (!categoryForm.name.trim() || !categoryForm.code_prefix.trim()) throw new Error("กรุณากรอกข้อมูลให้ครบถ้วน");
+        const nameNorm = categoryForm.name.trim().toLowerCase();
+        const prefixNorm = categoryForm.code_prefix.trim().toUpperCase();
+        const siblings = categories.filter((c) => c.id !== editingCategoryId);
+        if (siblings.some((c) => c.name.trim().toLowerCase() === nameNorm)) {
+          throw new Error("ชื่อประเภทพัสดุนี้ซ้ำกับรายการอื่น");
+        }
+        if (siblings.some((c) => (c.code_prefix || "").trim().toUpperCase() === prefixNorm)) {
+          throw new Error("Prefix Code (คำนำหน้ารหัส) นี้ซ้ำกับรายการอื่น");
+        }
         if (editingCategoryId) await updateCategory(editingCategoryId, categoryForm);
         else await createCategory(categoryForm);
         success = true;
@@ -423,7 +441,7 @@ export default function SettingsClient({
         SweetAlertUtils.success("สำเร็จ", "บันทึกข้อมูลเรียบร้อย");
       }
     } catch (error) {
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", formatSettingsError(error, "บันทึกไม่สำเร็จ"));
     } finally {
       setIsSaving(false);
     }
@@ -443,7 +461,7 @@ export default function SettingsClient({
       await fetchAll();
       SweetAlertUtils.success("สำเร็จ", "ลบข้อมูลเรียบร้อย");
     } catch (error) {
-      SweetAlertUtils.error("เกิดข้อผิดพลาด", error instanceof Error ? error.message : "ลบข้อมูลไม่สำเร็จ");
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", formatSettingsError(error, "ลบข้อมูลไม่สำเร็จ"));
     } finally {
       setIsSaving(false);
     }
@@ -946,7 +964,7 @@ export default function SettingsClient({
                   </div>
 
                   <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-5">
-                    <h4 className="text-sm font-bold text-slate-800 mb-4">ตารางเวลาการทำงาน (Cron)</h4>
+                    <h4 className="text-sm font-bold text-slate-800 mb-4">เวลาตรวจอัตโนมัติ (ทุกวัน)</h4>
                     <div className="space-y-4">
                       {scheduleKeys.map((k) => {
                         const meta = systemSettings[k];
@@ -968,7 +986,7 @@ export default function SettingsClient({
                                   className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
                                 />
                                 <div className="text-xs text-slate-500">
-                                  แสดงผลเป็น “ทุกวัน เวลา {timeValue}”
+                                  ระบบจะตรวจอัตโนมัติทุกวัน ณ เวลา {timeValue}
                                 </div>
                               </div>
                             ) : (
@@ -977,11 +995,11 @@ export default function SettingsClient({
                                   type="text"
                                   value={value}
                                   onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
-                                  placeholder="รองรับรูปแบบรายวัน เช่น 5 0 * * *"
+                                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                  placeholder="ติดต่อผู้ดูแลระบบ หากต้องการกำหนดรอบพิเศษ"
                                 />
                                 <div className="text-xs text-amber-700">
-                                  รูปแบบนี้ไม่ใช่ “รายวัน (นาที ชั่วโมง * * *)” จึงแสดงเป็นช่องกรอกขั้นสูง
+                                  ค่าที่บันทึกไว้ไม่ใช่การตรวจแบบทุกวัน ณ เวลาหนึ่ง ระบบจึงแสดงช่องนี้สำหรับผู้ดูแลระบบ
                                 </div>
                               </>
                             )}

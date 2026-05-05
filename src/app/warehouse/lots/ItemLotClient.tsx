@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Search,
   Wrench,
   ChevronLeft, ChevronRight, ChevronDown,
-  ToggleRight, ToggleLeft, Printer, X, Layers
+  ToggleRight, ToggleLeft, Printer, X, Layers, Ban
 } from "lucide-react";
 
 import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
@@ -19,7 +19,7 @@ import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
 import { socket } from "../../../lib/socket";
 import AdjustQuantityModal from "@/app/warehouse/lots/AdjustQuantityModal";
-import { getLots, toggleLotStatus, adjustLot } from "@/services/lotservice";
+import { getLots, toggleLotStatus, adjustLot, markLotUnusable } from "@/services/lotservice";
 import { getInventoryItems, getWarehousesOptions } from "@/services/itemsService";
 import { getSystemSettings } from "@/services/settingsService";
 import { saveLots } from "@/services/stockInService";
@@ -86,6 +86,21 @@ const INITIAL_STOCKIN_FORM: StockinFormData = {
 
 const LOT_PAGE_LIMIT = 10;
 
+/** ค่าว่าง = ไม่กรอง */
+const FILTER_ALL_ID = "";
+
+type LotsStatusFilter = "ALL" | "NEAR" | "EXPIRED" | "ACTIVE" | "SUSPENDED" | "DEPLETED" | "DISPOSED";
+
+const LOT_STATUS_FILTER_OPTIONS: { value: LotsStatusFilter; label: string }[] = [
+  { value: "ALL", label: "สถานะทั้งหมด" },
+  { value: "NEAR", label: "ใกล้หมดอายุ (ตามการแจ้งเตือน)" },
+  { value: "EXPIRED", label: "หมดอายุ (ตามวันที่)" },
+  { value: "ACTIVE", label: "พร้อมจ่าย (ACTIVE)" },
+  { value: "SUSPENDED", label: "ระงับชั่วคราว" },
+  { value: "DEPLETED", label: "เบิกหมด" },
+  { value: "DISPOSED", label: "จำหน่ายทิ้ง" },
+];
+
 // =======================
 // 2. Main Client Component
 // =======================
@@ -109,9 +124,8 @@ export default function LotClient({
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustingLot, setAdjustingLot] = useState<LotInterface.UiLot | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedWarehouse, setSelectedWarehouse] = useState("ทั้งหมด");
-  const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [selectedCategoryId, setSelectedCategoryId] = useState(FILTER_ALL_ID);
+  const [statusFilter, setStatusFilter] = useState<LotsStatusFilter>("ALL");
   const [expiryDays, setExpiryDays] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<"all" | "summary" | "stockin">("all");
@@ -159,6 +173,21 @@ export default function LotClient({
     return "ปกติ";
   };
 
+  /** หมวดจากหมวดหมู่ที่ผูกกับพัสดุประเภท CONSUMABLE (วัสดุสิ้นเปลือง) — สอดคล้องกับล็อตในหน้านี้ */
+  const consumableCategoryOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of itemsMaster) {
+      if (i.type !== "CONSUMABLE") continue;
+      const cid = i.categoryId?.trim();
+      const cname = (i.category || "").trim();
+      if (!cid || !cname || cname === "-") continue;
+      if (!map.has(cid)) map.set(cid, cname);
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "th"));
+  }, [itemsMaster]);
+
   // โหลดข้อมูลทั้งหมดมาครั้งเดียว แล้วทำ filter + pagination ใน client
   const fetchAllLots = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -192,7 +221,7 @@ export default function LotClient({
   const fetchAllData = async () => {
     try {
       const [itemsData, warehousesData] = await Promise.all([
-        getInventoryItems().catch(err => {
+        getInventoryItems({ type: "CONSUMABLE", limit: 1000 }).catch(err => {
           console.error("Failed to fetch items:", err);
           throw { endpoint: '/v1/items', ...err };
         }),
@@ -277,8 +306,8 @@ export default function LotClient({
       enriched.itemCode.toLowerCase().includes(keyword) ||
       (lot.lotCode || '').toLowerCase().includes(keyword);
 
-    const matchesWarehouse = selectedWarehouse === "ทั้งหมด" || enriched.warehouse === selectedWarehouse;
-    const matchesCategory = selectedCategory === "ทั้งหมด" || enriched.category === selectedCategory;
+    const matchesCategory =
+      !selectedCategoryId || (lot.categoryId && lot.categoryId === selectedCategoryId);
 
     const currentStatus = calculateStatus(lot.expiryDate);
     const matchesStatus = (() => {
@@ -286,7 +315,9 @@ export default function LotClient({
       if (statusFilter === "EXPIRED") return currentStatus === "หมดอายุ";
       if (statusFilter === "NEAR") return currentStatus === "ใกล้หมด";
       if (statusFilter === "ACTIVE") return lot.status === "ACTIVE";
-      if (statusFilter === "INACTIVE") return lot.status !== "ACTIVE";
+      if (statusFilter === "SUSPENDED") return lot.status === "SUSPENDED";
+      if (statusFilter === "DEPLETED") return lot.status === "DEPLETED";
+      if (statusFilter === "DISPOSED") return lot.status === "DISPOSED";
       return true;
     })();
 
@@ -301,7 +332,7 @@ export default function LotClient({
     const matchesStartDate = !startDate || (lot.createdAt && lot.createdAt >= startDate);
     const matchesEndDate = !endDate || (lot.createdAt && lot.createdAt.slice(0, 10) <= endDate);
 
-    return matchesSearch && matchesWarehouse && matchesCategory && matchesStatus && matchesExpiryDays && matchesStartDate && matchesEndDate;
+    return matchesSearch && matchesCategory && matchesStatus && matchesExpiryDays && matchesStartDate && matchesEndDate;
   });
 
   const totalPages = Math.ceil(filteredLots.length / LOT_PAGE_LIMIT);
@@ -317,17 +348,12 @@ export default function LotClient({
     setCurrentPage(1);
   };
 
-  const handleWarehouseFilter = (value: string) => {
-    setSelectedWarehouse(value);
-    setCurrentPage(1);
-  };
-
   const handleCategoryFilter = (value: string) => {
-    setSelectedCategory(value);
+    setSelectedCategoryId(value);
     setCurrentPage(1);
   };
 
-  const handleStatusFilter = (value: string) => {
+  const handleStatusFilter = (value: LotsStatusFilter) => {
     setStatusFilter(value);
     setCurrentPage(1);
   };
@@ -348,11 +374,16 @@ export default function LotClient({
     setIsAdjusting(true);
 
     try {
-      const result = await adjustLot(adjustingLot.id, {
+      const payload: LotInterface.AdjustLotPayload = {
         new_quantity: newQty,
         reason: reason,
-        user_name: "Admin"
-      });
+        user_name: "Admin",
+      };
+      if (adjustingLot.status === "DISPOSED" && newQty > 0) {
+        payload.status = "ACTIVE";
+      }
+
+      const result = await adjustLot(adjustingLot.id, payload);
 
       if (result.success) {
         SweetAlertUtils.success('ปรับยอดสำเร็จ', 'ปรับยอดสินค้าเรียบร้อยแล้ว');
@@ -369,6 +400,47 @@ export default function LotClient({
     }
   };
 
+  const handleMarkLotDisposed = async (lot: LotInterface.UiLot) => {
+    if (lot.status === "DISPOSED" || lot.status === "DEPLETED" || lot.status === "CANCELLED") return;
+
+    const confirmResult = await SweetAlertUtils.custom({
+      title: "จำหน่ายทิ้งล็อต?",
+      html: `<p class="text-left text-sm text-slate-600 mb-1">ล็อต <strong>${lot.lotCode || lot.id}</strong> จะไม่ถูกเลือกในการจ่าย และไม่สลับกลับด้วยปุ่มระงับ — แก้ภายหลังได้ผ่านปุ่มปรับยอด (เมื่อยอด &gt; 0 ระบบจะกลับมาใช้งานได้ตามเงื่อนไข)</p>`,
+      icon: "warning",
+      input: "textarea",
+      inputLabel: "เหตุผล / หมายเหตุ (จำเป็น)",
+      inputPlaceholder: "เช่น หมดอายุ, ชำรุด/เสียหาย, ไม่ผ่าน QC, ทำลายตามนโยบาย ฯลฯ",
+      inputAttributes: { "aria-label": "หมายเหตุการจำหน่ายทิ้ง", rows: "4" },
+      showCancelButton: true,
+      confirmButtonText: "ยืนยันจำหน่ายทิ้ง",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#d97706",
+      cancelButtonColor: "#6b7280",
+      inputValidator: (value: string | undefined) => {
+        const t = String(value ?? "").trim();
+        if (!t) return "กรุณาระบุเหตุผลหรือหมายเหตุ";
+        if (t.length < 3) return "กรุณาระบุอย่างน้อย 3 ตัวอักษร";
+        return undefined;
+      },
+    });
+    if (!confirmResult.isConfirmed || typeof confirmResult.value !== "string") return;
+
+    const reason = confirmResult.value.trim();
+
+    try {
+      const out = await markLotUnusable(lot.id, { reason });
+      await fetchAllLots();
+      SweetAlertUtils.success("บันทึกแล้ว", out.message || "ตั้งล็อตเป็นจำหน่ายทิ้งแล้ว");
+    } catch (error: unknown) {
+      const msg = error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "ไม่สามารถจำหน่ายทิ้งล็อตได้";
+      SweetAlertUtils.error("ผิดพลาด", msg);
+    }
+  };
+
   const handleToggleStatus = async (lot: LotInterface.UiLot) => {
     if (calculateStatus(lot.expiryDate) === "หมดอายุ") {
       await SweetAlertUtils.warning(
@@ -378,8 +450,24 @@ export default function LotClient({
       return;
     }
 
+    if (lot.status === "DEPLETED") {
+      await SweetAlertUtils.warning(
+        "ล็อตเบิกหมดแล้ว",
+        "กรุณาปรับเพิ่มจำนวนสต็อก (ปุ่มประแจ) ก่อน ระบบจึงจะเปิดใช้งานล็อตให้จ่ายต่อได้"
+      );
+      return;
+    }
+
+    if (lot.status === "DISPOSED") {
+      await SweetAlertUtils.warning(
+        "จำหน่ายทิ้งแล้ว (ห้ามใช้ถาวร)",
+        "ล็อตนี้ถูกตั้งเป็นห้ามใช้แบบถาวรแล้ว — ถ้าต้องนำกลับมาใช้ ให้เปิดปรับยอด (ปุ่มประแจ) ใส่จำนวนที่ถูกต้องและบันทึก ระบบจะตั้งกลับเป็นใช้งานได้เมื่อยอดมากกว่า 0"
+      );
+      return;
+    }
+
     const isCurrentlyActive = lot.status === "ACTIVE";
-    const nextActionText = isCurrentlyActive ? 'ระงับการใช้งาน' : 'เปิดใช้งาน';
+    const nextActionText = isCurrentlyActive ? "ระงับชั่วคราว" : "เปิดใช้งาน";
 
     const confirmResult = await SweetAlertUtils.question(
       `ยืนยันการ${nextActionText}?`,
@@ -482,7 +570,7 @@ export default function LotClient({
           <PageHeadingIconBox icon={Layers} tone="violet" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตสินค้า</h2>
-            <p className="text-sm text-slate-500 mt-0.5">ติดตามล็อตสินค้า วันหมดอายุ และปริมาณคงเหลือ</p>
+            <p className="text-sm text-slate-500 mt-0.5">ล็อตวัสดุสิ้นเปลือง (CONSUMABLE) — วันหมดอายุและยอดคงเหลือตามล็อต</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -502,30 +590,47 @@ export default function LotClient({
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
+          <input type="text" placeholder="ค้นหา รหัส / ชื่อพัสดุ / Lot..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" />
         </div>
 
-        {/* Category Dropdown */}
+        {/* Category: หมวดของพัสดุ CONSUMABLE เท่านั้น */}
         <div className="relative w-full sm:w-auto" data-filter-category>
           <button
             type="button"
-            onClick={() => { setIsCategoryOpen(!isCategoryOpen); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
+            onClick={() => {
+              setIsCategoryOpen(!isCategoryOpen);
+              setIsStatusOpen(false);
+              setIsExpiryOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[240px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{selectedCategory === "ทั้งหมด" ? "หมวดหมู่ทั้งหมด" : selectedCategory}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
+            <span className="text-slate-800 font-medium truncate">
+              {!selectedCategoryId
+                ? "หมวดหมู่ทั้งหมด"
+                : (consumableCategoryOptions.find((c) => c.id === selectedCategoryId)?.name ?? "หมวดหมู่")}
+            </span>
+            <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
           </button>
           {isCategoryOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
               <ul className="py-1">
-                {["ทั้งหมด", ...Array.from(new Set(itemsMaster.map(i => i.category)))].map(c => (
-                  <li key={c}>
+                <li key="__all_cat__">
+                  <button
+                    type="button"
+                    onClick={() => { handleCategoryFilter(FILTER_ALL_ID); setIsCategoryOpen(false); }}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${!selectedCategoryId ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                  >
+                    หมวดหมู่ทั้งหมด
+                  </button>
+                </li>
+                {consumableCategoryOptions.map((c) => (
+                  <li key={c.id}>
                     <button
                       type="button"
-                      onClick={() => { handleCategoryFilter(c); setIsCategoryOpen(false); }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategory === c ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                      onClick={() => { handleCategoryFilter(c.id); setIsCategoryOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selectedCategoryId === c.id ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
                     >
-                      {c === "ทั้งหมด" ? "หมวดหมู่ทั้งหมด" : c}
+                      {c.name}
                     </button>
                   </li>
                 ))}
@@ -534,20 +639,26 @@ export default function LotClient({
           )}
         </div>
 
-        {/* Status Dropdown */}
+        {/* Status */}
         <div className="relative w-full sm:w-auto" data-filter-status>
           <button
             type="button"
-            onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCategoryOpen(false); setIsExpiryOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
+            onClick={() => {
+              setIsStatusOpen(!isStatusOpen);
+              setIsCategoryOpen(false);
+              setIsExpiryOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[260px] justify-between"
           >
-            <span className="text-slate-800 font-medium">{{ ALL: "สถานะทั้งหมด", NEAR: "ใกล้หมดอายุ", EXPIRED: "หมดอายุ", ACTIVE: "ใช้งานได้", INACTIVE: "ระงับการใช้งาน" }[statusFilter] || "สถานะทั้งหมด"}</span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
+            <span className="text-slate-800 font-medium truncate">
+              {LOT_STATUS_FILTER_OPTIONS.find((s) => s.value === statusFilter)?.label ?? "สถานะทั้งหมด"}
+            </span>
+            <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${isStatusOpen ? "rotate-180" : ""}`} />
           </button>
           {isStatusOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full max-h-72 overflow-y-auto">
               <ul className="py-1">
-                {[{ value: "ALL", label: "สถานะทั้งหมด" }, { value: "NEAR", label: "ใกล้หมดอายุ" }, { value: "EXPIRED", label: "หมดอายุ" }, { value: "ACTIVE", label: "ใช้งานได้" }, { value: "INACTIVE", label: "ระงับการใช้งาน" }].map(s => (
+                {LOT_STATUS_FILTER_OPTIONS.map((s) => (
                   <li key={s.value}>
                     <button
                       type="button"
@@ -563,22 +674,32 @@ export default function LotClient({
           )}
         </div>
 
-        {/* Expiry Days Dropdown */}
+        {/* Expiry window (คนละอย่างกับ «ใกล้หมด» ที่ตาม notify_expiring_days) */}
         <div className="relative w-full sm:w-auto" data-filter-expiry>
           <button
             type="button"
-            onClick={() => { setIsExpiryOpen(!isExpiryOpen); setIsCategoryOpen(false); setIsStatusOpen(false); }}
-            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[180px] justify-between"
+            onClick={() => {
+              setIsExpiryOpen(!isExpiryOpen);
+              setIsCategoryOpen(false);
+              setIsStatusOpen(false);
+            }}
+            className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
           >
-            <span className="text-slate-800 font-medium">
-              {expiryDays === 0 ? "วันหมดอายุ" : `หมดใน ${expiryDays} วัน`}
+            <span className="text-slate-800 font-medium truncate">
+              {expiryDays === 0 ? "กำหนดช่วงหมดอายุ" : `เหลือไม่เกิน ${expiryDays} วัน`}
             </span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpiryOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${isExpiryOpen ? "rotate-180" : ""}`} />
           </button>
           {isExpiryOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-30 min-w-full">
               <ul className="py-1">
-                {[{ value: 0, label: "ทั้งหมด" }, { value: 7, label: "หมดใน 7 วัน" }, { value: 30, label: "หมดใน 30 วัน" }, { value: 60, label: "หมดใน 60 วัน" }, { value: 90, label: "หมดใน 90 วัน" }].map(opt => (
+                {[
+                  { value: 0, label: "ไม่กรองช่วงหมดอายุ" },
+                  { value: 7, label: "เหลือไม่เกิน 7 วัน" },
+                  { value: 30, label: "เหลือไม่เกิน 30 วัน" },
+                  { value: 60, label: "เหลือไม่เกิน 60 วัน" },
+                  { value: 90, label: "เหลือไม่เกิน 90 วัน" },
+                ].map((opt) => (
                   <li key={opt.value}>
                     <button
                       type="button"
@@ -631,13 +752,12 @@ export default function LotClient({
         </div>
 
         {/* Clear filters */}
-        {(searchTerm || selectedWarehouse !== "ทั้งหมด" || selectedCategory !== "ทั้งหมด" || statusFilter !== "ALL" || expiryDays !== 0 || startDate || endDate) && (
+        {(searchTerm || selectedCategoryId || statusFilter !== "ALL" || expiryDays !== 0 || startDate || endDate) && (
           <button
             type="button"
             onClick={() => {
               setSearchTerm("");
-              setSelectedWarehouse("ทั้งหมด");
-              setSelectedCategory("ทั้งหมด");
+              setSelectedCategoryId(FILTER_ALL_ID);
               setStatusFilter("ALL");
               setExpiryDays(0);
               setStartDate("");
@@ -725,22 +845,37 @@ export default function LotClient({
                     <th className={LIST_TABLE_TH_WIDE}>วันที่รับเข้า</th>
                     <th className={LIST_TABLE_TH_WIDE}>วันหมดอายุ</th>
                     <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
-                    <th className={`${LIST_TABLE_TH_WIDE} text-center`}>จัดการ</th>
+                    <th className={`${LIST_TABLE_TH_WIDE} w-[140px] min-w-[140px] max-w-[140px] text-center`}>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className={LIST_TABLE_TBODY}>
                   {currentItems.map((lot, idx) => {
                     const currentStatus = calculateStatus(lot.expiryDate);
                     const isExpiredLot = currentStatus === "หมดอายุ";
+                    const isDepleted = lot.status === "DEPLETED";
+                    const isDisposed = lot.status === "DISPOSED";
+                    const isSuspended = lot.status === "SUSPENDED";
                     const statusLabel = isExpiredLot
                       ? "หมดอายุ"
+                      : isDisposed
+                        ? "จำหน่ายทิ้ง (ห้ามใช้ถาวร)"
+                      : isDepleted
+                        ? "เบิกหมดแล้ว"
+                      : isSuspended
+                        ? "ระงับชั่วคราว"
                       : lot.status !== "ACTIVE"
-                        ? "ระงับการใช้งาน"
+                        ? "อื่น ๆ"
                         : currentStatus === "ปกติ"
                           ? "ใช้งานได้"
                           : currentStatus;
                     const statusBadgeClass = isExpiredLot
                       ? "bg-red-100 text-red-600"
+                      : isDisposed
+                        ? "bg-stone-200 text-stone-800 border border-stone-300"
+                      : isDepleted
+                        ? "bg-slate-100 text-slate-600 border border-slate-200"
+                      : isSuspended
+                        ? "bg-orange-50 text-orange-700 border border-orange-200"
                       : lot.status !== "ACTIVE"
                         ? "bg-red-100 text-red-500"
                         : currentStatus === "ปกติ"
@@ -749,6 +884,17 @@ export default function LotClient({
                             ? "bg-amber-100 text-amber-500"
                             : "bg-slate-100 text-slate-600";
                     const enrichedData = getEnrichedLotData(lot);
+                    const toggleDisabled = isExpiredLot || lot.status === "DEPLETED" || lot.status === "DISPOSED";
+                    const markDisposedDisabled = lot.status !== "ACTIVE" && lot.status !== "SUSPENDED";
+                    const markDisposedTitle = markDisposedDisabled
+                      ? lot.status === "DISPOSED"
+                        ? "จำหน่ายทิ้งแล้ว — ใช้ปุ่มปรับยอดหากต้องแก้ไข"
+                        : lot.status === "DEPLETED"
+                          ? "เบิกหมด — จำหน่ายทิ้งได้เฉพาะเมื่อสถานะพร้อมจ่ายหรือระงับชั่วคราว"
+                          : lot.status === "CANCELLED"
+                            ? "ล็อตถูกยกเลิกแล้ว"
+                            : "จำหน่ายทิ้งได้เฉพาะเมื่อสถานะพร้อมจ่ายหรือระงับชั่วคราว"
+                      : "จำหน่ายทิ้งล็อต — ห้ามใช้ถาวร (ไม่สลับกลับด้วยปุ่มนี้)";
                     return (
                       <tr key={lot.id || idx} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                         <td className="px-4 py-2.5 text-center">
@@ -793,24 +939,42 @@ export default function LotClient({
                             {statusLabel}
                           </span>
                         </td>
-                        <td className="px-6 py-2.5 text-center">
-                          <div className="flex justify-center gap-1">
+                        <td className="px-2 py-2.5 text-center w-[140px] min-w-[140px] max-w-[140px] align-middle">
+                          <div className="inline-flex items-center justify-center gap-0.5">
                             <button
                               type="button"
-                              disabled={isExpiredLot}
+                              disabled={toggleDisabled}
                               onClick={() => handleToggleStatus(lot)}
-                              className={`p-2 rounded-lg transition-colors ${isExpiredLot ? "text-slate-300 cursor-not-allowed opacity-50" : lot.status === "ACTIVE" ? "text-green-500 hover:bg-green-50" : "text-red-400 hover:bg-red-50"}`}
+                              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${toggleDisabled ? "text-slate-300 cursor-not-allowed opacity-50" : lot.status === "ACTIVE" ? "text-green-500 hover:bg-green-50" : "text-red-400 hover:bg-red-50"}`}
                               title={
                                 isExpiredLot
                                   ? "ล็อตหมดอายุ — แก้วันหมดอายุก่อนจึงจะเปิดใช้งานได้"
+                                  : lot.status === "DEPLETED"
+                                    ? "ล็อตเบิกหมดแล้ว — ปรับเพิ่มจำนวนก่อน"
+                                  : lot.status === "DISPOSED"
+                                    ? "จำหน่ายทิ้งแล้ว — ห้ามสลับสถานะจากที่นี่"
                                   : lot.status === "ACTIVE"
-                                    ? "กดเพื่อระงับการใช้งาน"
+                                    ? "กดเพื่อระงับชั่วคราว"
                                     : "กดเพื่อเปิดใช้งาน"
                               }
                             >
                               {lot.status === "ACTIVE" ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
                             </button>
-                            <button onClick={() => openAdjustModal(lot)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                            <button
+                              type="button"
+                              disabled={markDisposedDisabled}
+                              onClick={() => void handleMarkLotDisposed(lot)}
+                              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent transition-colors ${markDisposedDisabled ? "text-slate-300 cursor-not-allowed opacity-50" : "text-amber-800 hover:bg-amber-50 hover:border-amber-200"}`}
+                              title={markDisposedTitle}
+                            >
+                              <Ban className="w-5 h-5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openAdjustModal(lot)}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-50"
+                              title="ปรับยอด / แก้ข้อมูลล็อต"
+                            >
                               <Wrench className="w-5 h-5" />
                             </button>
                           </div>

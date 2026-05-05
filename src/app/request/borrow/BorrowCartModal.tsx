@@ -36,6 +36,13 @@ import type { ProvinceOption, DistrictOption, SubdistrictOption, TitleOption } f
 import { RequisitionPayload } from "@/types/requisition_type";
 import { fmtDate } from "@/utils/dateUtils";
 import { pickMainWarehouseDepartment } from "@/lib/departmentAccess";
+import {
+  BORROW_LOCAL_STORAGE_KEYS,
+  clearBorrowFormDraftStorage,
+  clearAllBorrowPersistedState,
+  loadBorrowFormDraftFiles,
+  saveBorrowFormDraftFiles,
+} from "@/lib/borrowPersistedState";
 
 const MySwal = withReactContent(Swal);
 
@@ -47,6 +54,16 @@ const getErrorMessage = (error: unknown): string => {
 
 const todayYmdLocal = (): string => {
   const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+/** วันที่ (local) หลังบวก days จากวันนี้ — ใช้คู่กับปุ่มด่วน 30/60/90 และเช็คว่าปุ่มไหนถูกเลือก */
+const returnDateAfterDaysLocal = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -107,98 +124,10 @@ interface ExternalPersonForm {
   documents: File[];
 }
 
-/** ร่างฟอร์ม: JSON ใน localStorage, เอกสารแนบใน IndexedDB */
-const BORROW_FORM_DRAFT_KEY = "hpk_borrow_external_draft_v1";
-
-const BORROW_DRAFT_IDB = {
-  db: "hpk-borrow-workspace",
-  version: 1,
-  store: "draft",
-} as const;
-const BORROW_DRAFT_IDB_KEY_FILES = "external_attachments_v1";
-
-type IdbDraftFile = { name: string; type: string; lastModified: number; data: ArrayBuffer };
-
-function idbOpen(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === "undefined") {
-      reject(new Error("no idb"));
-      return;
-    }
-    const req = indexedDB.open(BORROW_DRAFT_IDB.db, BORROW_DRAFT_IDB.version);
-    req.onerror = () => reject(req.error ?? new Error("idb open"));
-    req.onsuccess = () => resolve(req.result);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(BORROW_DRAFT_IDB.store)) {
-        db.createObjectStore(BORROW_DRAFT_IDB.store);
-      }
-    };
-  });
-}
-
-async function idbSaveDraftFiles(files: File[]): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  const parts: IdbDraftFile[] = await Promise.all(
-    files.map(async (f) => ({
-      name: f.name,
-      type: f.type,
-      lastModified: f.lastModified,
-      data: await f.arrayBuffer(),
-    }))
-  );
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BORROW_DRAFT_IDB.store, "readwrite");
-    const st = tx.objectStore(BORROW_DRAFT_IDB.store);
-    st.put(parts, BORROW_DRAFT_IDB_KEY_FILES);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function idbLoadDraftFiles(): Promise<File[]> {
-  if (typeof indexedDB === "undefined") return [];
-  let db: IDBDatabase;
-  try {
-    db = await idbOpen();
-  } catch {
-    return [];
-  }
-  const parts = await new Promise<IdbDraftFile[] | undefined>((resolve, reject) => {
-    const tx = db.transaction(BORROW_DRAFT_IDB.store, "readonly");
-    const st = tx.objectStore(BORROW_DRAFT_IDB.store);
-    const g = st.get(BORROW_DRAFT_IDB_KEY_FILES);
-    g.onsuccess = () => resolve(g.result as IdbDraftFile[] | undefined);
-    g.onerror = () => reject(g.error);
-  });
-  if (!Array.isArray(parts) || parts.length === 0) return [];
-  return parts.map(
-    (p) =>
-      new File([p.data], p.name, {
-        type: p.type || "application/octet-stream",
-        lastModified: p.lastModified,
-      })
-  );
-}
-
-async function idbClearDraftFiles(): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  try {
-    const db = await idbOpen();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(BORROW_DRAFT_IDB.store, "readwrite");
-      tx.objectStore(BORROW_DRAFT_IDB.store).delete(BORROW_DRAFT_IDB_KEY_FILES);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch {
-    /* ignore */
-  }
-}
-
 interface BorrowFormDraftV1 {
   v: 1;
+  /** ผูกร่างกับผู้ใช้ — ไม่ตรงหรือไม่มี = ไม่ restore */
+  userSub?: string;
   form: Omit<ExternalPersonForm, "documents">;
   externalStep: 1 | 2 | 3;
   externalOperatorDeptId: number | null;
@@ -225,6 +154,8 @@ interface BorrowCartModalProps {
   onDeptChange: (deptId: number) => void;
   /** จาก JWT เมื่อโปรไฟล์ API ไม่มีแผนกคลังหลัก */
   jwtWarehouseDeptId?: number | null;
+  /** Supabase `user.id` — ร่างฟอร์ม/ไฟล์แนบผูกกับผู้ใช้; ไม่ส่ง = ไม่บันทึกร่าง */
+  draftOwnerUserSub?: string | null;
 }
 
 const initialExternalForm: ExternalPersonForm = {
@@ -312,6 +243,7 @@ export default function BorrowCartModal({
   departments,
   onDeptChange,
   jwtWarehouseDeptId = null,
+  draftOwnerUserSub = null,
 }: BorrowCartModalProps) {
   const [attachmentLightbox, setAttachmentLightbox] = useState<{
     url: string;
@@ -416,36 +348,32 @@ export default function BorrowCartModal({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isAddressOpen]);
 
-  // ── ฉบับร่าง: JSON ใน localStorage + เอกสารแนบใน IndexedDB ─────────────────
+  // ── ฉบับร่าง: JSON ใน localStorage + เอกสารแนบใน IndexedDB (ผูกกับ draftOwnerUserSub) ─────────────────
   const clearBorrowDraft = useCallback(() => {
-    try {
-      localStorage.removeItem(BORROW_FORM_DRAFT_KEY);
-    } catch {
-      /* ignore */
-    }
-    void idbClearDraftFiles();
+    void clearBorrowFormDraftStorage();
   }, []);
 
   const flushBorrowDraft = useCallback(async () => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !draftOwnerUserSub) return;
     const payload: BorrowFormDraftV1 = {
       v: 1,
+      userSub: draftOwnerUserSub,
       form: formFieldsForDraft(externalForm),
       externalStep,
       externalOperatorDeptId,
       savedAt: new Date().toISOString(),
     };
     try {
-      localStorage.setItem(BORROW_FORM_DRAFT_KEY, JSON.stringify(payload));
+      localStorage.setItem(BORROW_LOCAL_STORAGE_KEYS.FORM_DRAFT, JSON.stringify(payload));
     } catch (e) {
       console.warn("[BorrowCartModal] ไม่สามารถบันทึกร่างได้", e);
     }
     try {
-      await idbSaveDraftFiles(externalForm.documents);
+      await saveBorrowFormDraftFiles(externalForm.documents);
     } catch (e) {
       console.warn("[BorrowCartModal] ไม่สามารถบันทึกไฟล์ร่าง (IndexedDB)", e);
     }
-  }, [externalForm, externalStep, externalOperatorDeptId]);
+  }, [externalForm, externalStep, externalOperatorDeptId, draftOwnerUserSub]);
 
   const handleCloseModal = useCallback(() => {
     if (isSubmitting) return;
@@ -474,11 +402,20 @@ export default function BorrowCartModal({
   const wasModalOpenRef = useRef(false);
   useEffect(() => {
     if (showCartModal && !wasModalOpenRef.current) {
-      const raw = localStorage.getItem(BORROW_FORM_DRAFT_KEY);
+      if (!draftOwnerUserSub) {
+        wasModalOpenRef.current = showCartModal;
+        return;
+      }
+      const raw = localStorage.getItem(BORROW_LOCAL_STORAGE_KEYS.FORM_DRAFT);
       if (raw) {
         try {
           const d = JSON.parse(raw) as BorrowFormDraftV1;
           if (d?.v === 1 && d.form && typeof d.form === "object") {
+            if (!d.userSub || d.userSub !== draftOwnerUserSub) {
+              void clearBorrowFormDraftStorage();
+              wasModalOpenRef.current = showCartModal;
+              return;
+            }
             setExternalForm({ ...initialExternalForm, ...d.form, documents: [] });
             if (d.externalStep === 1 || d.externalStep === 2 || d.externalStep === 3) {
               setExternalStep(d.externalStep);
@@ -491,7 +428,7 @@ export default function BorrowCartModal({
             if (d.form.returnDate) {
               setGlobalReturnDate(d.form.returnDate);
             }
-            void idbLoadDraftFiles().then((restored) => {
+            void loadBorrowFormDraftFiles().then((restored) => {
               if (restored.length > 0) {
                 setExternalForm((prev) => ({ ...prev, documents: restored }));
               }
@@ -503,7 +440,20 @@ export default function BorrowCartModal({
       }
     }
     wasModalOpenRef.current = showCartModal;
-  }, [showCartModal, setGlobalReturnDate]);
+  }, [showCartModal, draftOwnerUserSub, setGlobalReturnDate]);
+
+  const prevDraftOwnerRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const cur = draftOwnerUserSub ?? undefined;
+    const prev = prevDraftOwnerRef.current;
+    if (prev !== undefined && cur !== undefined && prev !== cur) {
+      void clearBorrowFormDraftStorage();
+      setExternalForm(initialExternalForm);
+      setExternalStep(1);
+      setExternalOperatorDeptId(null);
+    }
+    prevDraftOwnerRef.current = cur;
+  }, [draftOwnerUserSub]);
 
   const flushBorrowDraftRef = useRef(flushBorrowDraft);
   flushBorrowDraftRef.current = flushBorrowDraft;
@@ -513,7 +463,7 @@ export default function BorrowCartModal({
       void flushBorrowDraftRef.current();
     }, 500);
     return () => clearTimeout(t);
-  }, [showCartModal, externalForm, externalStep, externalOperatorDeptId]);
+  }, [showCartModal, externalForm, externalStep, externalOperatorDeptId, draftOwnerUserSub]);
 
   useEffect(() => {
     if (!showCartModal) return;
@@ -811,9 +761,7 @@ export default function BorrowCartModal({
 
         setSelectedItems([]);
         setGlobalReturnDate("");
-        localStorage.removeItem("borrow_cart");
-        localStorage.removeItem("borrow_return_date");
-        clearBorrowDraft();
+        await clearAllBorrowPersistedState();
         setShowCartModal(false);
       } else {
         throw new Error(res.message || "เกิดข้อผิดพลาดในการสร้างใบยืม");
@@ -907,9 +855,7 @@ export default function BorrowCartModal({
       setExternalOperatorDeptId(null);
       setSelectedItems([]);
       setGlobalReturnDate("");
-      localStorage.removeItem("borrow_cart");
-      localStorage.removeItem("borrow_return_date");
-      clearBorrowDraft();
+      await clearAllBorrowPersistedState();
       setShowCartModal(false);
       setExternalStep(1);
     } catch (error) {
@@ -1006,29 +952,32 @@ export default function BorrowCartModal({
                         className="w-full border border-blue-300 rounded-lg p-2.5 text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
                         value={externalForm.returnDate}
                         onChange={(e) => handleExternalFormChange("returnDate", e.target.value)}
-                        min={new Date().toISOString().split("T")[0]}
-                        max={(() => {
-                          const maxDate = new Date();
-                          maxDate.setDate(maxDate.getDate() + 90);
-                          return maxDate.toISOString().split("T")[0];
-                        })()}
+                        min={todayYmdLocal()}
+                        max={returnDateAfterDaysLocal(90)}
                       />
                       <div className="flex gap-2">
-                        {[30, 60, 90].map((days) => (
+                        {[30, 60, 90].map((days) => {
+                          const presetYmd = returnDateAfterDaysLocal(days);
+                          const isPresetSelected = externalForm.returnDate === presetYmd;
+                          return (
                           <button
                             key={days}
                             type="button"
                             disabled={isSubmitting}
+                            aria-pressed={isPresetSelected}
                             onClick={() => {
-                              const date = new Date();
-                              date.setDate(date.getDate() + days);
-                              handleExternalFormChange("returnDate", date.toISOString().split("T")[0]);
+                              handleExternalFormChange("returnDate", presetYmd);
                             }}
-                            className="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-700 font-semibold text-sm hover:bg-blue-200 transition disabled:opacity-50"
+                            className={`flex-1 py-2.5 px-3 rounded-lg font-semibold text-sm transition disabled:opacity-50 border-2 ${
+                              isPresetSelected
+                                ? "bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-400/50 ring-offset-2"
+                                : "bg-blue-50 text-blue-800 border-transparent hover:bg-blue-100"
+                            }`}
                           >
                             {days} วัน
                           </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1791,10 +1740,12 @@ export default function BorrowCartModal({
             </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer — ขนาดปุ่ม w-40 ให้สอดคล้องทุกขั้น */}
         {externalStep === 1 && (
-          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0">
+          <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between gap-3">
+            <div className="w-40 flex-shrink-0" aria-hidden />
             <button
+              type="button"
               onClick={() => {
                 if (selectedItems.length === 0) {
                   MySwal.fire({ title: "แจ้งเตือน", text: "กรุณาเลือกรายการที่ต้องการยืมอย่างน้อย 1 รายการ", icon: "warning" });
@@ -1806,10 +1757,10 @@ export default function BorrowCartModal({
                 }
                 setExternalStep(2);
               }}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2"
+              className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition"
             >
               ถัดไป
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4 flex-shrink-0" />
             </button>
           </div>
         )}
@@ -1817,14 +1768,16 @@ export default function BorrowCartModal({
         {externalStep === 2 && (
           <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between gap-3">
             <button
+              type="button"
               onClick={() => setExternalStep(1)}
               disabled={isSubmitting}
               className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 flex-shrink-0" />
               ย้อนกลับ
             </button>
             <button
+              type="button"
               onClick={() => {
                 const { titleCode, firstname, lastname, address, subdistrict, district, province, postalCode, phone } = externalForm;
                 if (!titleCode) {
@@ -1840,7 +1793,7 @@ export default function BorrowCartModal({
               className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition"
             >
               ถัดไป
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 flex-shrink-0" />
             </button>
           </div>
         )}
@@ -1848,14 +1801,16 @@ export default function BorrowCartModal({
         {externalStep === 3 && (
           <div className="p-5 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between gap-3">
             <button
+              type="button"
               onClick={() => setExternalStep(2)}
               disabled={isSubmitting}
               className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 flex-shrink-0" />
               ย้อนกลับ
             </button>
             <button
+              type="button"
               onClick={submitExternalBorrow}
               disabled={isSubmitting}
               className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed text-center leading-tight"

@@ -22,5 +22,5 @@ export const getLowStockSeverity = (item: UiItem) => {
 };
 
 export const getLowStockStatusLabel = (item: UiItem) => {
-	return isBelowMinStock(item) ? "ต่ำกว่า Min Stock" : "ปกติ";
+	return isBelowMinStock(item) ? "ต่ำกว่ากำหนด" : "ปกติ";
 };

@@ -19,6 +19,7 @@ import * as Item from "@/types/items_type";
 import { socket } from "@/lib/socket";
 import { useAuth } from "@/hooks/useAuth";
 import { pickWarehouseJwtDepartmentId } from "@/lib/departmentAccess";
+import { removeBorrowCartPageLocalStorage } from "@/lib/borrowPersistedState";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import BorrowCartModal from "./BorrowCartModal";
 import ItemDetailModal from "./ItemDetailModal";
@@ -143,20 +144,8 @@ export default function BorrowClient({ initialItems }: Props) {
 
   useEffect(() => {
     setIsMounted(true);
-
-    const savedCart = localStorage.getItem("borrow_cart");
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const savedReturnDate = localStorage.getItem("borrow_return_date");
-    if (savedReturnDate) {
-      setGlobalReturnDate(savedReturnDate);
-    }
+    /* เลิกเก็บตะกร้า/วันคืน/แผนกใน localStorage — ล้างค่าเก่าที่อาจค้างหลังรีเฟรชหรือสลับ user */
+    removeBorrowCartPageLocalStorage();
 
     const fetchOptions = async () => {
       try {
@@ -175,29 +164,11 @@ export default function BorrowClient({ initialItems }: Props) {
       const clinicalDepts = departments.filter((d) => DEPT_TH[d.name] !== undefined);
       if (!clinicalDepts.length) return;
 
-      const savedDept = localStorage.getItem("borrow_dept");
-      const savedDeptId = savedDept ? Number(savedDept) : null;
-      const isValid = savedDeptId !== null && clinicalDepts.some((d) => d.id === savedDeptId);
-
-      if (isValid && savedDeptId !== null) {
-        setSelectedDeptId(savedDeptId);
-      } else {
-        const metaDept = user?.app_metadata?.department as string | undefined;
-        const metaMatch = metaDept ? clinicalDepts.find((d) => d.name === metaDept || d.code === metaDept) : null;
-        setSelectedDeptId(metaMatch ? metaMatch.id : clinicalDepts[0].id);
-      }
+      const metaDept = user?.app_metadata?.department as string | undefined;
+      const metaMatch = metaDept ? clinicalDepts.find((d) => d.name === metaDept || d.code === metaDept) : null;
+      setSelectedDeptId(metaMatch ? metaMatch.id : clinicalDepts[0].id);
     }
   }, [isAuthLoading, departments, user]);
-
-  useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem("borrow_cart", JSON.stringify(cartItems));
-      localStorage.setItem("borrow_return_date", globalReturnDate);
-      if (selectedDeptId !== null) {
-        localStorage.setItem("borrow_dept", String(selectedDeptId));
-      }
-    }
-  }, [cartItems, globalReturnDate, selectedDeptId, isMounted]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -670,6 +641,7 @@ export default function BorrowClient({ initialItems }: Props) {
         departments={departments}
         onDeptChange={setSelectedDeptId}
         jwtWarehouseDeptId={jwtWarehouseDeptId}
+        draftOwnerUserSub={user?.id ?? null}
       />
 
       {lightboxImage && (

@@ -103,7 +103,7 @@ const reportGroups: ReportGroup[] = [
       {
         id: "low-stock",
         label: "รายงานแจ้งเตือนสต็อก",
-        description: "ดูสินค้าที่ต่ำกว่า Min Stock และล็อตที่ใกล้หมดอายุในหน้าเดียว",
+        description: "ดูสินค้าที่ต่ำกว่ากำหนด และล็อตที่ใกล้หมดอายุในหน้าเดียว",
         icon: FileText,
         countKey: "lowStockCount",
       },
@@ -178,7 +178,7 @@ const reportGroups: ReportGroup[] = [
     ],
   },
   {
-    title: "ครุภัณฑ์/ของใช้ซ้ำ",
+    title: "ครุภัณฑ์",
     sectionTheme: "assets",
     reports: [
       {

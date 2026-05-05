@@ -409,6 +409,12 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
               <p className="text-sm font-bold text-gray-900 mb-1">ผู้จำหน่าย / ผู้บริจาค</p>
               <p className="text-base text-slate-800">{batch.supplier_name ?? batch.donor_name ?? "-"}</p>
             </div>
+            {batch.acquisition_type === "PURCHASE" && (
+              <div>
+                <p className="text-sm font-bold text-gray-900 mb-1">ใบส่งสินค้า / เอกสารนำส่ง</p>
+                <p className="text-base text-slate-800 font-mono">{batch.delivery_doc_no?.trim() || "—"}</p>
+              </div>
+            )}
             <div>
               <p className="text-sm font-bold text-gray-900 mb-1">ผู้บันทึก</p>
               <p className="text-base text-slate-800">

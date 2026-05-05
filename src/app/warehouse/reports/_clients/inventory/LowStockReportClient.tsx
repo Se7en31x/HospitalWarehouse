@@ -220,17 +220,20 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	const [neFetching, setNeFetching] = useState(false);
 	const [neFetched, setNeFetched] = useState(false);
 	const [neSearch, setNeSearch] = useState("");
-	const [neDays, setNeDays] = useState<"90" | "60" | "30">("60");
+	const [neDays, setNeDays] = useState<"90" | "60" | "30">("90");
 	const [neWarehouse, setNeWarehouse] = useState("ทุกคลัง");
 	const [nePage, setNePage] = useState(1);
 	const [isDaysOpen, setIsDaysOpen] = useState(false);
 	const [isNeWhOpen, setIsNeWhOpen] = useState(false);
+	/** กรองวันหมดอายุเฉพาะแท็บนี้ — แยกจาก dateFrom/dateTo ของสต็อกต่ำ (ถ้าใช้ร่วมกัน dateTo=วันนี้จะตัดล็อตที่หมดอายุในอนาคตออกหมด) */
+	const [neDateFrom, setNeDateFrom] = useState("");
+	const [neDateTo, setNeDateTo] = useState("");
 
 	const loadNearExpiry = useCallback(async () => {
 		setNeFetching(true);
 		try {
 			const res = await apiClient.get<NearExpiryApiResponse>("/v1/reports/near-expiry", {
-				params: { limit: 10, daysAhead: neDays },
+				params: { page: 1, limit: 500, daysAhead: neDays },
 			});
 			setNeRows((res.data as NearExpiryApiResponse).items ?? []);
 			setNeFetched(true);
@@ -253,8 +256,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 
 	const neFiltered = useMemo(() => {
 		const kw = neSearch.trim().toLowerCase();
-		const from = dateFrom ? new Date(dateFrom) : null;
-		const to   = dateTo   ? new Date(dateTo + "T23:59:59") : null;
+		const from = neDateFrom ? new Date(neDateFrom) : null;
+		const to   = neDateTo   ? new Date(neDateTo + "T23:59:59") : null;
 		return neRows.filter((r) => {
 			const matchKw = !kw || r.lotCode.toLowerCase().includes(kw) || r.itemCode.toLowerCase().includes(kw) || r.itemName.toLowerCase().includes(kw);
 			const matchWh = neWarehouse === "ทุกคลัง" || r.warehouse === neWarehouse;
@@ -263,7 +266,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 				: true;
 			return matchKw && matchWh && matchPeriod;
 		});
-	}, [neRows, neSearch, neWarehouse, dateFrom, dateTo]);
+	}, [neRows, neSearch, neWarehouse, neDateFrom, neDateTo]);
 
 	const neTotalPages = Math.max(1, Math.ceil(neFiltered.length / ITEMS_PER_PAGE));
 	const nePageItems = useMemo(() => {
@@ -271,7 +274,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		return neFiltered.slice(s, s + ITEMS_PER_PAGE);
 	}, [neFiltered, nePage]);
 
-	useEffect(() => { setNePage(1); }, [neSearch, neWarehouse, neDays, dateFrom, dateTo]);
+	useEffect(() => { setNePage(1); }, [neSearch, neWarehouse, neDays, neDateFrom, neDateTo]);
 
 	// ── Exports ────────────────────────────────────────────────────────────────
 
@@ -281,6 +284,14 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		if (dateTo) return `ถึง ${dateTo}`;
 		return "ทุกช่วงเวลา";
 	}, [dateFrom, dateTo]);
+
+	const nePeriodLabel = useMemo(() => {
+		const bits: string[] = [`ภายใน ${neDays} วัน`];
+		if (neDateFrom && neDateTo) bits.push(`วันหมดอายุ ${neDateFrom} ถึง ${neDateTo}`);
+		else if (neDateFrom) bits.push(`วันหมดอายุ ตั้งแต่ ${neDateFrom}`);
+		else if (neDateTo) bits.push(`วันหมดอายุ ถึง ${neDateTo}`);
+		return bits.join(" · ");
+	}, [neDays, neDateFrom, neDateTo]);
 
 	const handleLsExportXlsx = async () => {
 		const ExcelJS = (await import("exceljs")).default;
@@ -327,7 +338,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			alignment: { horizontal: "center", vertical: "middle" },
 		};
 
-		const r2 = ws.addRow(["รายงานสินค้าต่ำกว่า Min Stock"]);
+		const r2 = ws.addRow(["รายงานสินค้าต่ำกว่ากำหนด"]);
 		ws.mergeCells(r2.number, 1, r2.number, COLS);
 		r2.height = 22;
 		r2.getCell(1).style = {
@@ -356,7 +367,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 
 		ws.addRow([]);
 
-		const headers = ["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "Min Stock", "จำนวนที่ขาด", "สถานะ"];
+		const headers = ["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "ขั้นต่ำที่กำหนด", "จำนวนที่ขาด", "สถานะ"];
 		const hr = ws.addRow(headers);
 		hr.height = 22;
 		hr.eachCell((cell) => {
@@ -378,7 +389,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			const dr = ws.addRow([
 				i + 1, item.code, item.name, item.category, item.warehouse, item.unit,
 				item.availableStock, item.currentStock, item.minStock, item.shortfall,
-				isOut ? "หมดสต็อก" : "ต่ำกว่า Min",
+				isOut ? "หมดสต็อก" : "ต่ำกว่ากำหนด",
 			]);
 			dr.height = 18;
 			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
@@ -426,7 +437,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			{ header: "คลัง",           key: "warehouse" },
 			{ header: "หน่วย",          key: "unit" },
 			{ header: "สต็อกที่ใช้ได้", key: "available", align: "right" },
-			{ header: "Min Stock",      key: "minStock",  align: "right" },
+			{ header: "ขั้นต่ำที่กำหนด", key: "minStock",  align: "right" },
 			{ header: "ขาด",            key: "shortfall", align: "right" },
 			{ header: "สถานะ",          key: "status",    align: "center" },
 		];
@@ -435,10 +446,10 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			warehouse: item.warehouse, unit: item.unit,
 			available: item.availableStock === 0 ? "หมดสต็อก (0)" : item.availableStock.toLocaleString(),
 			minStock: item.minStock.toLocaleString(), shortfall: item.shortfall.toLocaleString(),
-			status: item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่า Min",
+			status: item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่ากำหนด",
 		}));
 		printWarehouseReport({
-			reportTitle:   "รายงานสินค้าต่ำกว่า Min Stock",
+			reportTitle:   "รายงานสินค้าต่ำกว่ากำหนด",
 			period:        periodLabel,
 			filterSummary: [
 				lsCategory  !== "หมวดหมู่ทั้งหมด" ? `หมวดหมู่: ${lsCategory}`  : null,
@@ -478,7 +489,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			{ width: 16 },
 		];
 
-		const r1 = ws.addRow([periodLabel]);
+		const r1 = ws.addRow([nePeriodLabel]);
 		ws.mergeCells(r1.number, 1, r1.number, COLS);
 		r1.height = 28;
 		r1.getCell(1).style = {
@@ -578,7 +589,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a"); a.href = url;
-		a.download = `รายงานใกล้หมดอายุ_${periodLabel.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+		a.download = `รายงานใกล้หมดอายุ_${nePeriodLabel.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 		a.click(); URL.revokeObjectURL(url);
 	};
 
@@ -600,7 +611,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		}));
 		printWarehouseReport({
 			reportTitle:   `รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`,
-			period:        periodLabel,
+			period:        nePeriodLabel,
 			filterSummary: neWarehouse !== "ทุกคลัง" ? `คลัง: ${neWarehouse}` : undefined,
 			columns,
 			rows: pdfRows,
@@ -629,8 +640,8 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 	const printDate = fmtDateLong(new Date());
 
 	const tabs: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number }[] = [
-		{ id: "low-stock",   label: "สต็อกต่ำกว่า Min Stock", icon: <AlertTriangle className="w-4 h-4" />, badge: lsRows.length },
-		{ id: "near-expiry", label: "สินค้าใกล้หมดอายุ",      icon: <Clock className="w-4 h-4" />,       badge: neFetched ? neRows.length : undefined },
+		{ id: "low-stock",   label: "สต็อกต่ำกว่ากำหนด", icon: <AlertTriangle className="w-4 h-4" />, badge: lsRows.length },
+		{ id: "near-expiry", label: "สินค้าใกล้หมดอายุ", icon: <Clock className="w-4 h-4" />, badge: neFetched ? neFiltered.length : undefined },
 	];
 
 	const tabActiveCls = SECTION_TAB_ACTIVE[REPORT_HEADER["low-stock"].section];
@@ -671,7 +682,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 							{tab.icon}
 							{tab.label}
 							{tab.badge !== undefined && (
-								<span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+								<span className={`text-xs px-2 py-0.5 rounded-full font-bold shrink-0 tabular-nums min-w-[1.5rem] text-center ${
 									activeTab === tab.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
 								}`}>
 									{tab.badge}
@@ -752,7 +763,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 							</span>
 							<span className="flex items-center gap-1.5 text-orange-500">
 								<span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-400" />
-								ต่ำกว่า Min: <strong>{lsFiltered.filter((i) => i.availableStock > 0).length}</strong>
+								ต่ำกว่ากำหนด: <strong>{lsFiltered.filter((i) => i.availableStock > 0).length}</strong>
 							</span>
 						</div>
 
@@ -764,7 +775,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								</div>
 							)}
 							<table className="w-full text-sm text-left table-fixed min-w-[900px]">
-								<thead className="bg-slate-50 text-slate-700 text-base font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+								<thead className="bg-slate-50 text-slate-700 text-sm font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 									<tr>
 										<th className="px-4 py-4 w-[50px] text-center whitespace-nowrap">#</th>
 										<th className="px-4 py-4 w-[110px] whitespace-nowrap">รหัสรายการ</th>
@@ -772,7 +783,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 										<th className="px-4 py-4 w-[140px] whitespace-nowrap">หมวดหมู่</th>
 										<th className="px-4 py-4 w-[130px] whitespace-nowrap">คลัง</th>
 										<th className="px-4 py-4 w-[100px] text-right whitespace-nowrap">สต็อกใช้ได้</th>
-										<th className="px-4 py-4 w-[90px] text-right whitespace-nowrap">Min Stock</th>
+										<th className="px-4 py-4 w-[90px] text-right whitespace-nowrap">ขั้นต่ำที่กำหนด</th>
 										<th className="px-4 py-4 w-[80px] text-right whitespace-nowrap">ขาด</th>
 										<th className="px-4 py-4 w-[80px] whitespace-nowrap">หน่วย</th>
 										<th className="px-4 py-4 w-[120px] text-center whitespace-nowrap">สถานะ</th>
@@ -782,24 +793,24 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 									{lsPageItems.length > 0 ? lsPageItems.map((item, idx) => (
 										<tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
 											<td className="px-4 py-3 text-center text-slate-500">{(lsPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-											<td className="px-4 py-3 font-mono text-slate-600 text-xs">{item.code}</td>
+											<td className="px-4 py-3 font-mono text-slate-600">{item.code}</td>
 											<td className="px-4 py-3 text-slate-700 font-medium truncate" title={item.name}>{item.name}</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{item.category}</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{item.warehouse}</td>
-											<td className={`px-4 py-3 text-right font-mono font-bold tabular-nums text-base ${item.availableStock === 0 ? "text-red-600" : "text-orange-500"}`}>
+											<td className="px-4 py-3 text-slate-500">{item.category}</td>
+											<td className="px-4 py-3 text-slate-500">{item.warehouse}</td>
+											<td className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${item.availableStock === 0 ? "text-red-600" : "text-orange-500"}`}>
 												{item.availableStock === 0 ? (item.availableStock > 0 ? "+" : "") : ""}{item.availableStock.toLocaleString()}
 											</td>
-											<td className="px-4 py-3 text-right font-mono text-slate-500 tabular-nums text-xs">{item.minStock.toLocaleString()}</td>
-											<td className="px-4 py-3 text-right font-mono text-blue-600 font-bold tabular-nums text-base">{item.shortfall.toLocaleString()}</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{item.unit}</td>
+											<td className="px-4 py-3 text-right font-mono text-slate-500 tabular-nums">{item.minStock.toLocaleString()}</td>
+											<td className="px-4 py-3 text-right font-mono text-blue-600 font-bold tabular-nums">{item.shortfall.toLocaleString()}</td>
+											<td className="px-4 py-3 text-slate-500">{item.unit}</td>
 											<td className="px-4 py-3 text-center">
 												{item.availableStock === 0 ? (
-													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
+													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-semibold bg-red-50 text-red-700 border border-red-100">
 														<span className="w-1.5 h-1.5 rounded-full bg-red-500" />หมดสต็อก
 													</span>
 												) : (
-													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
-														<span className="w-1.5 h-1.5 rounded-full bg-orange-400" />ต่ำกว่า Min
+													<span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+														<span className="w-1.5 h-1.5 rounded-full bg-orange-400" />ต่ำกว่ากำหนด
 													</span>
 												)}
 											</td>
@@ -808,7 +819,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 										<tr>
 											<td colSpan={10} className="text-center py-16">
 												<Package className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-												<p className="text-sm text-slate-400">ไม่พบสินค้าต่ำกว่า Min Stock</p>
+												<p className="text-sm text-slate-400">ไม่พบสินค้าต่ำกว่ากำหนด</p>
 											</td>
 										</tr>
 									)}
@@ -868,14 +879,14 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 							/>
 
 							<div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-								<OutlinedDateField label="วันหมดอายุ (ตั้งแต่)" value={dateFrom} onChange={setDateFrom} />
-								<OutlinedDateField label="วันหมดอายุ (ถึง)"     value={dateTo}   onChange={setDateTo} />
+								<OutlinedDateField label="วันหมดอายุ (ตั้งแต่)" value={neDateFrom} onChange={setNeDateFrom} />
+								<OutlinedDateField label="วันหมดอายุ (ถึง)"     value={neDateTo}   onChange={setNeDateTo} />
 							</div>
 
 							<div className="ml-auto flex items-center gap-2">
-								{(neSearch || neWarehouse !== "ทุกคลัง" || dateFrom || dateTo) && (
+								{(neSearch || neWarehouse !== "ทุกคลัง" || neDateFrom || neDateTo) && (
 									<button type="button"
-										onClick={() => { setNeSearch(""); setNeWarehouse("ทุกคลัง"); setDateFrom(""); setDateTo(""); setNePage(1); }}
+										onClick={() => { setNeSearch(""); setNeWarehouse("ทุกคลัง"); setNeDateFrom(""); setNeDateTo(""); setNePage(1); }}
 										className="flex h-10 items-center gap-1.5 px-3 text-sm text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm bg-white"
 									>
 										<X className="w-3.5 h-3.5" />ล้างตัวกรอง
@@ -908,7 +919,7 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 								</div>
 							)}
 							<table className="w-full text-sm text-left table-fixed min-w-[880px]">
-								<thead className="bg-slate-50 text-slate-700 text-base font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
+								<thead className="bg-slate-50 text-slate-700 text-sm font-semibold shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 									<tr>
 										<th className="px-4 py-4 w-[50px] text-center whitespace-nowrap">#</th>
 										<th className="px-4 py-4 w-[120px] whitespace-nowrap">รหัส LOT</th>
@@ -925,18 +936,18 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 									{nePageItems.length > 0 ? nePageItems.map((r, idx) => (
 										<tr key={r.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
 											<td className="px-4 py-3 text-center text-slate-500">{(nePage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-											<td className="px-4 py-3 font-mono text-slate-600 text-xs">{r.lotCode}</td>
-											<td className="px-4 py-3 font-mono text-slate-600 text-xs">{r.itemCode}</td>
+											<td className="px-4 py-3 font-mono text-slate-600">{r.lotCode}</td>
+											<td className="px-4 py-3 font-mono text-slate-600">{r.itemCode}</td>
 											<td className="px-4 py-3 text-slate-700 font-medium truncate" title={r.itemName}>{r.itemName}</td>
-											<td className="px-4 py-3 text-center font-mono text-slate-600 text-xs">{fmtDate(r.expiredAt)}</td>
+											<td className="px-4 py-3 text-center font-mono text-slate-600">{fmtDate(r.expiredAt)}</td>
 											<td className="px-4 py-3 text-center">
-												<span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border border-transparent ${getUrgencyColor(r.daysLeft)}`}>
+												<span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-semibold border border-transparent ${getUrgencyColor(r.daysLeft)}`}>
 													{getUrgencyLabel(r.daysLeft)}
 												</span>
 											</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{r.warehouse}</td>
-											<td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-base text-slate-700">{r.quantity.toLocaleString()}</td>
-											<td className="px-4 py-3 text-slate-500 text-xs">{r.unit}</td>
+											<td className="px-4 py-3 text-slate-500">{r.warehouse}</td>
+											<td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-slate-700">{r.quantity.toLocaleString()}</td>
+											<td className="px-4 py-3 text-slate-500">{r.unit}</td>
 										</tr>
 									)) : (
 										<tr>

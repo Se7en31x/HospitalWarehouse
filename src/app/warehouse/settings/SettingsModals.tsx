@@ -68,9 +68,9 @@ export default function SettingsModals({
   const inputClass = "w-full border border-slate-300 bg-white rounded-xl px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm";
   
   const itemTypeOptions = [
-    { value: "CONSUMABLE", label: "CONSUMABLE - วัสดุสิ้นเปลือง" },
-    { value: "REUSABLE", label: "REUSABLE - ของใช้ซ้ำรายชิ้น" },
-    { value: "MED_ASSET", label: "MED_ASSET - ครุภัณฑ์ภายในองค์กร" },
+    { value: "CONSUMABLE", label: "ของใช้แล้วหมดไป" },
+    { value: "REUSABLE", label: "อุปกรณ์ทางการแพทย์" },
+    { value: "MED_ASSET", label: "ครุภัณฑ์ภายในองค์กร" },
   ];
   
   const getItemTypeLabel = (value: string) => {

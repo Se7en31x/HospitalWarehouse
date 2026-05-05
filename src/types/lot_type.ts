@@ -2,7 +2,7 @@ import type { Option, UiItem } from "./items_type";
 
 // ============ Enums & Constants ============
 export type ExpiryStatus = 'ปกติ' | 'ใกล้หมด' | 'หมดอายุ';
-export type LotStatusEnum = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+export type LotStatusEnum = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'DEPLETED' | 'DISPOSED';
 export type LotDetailStatus = 'QUARANTINE' | 'APPROVED' | 'RECALLED' | 'EXPIRED' | 'DAMAGED';
 
 // ============ API Response Types ============
@@ -54,7 +54,9 @@ export type UiLot = {
 	lotCode: string;
 	itemName: string;
 	itemCode: string;
+	categoryId: string;
 	category: string;
+	warehouseId: string | null;
 	warehouse: string;
 	quantity: number;
 	unit: string;
@@ -135,6 +137,9 @@ export type AdjustLotPayload = {
 	new_quantity: number;
 	reason: string;
 	user_name: string;
+	/** ส่งเมื่อเปิดกลับหลังจำหน่ายทิ้ง (DISPOSED) ร่วมกับ new_quantity > 0 */
+	status?: LotStatusEnum;
+	note?: string;
 };
 
 // ============ Component Props Types ============

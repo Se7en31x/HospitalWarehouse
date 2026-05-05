@@ -67,6 +67,7 @@ const TYPE_LABEL: Record<string, string> = {
 	OUT:            "เบิกจ่าย",
 	ADJUST_IN:      "ปรับเพิ่ม",
 	ADJUST_OUT:     "ปรับลด",
+	RETURN_IN:      "รับคืน",
 	UPDATE:         "อัปเดต",
 };
 
@@ -76,10 +77,11 @@ const TYPE_BADGE: Record<string, string> = {
 	OUT:            "bg-rose-50 text-rose-700 border-rose-100",
 	ADJUST_IN:      "bg-blue-50 text-blue-700 border-blue-100",
 	ADJUST_OUT:     "bg-orange-50 text-orange-700 border-orange-100",
+	RETURN_IN:      "bg-teal-50 text-teal-700 border-teal-100",
 	UPDATE:         "bg-slate-50 text-slate-500 border-slate-200",
 };
 
-const IN_TYPES = new Set(["RECEIVE_IN", "ADJUST_IN"]);
+const IN_TYPES = new Set(["RECEIVE_IN", "ADJUST_IN", "RETURN_IN"]);
 
 
 const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onBack }) => {

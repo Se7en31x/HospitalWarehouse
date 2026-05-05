@@ -168,6 +168,7 @@ export default function ReceiveClient() {
             const kw = keyword.toLowerCase();
             const matches =
                 (batch.batch_no || "").toLowerCase().includes(kw) ||
+                (batch.delivery_doc_no || "").toLowerCase().includes(kw) ||
                 (batch.supplier_name || "").toLowerCase().includes(kw) ||
                 (batch.donor_name || "").toLowerCase().includes(kw);
             if (!matches) return false;
@@ -232,7 +233,7 @@ export default function ReceiveClient() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <input
                         type="text"
-                        placeholder="ค้นหา Batch / เลขที่ / ผู้จำหน่าย..."
+                        placeholder="ค้นหา Batch / ใบส่งสินค้า / ผู้จำหน่าย..."
                         value={keyword}
                         onChange={e => setKeyword(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"

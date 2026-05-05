@@ -14,6 +14,7 @@ import * as ItemSvc from "@/services/itemsService";
 import * as DeptSvc from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
 import { resolveBarcode } from "@/services/barcodeService";
+import { barcodeScanKeydown } from "@/lib/barcodeScanKeydown";
 import { fmtDate } from "@/utils/dateUtils";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 
@@ -405,8 +406,8 @@ export default function ReceiveFormPage() {
     }
   }, [lines]);
 
-  const handleScan = useCallback(async () => {
-    const raw = scanInput.trim();
+  const handleScan = useCallback(async (overrideRaw?: string) => {
+    const raw = (overrideRaw ?? scanInput).trim();
     if (!raw) return;
     setIsScanning(true);
     try {
@@ -510,9 +511,7 @@ export default function ReceiveFormPage() {
       ? new Date(docMeta.receiveDate).toISOString()
       : new Date().toISOString();
 
-    const noteStr = [
-      docMeta.note || null,
-    ].filter(Boolean).join(" — ") || null;
+    const noteStr = docMeta.note.trim() ? docMeta.note.trim() : null;
 
     // Group lines by kind
     const byKind = new Map<ItemKind, LineItem[]>();
@@ -532,6 +531,9 @@ export default function ReceiveFormPage() {
         supplier_id:      !isDonation ? (docMeta.supplierId || null) : null,
         donor_name:       isDonation  ? (docMeta.donorName  || null) : null,
         receive_date:     receiveDateIso,
+        delivery_doc_no:  !isDonation && docMeta.poNumber.trim()
+          ? docMeta.poNumber.trim()
+          : null,
         note:             noteStr,
       });
 
@@ -807,11 +809,34 @@ export default function ReceiveFormPage() {
                   <div className="flex gap-2">
                     <input
                       data-scan-input
-                      type="text" autoFocus value={scanInput}
+                      type="text"
+                      autoFocus
+                      value={scanInput}
+                      lang="en"
+                      autoComplete="off"
+                      spellCheck={false}
+                      inputMode="latin"
                       onChange={e => setScanInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleScan(); } }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.code === "NumpadEnter") {
+                          e.preventDefault();
+                          void handleScan(e.currentTarget.value);
+                          return;
+                        }
+                        const r = barcodeScanKeydown(e);
+                        if (r.kind === "backspace") {
+                          e.preventDefault();
+                          setScanInput(prev => prev.slice(0, -1));
+                          return;
+                        }
+                        if (r.kind === "append") {
+                          e.preventDefault();
+                          setScanInput(prev => prev + r.ch);
+                        }
+                      }}
                       placeholder="สแกนรหัสเพื่อเติมข้อมูลสินค้า"
-                      className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      className="flex-1 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
                     <button type="button" onClick={() => void handleScan()}
                       disabled={isScanning || !scanInput.trim()}
                       className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50">

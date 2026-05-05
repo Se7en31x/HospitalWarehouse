@@ -64,7 +64,7 @@ const getStockLevel = (item: ItemSummary) => {
 	if (item.minStock > 0 && item.currentStock === 0)
 		return { label: "หมดสต็อก", cls: "" };
 	if (item.minStock > 0 && item.currentStock <= item.minStock)
-		return { label: "ต่ำกว่า Min", cls: "" };
+		return { label: "ต่ำกว่ากำหนด", cls: "" };
 	return { label: "ปกติ", cls: "" };
 };
 
@@ -190,7 +190,7 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 	const stockLevelOptions = useMemo(() => [
 		{ value: "", label: "ทุกระดับสต็อก" },
 		{ value: "ปกติ", label: "ปกติ" },
-		{ value: "ต่ำกว่า Min", label: "ต่ำกว่า Min" },
+		{ value: "ต่ำกว่ากำหนด", label: "ต่ำกว่ากำหนด" },
 		{ value: "หมดสต็อก", label: "หมดสต็อก" },
 	], []);
 

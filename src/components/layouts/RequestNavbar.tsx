@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import NotificationBell from "./NotificationBell";
 import { useNavProfile } from "@/hooks/useNavProfile";
 import { createClient } from "@/lib/supabase/client";
+import { clearAllBorrowPersistedState } from "@/lib/borrowPersistedState";
 
 function AvatarSkeleton() {
   return (
@@ -38,6 +39,7 @@ export default function RequestNavbar() {
   }, []);
 
   const handleLogout = async () => {
+    await clearAllBorrowPersistedState();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");

@@ -513,7 +513,7 @@ export default function WarehouseDashboard() {
         <StatCard icon={CalendarX} label="ล็อตหมดอายุแล้ว" value={expiredCount} iconBg="bg-rose-500" valueClass="text-rose-800" />
         <StatCard
           icon={PackageMinus}
-          label="สินค้าสต็อกต่ำ"
+          label="ยอกคงคลังต่ำกว่ากำหนด"
           value={lowStockCount}
           iconBg="bg-violet-600"
           valueClass="text-violet-900"

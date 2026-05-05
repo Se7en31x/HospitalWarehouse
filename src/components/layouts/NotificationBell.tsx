@@ -231,7 +231,7 @@ export default function NotificationBell({ title = "การแจ้งเต�
         <Bell className="w-6 h-6 text-blue-100 group-hover:text-white transition-colors" />
         {unreadCount > 0 && (
           <span
-            className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[#0A1931]"
+            className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"
             aria-hidden
           />
         )}

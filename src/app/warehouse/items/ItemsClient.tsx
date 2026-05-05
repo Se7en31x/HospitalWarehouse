@@ -32,11 +32,31 @@ const getErrorMessage = (error: unknown): string => {
 
 const PAGE_LIMIT = 10;
 
-// Returns the stock number that should be displayed and used for threshold checks
-const getEffectiveStock = (item: Item.UiItem): number =>
-  item.type === "REUSABLE"
-    ? (typeof item.availableStock === "number" ? item.availableStock : 0)
-    : item.stock;
+// คงเหลือที่ใช้แสดงในตารางและคำนวณสถานะ — REUSABLE=available, MED_ASSET=จำนวนครุภัณฑ์ที่ลงทะเบียน, อื่นๆ=current_stock
+const getEffectiveStock = (item: Item.UiItem, assetRegisteredByItemId?: Record<string, number>): number => {
+  if (item.type === "REUSABLE") {
+    return typeof item.availableStock === "number" ? item.availableStock : 0;
+  }
+  if (item.type === "MED_ASSET") {
+    return assetRegisteredByItemId?.[item.id] ?? 0;
+  }
+  return item.stock;
+};
+
+/** สถานะคงคลังในตาราง / ฟิลเตอร์ — ยึดตัวเลขเดียวกับคอลัมน์คงเหลือ */
+function getStockLevelLabel(
+  item: Item.UiItem,
+  assetRegisteredByItemId?: Record<string, number>,
+): "ปกติ" | "ต่ำ" | "หมด" | "ระงับ" {
+  const lifecycle = String(item.status ?? "ACTIVE").trim().toUpperCase();
+  if (lifecycle === "INACTIVE" || lifecycle === "UNAVAILABLE") return "ระงับ";
+
+  const qty = getEffectiveStock(item, assetRegisteredByItemId);
+  const min = Math.max(0, Number(item.minStock) || 0);
+  if (qty <= 0) return "หมด";
+  if (min > 0 && qty <= min) return "ต่ำ";
+  return "ปกติ";
+}
 
 export default function ItemsClient({ initialItems }: { initialItems: Item.UiItem[] }) {
   const [allItems, setAllItems] = useState<Item.UiItem[]>([]);
@@ -163,7 +183,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
       item.name.toLowerCase().includes(keyword) ||
       item.code.toLowerCase().includes(keyword);
     const matchesCat = selectedCategory === "หมวดหมู่ทั้งหมด" || item.category === selectedCategory;
-    const matchesStatus = selectedStatus === "สถานะทั้งหมด" || item.status === selectedStatus;
+    const matchesStatus = selectedStatus === "สถานะทั้งหมด" || getStockLevelLabel(item, registeredCounts) === selectedStatus;
     const matchesLocation = selectedLocation === "ตำแหน่งทั้งหมด" || item.location === selectedLocation;
     return matchesSearch && matchesCat && matchesStatus && matchesLocation;
   });
@@ -199,22 +219,16 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
     fetchAll();
   };
 
-  const Badge = ({ status }: { status: string }) => {
-    const statusMap: Record<string, string> = {
-      "ACTIVE": "เปิดใช้งาน",
-    };
-    const displayStatus = statusMap[status] || status;
-    
+  const Badge = ({ label }: { label: string }) => {
     const styles: Record<string, string> = {
       "ปกติ": "bg-green-100 text-green-500",
       "ต่ำ": "bg-amber-100 text-amber-500",
       "หมด": "bg-red-100 text-red-500",
       "ระงับ": "bg-red-100 text-red-500",
-      "เปิดใช้งาน": "bg-green-100 text-green-500",
     };
     return (
-      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[displayStatus] || "bg-slate-100 text-slate-700"}`}>
-        {displayStatus}
+      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${styles[label] || "bg-slate-100 text-slate-700"}`}>
+        {label}
       </span>
     );
   };
@@ -487,11 +501,11 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     {item.type === "REUSABLE" ? (
                       <div className="relative group inline-block cursor-help">
                         <span className={`font-bold text-base ${
-                          getEffectiveStock(item) <= 0 ? "text-red-500" :
-                          getEffectiveStock(item) <= item.minStock ? "text-orange-500" :
+                          getEffectiveStock(item, registeredCounts) <= 0 ? "text-red-500" :
+                          getEffectiveStock(item, registeredCounts) <= item.minStock ? "text-orange-500" :
                           "text-emerald-600"
                         }`}>
-                          {getEffectiveStock(item)}
+                          {getEffectiveStock(item, registeredCounts)}
                         </span>
                         <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                           ทั้งหมดในคลัง: {item.stock} {item.unit}
@@ -501,11 +515,11 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                     ) : item.type === "MED_ASSET" ? (
                       <div className="flex flex-col">
                         <span className={`font-bold ${
-                          (registeredCounts[item.id] ?? 0) <= 0 ? "text-red-500" :
-                          (registeredCounts[item.id] ?? 0) <= item.minStock ? "text-orange-500" :
+                          getEffectiveStock(item, registeredCounts) <= 0 ? "text-red-500" :
+                          getEffectiveStock(item, registeredCounts) <= item.minStock ? "text-orange-500" :
                           "text-emerald-600"
                         }`}>
-                          {registeredCounts[item.id] ?? 0}
+                          {getEffectiveStock(item, registeredCounts)}
                         </span>
                       </div>
                     ) : (
@@ -527,7 +541,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
                   </td>
                   <td className="px-6 py-3 truncate max-w-0" title={item.unit}>{item.unit}</td>
                   <td className="px-6 py-3 text-slate-600 truncate">{item.location || "-"}</td>
-                  <td className="px-6 py-3"><Badge status={item.status} /></td>
+                  <td className="px-6 py-3"><Badge label={getStockLevelLabel(item, registeredCounts)} /></td>
                   {/* <td className="px-6 py-3 w-[160px] hidden sm:table-cell">
                     {(() => {
                       const dt = formatThaiDateTime(item.updatedAt);

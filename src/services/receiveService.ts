@@ -43,6 +43,8 @@ export interface ReceiveBatch {
     supplier_name: string | null;
     donor_name: string | null;
     receive_date: string;
+    /** เลขที่ใบส่งสินค้า / เอกสารนำส่ง (จัดซื้อ) */
+    delivery_doc_no: string | null;
     note: string | null;
     created_by: string | null;
     /** ชื่อ-นามสกุล จาก public.profiles (ผู้บันทึก batch) */
@@ -81,6 +83,7 @@ export async function createBatch(payload: {
     supplier_id?: string | null;
     donor_name?: string | null;
     receive_date?: string | null;
+    delivery_doc_no?: string | null;
     note?: string | null;
 }): Promise<ReceiveBatch> {
     return api.post<ReceiveBatch>("/v1/receives/batch", payload);

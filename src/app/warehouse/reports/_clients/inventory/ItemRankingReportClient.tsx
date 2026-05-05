@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, TrendingUp, Package } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import { getcategoriesOptions } from "@/services/itemsService";
+import type * as Item from "@/types/items_type";
 import { useUser } from "@/context/UserContext";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
 import { fmtDateLong } from "@/utils/dateUtils";
@@ -85,8 +87,16 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 
 	const [dateFrom, setDateFrom]     = useState(startOfYear());
 	const [dateTo, setDateTo]         = useState(today());
+	const [categoryId, setCategoryId] = useState("");
+	const [categories, setCategories] = useState<Item.categoryOptions>([]);
 
 	const printDate = fmtDateLong(new Date());
+
+	useEffect(() => {
+		getcategoriesOptions()
+			.then(setCategories)
+			.catch(() => setCategories([]));
+	}, []);
 
 	const fetchData = useCallback(async (p: number) => {
 		setLoading(true);
@@ -96,6 +106,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 				page:  String(p),
 				limit: String(ITEMS_PER_PAGE),
 				...(mode === "issued" ? { dateFrom, dateTo } : {}),
+				...(categoryId ? { categoryId } : {}),
 			});
 			const res = await apiClient.get<ApiResponse>(`/v1/reports/item-ranking?${params}`);
 			setRows(res.data?.items ?? []);
@@ -106,12 +117,12 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 		} finally {
 			setLoading(false);
 		}
-	}, [mode, dateFrom, dateTo]);
+	}, [mode, dateFrom, dateTo, categoryId]);
 
 	useEffect(() => {
 		setPage(1);
 		fetchData(1);
-	}, [mode, dateFrom, dateTo, fetchData]);
+	}, [mode, dateFrom, dateTo, categoryId, fetchData]);
 
 	const handlePdf = () => {
 		const isIssued = mode === "issued";
@@ -132,6 +143,9 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 		printWarehouseReport({
 			reportTitle: title,
 			period: isIssued ? `${dateFrom} – ${dateTo}` : undefined,
+			filterSummary: categoryId
+				? `หมวดหมู่: ${categories.find((c) => c.id === categoryId)?.name ?? categoryId}`
+				: undefined,
 			columns,
 			rows: rows.map(r => ({ ...r })),
 			printedBy: {
@@ -152,6 +166,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 			const params = new URLSearchParams({
 				mode, page: "1", limit: "1000",
 				...(isIssued ? { dateFrom, dateTo } : {}),
+				...(categoryId ? { categoryId } : {}),
 			});
 			const res = await apiClient.get<ApiResponse>(`/v1/reports/item-ranking?${params}`);
 			allRows = res.data?.items ?? rows;
@@ -192,6 +207,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 		const metaParts = [
 			`วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
 			isIssued ? `ช่วงเวลา: ${dateFrom} ถึง ${dateTo}` : null,
+			categoryId ? `หมวดหมู่: ${categories.find((c) => c.id === categoryId)?.name ?? ""}` : null,
 			`รวม ${allRows.length} รายการ`,
 		].filter(Boolean).join("    |    ");
 
@@ -307,7 +323,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 				<div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
 
 					{/* Toolbar — filters + export */}
-					<div className="flex flex-wrap gap-3 items-center px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+					<div className="flex flex-wrap gap-3 items-end px-5 py-4 border-b border-slate-100 bg-slate-50/60">
 
 						{/* Date range (issued mode only) */}
 						{isIssued && (
@@ -316,6 +332,21 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 								<OutlinedDateField label="วันที่สิ้นสุด"  value={dateTo}   onChange={setDateTo} />
 							</div>
 						)}
+
+						{/* Category — server filter (categoryId UUID) */}
+						<div className="flex flex-col gap-1 min-w-[200px]">
+							<span className="text-[11px] font-medium text-slate-500">หมวดหมู่</span>
+							<select
+								value={categoryId}
+								onChange={(e) => setCategoryId(e.target.value)}
+								className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 max-w-[min(100%,280px)] focus:outline-none focus:ring-2 focus:ring-blue-200"
+							>
+								<option value="">ทุกหมวดหมู่</option>
+								{categories.map((c) => (
+									<option key={c.id} value={c.id}>{c.name}</option>
+								))}
+							</select>
+						</div>
 
 						{/* Export buttons */}
 						<div className="ml-auto flex items-center gap-2">
@@ -337,6 +368,11 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 							{isIssued && (
 								<span className="ml-1.5 text-slate-400">· {dateFrom} ถึง {dateTo}</span>
 							)}
+							{categoryId && (
+								<span className="ml-1.5 text-slate-400">
+									· หมวด: {categories.find((c) => c.id === categoryId)?.name ?? "—"}
+								</span>
+							)}
 						</span>
 					</div>
 
@@ -347,22 +383,30 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 								<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
-					<table className="w-full text-sm text-left min-w-[700px]">
+					<table className="w-full table-fixed text-sm text-left min-w-[880px]">
 						<colgroup>
-							<col className="w-12" />
-							<col className="w-[100px]" />
-							<col />
-							<col className="w-[130px]" />
-							<col className="w-[60px]" />
 							{isIssued ? (
 								<>
-									<col className="w-[100px]" />
-									<col className="w-[60px]" />
+									<col className="w-14" />
+									<col className="w-[7.5rem]" />
+									<col className="w-[26%]" />
+									<col className="w-[18%]" />
+									<col className="w-14" />
+									<col className="w-[5.5rem]" />
+									<col className="w-[4.5rem]" />
+									<col className="w-[5rem]" />
 								</>
 							) : (
-								<col className="w-[100px]" />
+								<>
+									<col className="w-14" />
+									<col className="w-[7.5rem]" />
+									<col className="w-[30%]" />
+									<col className="w-[20%]" />
+									<col className="w-14" />
+									<col className="w-[6rem]" />
+									<col className="w-[5.5rem]" />
+								</>
 							)}
-							<col className="w-[72px]" />
 						</colgroup>
 						<thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
 							<tr>
@@ -385,7 +429,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 						<tbody className="text-slate-600 divide-y divide-slate-100">
 							{!loading && rows.length === 0 ? (
 								<tr>
-									<td colSpan={8} className="text-center py-16">
+									<td colSpan={isIssued ? 8 : 7} className="text-center py-16">
 										<TrendingUp className="w-10 h-10 text-slate-200 mx-auto mb-2" />
 										<p className="text-sm text-slate-400">ไม่พบข้อมูล</p>
 									</td>
@@ -403,9 +447,11 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 											<span className="text-slate-400 text-sm tabular-nums">{row.rank}</span>
 										)}
 									</td>
-									<td className="px-3 py-3 font-mono text-xs text-slate-500 truncate">{row.code}</td>
-									<td className="px-3 py-3 font-medium text-slate-800 truncate" title={row.name}>{row.name}</td>
-									<td className="px-3 py-3 text-xs text-slate-500 truncate ">{row.category}</td>
+									<td className="px-3 py-3 font-mono text-xs text-slate-500 truncate min-w-0" title={row.code}>{row.code}</td>
+									<td className="px-3 py-3 font-medium text-slate-800 min-w-0" title={row.name}>
+										<span className="block truncate">{row.name}</span>
+									</td>
+									<td className="px-3 py-3 text-xs text-slate-500 truncate min-w-0" title={row.category}>{row.category}</td>
 									<td className="px-3 py-3 text-center text-slate-600">{row.lotCount}</td>
 									{isIssued ? (
 										<>

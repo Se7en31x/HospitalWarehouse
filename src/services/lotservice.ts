@@ -19,7 +19,9 @@ export const mapApiLotToUi = (lot: Lot.ApiLot): Lot.UiLot => ({
     lotCode: lot.lot_code,
     itemName: lot.item_name || "-",
     itemCode: lot.item_code || "-",
+    categoryId: lot.category_id || "",
     category: lot.category_name || "-",
+    warehouseId: lot.warehouse_id ?? null,
     warehouse: lot.warehouse_name || "-",
     quantity: lot.quantity || 0,
     unit: lot.unit_name || "ชิ้น",
@@ -94,11 +96,23 @@ export async function createLot(
 }
 
 /**
- * Toggle lot status (ACTIVE / SUSPENDED)
+ * Toggle lot status (ACTIVE ↔ SUSPENDED)
  */
 export async function toggleLotStatus(lotId: string): Promise<Lot.UiLot> {
     const data = await api.patch<Lot.ApiLot>(`${LOTS_BASE}/${lotId}/toggle-status`, {});
     return mapApiLotToUi(data);
+}
+
+/**
+ * จำหน่ายทิ้งล็อต — ห้ามใช้ถาวร (DISPOSED) ไม่สลับกลับด้วยปุ่ม toggle; ส่ง reason เป็นหมายเหตุ
+ */
+export async function markLotUnusable(
+    lotId: string,
+    body?: { reason?: string }
+): Promise<Lot.UiLot & { message?: string }> {
+    const res = await api.post<Lot.ApiLot & { message?: string }>(`${LOTS_BASE}/${lotId}/mark-unusable`, body ?? {});
+    const msg = typeof (res as { message?: unknown }).message === "string" ? (res as { message: string }).message : undefined;
+    return { ...mapApiLotToUi(res as Lot.ApiLot), ...(msg ? { message: msg } : {}) };
 }
 
 /**

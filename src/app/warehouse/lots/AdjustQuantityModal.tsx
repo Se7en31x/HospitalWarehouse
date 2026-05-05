@@ -45,7 +45,6 @@ export default function AdjustQuantityModal({
       setShowError(true);
       return;
     }
-    console.log("Confirming with:", newQty, reason);
     onConfirm(Number(newQty), reason);
   };
 
@@ -83,6 +82,14 @@ export default function AdjustQuantityModal({
 
           {/* ── Scrollable content ──────────────────────────────────────── */}
           <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            {lot.status === "DISPOSED" && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <strong>ล็อตจำหน่ายทิ้ง (ห้ามใช้ถาวร)</strong>
+                <span className="block mt-1 text-amber-900/90">
+                  ถ้ายอดด้านล่างถูกต้องและต้องการให้จ่ายจากล็อตนี้ได้อีก — ตั้งยอดใหม่มากกว่า 0 แล้วบันทึกพร้อมเหตุผล ระบบจะตั้งกลับเป็น «ใช้งานได้»
+                </span>
+              </div>
+            )}
 
             {/* Item Info — 3-column */}
             <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">

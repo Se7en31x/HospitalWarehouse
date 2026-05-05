@@ -31,7 +31,7 @@ export default async function LotsPage() {
     // Fetch all data in parallel — settings drive "ใกล้หมด" threshold (notify_expiring_days).
     const [lotsResult, itemsResult, warehousesResult, suppliersResult, settingsMap] = await Promise.all([
         getLots(1, 10, undefined, token),
-        getInventoryItems({}, token),
+        getInventoryItems({ type: "CONSUMABLE", limit: 1000 }, token),
         getWarehousesOptions(token),
         getMasterSuppliers(token),
         getSystemSettings(token).catch(() => undefined as SystemSettingsMap | undefined),

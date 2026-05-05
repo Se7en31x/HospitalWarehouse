@@ -127,7 +127,6 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 			{ header: "ชื่อพัสดุ",     key: "itemName",    align: "left" },
 			{ header: "วันหมดอายุ",   key: "expiredAt",   align: "center" },
 			{ header: "เกินมา (วัน)", key: "daysExpired", align: "center" },
-			{ header: "คลัง",         key: "warehouse",   align: "left" },
 			{ header: "จำนวน",        key: "quantity",    align: "right" },
 			{ header: "หน่วย",        key: "unit",        align: "left" },
 		];
@@ -146,7 +145,6 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 			lotCode:     r.lotCode,
 			itemCode:    r.itemCode,
 			itemName:    r.itemName,
-			warehouse:   r.warehouse,
 			quantity:    r.quantity.toLocaleString(),
 			unit:        r.unit,
 			expiredAt:   r.expiredAt ? fmtDate(r.expiredAt) : "-",
@@ -174,7 +172,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 		wb.created = new Date();
 
 		const ws = wb.addWorksheet("ล็อตหมดอายุ");
-		const COLS = 9;
+		const COLS = 8;
 
 		ws.columns = [
 			{ width: 6 },
@@ -183,7 +181,6 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 			{ width: 36 },
 			{ width: 16 },
 			{ width: 14 },
-			{ width: 22 },
 			{ width: 12 },
 			{ width: 10 },
 		];
@@ -227,7 +224,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 
 		ws.addRow([]);
 
-		const headers = ["#", "รหัสล็อต", "รหัสรายการ", "ชื่อพัสดุ", "วันหมดอายุ", "เกินมา (วัน)", "คลัง", "จำนวน", "หน่วย"];
+		const headers = ["#", "รหัสล็อต", "รหัสรายการ", "ชื่อพัสดุ", "วันหมดอายุ", "เกินมา (วัน)", "จำนวน", "หน่วย"];
 		const hr = ws.addRow(headers);
 		hr.height = 22;
 		hr.eachCell((cell) => {
@@ -252,7 +249,6 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 				r.itemName,
 				r.expiredAt ? fmtDate(r.expiredAt) : "-",
 				daysExpired(r.expiredAt),
-				r.warehouse,
 				r.quantity,
 				r.unit,
 			]);
@@ -267,7 +263,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
 					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
 				};
-				if (col === 8) {
+				if (col === 7) {
 					cell.alignment = { horizontal: "right" };
 					cell.font = { name: "TH Sarabun New", size: 11, bold: true };
 				}
@@ -297,7 +293,15 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 			<ReportDetailPageHeader
 				reportPage="expired-lots"
 				title="รายงาน LOT หมดอายุ"
-				subtitle="ระบบบริหารคลังสินค้า HPK"
+				subtitle={
+					<>
+						<span>ระบบบริหารคลังสินค้า HPK</span>
+						<span className="block text-xs text-slate-500 font-normal mt-1.5 max-w-2xl leading-relaxed">
+							แสดงเฉพาะล็อตที่มียอดคงเหลือมากกว่า 0 และวันหมดอายุผ่านมาแล้ว (ก่อน 00:00 น. ของวันนี้ตามเวลาของเซิร์ฟเวอร์ — สอดคล้องกับจำนวนบนหน้าแดชบอร์ด)
+							ช่วงวันที่ด้านล่างใช้กรอง «วันหมดอายุ» ของล็อต ไม่ใช่วันที่สร้างรายงาน
+						</span>
+					</>
+				}
 				onBack={onBack}
 			/>
 
@@ -381,7 +385,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 							<tbody className="text-slate-600">
 								{!loading && rows.length === 0 ? (
 									<tr>
-										<td colSpan={9}>
+										<td colSpan={8}>
 											<div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
 												<FlaskConical className="w-12 h-12 text-slate-300" />
 												<p className="text-sm font-medium">ไม่พบข้อมูลล็อตหมดอายุ</p>
