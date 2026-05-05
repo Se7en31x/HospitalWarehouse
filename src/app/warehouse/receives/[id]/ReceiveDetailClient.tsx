@@ -8,13 +8,12 @@ import {
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import * as receiveService from "@/services/receiveService";
-import { fmtDate } from "@/utils/dateUtils";
+import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
 import type {
   AcquisitionType,
   ReceiveBatch,
   ReceiveBatchHeader,
   ReceiveStatus,
-  ReceiveType,
 } from "@/services/receiveService";
 import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
@@ -28,14 +27,6 @@ const ACQUISITION_LABEL: Record<AcquisitionType, string> = {
   PURCHASE: "จัดซื้อ",
   DONATION: "บริจาค",
   TRANSFER: "โอนย้าย",
-};
-
-/** หัวข้อการ์ดต่อ header — แยกตามชนิดพัสดุ (จัดซื้อ/บริจาคแสดงที่ข้อมูล batch หลัก) */
-const DOC_HEADER_TITLE: Record<ReceiveType, string> = {
-  PURCHASE: "รับเข้าของที่ใช้แล้วหมดไป",
-  DONATION: "รับเข้าของที่ใช้แล้วหมดไป",
-  PURCHASE_ASSET: "รับเข้าครุภัณฑ์ภายในองค์กร",
-  REUSABLE_UNIT: "รับเข้าอุปกรณ์ทางการแพทย์",
 };
 
 const STATUS_LABEL: Record<ReceiveStatus, string> = {
@@ -146,29 +137,20 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
     }
   };
 
-  const colSpan = 9;
+  const colSpan = showLot ? 9 : showAssetWarranty ? 7 : 6;
 
   const itemCategory = (row: { category?: string | null; category_name?: string | null }) =>
     row.category_name?.trim() || row.category?.trim() || "—";
 
-  const sectionTitle = DOC_HEADER_TITLE[doc.type] ?? "เอกสารรับเข้า";
-
   return (
     <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
-      <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-start justify-between gap-3 text-slate-800">
-        <div className="flex flex-wrap items-start gap-3 min-w-0">
-          <FileText className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-900 leading-snug">
-              {sectionTitle}
-            </h2>
-            <p className="text-xs font-mono text-slate-600 mt-1 truncate" title={doc.doc_no}>
-              {doc.doc_no}
-            </p>
-          </div>
+      <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-slate-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <FileText className="h-5 w-5 text-indigo-600 shrink-0" />
+          <h2 className="text-base font-semibold text-slate-900">เอกสารรับเข้า</h2>
         </div>
         <span
-          className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
+          className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
         >
           {getReceiveStatusIcon(doc.status)}
           {STATUS_LABEL[doc.status] ?? doc.status}
@@ -192,162 +174,150 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           .receive-doc-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
           .receive-doc-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         `}</style>
-        <table className="w-full min-w-[1020px] text-left text-sm leading-normal table-fixed">
+        <table className="w-full min-w-[980px] text-left text-sm leading-normal table-fixed">
             <colgroup>
-              <col className="w-[48px]" />
-              <col className="w-[128px]" />
-              <col className="w-[200px]" />
-              <col className="w-[180px]" />
-              <col className="w-[72px]" />
-              <col className="w-[72px]" />
-              <col className="w-[124px]" />
-              <col className="w-[104px]" />
-              <col className="w-[104px]" />
+              <col className="w-[56px]" />
+              <col className="w-[160px]" />
+              <col className="w-[260px]" />
+              <col className="w-[220px]" />
+              <col className="w-[80px]" />
+              {showLot ? (
+                <>
+                  <col className="w-[80px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[150px]" />
+                </>
+              ) : showAssetWarranty ? (
+                <col className="w-[150px]" />
+              ) : (
+                <col className="w-[80px]" />
+              )}
             </colgroup>
             <thead className="bg-slate-50 text-slate-700 text-sm font-semibold border-b border-slate-200 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-center whitespace-nowrap">#</th>
-                <th className="px-4 py-3 whitespace-nowrap">รหัสรายการ</th>
-                <th className="px-4 py-3 whitespace-nowrap">ชื่อพัสดุ</th>
-                <th className="px-4 py-3 whitespace-nowrap">หมวดหมู่</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">สั่ง</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">รับ</th>
-                {showLot ? (
+                <th className="px-6 py-3 text-center whitespace-nowrap">#</th>
+                <th className="px-6 py-3 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-6 py-3 whitespace-nowrap">ชื่อพัสดุ</th>
+                <th className="px-6 py-3 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-6 py-3 text-center whitespace-nowrap">สั่ง</th>
+                <th className="px-6 py-3 text-center whitespace-nowrap">รับ</th>
+                {showLot && (
                   <>
-                    <th className="px-4 py-3 whitespace-nowrap">Lot Code</th>
-                    <th className="px-4 py-3 whitespace-nowrap">วันที่ผลิต</th>
-                    <th className="px-4 py-3 whitespace-nowrap">วันหมดอายุ</th>
+                    <th className="px-6 py-3 whitespace-nowrap">Lot Code</th>
+                    <th className="px-6 py-3 whitespace-nowrap">วันที่ผลิต</th>
+                    <th className="px-6 py-3 whitespace-nowrap">วันหมดอายุ</th>
                   </>
-                ) : showAssetWarranty ? (
-                  <>
-                    <th className="px-4 py-3 whitespace-nowrap">วันหมดประกัน</th>
-                    <th className="px-4 py-3 text-center font-normal text-slate-300 whitespace-nowrap">–</th>
-                    <th className="px-4 py-3 text-center font-normal text-slate-300 whitespace-nowrap">–</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="px-4 py-3 text-center font-normal text-slate-400 text-xs whitespace-nowrap">—</th>
-                    <th className="px-4 py-3 text-center font-normal text-slate-400 text-xs whitespace-nowrap">—</th>
-                    <th className="px-4 py-3 text-center font-normal text-slate-400 text-xs whitespace-nowrap">—</th>
-                  </>
+                )}
+                {showAssetWarranty && (
+                  <th className="px-6 py-3 whitespace-nowrap">วันหมดประกัน</th>
                 )}
               </tr>
             </thead>
             <tbody className="text-sm text-slate-700">
               {(doc.receive_item ?? []).map((item, idx) => (
                 <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-4 py-3 text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
-                  <td className="px-4 py-3 align-middle min-w-0">
+                  <td className="px-6 py-3 w-[56px] text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
+                  <td className="px-6 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
                       {item.item_code ?? String(item.item_id)}
                     </p>
                   </td>
-                  <td className="px-4 py-3 align-middle min-w-0">
+                  <td className="px-6 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_name ?? ""}>
                       {item.item_name ?? "—"}
                     </p>
                   </td>
-                  <td className="px-4 py-3 align-middle min-w-0">
+                  <td className="px-6 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-700 leading-snug truncate" title={itemCategory(item)}>
                       {itemCategory(item)}
                     </p>
                   </td>
-                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums align-middle">
+                  <td className="px-6 py-3 text-center text-slate-700 tabular-nums align-middle">
                     {item.expected_qty ?? 0}
                   </td>
                   {isPending ? (
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex justify-center">
-                        <input
-                          type="number" min="0" max={item.expected_qty ?? 0}
-                          className="w-[4.5rem] rounded border border-slate-200 px-2 py-2 text-right text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
-                          value={inputs[item.id]?.qty?.toString() ?? "0"}
-                          onChange={e => {
-                            let v = Number(e.target.value.replace(/^0+/, "") || "0");
-                            if (v > (item.expected_qty ?? 0)) v = item.expected_qty ?? 0;
-                            patch(item.id, { qty: v });
-                          }}
-                        />
-                      </div>
-                    </td>
+                    <>
+                      <td className="px-6 py-3 align-middle">
+                        <div className="flex justify-center">
+                          <input
+                            type="number" min="0" max={item.expected_qty ?? 0}
+                            className="w-20 rounded border border-slate-200 px-2 py-2 text-right text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                            value={inputs[item.id]?.qty?.toString() ?? "0"}
+                            onChange={e => {
+                              let v = Number(e.target.value.replace(/^0+/, "") || "0");
+                              if (v > (item.expected_qty ?? 0)) v = item.expected_qty ?? 0;
+                              patch(item.id, { qty: v });
+                            }}
+                          />
+                        </div>
+                      </td>
+                      {showLot && (
+                        <>
+                          <td className="px-6 py-3 align-middle">
+                            <input
+                              title="Lot Code" type="text" placeholder="Lot Code"
+                              className="w-full max-w-[132px] rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                              value={inputs[item.id]?.lot_code ?? ""}
+                              onChange={e => patch(item.id, { lot_code: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-6 py-3 align-middle">
+                            <input
+                              title="วันที่ผลิต" type="date"
+                              max={new Date().toISOString().split("T")[0]}
+                              className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                              value={inputs[item.id]?.mfg_at ?? ""}
+                              onChange={e => patch(item.id, { mfg_at: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-6 py-3 align-middle">
+                            <input
+                              title="Expiry date" type="date"
+                              min={inputs[item.id]?.mfg_at || undefined}
+                              className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                              value={inputs[item.id]?.expired_at ?? ""}
+                              onChange={e => patch(item.id, { expired_at: e.target.value })}
+                            />
+                          </td>
+                        </>
+                      )}
+                      {showAssetWarranty && (
+                        <td className="px-6 py-3 align-middle">
+                          <input
+                            title="วันหมดประกัน" type="date"
+                            className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
+                            value={inputs[item.id]?.expired_at ?? ""}
+                            onChange={e => patch(item.id, { expired_at: e.target.value })}
+                          />
+                        </td>
+                      )}
+                    </>
                   ) : (
-                    <td className="px-4 py-3 text-center text-indigo-600 tabular-nums align-middle">
-                      {item.qty ?? 0}
-                    </td>
-                  )}
-                  {showLot && isPending && (
                     <>
-                      <td className="px-4 py-3 align-middle">
-                        <input
-                          title="Lot Code" type="text" placeholder="Lot Code"
-                          className="w-full max-w-[7.5rem] rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
-                          value={inputs[item.id]?.lot_code ?? ""}
-                          onChange={e => patch(item.id, { lot_code: e.target.value })}
-                        />
+                      <td className="px-6 py-3 text-center text-indigo-600 tabular-nums align-middle">
+                        {item.qty ?? 0}
                       </td>
-                      <td className="px-4 py-3 align-middle">
-                        <input
-                          title="วันที่ผลิต" type="date"
-                          max={new Date().toISOString().split("T")[0]}
-                          className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
-                          value={inputs[item.id]?.mfg_at ?? ""}
-                          onChange={e => patch(item.id, { mfg_at: e.target.value })}
-                        />
-                      </td>
-                      <td className="px-4 py-3 align-middle">
-                        <input
-                          title="Expiry date" type="date"
-                          min={inputs[item.id]?.mfg_at || undefined}
-                          className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
-                          value={inputs[item.id]?.expired_at ?? ""}
-                          onChange={e => patch(item.id, { expired_at: e.target.value })}
-                        />
-                      </td>
-                    </>
-                  )}
-                  {showLot && !isPending && (
-                    <>
-                      <td className="px-4 py-3 align-middle">
-                        <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
-                          {item.lot_code ?? "—"}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-500 tabular-nums align-middle whitespace-nowrap">
-                        —
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
-                        {fmtDate(item.expired_at)}
-                      </td>
-                    </>
-                  )}
-                  {showAssetWarranty && isPending && (
-                    <>
-                      <td className="px-4 py-3 align-middle">
-                        <input
-                          title="วันหมดประกัน" type="date"
-                          className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
-                          value={inputs[item.id]?.expired_at ?? ""}
-                          onChange={e => patch(item.id, { expired_at: e.target.value })}
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle">—</td>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle">—</td>
-                    </>
-                  )}
-                  {showAssetWarranty && !isPending && (
-                    <>
-                      <td className="px-4 py-3 text-center text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
-                        {fmtDate(item.expired_at)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle">—</td>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle">—</td>
-                    </>
-                  )}
-                  {isReusable && (
-                    <>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle text-xs">—</td>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle text-xs">—</td>
-                      <td className="px-4 py-3 text-center text-slate-300 align-middle text-xs">—</td>
+                      {showLot && (
+                        <>
+                          <td className="px-6 py-3 align-middle">
+                            <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
+                              {item.lot_code ?? "—"}
+                            </p>
+                          </td>
+                          <td className="px-6 py-3 text-sm text-slate-500 tabular-nums align-middle whitespace-nowrap">
+                            —
+                          </td>
+                          <td className="px-6 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                            {fmtDate(item.expired_at)}
+                          </td>
+                        </>
+                      )}
+                      {showAssetWarranty && (
+                        <td className="px-6 py-3 text-center text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                          {fmtDate(item.expired_at)}
+                        </td>
+                      )}
                     </>
                   )}
                 </tr>
@@ -370,14 +340,12 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
       {isPending && (doc.receive_item?.length ?? 0) > 0 && (
         <div className="px-5 sm:px-6 pb-5 sm:pb-6 flex gap-3 justify-end">
           <button
-            type="button"
             onClick={handleCancel} disabled={busy}
             className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-200/60 disabled:opacity-60"
           >
             ยกเลิกเอกสารนี้
           </button>
           <button
-            type="button"
             onClick={handleConfirm} disabled={busy}
             className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm shadow-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -480,7 +448,7 @@ export default function ReceiveDetailClient({ batchId }: { batchId: string | num
             </div>
             <div>
               <p className="text-sm font-medium text-slate-600 mb-1">วันที่รับเข้า</p>
-              <p className="text-sm text-slate-900">{fmtDate(batch.receive_date)}</p>
+              <p className="text-sm text-slate-900">{fmtDateTime(batch.receive_date)}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-slate-600 mb-1">ผู้จำหน่าย / ผู้บริจาค</p>
