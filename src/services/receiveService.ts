@@ -150,6 +150,7 @@ export async function confirmReceive(
         assets?: Array<{
             serial_no?: string;
             department_id?: string;
+            warehouse_id?: string | null;
             note?: string;
         }>;
     }>
@@ -214,6 +215,8 @@ export interface ReusableUnitInput {
     unit_code?: string;
     serial_no?: string;
     department_id?: string | null;
+    /** คลัง / ตำแหน่งจัดเก็บ (inventory.warehouses.id) */
+    warehouse_id?: string | null;
     status?: "AVAILABLE" | "IN_USE" | "REPAIR" | "DISPOSED";
     condition?: "GOOD" | "DAMAGED" | "LOST" | "BROKEN";
     note?: string;

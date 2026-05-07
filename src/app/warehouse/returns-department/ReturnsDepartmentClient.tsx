@@ -439,7 +439,7 @@ export default function ReturnsDepartmentClient() {
                 <th className={LIST_TABLE_TH_WIDE}>ผู้ขอ</th>
                 <th className={LIST_TABLE_TH_WIDE}>เวลาคำขอ</th>
                 <th className={LIST_TABLE_TH_WIDE}>นัดรับของ</th>
-                <th className={`${LIST_TABLE_TH_WIDE} w-[90px]`}>รายการ</th>
+                <th className={`${LIST_TABLE_TH_WIDE}`}>รายการ</th>
                 <th className={LIST_TABLE_TH_WIDE}>สถานะ</th>
                 <th className={`${LIST_TABLE_TH_WIDE} text-center`}>ตรวจสอบ</th>
               </tr>

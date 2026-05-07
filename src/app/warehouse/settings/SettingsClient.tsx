@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Package,
   Plus,
@@ -19,7 +19,6 @@ import {
 
 import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
-import { LIST_TABLE_HEAD_ROW } from "@/lib/tableUi";
 import SettingsModals from "./SettingsModals";
 import { formatThaiDateTime } from "@/utils/formatters";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -61,6 +60,18 @@ type FormMode = "create" | "edit";
 const PAGE_LIMIT = 10;
 /** หน่วยนับ: แสดง 6 รายการต่อหน้า */
 const PAGE_LIMIT_UNITS = 6;
+
+/** หัวตารางตั้งค่า — ไม่ใช้ตัวพิมพ์ใหญ่ทั้งแถว (อ่านภาษาไทยได้สบายกว่า) */
+const SETTINGS_TABLE_HEAD =
+  "bg-slate-50 text-slate-600 text-sm font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0]";
+
+const TAB_BAR: { id: TabType; label: string; icon: ReactNode }[] = [
+  { id: "categories", label: "หมวดหมู่พัสดุ", icon: <Package className="w-4 h-4 shrink-0" /> },
+  { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4 shrink-0" /> },
+  { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4 shrink-0" /> },
+  { id: "suppliers", label: "ผู้จำหน่าย", icon: <Truck className="w-4 h-4 shrink-0" /> },
+  { id: "notifications", label: "แจ้งเตือน", icon: <Settings className="w-4 h-4 shrink-0" /> },
+];
 
 function formatSettingsError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -403,18 +414,45 @@ export default function SettingsClient({
     setIsSaving(true);
     try {
       if (activeTab === "categories") {
-        if (!categoryForm.name.trim() || !categoryForm.code_prefix.trim()) throw new Error("กรุณากรอกข้อมูลให้ครบถ้วน");
-        const nameNorm = categoryForm.name.trim().toLowerCase();
-        const prefixNorm = categoryForm.code_prefix.trim().toUpperCase();
+        const nameTrim = categoryForm.name.trim();
+        const prefixTrim = (categoryForm.code_prefix || "").trim();
+        if (!nameTrim) throw new Error("กรุณาระบุชื่อประเภทพัสดุ");
+        if (!editingCategoryId && !prefixTrim) throw new Error("กรุณาระบุ Prefix Code");
+        const nameNorm = nameTrim.toLowerCase();
+        const prefixNorm = prefixTrim.toUpperCase();
         const siblings = categories.filter((c) => c.id !== editingCategoryId);
         if (siblings.some((c) => c.name.trim().toLowerCase() === nameNorm)) {
           throw new Error("ชื่อประเภทพัสดุนี้ซ้ำกับรายการอื่น");
         }
-        if (siblings.some((c) => (c.code_prefix || "").trim().toUpperCase() === prefixNorm)) {
-          throw new Error("Prefix Code (คำนำหน้ารหัส) นี้ซ้ำกับรายการอื่น");
+        if (editingCategoryId) {
+          if (siblings.some((c) => (c.code_prefix || "").trim().toUpperCase() === nameTrim.toUpperCase())) {
+            throw new Error("ชื่อประเภทนี้ตรงกับ Prefix ของหมวดหมู่อื่น — กรุณาใช้ชื่ออื่น");
+          }
         }
-        if (editingCategoryId) await updateCategory(editingCategoryId, categoryForm);
-        else await createCategory(categoryForm);
+        if (!editingCategoryId) {
+          if (siblings.some((c) => (c.code_prefix || "").trim().toUpperCase() === prefixNorm)) {
+            throw new Error("Prefix Code (คำนำหน้ารหัส) นี้ซ้ำกับรายการอื่น");
+          }
+          if (siblings.some((c) => c.name.trim().toLowerCase() === prefixNorm.toLowerCase())) {
+            throw new Error("Prefix Code นี้ตรงกับชื่อหมวดหมู่อื่น — กรุณาใช้รหัสอื่น");
+          }
+          if (siblings.some((c) => (c.code_prefix || "").trim().toUpperCase() === nameNorm.toUpperCase())) {
+            throw new Error("ชื่อประเภทนี้ตรงกับ Prefix ของหมวดหมู่อื่น — กรุณาใช้ชื่ออื่น");
+          }
+        }
+        if (editingCategoryId) {
+          await updateCategory(editingCategoryId, {
+            name: nameTrim,
+            description: categoryForm.description?.trim() ?? "",
+          });
+        } else {
+          await createCategory({
+            ...categoryForm,
+            name: nameTrim,
+            code_prefix: prefixNorm,
+            description: categoryForm.description?.trim() ?? "",
+          });
+        }
         success = true;
       }
       if (activeTab === "units") {
@@ -477,71 +515,75 @@ export default function SettingsClient({
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#fafafa] p-3 sm:p-4 md:p-6 lg:p-8">
-      {/* Header Section */}
-      <div className="flex items-center gap-4 mb-8">
-        <PageHeadingIconBox icon={Settings2} tone="slate" />
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">ตั้งค่าระบบ</h1>
-          <p className="text-sm text-slate-500 mt-0.5">จัดการคลังสินค้า หมวดหมู่ หน่วยนับ และผู้ใช้งาน</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-slate-200">
-        {[
-          { id: "categories", label: "หมวดหมู่พัสดุ", icon: <Package className="w-4 h-4" /> },
-          { id: "units", label: "หน่วยนับ", icon: <Ruler className="w-4 h-4" /> },
-          { id: "warehouses", label: "คลังสินค้า", icon: <WarehouseIcon className="w-4 h-4" /> },
-          { id: "suppliers", label: "ผู้จำหน่าย", icon: <Truck className="w-4 h-4" /> },
-          { id: "notifications", label: "แจ้งเตือน", icon: <Settings className="w-4 h-4" /> },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as TabType)}
-            className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === tab.id
-                ? "border-blue-700 text-blue-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search/Filter */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        {activeTab !== "notifications" ? (
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={keywordByTab[activeTab]}
-              onChange={(e) => handleKeywordChange(activeTab, e.target.value)}
-              className="w-full border border-slate-200 bg-white rounded-lg py-2.5 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm"
-            />
+    <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <PageHeadingIconBox icon={Settings2} tone="blue" />
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">ตั้งค่าระบบ</h1>
+              <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                จัดการหมวดหมู่ หน่วยนับ คลังสินค้า ผู้จำหน่าย และการแจ้งเตือน
+              </p>
+            </div>
           </div>
-        ) : (
-          <div className="text-sm text-slate-600">{sectionTitle}</div>
-        )}
-        {activeTab !== "notifications" && (
-          <button
-            onClick={handleOpenCreateForm}
-            className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-700 rounded-lg hover:bg-blue-800 shadow-md transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            เพิ่มรายการใหม่
-          </button>
-        )}
-      </div>
+        </div>
 
-      {/* Table Container — โหลดและแบ่งหน้าแบบ ItemsClient */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm relative flex flex-col mb-6">
+        <nav
+          className="flex flex-wrap gap-1.5 p-1.5 rounded-xl border border-slate-200/90 bg-white shadow-sm"
+          aria-label="หมวดตั้งค่า"
+        >
+          {TAB_BAR.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+                  active
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {tab.icon}
+                <span className="whitespace-nowrap">{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-4 sm:mt-6 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm relative flex flex-col w-full min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 sm:px-6 py-4 bg-slate-50/80 border-b border-slate-100">
+            {activeTab !== "notifications" ? (
+              <div className="relative w-full sm:max-w-sm sm:flex-initial">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder={searchPlaceholder}
+                  value={keywordByTab[activeTab]}
+                  onChange={(e) => handleKeywordChange(activeTab, e.target.value)}
+                  className="w-full border border-slate-200 bg-white rounded-xl py-2.5 pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none shadow-sm"
+                />
+              </div>
+            ) : (
+              <div className="text-sm font-medium text-slate-700">{sectionTitle}</div>
+            )}
+            {activeTab !== "notifications" && (
+              <button
+                type="button"
+                onClick={handleOpenCreateForm}
+                className="sm:ml-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-sm transition-colors"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                เพิ่มรายการใหม่
+              </button>
+            )}
+          </div>
+
+      {/* เนื้อหาตาราง / แจ้งเตือน — โหลดและแบ่งหน้า */}
+      <div className="flex flex-col flex-1 min-h-0">
         {isFetching ? (
-          <div className="flex flex-col flex-1 min-h-[22rem] mb-6">
+          <div className="flex flex-col flex-1 min-h-[22rem]">
             <span className="sr-only">กำลังโหลดข้อมูลตั้งค่า</span>
             <DataTableSkeleton
               headers={["#", "ชื่อประเภท", "Prefix", "ประเภท", "รายละเอียด", "สร้าง", "แก้ไข", "จัดการ"]}
@@ -560,7 +602,7 @@ export default function SettingsClient({
             overflowY: 'auto',
             scrollbarWidth: 'auto',
             msOverflowStyle: 'auto',
-          } as React.CSSProperties}
+          } as CSSProperties}
         >
           <style>{`
             div::-webkit-scrollbar {
@@ -580,15 +622,15 @@ export default function SettingsClient({
           `}</style>
           {activeTab === "categories" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className={LIST_TABLE_HEAD_ROW}>
+              <thead className={SETTINGS_TABLE_HEAD}>
                 <tr>
                   <th className="px-6 py-3.5 w-[50px]">#</th>
                   <th className="px-6 py-3.5 w-[160px]">ชื่อประเภท</th>
-                  <th className="px-6 py-3.5 w-[100px]">Prefix</th>
+                  <th className="px-6 py-3.5 w-[80px]">Prefix</th>
                   <th className="px-6 py-3.5 w-[150px]">ประเภท</th>
                   <th className="px-6 py-3.5 w-[250px]">รายละเอียด</th>
-                  <th className="px-6 py-3.5 w-[100px]">สร้าง</th>
-                  <th className="px-6 py-3.5 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-3.5 w-[120px]">สร้าง</th>
+                  <th className="px-6 py-3.5 w-[120px]">แก้ไข</th>
                   <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
@@ -599,7 +641,7 @@ export default function SettingsClient({
                       <td className="px-6 py-4 w-[50px]">{((pageByTabSafe.categories - 1) * PAGE_LIMIT) + idx + 1}</td>
                       <td className="px-6 py-4 w-[160px]">{cat.name}</td>
                       <td className="px-6 py-4 w-[100px]">
-                        <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-100 text-indigo-700 rounded-md">
+                        <span className="px-2.5 py-1 text-xs font-mono font-bold bg-blue-100 text-blue-700 rounded-md">
                           {cat.code_prefix}
                         </span>
                       </td>
@@ -635,7 +677,7 @@ export default function SettingsClient({
                               });
                               setIsFormModalOpen(true);
                             }}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           >
                             <Pencil className="w-5 h-5" />
                           </button>
@@ -667,7 +709,7 @@ export default function SettingsClient({
 
           {activeTab === "units" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className={LIST_TABLE_HEAD_ROW}>
+              <thead className={SETTINGS_TABLE_HEAD}>
                 <tr>
                   <th className="px-6 py-3.5 w-[50px]">#</th>
                   <th className="px-6 py-3.5 w-[100px]">ชื่อหน่วยนับ</th>
@@ -704,7 +746,7 @@ export default function SettingsClient({
                               });
                               setIsFormModalOpen(true);
                             }}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           >
                             <Pencil className="w-5 h-5" />
                           </button>
@@ -736,14 +778,14 @@ export default function SettingsClient({
 
           {activeTab === "warehouses" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className={LIST_TABLE_HEAD_ROW}>
+              <thead className={SETTINGS_TABLE_HEAD}>
                 <tr>
                   <th className="px-6 py-3.5 w-[50px]">#</th>
                   <th className="px-6 py-3.5 w-[150px]">ชื่อคลังสินค้า</th>
                   <th className="px-6 py-3.5 w-[150px]">สถานที่ตั้ง</th>
                   <th className="px-6 py-3.5 w-[250px]">รายละเอียด</th>
-                  <th className="px-6 py-3.5 w-[100px]">สร้าง</th>
-                  <th className="px-6 py-3.5 w-[100px]">แก้ไข</th>
+                  <th className="px-6 py-3.5 w-[120px]">สร้าง</th>
+                  <th className="px-6 py-3.5 w-[120px]">แก้ไข</th>
                   <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
@@ -776,7 +818,7 @@ export default function SettingsClient({
                               });
                               setIsFormModalOpen(true);
                             }}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           >
                             <Pencil className="w-5 h-5" />
                           </button>
@@ -808,7 +850,7 @@ export default function SettingsClient({
 
           {activeTab === "suppliers" && (
             <table className="w-full text-sm text-left table-fixed">
-              <thead className={LIST_TABLE_HEAD_ROW}>
+              <thead className={SETTINGS_TABLE_HEAD}>
                 <tr>
                   <th className="px-4 py-3.5 w-[50px]">#</th>
                   <th className="px-1 py-3.5 w-[180px]">ชื่อผู้จำหน่าย</th>
@@ -876,7 +918,7 @@ export default function SettingsClient({
                               });
                               setIsFormModalOpen(true);
                             }}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           >
                             <Pencil className="w-5 h-5" />
                           </button>
@@ -907,11 +949,11 @@ export default function SettingsClient({
           )}
 
           {activeTab === "notifications" && (
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-5">
-                    <h4 className="text-sm font-bold text-slate-800 mb-4">การแจ้งเตือน</h4>
-                    <div className="space-y-4">
+            <div className="p-6 sm:p-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                    <h4 className="text-base font-semibold text-slate-900 mb-5">การแจ้งเตือน</h4>
+                    <div className="space-y-5">
                       {notificationKeys.map((k) => {
                         const meta = systemSettings[k];
                         const value = systemSettingsDraft[k] ?? meta?.value ?? "";
@@ -919,15 +961,15 @@ export default function SettingsClient({
 
                         if (meta.type === "boolean") {
                           return (
-                            <label key={k} className="flex items-center justify-between gap-4">
-                              <span className="text-sm text-slate-700">{meta.label}</span>
+                            <label key={k} className="flex items-center justify-between gap-4 py-1">
+                              <span className="text-sm text-slate-700 leading-snug">{meta.label}</span>
                               <input
                                 type="checkbox"
                                 checked={value === "true"}
                                 onChange={(e) =>
                                   setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.checked ? "true" : "false" }))
                                 }
-                                className="h-5 w-5 accent-indigo-600"
+                                className="h-5 w-5 shrink-0 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500/30"
                               />
                             </label>
                           );
@@ -935,13 +977,13 @@ export default function SettingsClient({
 
                         if (meta.type === "number") {
                           return (
-                            <div key={k} className="flex items-center justify-between gap-4">
+                            <div key={k} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                               <label className="text-sm text-slate-700">{meta.label}</label>
                               <input
                                 type="number"
                                 value={value}
                                 onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                                className="w-40 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full sm:w-40 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none"
                                 min={0}
                               />
                             </div>
@@ -949,13 +991,13 @@ export default function SettingsClient({
                         }
 
                         return (
-                          <div key={k} className="flex items-center justify-between gap-4">
+                          <div key={k} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                             <label className="text-sm text-slate-700">{meta.label}</label>
                             <input
                               type="text"
                               value={value}
                               onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                              className="w-72 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                              className="w-full sm:w-72 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none"
                             />
                           </div>
                         );
@@ -963,19 +1005,19 @@ export default function SettingsClient({
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-5">
-                    <h4 className="text-sm font-bold text-slate-800 mb-4">เวลาตรวจอัตโนมัติ (ทุกวัน)</h4>
-                    <div className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col">
+                    <h4 className="text-base font-semibold text-slate-900 mb-5">เวลาตรวจอัตโนมัติ (ทุกวัน)</h4>
+                    <div className="space-y-5 flex-1">
                       {scheduleKeys.map((k) => {
                         const meta = systemSettings[k];
                         const value = systemSettingsDraft[k] ?? meta?.value ?? "";
                         if (!meta) return null;
                         const timeValue = cronDailyToTime(value);
                         return (
-                          <div key={k} className="space-y-1">
+                          <div key={k} className="space-y-2">
                             <label className="text-sm text-slate-700">{meta.label}</label>
                             {timeValue ? (
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <input
                                   type="time"
                                   value={timeValue}
@@ -983,9 +1025,9 @@ export default function SettingsClient({
                                     const cron = timeToDailyCron(e.target.value);
                                     setSystemSettingsDraft((prev) => ({ ...prev, [k]: cron ?? value }));
                                   }}
-                                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                  className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none w-full sm:w-auto"
                                 />
-                                <div className="text-xs text-slate-500">
+                                <div className="text-xs text-slate-500 sm:flex-1">
                                   ระบบจะตรวจอัตโนมัติทุกวัน ณ เวลา {timeValue}
                                 </div>
                               </div>
@@ -995,7 +1037,7 @@ export default function SettingsClient({
                                   type="text"
                                   value={value}
                                   onChange={(e) => setSystemSettingsDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none"
                                   placeholder="ติดต่อผู้ดูแลระบบ หากต้องการกำหนดรอบพิเศษ"
                                 />
                                 <div className="text-xs text-amber-700">
@@ -1008,11 +1050,12 @@ export default function SettingsClient({
                       })}
                     </div>
 
-                    <div className="mt-6 flex justify-end">
+                    <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
                       <button
+                        type="button"
                         onClick={handleSaveSystemSettings}
                         disabled={isSaving}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-70"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-70 shadow-sm transition-colors"
                       >
                         {isSaving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
                       </button>
@@ -1023,7 +1066,7 @@ export default function SettingsClient({
           )}
         </div>
             {activeTab !== "notifications" && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-slate-200 gap-3 bg-white">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 py-3.5 border-t border-slate-100 gap-3 bg-slate-50/60">
                 <p className="text-sm text-slate-500">
                   แสดง{" "}
                   {((activeTab === "categories" && pagedCategories.length) ||
@@ -1058,6 +1101,7 @@ export default function SettingsClient({
             )}
           </>
         )}
+      </div>
       </div>
 
       {/* ================= MODALS ================= */}

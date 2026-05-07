@@ -11,8 +11,7 @@ import toast, { Toaster } from "react-hot-toast";
 import * as ReceiveSvc from "@/services/receiveService";
 import type { ItemLotOption } from "@/services/receiveService";
 import * as ItemSvc from "@/services/itemsService";
-import * as DeptSvc from "@/services/departmentService";
-import type { DepartmentOption } from "@/services/departmentService";
+import type { Option as WarehouseOption } from "@/types/items_type";
 import { resolveBarcode } from "@/services/barcodeService";
 import { barcodeScanKeydown } from "@/lib/barcodeScanKeydown";
 import { fmtDate } from "@/utils/dateUtils";
@@ -38,7 +37,7 @@ interface LineItem {
   /** "auto" = สร้างล็อตใหม่อัตโนมัติ | "existing" = รวมเข้าล็อตเดิม */
   lotMode: "auto" | "existing";
   // REUSABLE / MED_ASSET
-  warrantyDate: string; departmentId: number | null;
+  warrantyDate: string;
 }
 
 interface DocMeta {
@@ -133,7 +132,7 @@ function makeLine(item: CatalogItem): LineItem {
     lotCode: item.kind === "CONSUMABLE" ? autoGenLotCode(item.code) : "",  // receiveDate ยังไม่รู้ตอน makeLine
     expiryDate: "", mfgDate: "",
     lotMode: "auto",
-    warrantyDate: "", departmentId: null,
+    warrantyDate: "",
   };
 }
 
@@ -188,6 +187,18 @@ function clearDraft() {
   }
 }
 
+/** ร่างเก่าอาจมี departmentId — ตัดทิ้ง ใช้ warehouseId จาก master พัสดุแทน */
+function normalizeDraftLine(raw: Record<string, unknown>): LineItem {
+  const { departmentId: _omitDept, ...rest } = raw;
+  const l = rest as unknown as LineItem;
+  return {
+    ...l,
+    warehouseId: typeof l.warehouseId === "string" ? l.warehouseId : "",
+    category: l.category ?? "",
+    lotMode: l.lotMode ?? "auto",
+  };
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ReceiveFormPage() {
@@ -195,7 +206,7 @@ export default function ReceiveFormPage() {
 
   const [catalog, setCatalog]     = useState<CatalogItem[]>([]);
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
-  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [source, setSource]   = useState<ReceiveSource>("purchase");
@@ -233,19 +244,15 @@ export default function ReceiveFormPage() {
       setSource(draft.source || "purchase");
       setDocMeta(draft.docMeta || INIT_DOC);
       setLines(
-        (draft.lines || []).map((l: LineItem) => ({
-          ...l,
-          category: l.category ?? "",
-          lotMode: l.lotMode ?? "auto",
-        })),
+        (draft.lines || []).map((l: Record<string, unknown>) =>
+          normalizeDraftLine({
+            ...l,
+          }),
+        ),
       );
       setPendingLine(
         draft.pendingLine
-          ? {
-              ...draft.pendingLine,
-              category: draft.pendingLine.category ?? "",
-              lotMode: draft.pendingLine.lotMode ?? "auto",
-            }
+          ? normalizeDraftLine({ ...(draft.pendingLine as Record<string, unknown>) })
           : null,
       );
     }
@@ -256,10 +263,10 @@ export default function ReceiveFormPage() {
     (async () => {
       setIsLoading(true);
       try {
-        const [rawItems, supps, depts] = await Promise.all([
+        const [rawItems, supps, whs] = await Promise.all([
           ItemSvc.getInventoryApiItems({ limit: 1000 }),
           ReceiveSvc.getSuppliers(),
-          DeptSvc.getDepartmentOptions(),
+          ItemSvc.getWarehousesOptions(),
         ]);
         setCatalog((rawItems || []).map(raw => {
           const ui = ItemSvc.mapApiToUi(raw);
@@ -276,7 +283,7 @@ export default function ReceiveFormPage() {
           };
         }));
         setSuppliers(supps || []);
-        setDepartments(depts || []);
+        setWarehouses(whs || []);
       } catch {
         toast.error("โหลดข้อมูลไม่สำเร็จ");
       } finally {
@@ -557,7 +564,7 @@ export default function ReceiveFormPage() {
               item_id:    l.itemId,
               cost_price: l.costPrice || 0,
               units: Array.from({ length: l.qty }).map(() => ({
-                department_id: l.departmentId ? String(l.departmentId) : null,
+                warehouse_id: l.warehouseId?.trim() ? l.warehouseId.trim() : null,
                 status:    "AVAILABLE" as const,
                 condition: "GOOD"      as const,
               })),
@@ -579,14 +586,13 @@ export default function ReceiveFormPage() {
             note:     noteStr,
             items: kl.map(l => ({
               item_id:      l.itemId,
-              warehouse_id: l.warehouseId || null,
+              warehouse_id: l.warehouseId?.trim() ? l.warehouseId.trim() : null,
               expected_qty: l.expectedQty,
               qty:          l.qty,
               cost_price:   l.costPrice || 0,
               /** วันหมดประกัน — backend เก็บที่ receive_item.expired_at */
               expired_at:   l.warrantyDate ? new Date(l.warrantyDate).toISOString() : null,
               note:         buildNote(l),
-              department_id: l.departmentId || null,
             })),
           });
 
@@ -895,7 +901,7 @@ export default function ReceiveFormPage() {
           {pendingLine && (
             <PendingLineForm
               line={pendingLine}
-              departments={departments}
+              warehouses={warehouses}
               isEditing={editingLineId !== null}
               receiveDate={docMeta.receiveDate}
               onPatch={patchPending}
@@ -950,7 +956,7 @@ export default function ReceiveFormPage() {
                   <tbody className="text-slate-600">
                     {lines.map((line, idx) => (
                       <LineRow key={line.lineId} line={line} idx={idx}
-                        departments={departments}
+                        warehouses={warehouses}
                         onUpdate={updateLine} onRemove={removeLine} onEdit={editLine} />
                     ))}
                   </tbody>
@@ -1042,13 +1048,13 @@ function SplitUnitInput({
 interface LineRowProps {
   line: LineItem;
   idx: number;
-  departments: DepartmentOption[];
+  warehouses: WarehouseOption[];
   onUpdate: (id: string, p: Partial<LineItem>) => void;
   onRemove:  (id: string) => void;
   onEdit:    (id: string) => void;
 }
 
-function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRowProps) {
+function LineRow({ line, idx, warehouses, onUpdate, onRemove, onEdit }: LineRowProps) {
   return (
     <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
 
@@ -1104,13 +1110,11 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
           </div>
         )}
 
-        {line.kind === "REUSABLE" && (
+        {line.kind === "REUSABLE" && line.warehouseId?.trim() && (
           <div className="flex flex-col gap-1">
-            {line.departmentId && (
-              <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
-                {departments.find(d => d.id === line.departmentId)?.name || "—"}
-              </span>
-            )}
+            <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
+              {warehouses.find(w => w.id === line.warehouseId)?.name || "คลังที่เลือก"}
+            </span>
           </div>
         )}
 
@@ -1122,9 +1126,9 @@ function LineRow({ line, idx, departments, onUpdate, onRemove, onEdit }: LineRow
                 <span className="text-slate-900">{fmtDate(line.warrantyDate)}</span>
               </div>
             )}
-            {line.departmentId && (
+            {line.warehouseId?.trim() && (
               <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
-                {departments.find(d => d.id === line.departmentId)?.name || "—"}
+                {warehouses.find(w => w.id === line.warehouseId)?.name || "คลังที่เลือก"}
               </span>
             )}
           </div>
@@ -1415,7 +1419,7 @@ function ConsumableLotSection({
 
 interface PendingLineFormProps {
   line: LineItem;
-  departments: DepartmentOption[];
+  warehouses: WarehouseOption[];
   isEditing: boolean;
   receiveDate: string;
   onPatch: (p: Partial<LineItem>) => void;
@@ -1423,7 +1427,7 @@ interface PendingLineFormProps {
   onCancel: () => void;
 }
 
-function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
+function PendingLineForm({ line, warehouses, isEditing, receiveDate, onPatch, onConfirm, onCancel }: PendingLineFormProps) {
   const cfg = KIND_CFG[line.kind];
   const borderCls =
     line.kind === "CONSUMABLE" ? "border-blue-400"   :
@@ -1505,14 +1509,14 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
               />
             </FieldBox>
 
-            <FieldBox label="แผนก">
+            <FieldBox label="ตำแหน่งจัดเก็บ (คลัง)">
               <select
-                value={line.departmentId ?? ""}
-                onChange={e => onPatch({ departmentId: e.target.value ? Number(e.target.value) : null })}
+                value={line.warehouseId || ""}
+                onChange={e => onPatch({ warehouseId: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-300"
               >
-                <option value="">ส่วนกลาง / ไม่ระบุ</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                <option value="">ไม่ระบุ / ตาม Master พัสดุ</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </FieldBox>
           </div>
@@ -1566,14 +1570,14 @@ function PendingLineForm({ line, departments, isEditing, receiveDate, onPatch, o
               />
             </FieldBox>
 
-            <FieldBox label="แผนก">
+            <FieldBox label="ตำแหน่งจัดเก็บ (คลัง)">
               <select
-                value={line.departmentId ?? ""}
-                onChange={e => onPatch({ departmentId: e.target.value ? Number(e.target.value) : null })}
+                value={line.warehouseId || ""}
+                onChange={e => onPatch({ warehouseId: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-300"
               >
-                <option value="">ส่วนกลาง / ไม่ระบุ</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                <option value="">ไม่ระบุ / ตาม Master พัสดุ</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </FieldBox>
           </div>

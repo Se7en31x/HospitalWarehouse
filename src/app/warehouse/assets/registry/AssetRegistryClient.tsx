@@ -266,6 +266,11 @@ export default function AssetRegistryClient({
         { value: "DISPOSED", label: "จำหน่ายออก" },
     ];
 
+    const selectedDepartmentLabel =
+        selectedDepartment === "แผนกประจำการทั้งหมด"
+            ? "แผนกประจำการทั้งหมด"
+            : departments.find((d) => String(d.id) === selectedDepartment)?.name ?? selectedDepartment;
+
     // Client-side filter + pagination
     const filteredRecords = (records || []).filter((record) => {
         const keyword = searchTerm.toLowerCase();
@@ -360,7 +365,9 @@ export default function AssetRegistryClient({
                         onClick={() => { setIsDepartmentOpen(!isDepartmentOpen); setIsStatusOpen(false); }}
                         className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white hover:border-slate-400 transition-colors shadow-sm w-full sm:w-[200px] justify-between"
                     >
-                        <span className="text-slate-800 font-medium">{selectedDepartment}</span>
+                        <span className="text-slate-800 font-medium truncate" title={selectedDepartmentLabel}>
+                            {selectedDepartmentLabel}
+                        </span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDepartmentOpen ? "rotate-180" : ""}`} />
                     </button>
                     {isDepartmentOpen && (

@@ -570,7 +570,7 @@ export default function LotClient({
           <PageHeadingIconBox icon={Layers} tone="violet" />
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">ล็อตสินค้า</h2>
-            <p className="text-sm text-slate-500 mt-0.5">ล็อตวัสดุสิ้นเปลือง (CONSUMABLE) — วันหมดอายุและยอดคงเหลือตามล็อต</p>
+            <p className="text-sm text-slate-500 mt-0.5">ล็อตของใช้แล้วหมดไป — วันหมดอายุและยอดคงเหลือตามล็อต</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">

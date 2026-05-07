@@ -264,11 +264,11 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 			/>
 
 			{/* ── Content ──────────────────────────────────────────────────────── */}
-			<div className="flex-1 px-8 py-6">
+			<div className="flex-1 px-8 py-4">
 				<div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
 
 					{/* ── Toolbar ───────────────────────────────────────────────── */}
-					<div className="flex flex-wrap gap-3 items-center px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+					<div className="flex flex-wrap gap-2 items-center px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
 
 						{/* Search */}
 						<div className="relative">
@@ -347,11 +347,11 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 					</div>
 
 					{/* ── Row count strip ────────────────────────────────────────── */}
-					<div className="flex items-center gap-4 px-5 py-2.5 bg-white border-b border-slate-100">
-						<span className="text-xs text-slate-500">
-							พบ <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> รายการ
+					<div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-slate-100 text-sm text-slate-600">
+						<span>
+							พบ <span className="font-semibold text-slate-800">{total.toLocaleString()}</span> รายการ
 							&nbsp;·&nbsp;
-							<span className="font-semibold text-slate-700">{groups.length}</span> กลุ่ม Batch
+							<span className="font-semibold text-slate-800">{groups.length}</span> กลุ่ม Batch
 						</span>
 					</div>
 
@@ -362,34 +362,34 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 								<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
-						<table className="w-full text-sm text-left min-w-[760px]">
+						<table className="w-full text-sm text-left text-slate-700 min-w-[820px]">
 							<colgroup>
-								<col className="w-[108px]" />
+								<col className="w-[100px]" />
 								<col />
-								<col className="w-[72px]" />
-								<col className="w-[80px]" />
-								<col className="w-[80px]" />
-								<col className="w-[120px]" />
-								<col className="w-[126px]" />
+								<col className="w-[128px]" />
+								<col className="w-[76px]" />
+								<col className="w-[76px]" />
+								<col className="w-[112px]" />
+								<col className="w-[118px]" />
 							</colgroup>
 							<thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
 								<tr>
-									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ประเภท</th>
-									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ชื่อพัสดุ</th>
-									<th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">หน่วย</th>
-									<th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ใบกำกับ</th>
-									<th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">รับจริง</th>
-									<th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ราคา/หน่วย</th>
-									<th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ยอดรวม</th>
+									<th className="px-3 py-2 text-sm font-semibold text-slate-600 whitespace-nowrap">ประเภท</th>
+									<th className="px-3 py-2 text-sm font-semibold text-slate-600 whitespace-nowrap">ชื่อพัสดุ</th>
+									<th className="px-3 py-2 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">หน่วย</th>
+									<th className="px-3 py-2 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">ใบกำกับ</th>
+									<th className="px-3 py-2 text-center text-sm font-semibold text-slate-600 whitespace-nowrap">รับจริง</th>
+									<th className="px-3 py-2 text-right text-sm font-semibold text-slate-600 whitespace-nowrap">ราคา/หน่วย</th>
+									<th className="px-3 py-2 text-right text-sm font-semibold text-slate-600 whitespace-nowrap">ยอดรวม</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-slate-100">
 								{groups.length === 0 && !isFetching ? (
 									<tr>
 										<td colSpan={7}>
-											<div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+											<div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
 												<Inbox className="w-12 h-12 text-slate-200" />
-												<p className="text-sm text-slate-400">ไม่พบข้อมูลการรับพัสดุ</p>
+												<p className="text-sm font-medium text-slate-500">ไม่พบข้อมูลการรับพัสดุ</p>
 											</div>
 										</td>
 									</tr>
@@ -398,26 +398,26 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 										<React.Fragment key={group.batchNo}>
 											{/* ── Batch header row ─────────────────────── */}
 											<tr className="bg-slate-50 border-t border-slate-200">
-												<td colSpan={5} className="px-4 py-3">
-													<div className="flex items-center gap-3 flex-wrap">
-														<span className="text-xs font-medium text-slate-400 whitespace-nowrap tabular-nums">
+												<td colSpan={5} className="px-3 py-2">
+													<div className="flex items-center gap-2 flex-wrap text-sm leading-tight">
+														<span className="font-medium text-slate-600 whitespace-nowrap tabular-nums">
 															{fmtDate(group.receiveDate)}
 														</span>
-														<span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+														<span className="font-mono text-sm font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full whitespace-nowrap">
 															{group.batchNo}
 														</span>
-														<span className="text-sm font-medium text-slate-700 truncate max-w-[260px]">
+														<span className="font-medium text-slate-800 truncate max-w-[260px]">
 															{group.supplier}
 														</span>
-														<span className="text-xs text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+														<span className="text-sm text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap">
 															{group.items.length} รายการ
 														</span>
 													</div>
 												</td>
-												<td className="px-4 py-3 text-right">
-													<span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">ยอดรวม</span>
+												<td className="px-3 py-2 text-right align-middle">
+													<span className="text-sm font-semibold text-slate-500">ยอดรวม</span>
 												</td>
-												<td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">
+												<td className="px-3 py-2 text-right text-sm font-bold text-slate-900 tabular-nums align-middle">
 													{fmtCurrency(group.grandTotal)}
 												</td>
 											</tr>
@@ -425,27 +425,27 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 											{/* ── Item rows ────────────────────────────── */}
 											{group.items.map((r) => (
 												<tr key={r.id} className="bg-white hover:bg-slate-50 transition-colors">
-													<td className="px-4 py-3 pl-6">
-														<span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${TYPE_BADGE[r.type] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>
+													<td className="px-3 py-1.5 pl-4 align-middle">
+														<span className={`inline-flex px-2 py-0.5 rounded-full text-sm font-medium border leading-tight ${TYPE_BADGE[r.type] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>
 															{TYPE_LABEL[r.type] ?? r.type}
 														</span>
 													</td>
-													<td className="px-4 py-3">
-														<p className="font-medium text-slate-800 leading-snug truncate" title={r.itemName}>{r.itemName}</p>
-														<p className="text-xs text-slate-400 font-mono mt-0.5">{r.itemCode}</p>
+													<td className="px-3 py-1.5 align-middle">
+														<p className="text-sm font-medium text-slate-900 leading-tight truncate" title={r.itemName}>{r.itemName}</p>
+														<p className="text-xs text-slate-500 font-mono mt-0 leading-tight">{r.itemCode}</p>
 													</td>
-													<td className="px-4 py-3 text-center text-xs text-slate-500">{r.unit}</td>
-													<td className="px-4 py-3 text-center text-slate-600 tabular-nums">{r.expectedQty}</td>
-													<td className="px-4 py-3 text-center tabular-nums">
-														<span className={`font-semibold ${r.qty < r.expectedQty ? "text-amber-600" : "text-slate-700"}`}>
+													<td className="px-2 py-1.5 text-center text-sm text-slate-600 leading-tight break-words" title={r.unit}>{r.unit}</td>
+													<td className="px-3 py-1.5 text-center text-sm text-slate-700 tabular-nums align-middle">{r.expectedQty}</td>
+													<td className="px-3 py-1.5 text-center tabular-nums text-sm align-middle">
+														<span className={`font-semibold ${r.qty < r.expectedQty ? "text-amber-600" : "text-slate-800"}`}>
 															{r.qty}
 														</span>
 														{r.qty < r.expectedQty && (
-															<span className="ml-1 text-[10px] text-amber-500">({r.expectedQty - r.qty} ขาด)</span>
+															<span className="ml-1 text-xs text-amber-600">({r.expectedQty - r.qty} ขาด)</span>
 														)}
 													</td>
-													<td className="px-4 py-3 text-right tabular-nums text-slate-600 font-mono text-xs">{fmtCurrency(r.costPrice)}</td>
-													<td className="px-4 py-3 text-right tabular-nums font-bold text-slate-700 font-mono text-xs">{fmtCurrency(r.qty * r.costPrice)}</td>
+													<td className="px-3 py-1.5 text-right tabular-nums text-sm text-slate-700 font-mono align-middle">{fmtCurrency(r.costPrice)}</td>
+													<td className="px-3 py-1.5 text-right tabular-nums text-sm font-semibold text-slate-900 font-mono align-middle">{fmtCurrency(r.qty * r.costPrice)}</td>
 												</tr>
 											))}
 										</React.Fragment>
@@ -456,9 +456,9 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 					</div>
 
 					{/* ── Pagination ────────────────────────────────────────────── */}
-					<div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/60">
-						<p className="text-xs text-slate-500">
-							ทั้งหมด <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> รายการ
+					<div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/60 text-sm">
+						<p className="text-slate-600">
+							ทั้งหมด <span className="font-semibold text-slate-800">{total.toLocaleString()}</span> รายการ
 						</p>
 						{totalPages > 1 && (
 							<div className="flex items-center gap-2">
@@ -470,7 +470,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 								>
 									<ChevronLeft className="w-4 h-4" />
 								</button>
-								<span className="text-xs font-medium px-2 text-slate-600">หน้า {page} / {totalPages}</span>
+								<span className="font-medium px-2 text-slate-700">หน้า {page} / {totalPages}</span>
 								<button
 									type="button"
 									disabled={page >= totalPages}
@@ -486,8 +486,8 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 			</div>
 
 			{/* ── Footer ──────────────────────────────────────────────────────── */}
-			<div className="border-t border-slate-200 bg-white px-8 py-3">
-				<p className="text-xs text-slate-400 text-center">HPK Warehouse Management System &nbsp;·&nbsp; รายงานการรับสินค้าเข้าคลัง</p>
+			<div className="border-t border-slate-200 bg-white px-8 py-2">
+				<p className="text-sm text-slate-500 text-center">HPK Warehouse Management System &nbsp;·&nbsp; รายงานการรับสินค้าเข้าคลัง</p>
 			</div>
 		</div>
 	);

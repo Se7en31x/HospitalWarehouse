@@ -78,6 +78,10 @@ const formatBorrowerAddress = (bd: BorrowerDetails): string => {
   return parts.join(" ") || "-";
 };
 
+/** จำนวนที่พร้อมเบิกจ่ายในคลัง (ไม่รวมชิ้นที่ใช้งาน/ซ่อม/ไม่พร้อม) — API ส่งมาใน available_stock */
+const issueableWarehouseStock = (item: RequisitionItem): number =>
+  typeof item.available_stock === "number" ? item.available_stock : item.current_stock;
+
 // ── Status helpers ─────────────────────────────────────────────────────────────
 
 const getStatusLabel = (status?: RequisitionHeader["status"]): string => {
@@ -730,7 +734,7 @@ export default function RequisitionDetailsPage({
                       <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">รหัสรายการ</th>
                       <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">ชื่อพัสดุ</th>
                       <th className="px-5 py-3.5 text-left whitespace-nowrap text-sm font-bold text-slate-700">หมวดหมู่</th>
-                      <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">คงเหลือ</th>
+                      <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">พร้อมใช้งาน</th>
                       <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">จำนวนที่ขอ</th>
                       <th className="px-5 py-3.5 text-right whitespace-nowrap text-sm font-bold text-slate-700">จำนวนเตรียมจ่าย</th>
                       <th className="px-3 py-3.5 w-[48px]" />
@@ -776,9 +780,9 @@ export default function RequisitionDetailsPage({
                             {item.category_name ?? "—"}
                           </td>
                           <td
-                            className={`${cell} text-right tabular-nums ${item.current_stock <= 0 ? "text-rose-500" : "text-slate-600"}`}
+                            className={`${cell} text-right tabular-nums ${issueableWarehouseStock(item) <= 0 ? "text-rose-500" : "text-slate-600"}`}
                           >
-                            {item.current_stock}
+                            {issueableWarehouseStock(item)}
                           </td>
                           <td className={`${cell} text-right tabular-nums text-slate-600`}>
                             {item.qty}
@@ -816,8 +820,8 @@ export default function RequisitionDetailsPage({
                           <p className="font-black text-lg text-slate-700">{selectedItem.qty}</p>
                         </div>
                         <div className="flex-1 text-center border-r border-slate-200">
-                          <p className="text-[10px] text-slate-400 font-bold">คงเหลือในคลัง</p>
-                          <p className="font-black text-lg text-slate-700">{selectedItem.current_stock}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">พร้อมใช้งานในคลัง</p>
+                          <p className="font-black text-lg text-slate-700">{issueableWarehouseStock(selectedItem)}</p>
                         </div>
                         <div className="flex-1 text-center">
                           <p className="text-[10px] text-blue-500 font-bold">เตรียมจ่าย</p>
