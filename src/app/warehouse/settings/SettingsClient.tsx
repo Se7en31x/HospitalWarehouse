@@ -19,6 +19,7 @@ import {
 
 import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import MutationLoader from "@/components/feedback/MutationLoader";
 import SettingsModals from "./SettingsModals";
 import { formatThaiDateTime } from "@/utils/formatters";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
@@ -1123,6 +1124,8 @@ export default function SettingsClient({
         isSaving={isSaving}
         onFormSubmit={handleFormSubmit}
       />
+
+      <MutationLoader open={isSaving} message="กำลังบันทึก..." />
     </div>
   );
 }

@@ -66,6 +66,8 @@ export interface ReusableReturnRequestItem {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
+  item_image_url?: string | null;
+  item_unit_name?: string | null;
   category_name?: string | null;
   requested_qty: number;
   note: string | null;
@@ -75,7 +77,10 @@ export interface ReusableReturnRequestItem {
     unit_code: string;
     serial_no: string | null;
     item_id: string;
+    item_code?: string | null;
     item_name: string | null;
+    item_image_url?: string | null;
+    item_unit_name?: string | null;
     status: string | null;
     condition: string | null;
     is_found: boolean;
@@ -95,6 +100,11 @@ export interface ReusableReturnRequest {
   created_at: string;
   updated_at: string;
   items: ReusableReturnRequestItem[];
+  submit_attachments?: import("./returnAttachmentService").ReturnAttachment[];
+  process_attachments?: import("./returnAttachmentService").ReturnAttachment[];
+  processed_by?: string | null;
+  processed_by_name?: string | null;
+  processed_at?: string | null;
 }
 
 export interface ReusableReturnRequestListResponse {

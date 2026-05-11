@@ -13,6 +13,8 @@ export type ProcessUnitCondition = "GOOD" | "DAMAGED" | "LOST";
 export interface ProcessItemForm {
   item_id: string;
   item_name: string;
+  item_image_url?: string | null;
+  item_unit_name?: string | null;
   requested_qty: number;
   return_qty: number;
   condition: ProcessItemCondition;
@@ -25,6 +27,8 @@ export interface ProcessUnitForm {
   serial_no: string;
   item_id: string;
   item_name: string;
+  item_image_url?: string | null;
+  item_unit_name?: string | null;
   condition: ProcessUnitCondition;
   note: string;
 }
@@ -57,7 +61,6 @@ export const conditionOptions: { value: ReturnCondition; label: string }[] = [
   { value: "GOOD", label: CONDITION_LABEL.GOOD },
   { value: "DAMAGED", label: CONDITION_LABEL.DAMAGED },
   { value: "LOST", label: CONDITION_LABEL.LOST },
-  { value: "INCOMPLETE", label: CONDITION_LABEL.INCOMPLETE },
 ];
 
 export const conditionOptionsUnitRow: { value: ProcessUnitCondition; label: string }[] = [

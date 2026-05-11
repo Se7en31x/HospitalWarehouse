@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FileText, Layers, Loader2, Package, CheckCircle, Clock, X,
+  FileText, Layers, Loader2, Package, CheckCircle, Clock, X, Printer, ChevronDown, ChevronRight,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -13,10 +13,13 @@ import type {
   AcquisitionType,
   ReceiveBatch,
   ReceiveBatchHeader,
+  ReceiveItem as ReceiveItemType,
+  ReceiveItemUnit,
   ReceiveStatus,
 } from "@/services/receiveService";
 import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { printLabels, type LabelData } from "@/lib/printLabel";
 
 const MySwal = withReactContent(Swal);
 const getErrorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -63,11 +66,18 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
   const isAsset    = doc.type === "PURCHASE_ASSET";
   const isReusable = doc.type === "REUSABLE_UNIT";
   const isPending  = doc.status === "PENDING";
+  const isCompleted = doc.status === "COMPLETED";
   const showLot    = !isAsset && !isReusable;
   /** ครุภัณฑ์: วันหมดประกันเก็บที่ receive_item.expired_at (ไม่ใช่ล็อต) */
   const showAssetWarranty = isAsset;
+  /** เอกสารชนิดที่มีบาร์โค้ดต่อชิ้น (ครุภัณฑ์ / reusable) */
+  const supportsUnitBarcode = (isAsset || isReusable) && isCompleted;
+  /** เอกสาร consumable ที่ COMPLETED → พิมพ์บาร์โค้ดล็อตได้ */
+  const supportsLotBarcode = !isAsset && !isReusable && isCompleted;
+  const supportsBarcode = supportsUnitBarcode || supportsLotBarcode;
 
   const [busy, setBusy] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [inputs, setInputs] = useState<Record<number, ItemInput>>(() => {
     const init: Record<number, ItemInput> = {};
     if (isPending) {
@@ -82,6 +92,90 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
     }
     return init;
   });
+
+  /** เปิด/ปิดรายการ unit codes ของแต่ละ row */
+  const toggleExpand = (rowId: number) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  };
+
+  /** สร้าง LabelData ของ unit (asset/reusable) */
+  const buildUnitLabels = (
+    units: ReceiveItemUnit[] | undefined,
+    itemName: string | null,
+  ): LabelData[] => {
+    if (!units || units.length === 0) return [];
+    return units
+      .filter(u => Boolean(u.code))
+      .map(u => ({
+        name: itemName ?? u.code,
+        code: u.code,
+        subLabel: u.serial_no ? `S/N: ${u.serial_no}` : undefined,
+      }));
+  };
+
+  /** สร้าง LabelData ของล็อต (consumable) — 1 ดวง / lot */
+  const buildLotLabel = (item: ReceiveItemType): LabelData | null => {
+    const code = item.lot?.lot_code || item.lot_code;
+    if (!code) return null;
+    const expISO = item.lot?.expired_at || item.expired_at;
+    const expDate = expISO ? fmtDate(expISO) : "";
+    return {
+      name: item.item_name ?? code,
+      code,
+      subLabel: expDate ? `EXP: ${expDate}` : undefined,
+    };
+  };
+
+  /** จำนวน label ที่พิมพ์ได้ในแต่ละ row */
+  const countRowLabels = (item: ReceiveItemType): number => {
+    if (supportsUnitBarcode) return item.units?.length ?? 0;
+    if (supportsLotBarcode) return (item.lot?.lot_code || item.lot_code) ? 1 : 0;
+    return 0;
+  };
+
+  /** พิมพ์บาร์โค้ดทั้งใบเอกสาร */
+  const handlePrintAll = () => {
+    const labels: LabelData[] = [];
+    (doc.receive_item ?? []).forEach(it => {
+      if (supportsUnitBarcode) {
+        labels.push(...buildUnitLabels(it.units, it.item_name));
+      } else if (supportsLotBarcode) {
+        const lotLabel = buildLotLabel(it);
+        if (lotLabel) labels.push(lotLabel);
+      }
+    });
+    if (labels.length === 0) {
+      MySwal.fire({ title: "ไม่มีรายการ", text: "ไม่มีบาร์โค้ดที่พิมพ์ได้ในเอกสารนี้", icon: "info" });
+      return;
+    }
+    printLabels(labels);
+  };
+
+  /** พิมพ์บาร์โค้ดเฉพาะแถว (units หรือ lot ตามชนิดเอกสาร) */
+  const handlePrintRow = (item: ReceiveItemType) => {
+    let labels: LabelData[] = [];
+    if (supportsUnitBarcode) {
+      labels = buildUnitLabels(item.units, item.item_name);
+    } else if (supportsLotBarcode) {
+      const lotLabel = buildLotLabel(item);
+      labels = lotLabel ? [lotLabel] : [];
+    }
+    if (labels.length === 0) {
+      MySwal.fire({ title: "ไม่มีรายการ", text: "ไม่มีบาร์โค้ดที่พิมพ์ได้สำหรับรายการนี้", icon: "info" });
+      return;
+    }
+    printLabels(labels);
+  };
+
+  const totalUnits = (doc.receive_item ?? []).reduce(
+    (sum, it) => sum + countRowLabels(it),
+    0,
+  );
 
   const patch = (id: number, p: Partial<ItemInput>) =>
     setInputs(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
@@ -148,13 +242,27 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
         <div className="flex flex-wrap items-center gap-2">
           <FileText className="h-5 w-5 text-indigo-600 shrink-0" />
           <h2 className="text-base font-semibold text-slate-900">เอกสารรับเข้า</h2>
+          <span className="text-xs font-mono text-slate-500">{doc.doc_no}</span>
         </div>
-        <span
-          className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
-        >
-          {getReceiveStatusIcon(doc.status)}
-          {STATUS_LABEL[doc.status] ?? doc.status}
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {supportsBarcode && totalUnits > 0 && (
+            <button
+              type="button"
+              onClick={handlePrintAll}
+              title={`พิมพ์บาร์โค้ดทั้งหมด ${totalUnits} ดวง`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              พิมพ์บาร์โค้ด ({totalUnits})
+            </button>
+          )}
+          <span
+            className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${STATUS_CLS[doc.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
+          >
+            {getReceiveStatusIcon(doc.status)}
+            {STATUS_LABEL[doc.status] ?? doc.status}
+          </span>
+        </div>
       </div>
 
       <div className="px-5 sm:px-6 py-5">
@@ -215,8 +323,14 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
               </tr>
             </thead>
             <tbody className="text-sm text-slate-700">
-              {(doc.receive_item ?? []).map((item, idx) => (
-                <tr key={item.id} className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+              {(doc.receive_item ?? []).map((item, idx) => {
+                const rowUnits = item.units ?? [];
+                const hasUnits = supportsUnitBarcode && rowUnits.length > 0;
+                const hasLotBarcode = supportsLotBarcode && Boolean(item.lot?.lot_code || item.lot_code);
+                const isExpanded = expandedRows.has(item.id);
+                return (
+                <React.Fragment key={item.id}>
+                <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
                   <td className="px-6 py-3 w-[56px] text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
                   <td className="px-6 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
@@ -295,21 +409,49 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                     </>
                   ) : (
                     <>
-                      <td className="px-6 py-3 text-center text-indigo-600 tabular-nums align-middle">
-                        {item.qty ?? 0}
+                      <td className="px-6 py-3 text-center align-middle">
+                        {hasUnits ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(item.id)}
+                            title={isExpanded ? "ซ่อนรหัสบาร์โค้ด" : "ดูรหัสบาร์โค้ด"}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                              isExpanded
+                                ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                : "text-indigo-600 hover:bg-indigo-50 border border-transparent"
+                            }`}
+                          >
+                            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            {item.qty ?? 0}
+                          </button>
+                        ) : (
+                          <span className="text-indigo-600 tabular-nums">{item.qty ?? 0}</span>
+                        )}
                       </td>
                       {showLot && (
                         <>
                           <td className="px-6 py-3 align-middle">
-                            <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot_code ?? ""}>
-                              {item.lot_code ?? "—"}
-                            </p>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot?.lot_code ?? item.lot_code ?? ""}>
+                                {item.lot?.lot_code ?? item.lot_code ?? "—"}
+                              </p>
+                              {hasLotBarcode && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintRow(item)}
+                                  title="พิมพ์บาร์โค้ดล็อตนี้"
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors flex-shrink-0"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-3 text-sm text-slate-500 tabular-nums align-middle whitespace-nowrap">
-                            —
+                            {fmtDate(item.lot?.mfg_at)}
                           </td>
                           <td className="px-6 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
-                            {fmtDate(item.expired_at)}
+                            {fmtDate(item.lot?.expired_at ?? item.expired_at)}
                           </td>
                         </>
                       )}
@@ -321,7 +463,44 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                     </>
                   )}
                 </tr>
-              ))}
+                {hasUnits && isExpanded && (
+                  <tr className="bg-slate-50/60 border-b border-slate-100 last:border-b-0">
+                    <td colSpan={colSpan} className="px-6 py-3">
+                      <div className="flex flex-col gap-2.5 ml-12">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <p className="text-xs font-bold text-slate-600">
+                            รหัสบาร์โค้ด ({rowUnits.length} ดวง)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintRow(item)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-md bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
+                          >
+                            <Printer className="w-3 h-3" />
+                            พิมพ์เฉพาะรายการนี้
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rowUnits.map(u => (
+                            <span
+                              key={u.id}
+                              title={u.serial_no ? `S/N: ${u.serial_no}` : undefined}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] font-mono text-slate-700"
+                            >
+                              {u.code}
+                              {u.serial_no && (
+                                <span className="text-[9px] text-slate-400">· {u.serial_no}</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
+              );
+            })}
               {(!doc.receive_item || doc.receive_item.length === 0) && (
                 <tr>
                   <td colSpan={colSpan} className="p-0">

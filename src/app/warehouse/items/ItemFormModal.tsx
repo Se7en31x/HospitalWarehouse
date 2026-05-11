@@ -16,6 +16,7 @@ import {
 import * as ItemSvc from "@/services/itemsService";
 import * as Item from "@/types/items_type";
 import { useDropzone } from "react-dropzone";
+import MutationLoader from "@/components/feedback/MutationLoader";
 
 interface FormData {
   name: string;
@@ -360,16 +361,7 @@ export default function ItemFormModal({
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div className="relative bg-white rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto pointer-events-auto">
-          {isLoading ? (
-            <div
-              className="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-lg bg-white/85 backdrop-blur-sm"
-              aria-busy="true"
-              aria-live="polite"
-            >
-              <Loader2 className="h-10 w-10 animate-spin text-[#0055FF]" strokeWidth={2.25} />
-              <p className="text-sm font-medium text-slate-600">กำลังบันทึก...</p>
-            </div>
-          ) : null}
+          <MutationLoader open={isLoading} message={isEdit ? "กำลังบันทึกการแก้ไข..." : "กำลังเพิ่มพัสดุ..."} />
           {/* Header */}
           <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">

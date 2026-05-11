@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Swal from "sweetalert2";
-import { Loader2, Plus, Search, X, ChevronDown, ArrowLeft, RotateCcw, Package, ListChecks } from "lucide-react";
+import { Plus, Search, X, ChevronDown, ArrowLeft, RotateCcw, Package, ListChecks } from "lucide-react";
 
 import * as reusableSvc from "@/services/reusableUnitService";
 import * as departmentService from "@/services/departmentService";
 import type { DepartmentOption } from "@/services/departmentService";
+import { uploadDepartmentReturnSubmitAttachments } from "@/services/returnAttachmentService";
 import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 import { LIST_TABLE_HEAD_ROW } from "@/lib/tableUi";
+import MutationLoader from "@/components/feedback/MutationLoader";
+import ReturnAttachmentUploader from "@/components/returns/ReturnAttachmentUploader";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -86,6 +89,9 @@ export default function ReturnRequestsClient() {
   const [pickerItem, setPickerItem] = useState<reusableSvc.ReturnableSummaryItem | null>(null);
   const [pickerUnits, setPickerUnits] = useState<reusableSvc.ReusableUnit[]>([]);
   const [isDeptOpen, setIsDeptOpen] = useState(false);
+
+  // Return attachments — uploaded after createReusableReturnRequest
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   useEffect(() => {
     departmentService.getDepartmentOptions().then(setDepartments).catch(() => setDepartments([]));
@@ -266,20 +272,40 @@ export default function ReturnRequestsClient() {
         })),
       });
 
+      // Upload attachments (best-effort)
+      let attachmentWarning: string | null = null;
+      if (pendingFiles.length > 0 && created?.id) {
+        try {
+          await uploadDepartmentReturnSubmitAttachments(created.id, pendingFiles);
+        } catch (uploadErr) {
+          attachmentWarning = getErrorMessage(uploadErr);
+        }
+      }
+
       setIsSubmitting(false);
 
-      await Swal.fire({
-        title: "สำเร็จ!",
-        text: created.doc_no
-          ? `บันทึกคำขอคืนคลังเรียบร้อย เลขที่ ${created.doc_no}`
-          : "บันทึกคำขอคืนคลังเรียบร้อย",
-        icon: "success",
-        timer: 1800,
-        showConfirmButton: false,
-      });
+      if (attachmentWarning) {
+        await Swal.fire({
+          title: "สร้างคำขอสำเร็จ แต่อัปโหลดไฟล์ไม่ครบ",
+          text: `${created.doc_no ? `เลขที่ ${created.doc_no} • ` : ""}${attachmentWarning}`,
+          icon: "warning",
+          confirmButtonText: "ตกลง",
+        });
+      } else {
+        await Swal.fire({
+          title: "สำเร็จ!",
+          text: created.doc_no
+            ? `บันทึกคำขอคืนคลังเรียบร้อย เลขที่ ${created.doc_no}`
+            : "บันทึกคำขอคืนคลังเรียบร้อย",
+          icon: "success",
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
 
       setSelectedUnitsByItem({});
       setNote("");
+      setPendingFiles([]);
       const next = getNowDateTimeParts();
       setPickupDate(next.date);
       setPickupTime(next.time);
@@ -403,6 +429,16 @@ export default function ReturnRequestsClient() {
             rows={2}
             placeholder="รายละเอียดเพิ่มเติม"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          />
+        </div>
+
+        <div className="mb-4 border border-slate-200 rounded-lg p-4 bg-slate-50/40">
+          <ReturnAttachmentUploader
+            pendingFiles={pendingFiles}
+            onPendingFilesChange={setPendingFiles}
+            label="ภาพ/เอกสารแนบ (ไม่บังคับ)"
+            helperText="แนบรูปสภาพอุปกรณ์ก่อนส่งคืน หรือเอกสารส่งมอบ — รองรับ JPEG, PNG, WEBP, HEIC, PDF (ไม่เกิน 10 MB)"
+            disabled={isSubmitting}
           />
         </div>
 
@@ -536,27 +572,7 @@ export default function ReturnRequestsClient() {
         </div>
       </div>
 
-      {isSubmitting ? (
-        <>
-          <div
-            className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm"
-            aria-hidden
-          />
-          <div
-            className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none"
-            aria-busy="true"
-            aria-live="polite"
-          >
-            <div className="pointer-events-auto flex flex-col items-center justify-center gap-4 rounded-lg border border-slate-200 bg-white/85 px-10 py-9 shadow-xl backdrop-blur-sm min-w-[260px]">
-              <Loader2 className="h-10 w-10 animate-spin text-[#0055FF]" strokeWidth={2.25} />
-              <div className="text-center">
-                <p className="text-sm font-semibold text-slate-800">กำลังบันทึก...</p>
-                <p className="mt-1 text-xs text-slate-500">กรุณารอสักครู่</p>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : null}
+      <MutationLoader open={isSubmitting} message="กำลังส่งคำขอคืน..." />
 
       {pickerOpen && pickerItem && (
         <div

@@ -43,6 +43,7 @@ import {
   loadBorrowFormDraftFiles,
   saveBorrowFormDraftFiles,
 } from "@/lib/borrowPersistedState";
+import MutationLoader from "@/components/feedback/MutationLoader";
 
 const MySwal = withReactContent(Swal);
 
@@ -878,6 +879,7 @@ export default function BorrowCartModal({
 
   return (
     <>
+    <MutationLoader open={isSubmitting} message="กำลังส่งคำขอยืม..." />
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       onClick={handleCloseModal}
@@ -1815,12 +1817,8 @@ export default function BorrowCartModal({
               disabled={isSubmitting}
               className="inline-flex w-40 items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed text-center leading-tight"
             >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
-              ) : (
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              )}
-              {isSubmitting ? "กำลังส่งคำขอ..." : "ยืนยันการยืม"}
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              ยืนยันการยืม
             </button>
           </div>
         )}

@@ -219,7 +219,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 	const handleExportPdf = () => {
 		const columns: PrintColumn[] = [
 			{ header: "#",            key: "_no",           align: "center" },
-			{ header: "รหัสหน่วย",    key: "unitCode",      align: "left"   },
+			{ header: "Unit Code",    key: "unitCode",      align: "left"   },
 			{ header: "เลขซีเรียล",   key: "serialNo",      align: "left"   },
 			{ header: "ชื่อพัสดุ",    key: "itemName",      align: "left"   },
 			{ header: "หมวดหมู่",     key: "category",      align: "left"   },
@@ -297,7 +297,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 
 		ws.addRow([]);
 
-		const hr = ws.addRow(["#", "รหัสหน่วย", "เลขซีเรียล", "ชื่อพัสดุ", "หมวดหมู่", "แผนก", "สถานะ", "สภาพ"]);
+		const hr = ws.addRow(["#", "Unit Code", "เลขซีเรียล", "ชื่อพัสดุ", "หมวดหมู่", "แผนก", "สถานะ", "สภาพ"]);
 		hr.height = 22;
 		hr.eachCell(cell => {
 			cell.style = { font: { name: FONT, size: 12, bold: true, color: { argb: "FFFFFFFF" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_BG } }, alignment: { horizontal: "center", vertical: "middle" }, border: { top: { style: "thin", color: { argb: "FF546E7A" } }, left: { style: "thin", color: { argb: "FF546E7A" } }, bottom: { style: "thin", color: { argb: "FF546E7A" } }, right: { style: "thin", color: { argb: "FF546E7A" } } } };
@@ -363,7 +363,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 					<div className="flex flex-wrap gap-3 items-center px-5 py-4 border-b border-slate-100 bg-slate-50/60">
 						<div className="relative">
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-							<input type="text" placeholder="ค้นหารหัสหน่วย / ชื่อพัสดุ / หมวดหมู่..."
+							<input type="text" placeholder="ค้นหา Unit Code / ชื่อพัสดุ / หมวดหมู่..."
 								value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
 								className="h-10 pl-9 pr-3 w-72 border border-slate-300 rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
 						</div>
@@ -427,7 +427,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 							<thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
 								<tr>
 									<th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">#</th>
-									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">รหัสหน่วย</th>
+									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Unit Code</th>
 									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">เลขซีเรียล</th>
 									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ชื่อพัสดุ</th>
 									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">หมวดหมู่</th>

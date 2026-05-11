@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   FileText, PackageCheck, User, Loader2, Minus, Plus, ScanLine,
   Trash2, ArrowRight, X, Search, MapPin, Phone, ExternalLink, Shield, ChevronDown, MessageSquare,
-  Eye,
+  Eye, Sparkles, Hand,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import {
@@ -205,6 +205,12 @@ export default function RequisitionDetailsPage({
   const [scanInput, setScanInput] = useState("");
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [isBorrowerDetailsOpen, setIsBorrowerDetailsOpen] = useState(false);
+  /** โหมดการจัดสรรล็อต (เฉพาะ consumable): "auto" = ระบบเลือกให้, "manual" = เลือกเอง/สแกนเอง */
+  const [lotMode, setLotMode] = useState<Record<number, "auto" | "manual">>({});
+  /** ช่องสแกน lot_code สำหรับ consumable */
+  const [lotScanInput, setLotScanInput] = useState("");
+  /** ช่องค้นหา lot_code (filter รายการล็อตที่แสดง) */
+  const [lotSearch, setLotSearch] = useState("");
 
   const attachmentThumbs = useMemo((): Array<{ url: string; filename?: string; name?: string }> => {
     if (!requisition) return [];
@@ -270,6 +276,8 @@ export default function RequisitionDetailsPage({
       let changed = false;
       requisition.items.forEach((item: RequisitionItem) => {
         if (item.itemType === "REUSABLE") return;
+        const mode = lotMode[item.id] ?? "auto";
+        if (mode !== "auto") return;
         const alloc = next[item.id];
         if (alloc && alloc.qty === 0 && Object.keys(alloc.lots).length === 0 && item.available_lots) {
           let remaining = item.qty || 0;
@@ -288,7 +296,66 @@ export default function RequisitionDetailsPage({
       });
       return changed ? next : prev;
     });
-  }, [requisition, isPending]);
+  }, [requisition, isPending, lotMode]);
+
+  // เคลียร์ช่องสแกน/ค้นหาเมื่อสลับ item
+  useEffect(() => {
+    setLotScanInput("");
+    setLotSearch("");
+    setScanInput("");
+    setBarcodeSearch("");
+  }, [selectedItemId]);
+
+  /** สลับโหมด: ถ้าเปลี่ยนเป็น "manual" จะเคลียร์ allocation ของ item นั้นเพื่อให้ผู้ใช้เลือกเอง */
+  const handleSwitchLotMode = (itemId: number, mode: "auto" | "manual") => {
+    setLotMode((prev) => ({ ...prev, [itemId]: mode }));
+    setLotScanInput("");
+    setLotSearch("");
+    if (mode === "manual") {
+      setAllocations((prev) => ({
+        ...prev,
+        [itemId]: { qty: 0, lots: {}, units: [] },
+      }));
+    } else {
+      // กลับเป็น auto: เคลียร์เพื่อให้ effect auto-pick ทำงานอีกครั้ง
+      setAllocations((prev) => ({
+        ...prev,
+        [itemId]: { qty: 0, lots: {}, units: [] },
+      }));
+    }
+  };
+
+  /** สแกน/พิมพ์ lot_code → +1 ให้ล็อตนั้น (จนเต็ม qty ขอ หรือเต็มจำนวนล็อต) */
+  const handleScanLot = (currentItem: RequisitionItem) => {
+    const raw = lotScanInput.trim();
+    if (!raw) return;
+    const alloc = allocations[currentItem.id];
+    if (!alloc) return;
+    if (alloc.qty >= currentItem.qty) {
+      SweetAlertUtils.error("เกิดข้อผิดพลาด", "เลือกครบจำนวนที่ขอแล้ว");
+      setLotScanInput("");
+      return;
+    }
+    const foundLot = currentItem.available_lots?.find(
+      (l: RequisitionItemLots) => (l.lot_code ?? "").toLowerCase() === raw.toLowerCase()
+    );
+    if (!foundLot) {
+      SweetAlertUtils.error("ไม่พบล็อต", `ไม่พบล็อต ${raw} ในรายการที่จ่ายได้`);
+      setLotScanInput("");
+      return;
+    }
+    const lotKey = foundLot.id.toString();
+    const currentLotQty = alloc.lots[lotKey] || 0;
+    if (currentLotQty >= foundLot.quantity) {
+      SweetAlertUtils.error("ล็อตเต็มแล้ว", `ล็อต ${foundLot.lot_code} จัดครบจำนวนคงเหลือแล้ว`);
+      setLotScanInput("");
+      return;
+    }
+    const newLots = { ...alloc.lots, [lotKey]: currentLotQty + 1 };
+    const newQty = Object.values(newLots).reduce((s, q) => s + q, 0);
+    updateAllocation(currentItem.id, { ...alloc, qty: newQty, lots: newLots });
+    setLotScanInput("");
+  };
 
   // ── Allocation handlers ─────────────────────────────────────────────────────
 
@@ -915,70 +982,163 @@ export default function RequisitionDetailsPage({
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        /* Lot allocator */
-                        <div className="space-y-4">
-                          <h4 className="font-bold text-slate-700 text-sm">
-                            เลือกล็อตที่ต้องการจ่ายออก (ล็อตทั้งหมด {selectedItem.available_lots?.length || 0})
-                          </h4>
-                          {selectedItem.available_lots && selectedItem.available_lots.length > 0 ? (
-                            <div
-                              className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1"
-                              style={{ maxHeight: "calc(4 * 5.5rem + 3 * 0.75rem)" }}
-                            >
-                              {selectedItem.available_lots.map((lot: RequisitionItemLots) => {
-                                const lotQty = alloc.lots[lot.id.toString()] || 0;
-                                const isExpired = new Date(lot.expired_at) < new Date();
-                                const isActive = lotQty > 0;
-                                return (
-                                  <div
-                                    key={lot.id}
-                                    className={`bg-white rounded-xl border p-3 transition-colors ${isActive ? "border-blue-500 ring-1 ring-blue-500/20 shadow-sm" : "border-slate-200"}`}
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0 flex-1">
-                                        <p className="font-bold text-slate-700 text-sm">{lot.lot_code}</p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <p className={`text-xs font-bold ${isExpired ? "text-rose-500" : "text-slate-400"}`}>
-                                            หมด: {new Date(lot.expired_at).toLocaleDateString("th-TH")}
-                                          </p>
-                                          <p className="text-xs text-slate-400">คงเหลือ: <span className="font-black text-slate-600">{lot.quantity}</span></p>
+                      ) : (() => {
+                        /* Lot allocator (consumable) */
+                        const currentMode = lotMode[selectedItem.id] ?? "auto";
+                        const isManual = currentMode === "manual";
+                        const allLots = selectedItem.available_lots ?? [];
+                        const filteredLots = lotSearch.trim()
+                          ? allLots.filter((l: RequisitionItemLots) =>
+                              (l.lot_code ?? "").toLowerCase().includes(lotSearch.trim().toLowerCase())
+                            )
+                          : allLots;
+
+                        return (
+                          <div className="flex h-full min-h-0 flex-col gap-4">
+                            {/* Mode toggle */}
+                            <div className="flex-shrink-0 bg-white border border-slate-200 rounded-[14px] p-3 shadow-sm">
+                              <p className="text-xs font-bold text-slate-600 mb-2">รูปแบบการจัดสรรล็อต</p>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSwitchLotMode(selectedItem.id, "auto")}
+                                  className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                                    !isManual
+                                      ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                      : "bg-white border-slate-200 text-slate-600 hover:border-blue-400"
+                                  }`}
+                                >
+                                  <Sparkles size={14} />
+                                  ระบบเลือกให้
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSwitchLotMode(selectedItem.id, "manual")}
+                                  className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                                    isManual
+                                      ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                      : "bg-white border-slate-200 text-slate-600 hover:border-blue-400"
+                                  }`}
+                                >
+                                  <Hand size={14} />
+                                  เลือกเอง / สแกน
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Barcode scanner — โหมด manual เท่านั้น */}
+                            {isManual && (
+                              <div className="flex-shrink-0 bg-white border border-slate-200 rounded-[14px] p-4 shadow-sm">
+                                <label className="text-xs font-bold text-slate-600 mb-2 flex items-center gap-1">
+                                  <ScanLine size={14} />
+                                  สแกน/พิมพ์รหัสล็อต ({alloc.qty}/{selectedItem.qty})
+                                </label>
+                                <div className="flex bg-slate-100 rounded-lg p-1">
+                                  <input
+                                    type="text"
+                                    value={lotScanInput}
+                                    onChange={(e) => setLotScanInput(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScanLot(selectedItem); } }}
+                                    placeholder="ยิงบาร์โค้ดหรือพิมพ์รหัสล็อตที่นี่..."
+                                    className="w-full bg-transparent border-none text-slate-700 placeholder:text-slate-400 px-3 py-1.5 focus:ring-0 outline-none text-sm font-mono"
+                                    autoFocus
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1.5 ml-1">
+                                  ยิงครั้งละ 1 ชิ้น ระบบจะ +1 ให้ล็อตนั้นอัตโนมัติ
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Lot list */}
+                            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-3">
+                              <div className="mb-2 flex flex-shrink-0 items-center justify-between gap-3">
+                                <h4 className="font-bold text-slate-700 text-sm">
+                                  รายการล็อต ({allLots.length})
+                                </h4>
+                                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-500 min-w-0 flex-1 sm:flex-initial sm:w-auto">
+                                  <Search size={14} className="flex-shrink-0" />
+                                  <input
+                                    type="text"
+                                    value={lotSearch}
+                                    onChange={(e) => setLotSearch(e.target.value)}
+                                    placeholder="ค้นรหัสล็อต"
+                                    className="w-full sm:w-32 bg-transparent text-xs outline-none placeholder:text-slate-400"
+                                  />
+                                  {lotSearch && (
+                                    <button type="button" onClick={() => setLotSearch("")} className="text-slate-400 hover:text-slate-600">
+                                      <X size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {allLots.length === 0 ? (
+                                <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center">
+                                  <p className="text-rose-600 font-bold text-sm">ไม่มี Lot ที่สามารถจ่ายได้</p>
+                                </div>
+                              ) : (
+                                <div
+                                  className="flex min-h-0 flex-col gap-2.5 overflow-y-auto pr-1"
+                                  style={{ maxHeight: "calc(4 * 5.5rem + 3 * 0.625rem)" }}
+                                >
+                                  {filteredLots.length === 0 && (
+                                    <p className="text-center text-xs text-slate-400 font-bold p-4">ไม่พบล็อตที่ค้นหา</p>
+                                  )}
+                                  {filteredLots.map((lot: RequisitionItemLots) => {
+                                    const lotQty = alloc.lots[lot.id.toString()] || 0;
+                                    const isExpired = new Date(lot.expired_at) < new Date();
+                                    const isActive = lotQty > 0;
+                                    return (
+                                      <div
+                                        key={lot.id}
+                                        className={`bg-white rounded-xl border p-3 transition-colors ${isActive ? "border-blue-500 ring-1 ring-blue-500/20 shadow-sm" : "border-slate-200"}`}
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="min-w-0 flex-1">
+                                            <p className="font-bold text-slate-700 text-sm font-mono">{lot.lot_code}</p>
+                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                              <p className={`text-xs font-bold ${isExpired ? "text-rose-500" : "text-slate-400"}`}>
+                                                หมด: {new Date(lot.expired_at).toLocaleDateString("th-TH")}
+                                              </p>
+                                              <p className="text-xs text-slate-400">คงเหลือ: <span className="font-black text-slate-600">{lot.quantity}</span></p>
+                                              {isExpired && (
+                                                <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">หมดอายุ</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className="flex w-[180px] flex-shrink-0 items-center bg-slate-50 border rounded-lg h-9 ml-auto">
+                                            <button
+                                              autoFocus={false}
+                                              onClick={() => handleUpdateLotQty(selectedItem.id, lot.id.toString(), lotQty - 1, lot.quantity, selectedItem.qty)}
+                                              className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-200 rounded-l-lg transition-colors"
+                                            >
+                                              <Minus size={14} strokeWidth={3} />
+                                            </button>
+                                            <input
+                                              type="number"
+                                              value={lotQty}
+                                              onChange={(e) => handleUpdateLotQty(selectedItem.id, lot.id.toString(), Number(e.target.value) || 0, lot.quantity, selectedItem.qty)}
+                                              className="flex-1 w-full bg-transparent text-center font-black text-base outline-none text-blue-700"
+                                            />
+                                            <button
+                                              autoFocus={false}
+                                              onClick={() => handleUpdateLotQty(selectedItem.id, lot.id.toString(), lotQty + 1, lot.quantity, selectedItem.qty)}
+                                              className="w-10 h-full flex items-center justify-center text-blue-600 hover:bg-blue-100 rounded-r-lg transition-colors"
+                                            >
+                                              <Plus size={14} strokeWidth={3} />
+                                            </button>
+                                          </div>
                                         </div>
                                       </div>
-                                      <div className="flex w-[180px] flex-shrink-0 items-center bg-slate-50 border rounded-lg h-9 ml-auto">
-                                        <button
-                                          autoFocus={false}
-                                          onClick={() => handleUpdateLotQty(selectedItem.id, lot.id.toString(), lotQty - 1, lot.quantity, selectedItem.qty)}
-                                          className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-200 rounded-l-lg transition-colors"
-                                        >
-                                          <Minus size={14} strokeWidth={3} />
-                                        </button>
-                                        <input
-                                          type="number"
-                                          value={lotQty}
-                                          onChange={(e) => handleUpdateLotQty(selectedItem.id, lot.id.toString(), Number(e.target.value) || 0, lot.quantity, selectedItem.qty)}
-                                          className="flex-1 w-full bg-transparent text-center font-black text-base outline-none text-blue-700"
-                                        />
-                                        <button
-                                          autoFocus={false}
-                                          onClick={() => handleUpdateLotQty(selectedItem.id, lot.id.toString(), lotQty + 1, lot.quantity, selectedItem.qty)}
-                                          className="w-10 h-full flex items-center justify-center text-blue-600 hover:bg-blue-100 rounded-r-lg transition-colors"
-                                        >
-                                          <Plus size={14} strokeWidth={3} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center">
-                              <p className="text-rose-600 font-bold text-sm">ไม่มี Lot ที่สามารถจ่ายได้</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

@@ -16,6 +16,7 @@ import {
   LIST_TABLE_TBODY,
 } from "@/lib/tableUi";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import MutationLoader from "@/components/feedback/MutationLoader";
 
 import { socket } from "../../../lib/socket";
 import AdjustQuantityModal from "@/app/warehouse/lots/AdjustQuantityModal";
@@ -555,6 +556,11 @@ export default function LotClient({
 
   return (
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
+
+      <MutationLoader
+        open={isAdjusting || isSavingStockIn}
+        message={isSavingStockIn ? "กำลังบันทึกล็อต..." : "กำลังปรับยอด..."}
+      />
 
       <AdjustQuantityModal
         isOpen={isAdjustModalOpen}

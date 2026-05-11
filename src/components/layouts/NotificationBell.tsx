@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, Package, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   getNotifications,
   getUnreadCount,
@@ -19,6 +20,65 @@ interface NotificationBellProps {
   viewAllHref?: string;
   entityType?: string;
 }
+
+const REQUISITION_CODE_PREFIXES = ["REQ-", "BOR-"];
+
+const isRequisitionCode = (code?: string | null): boolean => {
+  if (!code) return false;
+  const upper = code.toString().trim().toUpperCase();
+  return REQUISITION_CODE_PREFIXES.some((p) => upper.startsWith(p));
+};
+
+/**
+ * แปลง notification → URL ของหน้าที่เกี่ยวข้อง
+ * รองรับทั้งฝั่ง WAREHOUSE และ REQUEST_HISTORY
+ * คืน null ถ้าไม่มีหน้าที่เหมาะสม (จะใช้แค่ mark-read โดยไม่ navigate)
+ */
+const resolveNotificationHref = (n: NotificationItem): string | null => {
+  const type = (n.type || "").toUpperCase();
+  const entityType = (n.entity_type || "").toUpperCase();
+  const entityId = (n.entity_id || "").toString().trim();
+  const entityCode = n.entity_code || null;
+
+  // ── ฝั่งผู้ขอ: ทุกอย่างผูกกับใบคำขอ → ไปหน้าประวัติของใบนั้น ────────────
+  if (entityType === "REQUEST_HISTORY") {
+    if (!entityId) return "/request/history";
+    return `/request/history/${entityId}`;
+  }
+
+  // ── ฝั่งคลัง: เลือกหน้าตาม type ──────────────────────────────────────
+  if (entityType === "WAREHOUSE") {
+    switch (type) {
+      case "LOT_EXPIRING":
+        return "/warehouse/lots";
+
+      case "LOW_STOCK":
+        return "/warehouse/items";
+
+      case "STOCK_IN":
+        // STOCK_IN มี 2 แหล่ง: รับเข้า batch (notifyBatch) กับ ตรวจรับคืน (verifyReturn)
+        // entity_code ของฝั่ง verifyReturn เป็น REQ-/BOR- เสมอ
+        if (isRequisitionCode(entityCode)) {
+          return entityId ? `/warehouse/requests/${entityId}` : "/warehouse/requests";
+        }
+        return entityId ? `/warehouse/receives/${entityId}` : "/warehouse/receives";
+
+      case "STOCK_OUT":
+      case "REQUISITION_CREATED":
+      case "REQUISITION_CANCELLED":
+      case "BORROW_OVERDUE":
+        return entityId ? `/warehouse/requests/${entityId}` : "/warehouse/requests";
+
+      case "BORROW_RETURN_SUBMITTED":
+        return entityId ? `/warehouse/returns/${entityId}` : "/warehouse/returns";
+
+      default:
+        return null;
+    }
+  }
+
+  return null;
+};
 
 const timeAgo = (value?: string | null): string => {
   if (!value) return "-";
@@ -64,6 +124,7 @@ const getIconConfig = (n: NotificationItem): IconConfig => {
 };
 
 export default function NotificationBell({ title = "การแจ้งเตือน", viewAllHref, entityType }: NotificationBellProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
@@ -205,6 +266,18 @@ export default function NotificationBell({ title = "การแจ้งเต�
     }
   }, [items]);
 
+  const handleItemClick = useCallback(async (n: NotificationItem) => {
+    const href = resolveNotificationHref(n);
+
+    // Mark read first (fire-and-forget) so navigation isn't blocked
+    if (n.id) handleMarkRead(n.id);
+
+    if (href) {
+      setIsOpen(false);
+      router.push(href);
+    }
+  }, [handleMarkRead, router]);
+
   const handleMarkAllRead = useCallback(async () => {
     setIsMarkingAll(true);
     try { await markAllNotificationsRead(); await refreshAll(); } catch { /* silent */ } finally { setIsMarkingAll(false); }
@@ -306,13 +379,14 @@ export default function NotificationBell({ title = "การแจ้งเต�
 
             {!isLoading && items.filter(n => activeTab === "all" || !n.is_read).map((n) => {
               const { icon, bg } = getIconConfig(n);
+              const hasHref = resolveNotificationHref(n) !== null;
               return (
                 <button
                   key={n.id ?? `sock-${n.created_at}`}
-                  onClick={() => handleMarkRead(n.id)}
+                  onClick={() => handleItemClick(n)}
                   className={`w-full text-left flex items-start gap-3 px-4 py-3 transition-colors ${
                     !n.is_read ? "bg-blue-50/60 hover:bg-blue-100/60" : "hover:bg-gray-100"
-                  }`}
+                  } ${hasHref ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className={`mt-0.5 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${bg}`}>
                     {icon}

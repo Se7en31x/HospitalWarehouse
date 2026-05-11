@@ -6,6 +6,28 @@ export type ReceiveType = "PURCHASE" | "DONATION" | "PURCHASE_ASSET" | "REUSABLE
 export type ReceiveStatus = "PENDING" | "COMPLETED" | "CANCELLED";
 export type AcquisitionType = "PURCHASE" | "DONATION" | "TRANSFER";
 
+/**
+ * Unit ที่ผูกกับ receive_item (MED_ASSET → asset_code, REUSABLE → unit_code)
+ * ใช้กับการพิมพ์บาร์โค้ดที่หน้ารายละเอียดการรับเข้า
+ */
+export interface ReceiveItemUnit {
+    id: string;
+    code: string;
+    serial_no: string | null;
+    status: string | null;
+    kind: "MED_ASSET" | "REUSABLE";
+}
+
+/** ล็อต consumable ที่ผูกกับ receive_item (enrich มาจาก inventory.item_lots) */
+export interface ReceiveItemLot {
+    id: string;
+    lot_code: string;
+    quantity: number | null;
+    status: string | null;
+    expired_at: string | null;
+    mfg_at: string | null;
+}
+
 export interface ReceiveItem {
     id: number;
     header_id: number;
@@ -20,6 +42,10 @@ export interface ReceiveItem {
     qty: number;
     cost_price: number | null;
     expired_at: string | null;
+    /** ครุภัณฑ์ / reusable units ที่ออกตามใบนี้ (เฉพาะใบที่ COMPLETED) */
+    units?: ReceiveItemUnit[];
+    /** ล็อต consumable ที่ผูกกับรายการนี้ — ใช้พิมพ์บาร์โค้ดล็อต / link ไปหน้า lots */
+    lot?: ReceiveItemLot | null;
 }
 
 export interface ReceiveBatchHeader {

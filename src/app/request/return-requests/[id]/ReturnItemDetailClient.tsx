@@ -26,6 +26,7 @@ import {
 } from "@/constants/labels";
 import { fmtDateTime } from "@/utils/dateUtils";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import { ReturnAttachmentViewer } from "@/components/returns/ReturnAttachmentUploader";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -222,7 +223,7 @@ function RequestedUnitsModal({
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/95 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                         <th className="whitespace-nowrap px-4 py-3 w-12">#</th>
-                        <th className="whitespace-nowrap px-4 py-3">รหัสหน่วย</th>
+                        <th className="whitespace-nowrap px-4 py-3">Unit Code</th>
                         <th className="whitespace-nowrap px-4 py-3">S/N</th>
                         <th className="whitespace-nowrap px-4 py-3">สถานะพัสดุ</th>
                         <th className="whitespace-nowrap px-4 py-3">สภาพ</th>
@@ -333,9 +334,9 @@ function RequestedUnitsModal({
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                 <Package className="h-7 w-7" />
               </div>
-              <p className="text-sm font-semibold text-slate-800">ยังไม่มีรายการรหัสหน่วยแยกรายตัว</p>
+              <p className="text-sm font-semibold text-slate-800">ยังไม่มีรายการ Unit Code แยกรายตัว</p>
               <p className="mt-2 max-w-sm text-xs leading-relaxed text-slate-500">
-                ขณะนี้แสดงเฉพาะจำนวนรวมจากคำขอ หากระบบส่งรหัสหน่วยมาครบ รายการจะแสดงที่นี่
+                ขณะนี้แสดงเฉพาะจำนวนรวมจากคำขอ หากระบบส่ง Unit Code มาครบ รายการจะแสดงที่นี่
               </p>
               <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm">
                 จำนวนที่แจ้งคืน:{" "}
@@ -480,15 +481,17 @@ export default function ReturnItemDetailClient() {
               <table className="w-full table-fixed border-collapse">
                 <colgroup>
                   <col style={{ width: "4%" }} />
+                  <col style={{ width: "70px" }} />
                   <col style={{ width: "12%" }} />
-                  <col style={{ width: "32%" }} />
-                  <col style={{ width: "32%" }} />
+                  <col style={{ width: "28%" }} />
+                  <col style={{ width: "26%" }} />
                   <col style={{ width: "10%" }} />
                   <col style={{ width: "10%" }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="text-center text-sm font-bold text-slate-700 px-3 py-3">#</th>
+                    <th className="text-center text-sm font-bold text-slate-700 px-3 py-3">รูป</th>
                     <th className="text-left text-sm font-bold text-slate-700 px-3 py-3">รหัส</th>
                     <th className="text-left text-sm font-bold text-slate-700 px-3 py-3">รายการ</th>
                     <th className="text-left text-sm font-bold text-slate-700 px-3 py-3">หมวดหมู่</th>
@@ -506,6 +509,21 @@ export default function ReturnItemDetailClient() {
                       >
                         <td className="px-3 py-3 text-center text-sm text-slate-400 align-middle">{idx + 1}</td>
                         <td className="px-3 py-3 align-middle">
+                          <div className="flex justify-center">
+                            {item.item_image_url ? (
+                              <img
+                                src={item.item_image_url}
+                                alt={item.item_name || ""}
+                                className="w-12 h-12 rounded-xl object-cover border border-slate-200 bg-white shadow-sm"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                <Package className="w-5 h-5 text-slate-300" />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 align-middle">
                           <span className="font-mono text-sm font-medium text-slate-800 truncate block">{item.item_code || "—"}</span>
                         </td>
                         <td className="px-3 py-3 align-middle min-w-0">
@@ -515,7 +533,12 @@ export default function ReturnItemDetailClient() {
                           <span className="text-sm font-medium text-slate-600 line-clamp-2 break-words">{item.category_name || "—"}</span>
                         </td>
                         <td className="px-3 py-3 text-center align-middle">
-                          <span className="text-sm font-semibold text-blue-600">{item.requested_qty}</span>
+                          <span className="inline-flex items-baseline gap-1 tabular-nums">
+                            <span className="text-sm font-semibold text-blue-600">{item.requested_qty}</span>
+                            {item.item_unit_name && (
+                              <span className="text-xs font-medium text-slate-500">{item.item_unit_name}</span>
+                            )}
+                          </span>
                         </td>
                         <td className="px-3 py-3 align-middle text-center">
                           {nUnits <= 0 ? (
@@ -536,7 +559,7 @@ export default function ReturnItemDetailClient() {
                   })}
                   {itemCount === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-16 text-center">
+                      <td colSpan={7} className="px-6 py-16 text-center">
                         <Package className="w-10 h-10 text-slate-200 mx-auto mb-2" />
                         <p className="text-sm font-medium text-slate-500">ไม่พบรายการ</p>
                       </td>
@@ -546,6 +569,26 @@ export default function ReturnItemDetailClient() {
               </table>
             </div>
           </section>
+
+          {/* เอกสาร/รูปที่แนบตอนสร้างคำขอคืน */}
+          {(detail.submit_attachments?.length ?? 0) > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentViewer
+                attachments={detail.submit_attachments ?? []}
+                label="ภาพ/เอกสารที่แนบตอนส่งคำขอคืน"
+              />
+            </section>
+          )}
+
+          {/* เอกสาร/รูปจากคลังตอนตรวจรับ */}
+          {(detail.process_attachments?.length ?? 0) > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentViewer
+                attachments={detail.process_attachments ?? []}
+                label="ภาพ/เอกสารจากคลัง (ตอนตรวจรับ)"
+              />
+            </section>
+          )}
         </div>
       </div>
     </div>

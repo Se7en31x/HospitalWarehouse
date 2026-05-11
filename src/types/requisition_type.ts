@@ -144,4 +144,8 @@ export interface RequisitionHeader {
   pending_return_submission?: PendingReturnSubmission | null;
   /** เอกสารแนบ (ถ้า API ส่งมา) */
   attachments?: Array<{ url: string; filename?: string; name?: string }> | null;
+  /** ภาพ/เอกสารตอนผู้ยืมส่งคืน (BORROW return phase: submit) */
+  return_submit_attachments?: import("@/services/returnAttachmentService").ReturnAttachment[];
+  /** ภาพ/เอกสารตอนเจ้าหน้าที่คลังตรวจรับคืน (BORROW return phase: verify) */
+  return_verify_attachments?: import("@/services/returnAttachmentService").ReturnAttachment[];
 }

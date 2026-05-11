@@ -16,6 +16,7 @@ import { resolveBarcode } from "@/services/barcodeService";
 import { barcodeScanKeydown } from "@/lib/barcodeScanKeydown";
 import { fmtDate } from "@/utils/dateUtils";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import MutationLoader from "@/components/feedback/MutationLoader";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -624,20 +625,22 @@ export default function ReceiveFormPage() {
       // แจ้งเตือนครั้งเดียวรวมทุก header ของ batch นี้
       ReceiveSvc.notifyBatch(batch.id).catch(() => {/* silent */});
 
-      await Swal.fire({
-        title: "บันทึกสำเร็จ",
-        icon: "success",
-        confirmButtonText: "ดูรายละเอียด",
-        confirmButtonColor: "#2563eb",
-      });
-
+      // ล้างฟอร์มทันทีหลังบันทึกสำเร็จ — พร้อมรับใบถัดไปได้เลย
       skipDraftAutosaveRef.current = true;
       setLines([]);
       setDocMeta(INIT_DOC);
       setPendingLine(null);
       setEditingLineId(null);
       clearDraft();
-      router.push(`/warehouse/receives/${batch.id}`);
+
+      // Swal popup สำเร็จ — auto-dismiss ใน 1.5 วิ ไม่ต้องให้ผู้ใช้กด
+      Swal.fire({
+        title: "บันทึกสำเร็จ",
+        icon: "success",
+        timer: 1500,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
     } catch (err) {
       toast.error("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -978,13 +981,15 @@ export default function ReceiveFormPage() {
             <button type="button" onClick={() => void handleSave()}
               disabled={lines.length === 0 || isSaving}
               className="flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium shadow disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              <CheckCircle2 className="w-4 h-4" />
               ยืนยันรับเข้า
             </button>
           </div>
 
         </div>
       </div>
+
+      <MutationLoader open={isSaving} message="กำลังบันทึกการรับเข้า..." />
     </div>
   );
 }

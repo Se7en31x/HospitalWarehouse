@@ -9,6 +9,7 @@ import {
 
 import { DataTableSkeleton } from "@/components/skeletons/DataTableSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import MutationLoader from "@/components/feedback/MutationLoader";
 import {
   LIST_TABLE_HEAD_ROW,
   LIST_TABLE_TH_COMPACT,
@@ -126,6 +127,7 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const [selectedItem, setSelectedItem] = useState<Item.UiItem | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<Map<string, LabelData>>(new Map());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const toggleSelect = (item: Item.UiItem) =>
     setSelectedItems((prev) => {
@@ -172,12 +174,15 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
   const handleDelete = async (id: string) => {
     const result = await SweetAlertUtils.delete("ลบพัสดุ", "คุณต้องการลบรายการนี้ใช่หรือไม่?");
     if (!result.isConfirmed) return;
+    setIsDeleting(true);
     try {
       await ItemSvc.deleteInventoryItem(id);
       SweetAlertUtils.success("สำเร็จ", "ลบรายการเรียบร้อย");
       fetchAll();
     } catch (error) {
       SweetAlertUtils.error("เกิดข้อผิดพลาด", getErrorMessage(error));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -222,6 +227,8 @@ export default function ItemsClient({ initialItems }: { initialItems: Item.UiIte
 
   return (
     <div className="flex flex-col bg-[#fafafa] p-3 sm:p-4 md:p-6">
+      <MutationLoader open={isDeleting} message="กำลังลบพัสดุ..." />
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div className="flex items-center gap-4">
           <PageHeadingIconBox icon={Package} tone="stock" />

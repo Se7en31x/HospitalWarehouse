@@ -4,18 +4,23 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect, type ReactNode, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
-  Package, Loader2, CheckCircle, X, RotateCcw,
+  Package, CheckCircle, X, RotateCcw,
   ChevronRight, ChevronDown, AlertTriangle, Clock, FileText, Eye,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import { getRequisitionById, submitReturn, ReturnItemPayload } from "@/services/requisitionService";
+import {
+  uploadBorrowReturnSubmitAttachments,
+} from "@/services/returnAttachmentService";
 import { fmtDate } from "@/utils/dateUtils";
 import type {
   RequisitionHeader, RequisitionItem, OutstandingUnit, AllocatedLot, BorrowerDetails,
 } from "@/types/requisition_type";
 import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import MutationLoader from "@/components/feedback/MutationLoader";
+import ReturnAttachmentUploader, { ReturnAttachmentViewer } from "@/components/returns/ReturnAttachmentUploader";
 
 const MySwal = withReactContent(Swal);
 const getErr = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -88,12 +93,6 @@ const CONDITIONS: {
     label: "สูญหาย",
     pill: "bg-red-500 text-white border-red-500",
     badge: "bg-red-50 text-red-700 border-red-200",
-  },
-  {
-    value: "INCOMPLETE",
-    label: "ไม่ครบ",
-    pill: "bg-purple-500 text-white border-purple-500",
-    badge: "bg-purple-50 text-purple-700 border-purple-200",
   },
 ];
 
@@ -686,7 +685,7 @@ function ReusableModal({
                         <span className="sr-only">เลือก</span>
                       </th>
                       <th scope="col" className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">
-                        รหัสหน่วย
+                        Unit Code
                       </th>
                       <th scope="col" className="text-left px-3 py-2.5 font-semibold text-slate-600 w-[9.5rem]">
                         สถานะ
@@ -1122,6 +1121,11 @@ function DetailContent({
   const [openReusable, setOpenReusable] = useState<number | null>(null);
   const openReusableItem = openReusable !== null ? reusableItems[openReusable] ?? null : null;
 
+  // ── Return attachments (uploaded by requester at submit phase) ──
+  const [pendingReturnFiles, setPendingReturnFiles] = useState<File[]>([]);
+  const existingSubmitAttachments = header.return_submit_attachments ?? [];
+  const existingVerifyAttachments = header.return_verify_attachments ?? [];
+
   const returnable: ReturnRowState[] = consumableItems.map(it => ({
     req_item_id: it.id,
     name: it.name,
@@ -1199,13 +1203,32 @@ function DetailContent({
       const result = await submitReturn(header.id, payload);
       if (!result.success) throw new Error(result.message);
 
-      await MySwal.fire({
-        title: "บันทึกสำเร็จ",
-        text: "ส่งคืนสำเร็จ (รอคลังตรวจรับคืน)",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      // หลังส่งคืนสำเร็จ → อัปโหลดไฟล์แนบ (ถ้ามี)
+      let attachmentWarning: string | null = null;
+      if (pendingReturnFiles.length > 0) {
+        try {
+          await uploadBorrowReturnSubmitAttachments(header.id, pendingReturnFiles);
+        } catch (uploadErr) {
+          attachmentWarning = getErr(uploadErr);
+        }
+      }
+
+      if (attachmentWarning) {
+        await MySwal.fire({
+          title: "ส่งคืนสำเร็จ แต่อัปโหลดไฟล์ไม่ครบ",
+          text: `ลองอัปโหลดอีกครั้งจากหน้ารายละเอียดได้: ${attachmentWarning}`,
+          icon: "warning",
+          confirmButtonText: "ตกลง",
+        });
+      } else {
+        await MySwal.fire({
+          title: "บันทึกสำเร็จ",
+          text: "ส่งคืนสำเร็จ (รอคลังตรวจรับคืน)",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
       router.push("/request/returnitem");
     } catch (err) {
       MySwal.fire({ title: "ข้อผิดพลาด", text: getErr(err), icon: "error" });
@@ -1216,6 +1239,8 @@ function DetailContent({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#fafafa]">
+      <MutationLoader open={isSubmitting} message="กำลังส่งคำขอคืน..." />
+
       <div className="w-full px-6 py-6 flex flex-col flex-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -1427,6 +1452,38 @@ function DetailContent({
             </div>
           </section>
 
+          {/* Attachments — submit phase upload (only when can return) */}
+          {canReturn && (consumableItems.length > 0 || reusableItems.length > 0) && (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentUploader
+                pendingFiles={pendingReturnFiles}
+                onPendingFilesChange={setPendingReturnFiles}
+                uploadedAttachments={existingSubmitAttachments}
+                label="ภาพ/เอกสารตอนส่งคืน (ไม่บังคับ)"
+                helperText="แนบรูปสภาพอุปกรณ์ก่อนคืน หรือเอกสารส่งมอบ — รองรับ JPEG, PNG, WEBP, HEIC, PDF (ไม่เกิน 10 MB)"
+                disabled={isSubmitting}
+              />
+            </section>
+          )}
+
+          {/* Read-only viewers when submission already done */}
+          {!canReturn && existingSubmitAttachments.length > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentViewer
+                attachments={existingSubmitAttachments}
+                label="ภาพ/เอกสารตอนส่งคืน"
+              />
+            </section>
+          )}
+          {existingVerifyAttachments.length > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentViewer
+                attachments={existingVerifyAttachments}
+                label="ภาพ/เอกสารจากคลัง (ตอนตรวจรับคืน)"
+              />
+            </section>
+          )}
+
           {canReturn && (consumableItems.length > 0 || reusableItems.length > 0) && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4">
               <div>
@@ -1441,7 +1498,7 @@ function DetailContent({
                 disabled={isSubmitting || !hasAnyReturn}
                 className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 w-full sm:w-auto shrink-0"
               >
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                <RotateCcw className="w-4 h-4" />
                 แจ้งส่งคืน
               </button>
             </div>

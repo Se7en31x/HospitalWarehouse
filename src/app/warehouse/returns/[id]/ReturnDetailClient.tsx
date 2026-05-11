@@ -4,15 +4,21 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import {
   X, FileText, Package,
-  Loader2, CheckCircle, Clock, Eye,
+  CheckCircle, Clock, Eye,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import { getRequisitionById, verifyReturn } from "@/services/requisitionService";
+import {
+  uploadBorrowReturnVerifyAttachments,
+  deleteBorrowReturnVerifyAttachment,
+} from "@/services/returnAttachmentService";
 import type { RequisitionHeader, RequisitionItem, IssuedUnit, PendingReturnItem } from "@/types/requisition_type";
 import { fmtDate } from "@/utils/dateUtils";
 import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
+import MutationLoader from "@/components/feedback/MutationLoader";
+import ReturnAttachmentUploader, { ReturnAttachmentViewer } from "@/components/returns/ReturnAttachmentUploader";
 
 const MySwal = withReactContent(Swal);
 const getErr = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -40,7 +46,6 @@ const CONDITIONS: { value: ReturnCondition; label: string; badge: string }[] = [
   { value: "GOOD",       label: "สภาพดี",       badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { value: "DAMAGED",    label: "ชำรุด",         badge: "bg-amber-50 text-amber-700 border-amber-200" },
   { value: "LOST",       label: "สูญหาย",       badge: "bg-red-50 text-red-700 border-red-200" },
-  { value: "INCOMPLETE", label: "ไม่ครบ",        badge: "bg-purple-50 text-purple-700 border-purple-200" },
 ];
 
 const condLabel = (c: string) => CONDITIONS.find(o => o.value === c)?.label ?? c;
@@ -220,6 +225,22 @@ function DetailContent({
   const [attachmentLightbox, setAttachmentLightbox] = useState<{ url: string; name: string } | null>(null);
   const [detailModal, setDetailModal] = useState<{ sub: PendingReturnItem; item: RequisitionItem } | null>(null);
 
+  // ── Return verify attachments state ──
+  const [pendingVerifyFiles, setPendingVerifyFiles] = useState<File[]>([]);
+  const [verifyAttachmentsState, setVerifyAttachmentsState] = useState(
+    header.return_verify_attachments ?? []
+  );
+  const submitAttachments = header.return_submit_attachments ?? [];
+
+  const handleRemoveVerifyAttachment = async (publicId: string) => {
+    try {
+      const res = await deleteBorrowReturnVerifyAttachment(header.id, publicId);
+      setVerifyAttachmentsState(res.attachments ?? []);
+    } catch (err) {
+      MySwal.fire({ title: "ลบไฟล์ไม่สำเร็จ", text: getErr(err), icon: "error" });
+    }
+  };
+
   const borrowerName = bd
     ? [bd.firstname, bd.lastname].filter(Boolean).join(" ") || "บุคคลภายนอก"
     : header.requester || "ไม่ระบุ";
@@ -274,7 +295,27 @@ function DetailContent({
     try {
       const result = await verifyReturn(header.id);
       if (!result.success) throw new Error(result.message);
-      await MySwal.fire({ title: "สำเร็จ", text: "ยืนยันการรับคืนเรียบร้อย", icon: "success", timer: 2000, showConfirmButton: false });
+
+      // อัปโหลดไฟล์แนบ verify (ถ้ามี)
+      let attachmentWarning: string | null = null;
+      if (pendingVerifyFiles.length > 0) {
+        try {
+          await uploadBorrowReturnVerifyAttachments(header.id, pendingVerifyFiles);
+        } catch (uploadErr) {
+          attachmentWarning = getErr(uploadErr);
+        }
+      }
+
+      if (attachmentWarning) {
+        await MySwal.fire({
+          title: "ยืนยันสำเร็จ แต่อัปโหลดไฟล์ไม่ครบ",
+          text: attachmentWarning,
+          icon: "warning",
+          confirmButtonText: "ตกลง",
+        });
+      } else {
+        await MySwal.fire({ title: "สำเร็จ", text: "ยืนยันการรับคืนเรียบร้อย", icon: "success", timer: 2000, showConfirmButton: false });
+      }
       router.back();
     } catch (err) {
       MySwal.fire({ title: "ข้อผิดพลาด", text: getErr(err), icon: "error" });
@@ -285,6 +326,8 @@ function DetailContent({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#fafafa]">
+      <MutationLoader open={isSubmitting} message="กำลังบันทึกการตรวจรับคืน..." />
+
       <div className="w-full px-6 py-6 flex flex-col flex-1">
 
         {/* ── Page header ─────────────────────────────────────────────────── */}
@@ -533,6 +576,40 @@ function DetailContent({
             </div>
           </section>
 
+          {/* Attachments — submit phase (read-only — uploaded by requester) */}
+          {submitAttachments.length > 0 && (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentViewer
+                attachments={submitAttachments}
+                label="ภาพ/เอกสารตอนผู้ยืมส่งคืน"
+              />
+            </section>
+          )}
+
+          {/* Attachments — verify phase (warehouse staff) */}
+          {canVerify ? (
+            <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+              <ReturnAttachmentUploader
+                pendingFiles={pendingVerifyFiles}
+                onPendingFilesChange={setPendingVerifyFiles}
+                uploadedAttachments={verifyAttachmentsState}
+                onRemoveUploaded={handleRemoveVerifyAttachment}
+                label="ภาพ/เอกสารตอนตรวจรับคืน (ไม่บังคับ)"
+                helperText="ถ่ายภาพสภาพอุปกรณ์ตอนรับคืน หรือแนบเอกสารตรวจสอบ — รองรับ JPEG, PNG, WEBP, HEIC, PDF (ไม่เกิน 10 MB)"
+                disabled={isSubmitting}
+              />
+            </section>
+          ) : (
+            verifyAttachmentsState.length > 0 && (
+              <section className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+                <ReturnAttachmentViewer
+                  attachments={verifyAttachmentsState}
+                  label="ภาพ/เอกสารตอนคลังตรวจรับคืน"
+                />
+              </section>
+            )
+          )}
+
           {/* ── Action bar ──────────────────────────────────────────────── */}
           {canVerify && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4">
@@ -550,9 +627,7 @@ function DetailContent({
                 disabled={isSubmitting}
                 className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-indigo-200 w-full sm:w-auto shrink-0"
               >
-                {isSubmitting
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <CheckCircle className="w-4 h-4" />}
+                <CheckCircle className="w-4 h-4" />
                 ยืนยันการรับคืน
               </button>
             </div>
