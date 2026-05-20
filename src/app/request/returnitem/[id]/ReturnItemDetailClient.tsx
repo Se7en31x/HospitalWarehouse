@@ -1190,6 +1190,11 @@ function DetailContent({
         qty_returned: sels.length,
         condition,
         note,
+        units: sels.map(s => ({
+          unit_id: s.unit_id,
+          condition: s.condition,
+          note: s.note || undefined,
+        })),
       });
     });
 

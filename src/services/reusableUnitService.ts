@@ -102,6 +102,8 @@ export interface ReusableReturnRequest {
   items: ReusableReturnRequestItem[];
   submit_attachments?: import("./returnAttachmentService").ReturnAttachment[];
   process_attachments?: import("./returnAttachmentService").ReturnAttachment[];
+  recieve_by?: string | null;
+  recieve_by_name?: string | null;
   processed_by?: string | null;
   processed_by_name?: string | null;
   processed_at?: string | null;

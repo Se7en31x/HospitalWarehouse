@@ -148,4 +148,9 @@ export interface RequisitionHeader {
   return_submit_attachments?: import("@/services/returnAttachmentService").ReturnAttachment[];
   /** ภาพ/เอกสารตอนเจ้าหน้าที่คลังตรวจรับคืน (BORROW return phase: verify) */
   return_verify_attachments?: import("@/services/returnAttachmentService").ReturnAttachment[];
+  /** ผู้รับของ (คลัง) หลังยืนยันรับคืนแล้ว */
+  return_verified_by?: string | null;
+  return_verified_by_id?: string | null;
+  return_verified_by_name?: string | null;
+  return_verified_at?: string | null;
 }

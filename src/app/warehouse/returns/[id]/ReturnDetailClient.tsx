@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import {
   X, FileText, Package,
-  CheckCircle, Clock, Eye,
+  CheckCircle, Clock, Eye, UserCheck,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -14,7 +14,8 @@ import {
   deleteBorrowReturnVerifyAttachment,
 } from "@/services/returnAttachmentService";
 import type { RequisitionHeader, RequisitionItem, IssuedUnit, PendingReturnItem } from "@/types/requisition_type";
-import { fmtDate } from "@/utils/dateUtils";
+import { fmtDate, fmtDateTime } from "@/utils/dateUtils";
+import { useUser } from "@/context/UserContext";
 import { WarehouseDetailPageSkeleton } from "@/components/skeletons/WarehouseDetailPageSkeleton";
 import { PageHeadingIconBox } from "@/components/PageHeadingIconBox";
 import MutationLoader from "@/components/feedback/MutationLoader";
@@ -216,9 +217,22 @@ function DetailContent({
   setIsSubmitting: (v: boolean) => void;
 }) {
   const router = useRouter();
+  const { displayName: currentUserName } = useUser();
   const uiStatus = mapUiStatus(header);
   const overdue = daysOverdue(header);
   const canVerify = header.status === "PENDING_RETURN_CHECK";
+  const isCompleted = header.status === "COMPLETED";
+  const hasReturnSubmission = (header.pending_return_submission?.items?.length ?? 0) > 0;
+  const showReturnDetailCol = canVerify || (isCompleted && hasReturnSubmission);
+
+  const receiverName = isCompleted
+    ? header.return_verified_by_name || "—"
+    : currentUserName || "—";
+  const receiverTimeLabel = isCompleted
+    ? header.return_verified_at
+      ? `รับเมื่อ ${fmtDateTime(header.return_verified_at)}`
+      : "—"
+    : "กำลังดำเนินการ";
   const ext = !!header.borrower_details;
   const bd = header.borrower_details;
 
@@ -354,14 +368,14 @@ function DetailContent({
 
         <div className="space-y-4 flex-1">
 
-          {/* ── ข้อมูลเอกสาร + ข้อมูลผู้ยืม (2 คอลัมน์) ───────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* ── ข้อมูลเอกสาร + ผู้รับของ + ผู้ยืม ─────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 
             {/* ข้อมูลเอกสาร */}
-            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+            <section className="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
               <div className="px-5 py-4 border-b border-slate-200">
                 <h2 className="text-lg font-bold text-gray-900">ข้อมูลเอกสาร</h2>
-                <p className="text-xs text-slate-500 mt-0.5">ผู้ดำเนินเรื่อง</p>
+                <p className="text-xs text-slate-500 mt-0.5">ใบยืมและกำหนดคืน</p>
               </div>
               <div className="px-5 py-5 flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
                 <BorrowerFieldRow label="เลขที่เอกสาร" value={header.doc_no} valueClassName="font-mono font-medium" />
@@ -394,8 +408,32 @@ function DetailContent({
               )}
             </section>
 
+            {/* ผู้ดำเนินการรับของ */}
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden self-start w-full">
+              <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/50">
+                <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">ผู้ดำเนินการรับ</h2>
+              </div>
+              <div className="px-5 py-4 flex items-start gap-3">
+                <div className="h-10 w-10 shrink-0 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+                  <UserCheck className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-semibold text-slate-900 truncate" title={receiverName}>
+                    {receiverName}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">{receiverTimeLabel}</p>
+                  {!isCompleted && canVerify && (
+                    <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-blue-50 text-blue-700 border-blue-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      ออนไลน์
+                    </span>
+                  )}
+                </div>
+              </div>
+            </section>
+
             {/* ข้อมูลผู้ยืม + เอกสารแนบ */}
-            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+            <section className="lg:col-span-3 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
               <div className="px-5 py-4 border-b border-slate-200">
                 <h2 className="text-lg font-bold text-gray-900">ข้อมูลผู้ยืม</h2>
                 <p className="text-xs text-slate-500 mt-0.5">{ext ? "บุคคลภายนอก" : "ผู้ยืมภายในองค์กร"}</p>
@@ -493,7 +531,7 @@ function DetailContent({
                   <col style={{ width: "90px" }} />
                   <col style={{ width: "90px" }} />
                   <col style={{ width: "90px" }} />
-                  {canVerify && <col style={{ width: "120px" }} />}
+                  {showReturnDetailCol && <col style={{ width: "120px" }} />}
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
@@ -504,7 +542,7 @@ function DetailContent({
                     <th className="text-center text-sm font-bold text-slate-700 px-4 py-4 whitespace-nowrap">จ่ายจริง</th>
                     <th className="text-center text-sm font-bold text-slate-700 px-4 py-4 whitespace-nowrap">คืนแล้ว</th>
                     <th className="text-center text-sm font-bold text-slate-700 px-4 py-4 whitespace-nowrap">ค้างคืน</th>
-                    {canVerify && (
+                    {showReturnDetailCol && (
                       <th className="text-center text-sm font-bold text-slate-700 px-4 py-4 whitespace-nowrap">รายละเอียดคืน</th>
                     )}
                   </tr>
@@ -544,7 +582,7 @@ function DetailContent({
                             {pending > 0 ? pending : "ครบ"}
                           </span>
                         </td>
-                        {canVerify && (
+                        {showReturnDetailCol && (
                           <td className="px-4 py-4 align-middle text-center">
                             {sub
                               ? (
@@ -565,7 +603,7 @@ function DetailContent({
                   })}
                   {(!header.items || header.items.length === 0) && (
                     <tr>
-                      <td colSpan={canVerify ? 8 : 7} className="px-6 py-14 text-center">
+                      <td colSpan={showReturnDetailCol ? 8 : 7} className="px-6 py-14 text-center">
                         <Package className="w-10 h-10 text-slate-200 mx-auto mb-2" />
                         <p className="text-sm text-slate-500">ไม่พบรายการพัสดุ</p>
                       </td>
@@ -705,18 +743,33 @@ function ReturnDetailModal({
   }, [item.issued_units]);
 
   const unitRows = useMemo(() => {
-    if (!sub.units || sub.units.length === 0) return [];
-    return sub.units.map(u => {
-      const info = issuedUnitMap.get(u.unit_id);
-      return {
-        unit_id: u.unit_id,
-        unit_code: info?.unit_code ?? u.unit_code ?? null,
-        serial_no: info?.serial_no ?? null,
-        condition: u.condition ?? "GOOD",
-        note: u.note ?? null,
-      };
-    });
-  }, [sub.units, issuedUnitMap]);
+    if (sub.units && sub.units.length > 0) {
+      return sub.units.map(u => {
+        const info = issuedUnitMap.get(u.unit_id);
+        return {
+          unit_id: u.unit_id,
+          unit_code: info?.unit_code ?? u.unit_code ?? null,
+          serial_no: info?.serial_no ?? null,
+          condition: u.condition ?? "GOOD",
+          note: u.note ?? null,
+        };
+      });
+    }
+
+    // รายการเก่าที่ส่งคืนก่อนมี units ใน payload — ดึงจาก issued_units ตามจำนวนที่คืน
+    if (isReusable && sub.qty_returned > 0) {
+      const pool = item.issued_units ?? [];
+      return pool.slice(0, sub.qty_returned).map(u => ({
+        unit_id: u.id,
+        unit_code: u.unit_code,
+        serial_no: u.serial_no ?? null,
+        condition: (sub.condition ?? "GOOD") as ReturnCondition,
+        note: sub.note ?? null,
+      }));
+    }
+
+    return [];
+  }, [sub.units, sub.qty_returned, sub.condition, sub.note, issuedUnitMap, isReusable, item.issued_units]);
 
   return (
     <div
@@ -780,7 +833,7 @@ function ReturnDetailModal({
         {isReusable && (
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {unitRows.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">ไม่มีข้อมูลครุภัณฑ์</p>
+              <p className="text-sm text-slate-400 text-center py-6">ไม่มีรายการ Unit Code ที่ส่งคืน</p>
             ) : (
               <>
                 <p className="text-xs font-bold text-slate-500 mb-3">รายการครุภัณฑ์ที่คืน ({unitRows.length} รายการ)</p>

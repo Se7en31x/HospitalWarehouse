@@ -233,6 +233,13 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
 
   const colSpan = showLot ? 9 : showAssetWarranty ? 7 : 6;
 
+  /** ความกว้างคอลัมน์รวม 100% ต่อโหมด — #, รหัส, ชื่อ, หมวด, สั่ง, รับ, (+ lot/mfg/exp หรือ หมดประกัน) */
+  const tableColWidths = showLot
+    ? ["4%", "10%", "22%", "14%", "7%", "7%", "12%", "11%", "13%"]
+    : showAssetWarranty
+      ? ["5%", "12%", "30%", "18%", "9%", "9%", "17%"]
+      : ["5%", "12%", "38%", "22%", "8%", "8%"];
+
   const itemCategory = (row: { category?: string | null; category_name?: string | null }) =>
     row.category_name?.trim() || row.category?.trim() || "—";
 
@@ -282,43 +289,33 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
           .receive-doc-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
           .receive-doc-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         `}</style>
-        <table className="w-full min-w-[980px] text-left text-sm leading-normal table-fixed">
+        <table
+          className={`w-full text-left text-sm leading-normal table-fixed ${
+            showLot ? "min-w-[1040px]" : showAssetWarranty ? "min-w-[880px]" : "min-w-[760px]"
+          }`}
+        >
             <colgroup>
-              <col className="w-[56px]" />
-              <col className="w-[160px]" />
-              <col className="w-[260px]" />
-              <col className="w-[220px]" />
-              <col className="w-[80px]" />
-              {showLot ? (
-                <>
-                  <col className="w-[80px]" />
-                  <col className="w-[120px]" />
-                  <col className="w-[160px]" />
-                  <col className="w-[150px]" />
-                </>
-              ) : showAssetWarranty ? (
-                <col className="w-[150px]" />
-              ) : (
-                <col className="w-[80px]" />
-              )}
+              {tableColWidths.map((w, i) => (
+                <col key={i} style={{ width: w }} />
+              ))}
             </colgroup>
             <thead className="bg-slate-50 text-slate-700 text-sm font-semibold border-b border-slate-200 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 text-center whitespace-nowrap">#</th>
-                <th className="px-6 py-3 whitespace-nowrap">รหัสรายการ</th>
-                <th className="px-6 py-3 whitespace-nowrap">ชื่อพัสดุ</th>
-                <th className="px-6 py-3 whitespace-nowrap">หมวดหมู่</th>
-                <th className="px-6 py-3 text-center whitespace-nowrap">สั่ง</th>
-                <th className="px-6 py-3 text-center whitespace-nowrap">รับ</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">#</th>
+                <th className="px-4 py-3 whitespace-nowrap">รหัสรายการ</th>
+                <th className="px-4 py-3 whitespace-nowrap">ชื่อพัสดุ</th>
+                <th className="px-4 py-3 whitespace-nowrap">หมวดหมู่</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">สั่ง</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">รับ</th>
                 {showLot && (
                   <>
-                    <th className="px-6 py-3 whitespace-nowrap">Lot Code</th>
-                    <th className="px-6 py-3 whitespace-nowrap">วันที่ผลิต</th>
-                    <th className="px-6 py-3 whitespace-nowrap">วันหมดอายุ</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Lot Code</th>
+                    <th className="px-4 py-3 whitespace-nowrap">วันที่ผลิต</th>
+                    <th className="px-4 py-3 whitespace-nowrap">วันหมดอายุ</th>
                   </>
                 )}
                 {showAssetWarranty && (
-                  <th className="px-6 py-3 whitespace-nowrap">วันหมดประกัน</th>
+                  <th className="px-4 py-3 whitespace-nowrap">วันหมดประกัน</th>
                 )}
               </tr>
             </thead>
@@ -331,28 +328,28 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                 return (
                 <React.Fragment key={item.id}>
                 <tr className="bg-white hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                  <td className="px-6 py-3 w-[56px] text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
-                  <td className="px-6 py-3 align-middle min-w-0">
+                  <td className="px-4 py-3 text-center text-slate-500 tabular-nums align-middle">{idx + 1}</td>
+                  <td className="px-4 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_code ?? String(item.item_id)}>
                       {item.item_code ?? String(item.item_id)}
                     </p>
                   </td>
-                  <td className="px-6 py-3 align-middle min-w-0">
+                  <td className="px-4 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-800 leading-snug truncate" title={item.item_name ?? ""}>
                       {item.item_name ?? "—"}
                     </p>
                   </td>
-                  <td className="px-6 py-3 align-middle min-w-0">
+                  <td className="px-4 py-3 align-middle min-w-0">
                     <p className="text-sm text-slate-700 leading-snug truncate" title={itemCategory(item)}>
                       {itemCategory(item)}
                     </p>
                   </td>
-                  <td className="px-6 py-3 text-center text-slate-700 tabular-nums align-middle">
+                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums align-middle">
                     {item.expected_qty ?? 0}
                   </td>
                   {isPending ? (
                     <>
-                      <td className="px-6 py-3 align-middle">
+                      <td className="px-4 py-3 align-middle">
                         <div className="flex justify-center">
                           <input
                             type="number" min="0" max={item.expected_qty ?? 0}
@@ -368,7 +365,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                       </td>
                       {showLot && (
                         <>
-                          <td className="px-6 py-3 align-middle">
+                          <td className="px-4 py-3 align-middle">
                             <input
                               title="Lot Code" type="text" placeholder="Lot Code"
                               className="w-full max-w-[132px] rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
@@ -376,7 +373,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                               onChange={e => patch(item.id, { lot_code: e.target.value })}
                             />
                           </td>
-                          <td className="px-6 py-3 align-middle">
+                          <td className="px-4 py-3 align-middle">
                             <input
                               title="วันที่ผลิต" type="date"
                               max={new Date().toISOString().split("T")[0]}
@@ -385,7 +382,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                               onChange={e => patch(item.id, { mfg_at: e.target.value })}
                             />
                           </td>
-                          <td className="px-6 py-3 align-middle">
+                          <td className="px-4 py-3 align-middle">
                             <input
                               title="Expiry date" type="date"
                               min={inputs[item.id]?.mfg_at || undefined}
@@ -397,7 +394,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                         </>
                       )}
                       {showAssetWarranty && (
-                        <td className="px-6 py-3 align-middle">
+                        <td className="px-4 py-3 align-middle">
                           <input
                             title="วันหมดประกัน" type="date"
                             className="w-full min-w-0 rounded border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50"
@@ -409,7 +406,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                     </>
                   ) : (
                     <>
-                      <td className="px-6 py-3 text-center align-middle">
+                      <td className="px-4 py-3 text-center align-middle">
                         {hasUnits ? (
                           <button
                             type="button"
@@ -430,7 +427,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                       </td>
                       {showLot && (
                         <>
-                          <td className="px-6 py-3 align-middle">
+                          <td className="px-4 py-3 align-middle">
                             <div className="flex items-center gap-2 min-w-0">
                               <p className="text-sm font-mono text-slate-800 truncate whitespace-nowrap" title={item.lot?.lot_code ?? item.lot_code ?? ""}>
                                 {item.lot?.lot_code ?? item.lot_code ?? "—"}
@@ -447,16 +444,16 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-3 text-sm text-slate-500 tabular-nums align-middle whitespace-nowrap">
+                          <td className="px-4 py-3 text-sm text-slate-500 tabular-nums align-middle whitespace-nowrap">
                             {fmtDate(item.lot?.mfg_at)}
                           </td>
-                          <td className="px-6 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                          <td className="px-4 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
                             {fmtDate(item.lot?.expired_at ?? item.expired_at)}
                           </td>
                         </>
                       )}
                       {showAssetWarranty && (
-                        <td className="px-6 py-3 text-center text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
+                        <td className="px-4 py-3 text-sm text-slate-800 tabular-nums align-middle whitespace-nowrap">
                           {fmtDate(item.expired_at)}
                         </td>
                       )}
@@ -465,7 +462,7 @@ function DocSection({ doc, onRefresh }: DocSectionProps) {
                 </tr>
                 {hasUnits && isExpanded && (
                   <tr className="bg-slate-50/60 border-b border-slate-100 last:border-b-0">
-                    <td colSpan={colSpan} className="px-6 py-3">
+                    <td colSpan={colSpan} className="px-4 py-3">
                       <div className="flex flex-col gap-2.5 ml-12">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                           <p className="text-xs font-bold text-slate-600">
