@@ -2,21 +2,22 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Search, X } from "lucide-react";
-import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
+import { fmtDate, fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { apiClient } from "@/lib/apiClient";
 import { useUser } from "@/context/UserContext";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { getDepartmentOptions, type DepartmentOption } from "@/services/departmentService";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -42,6 +43,7 @@ interface AssetRow {
 	status: string;
 	purchaseDate: string | null;
 	warrantyExpire: string | null;
+	purchasePrice?: number;
 	unitCount: number;
 	note: string;
 	createdAt: string | null;
@@ -61,7 +63,7 @@ interface AssetReportClientProps {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 const STATUS_LABEL: Record<string, string> = {
 	READY:    "พร้อมใช้งาน",
@@ -142,6 +144,18 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 	const paginated  = useMemo(() => filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE), [filtered, currentPage]);
 	useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter, deptFilter]);
 
+	const statusCounts = useMemo(() => ({
+		READY:    filtered.filter(r => r.status === "READY").length,
+		IN_USE:   filtered.filter(r => r.status === "IN_USE").length,
+		REPAIR:   filtered.filter(r => r.status === "REPAIR").length,
+		DISPOSED: filtered.filter(r => r.status === "DISPOSED").length,
+	}), [filtered]);
+
+	const totalValue = useMemo(
+		() => filtered.reduce((s, r) => s + (Number(r.purchasePrice) || 0), 0),
+		[filtered],
+	);
+
 	const hasFilter = !!(searchTerm || statusFilter || deptFilter);
 	const clearAll  = () => { setSearchTerm(""); setStatusFilter(""); setDeptFilter(""); };
 
@@ -179,6 +193,8 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 		const columns: PrintColumn[] = [
 			{ header: "#",            key: "_no",          align: "center" },
 			{ header: "รหัสครุภัณฑ์", key: "assetCode",    align: "left"   },
+			{ header: "เลขซีเรียล",   key: "serialNo",     align: "left"   },
+			{ header: "รหัสสินค้า",   key: "itemCode",     align: "left"   },
 			{ header: "ชื่อครุภัณฑ์", key: "itemName",     align: "left"   },
 			{ header: "หมวดหมู่",     key: "category",     align: "left"   },
 			{ header: "แผนก",         key: "department",   align: "left"   },
@@ -190,6 +206,8 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 		const pdfRows = filtered.map((r, i) => ({
 			_no:         String(i + 1),
 			assetCode:   r.assetCode,
+			serialNo:    r.serialNo || "-",
+			itemCode:    r.itemCode || "-",
 			itemName:    r.itemName,
 			category:    r.category,
 			department:  r.department,
@@ -205,6 +223,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 
 		printWarehouseReport({
 			reportTitle:   "รายงานครุภัณฑ์",
+			period:        formatReportPeriod(),
 			filterSummary: filterParts.length ? filterParts.join(" | ") : undefined,
 			columns,
 			rows:          pdfRows,
@@ -222,74 +241,26 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 		});
 	};
 
-	// ── XLSX export ───────────────────────────────────────────────────────────
-	const handleExportXlsx = async () => {
+	// ── CSV export ────────────────────────────────────────────────────────────
+	const handleExportCsv = () => {
 		if (filtered.length === 0) return;
-		const ExcelJS  = (await import("exceljs")).default;
-		const wb       = new ExcelJS.Workbook();
-		wb.creator     = "HPK WMS";
-		wb.created     = new Date();
-
-		const FONT      = "TH Sarabun New";
-		const HEADER_BG = "FF37474F";
-		const COLS      = 9;
-
-		const ws = wb.addWorksheet("ครุภัณฑ์");
-		ws.columns = [
-			{ width: 6  }, { width: 18 }, { width: 16 }, { width: 36 }, { width: 20 },
-			{ width: 24 }, { width: 16 }, { width: 14 }, { width: 14 }, { width: 10 },
-		];
-
-		const r1 = ws.addRow(["รายงานครุภัณฑ์"]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = { font: { name: FONT, size: 16, bold: true, color: { argb: "FF0D47A1" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } }, alignment: { horizontal: "center", vertical: "middle" } };
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = { font: { name: FONT, size: 11, color: { argb: "FF546E7A" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } }, alignment: { horizontal: "center", vertical: "middle" } };
-
-		const r3 = ws.addRow([`รวม ${filtered.length.toLocaleString()} รายการ    |    วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = { font: { name: FONT, size: 10, color: { argb: "FF546E7A" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } }, alignment: { horizontal: "center", vertical: "middle" } };
-
-		ws.addRow([]);
-
-		const hr = ws.addRow(["#", "รหัสครุภัณฑ์", "เลขซีเรียล", "ชื่อครุภัณฑ์", "หมวดหมู่", "แผนก", "สถานะ", "วันที่ซื้อ", "วันหมดประกัน", "หน่วยย่อย"]);
-		hr.height = 22;
-		hr.eachCell(cell => {
-			cell.style = { font: { name: FONT, size: 12, bold: true, color: { argb: "FFFFFFFF" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_BG } }, alignment: { horizontal: "center", vertical: "middle" }, border: { top: { style: "thin", color: { argb: "FF546E7A" } }, left: { style: "thin", color: { argb: "FF546E7A" } }, bottom: { style: "thin", color: { argb: "FF546E7A" } }, right: { style: "thin", color: { argb: "FF546E7A" } } } };
+		downloadCsv({
+			headers: ["#", "รหัสครุภัณฑ์", "เลขซีเรียล", "รหัสสินค้า", "ชื่อครุภัณฑ์", "หมวดหมู่", "แผนก", "สถานะ", "วันที่ซื้อ", "วันหมดประกัน", "หน่วยย่อย"],
+			rows: filtered.map((r, i) => [
+				i + 1,
+				r.assetCode,
+				r.serialNo || "-",
+				r.itemCode || "-",
+				r.itemName,
+				r.category,
+				r.department,
+				STATUS_LABEL[r.status] ?? r.status,
+				fmtDate(r.purchaseDate),
+				fmtDate(r.warrantyExpire),
+				r.unitCount,
+			]),
+			filename: `รายงานครุภัณฑ์_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		const statusBg: Record<string, string> = { AVAILABLE: "FFD1FAE5", IN_USE: "FFDBEAFE", MAINTENANCE: "FFFEF3C7", RETIRED: "FFF1F5F9", LOST: "FFFEE2E2" };
-		filtered.forEach((r, i) => {
-			const bg  = i % 2 === 0 ? "FFFFFFFF" : "FFF8FAFC";
-			const sBg = statusBg[r.status] ?? bg;
-			const dr  = ws.addRow([i + 1, r.assetCode, r.serialNo || "-", r.itemName, r.category, r.department, STATUS_LABEL[r.status] ?? r.status, fmtDate(r.purchaseDate), fmtDate(r.warrantyExpire), r.unitCount]);
-			dr.height = 18;
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font   = { name: FONT, size: 11 };
-				cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: col === 7 ? sBg : bg } };
-				cell.border = { top: { style: "thin", color: { argb: "FFB0BEC5" } }, left: { style: "thin", color: { argb: "FFB0BEC5" } }, bottom: { style: "thin", color: { argb: "FFB0BEC5" } }, right: { style: "thin", color: { argb: "FFB0BEC5" } } };
-				if ([1, 7, 8, 9, 10].includes(col)) cell.alignment = { horizontal: "center" };
-			});
-		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = { font: { name: FONT, size: 10, italic: true, color: { argb: "FF9E9E9E" } }, alignment: { horizontal: "right" } };
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href     = url;
-		a.download = `รายงานครุภัณฑ์_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
 	};
 
 	// ── Render ────────────────────────────────────────────────────────────────
@@ -298,7 +269,7 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 
 			<ReportDetailPageHeader
 				reportPage="assets"
-				title="รายงานครุภัณฑ์ภายในองค์กรณ์"
+				title="รายงานครุภัณฑ์ภายในองค์กร"
 				subtitle={`ระบบบริหารคลังสินค้า HPK · พิมพ์วันที่ ${printDate}`}
 				onBack={onBack}
 			/>
@@ -324,9 +295,9 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 							</button>
 						)}
 						<div className="ml-auto flex items-center gap-2">
-							<button type="button" title="Export XLSX" onClick={handleExportXlsx}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
+							<button type="button" title="Export CSV (.csv)" onClick={handleExportCsv}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm">
+								<CsvIcon />
 							</button>
 							<button type="button" title="Export PDF" onClick={handleExportPdf}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
@@ -336,12 +307,23 @@ const AssetReportClient: React.FC<AssetReportClientProps> = ({ onBack }) => {
 					</div>
 
 					{/* Row count strip */}
-					<div className="flex items-center gap-4 px-5 py-2.5 bg-white border-b border-slate-100">
-						<span className="text-xs text-slate-500">
+					<div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm">
+						<span className="text-slate-500">
 							พบ <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> รายการ
 							&nbsp;จากทั้งหมด&nbsp;
 							<span className="font-semibold text-slate-700">{rows.length.toLocaleString()}</span>
 						</span>
+						<span className="text-slate-300">·</span>
+						<span className="text-emerald-700">พร้อมใช้งาน <span className="font-semibold">{statusCounts.READY.toLocaleString()}</span></span>
+						<span className="text-blue-700">กำลังใช้งาน <span className="font-semibold">{statusCounts.IN_USE.toLocaleString()}</span></span>
+						<span className="text-amber-700">ซ่อมบำรุง <span className="font-semibold">{statusCounts.REPAIR.toLocaleString()}</span></span>
+						<span className="text-slate-500">เลิกใช้งาน <span className="font-semibold">{statusCounts.DISPOSED.toLocaleString()}</span></span>
+						{totalValue > 0 && (
+							<>
+								<span className="text-slate-300">·</span>
+								<span className="text-indigo-700">มูลค่ารวม <span className="font-semibold">฿{totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+							</>
+						)}
 					</div>
 
 					{/* Table */}

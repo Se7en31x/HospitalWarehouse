@@ -88,3 +88,48 @@ export function fmtDateLong(value: string | Date | null | undefined): string {
     timeZone: TZ,
   });
 }
+
+/**
+ * formatReportPeriod — unified period label for PDF report headers.
+ *
+ * Snapshot mode (no dates):
+ *   "ข้อมูล ณ วันที่ 13 พฤษภาคม 2569"
+ * Range mode (both dates):
+ *   "ระหว่างวันที่ 1 พฤษภาคม 2569 ถึงวันที่ 13 พฤษภาคม 2569"
+ * Open-start (only `from`):
+ *   "ตั้งแต่วันที่ 1 พฤษภาคม 2569"
+ * Open-end (only `to`):
+ *   "ถึงวันที่ 13 พฤษภาคม 2569"
+ *
+ * Pass `subjectLabel` to replace the default subject (e.g. "วันหมดอายุ").
+ *   formatReportPeriod(from, to, { subjectLabel: "วันหมดอายุ" })
+ *     → "วันหมดอายุระหว่างวันที่ ... ถึงวันที่ ..."
+ *
+ * Pass `note` to append context (e.g. "ภายใน 30 วัน").
+ */
+export function formatReportPeriod(
+  from?: string | Date | null,
+  to?: string | Date | null,
+  options?: { subjectLabel?: string; note?: string; snapshotLabel?: string },
+): string {
+  const {
+    subjectLabel,
+    note,
+    snapshotLabel = "ข้อมูล ณ วันที่",
+  } = options ?? {};
+  const fromDate = toDate(from);
+  const toDateVal = toDate(to);
+
+  let body: string;
+  if (fromDate && toDateVal) {
+    body = `${subjectLabel ?? ""}ระหว่างวันที่ ${fmtDateLong(fromDate)} ถึงวันที่ ${fmtDateLong(toDateVal)}`;
+  } else if (fromDate) {
+    body = `${subjectLabel ?? ""}ตั้งแต่วันที่ ${fmtDateLong(fromDate)}`;
+  } else if (toDateVal) {
+    body = `${subjectLabel ?? ""}ถึงวันที่ ${fmtDateLong(toDateVal)}`;
+  } else {
+    body = `${snapshotLabel} ${fmtDateLong(new Date())}`;
+  }
+
+  return note ? `${body} (${note})` : body;
+}

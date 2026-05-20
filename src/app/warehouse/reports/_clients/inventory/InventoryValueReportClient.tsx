@@ -5,19 +5,20 @@ import { ChevronDown, ChevronUp, DollarSign, Search, RefreshCw, Clock, CalendarD
 import { apiClient } from "@/lib/apiClient";
 import { useUser } from "@/context/UserContext";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
-import { fmtDateLong } from "@/utils/dateUtils";
+import { downloadCsv } from "@/utils/downloadCsv";
+import { fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { getcategoriesOptions, getWarehousesOptions } from "@/services/itemsService";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -262,6 +263,7 @@ export default function InventoryValueReportClient({ onBack }: Props) {
 		const columns: PrintColumn[] = [
 			{ header: "หมวดหมู่",   key: "category",     align: "left"   },
 			{ header: "คลัง",       key: "warehouse",    align: "left"   },
+			{ header: "รหัสรายการ", key: "code",         align: "left"   },
 			{ header: "ชื่อพัสดุ",  key: "name",         align: "left"   },
 			{ header: "สต็อก",      key: "currentStock", align: "right"  },
 			{ header: "หน่วย",      key: "unit",         align: "left"   },
@@ -272,6 +274,7 @@ export default function InventoryValueReportClient({ onBack }: Props) {
 			g.items.map(it => ({
 				category:     g.category,
 				warehouse:    g.warehouse,
+				code:         it.code,
 				name:         it.name,
 				currentStock: it.currentStock.toLocaleString(),
 				unit:         it.unit,
@@ -280,7 +283,10 @@ export default function InventoryValueReportClient({ onBack }: Props) {
 			}))
 		);
 		printWarehouseReport({
-			reportTitle:   isHistorical ? `รายงานมูลค่าสต็อก ณ ${asOfLabel}` : "รายงานมูลค่าสต็อกรวม (ปัจจุบัน)",
+			reportTitle:   "รายงานมูลค่าสต็อกรวม",
+			period:        isHistorical && asOfDate
+				? `ข้อมูล ณ วันที่ ${fmtDateLong(asOfDate)}`
+				: formatReportPeriod(),
 			filterSummary: `มูลค่ารวม ฿${fmtBaht(filteredGrandTotal)}`,
 			columns,
 			rows,
@@ -293,132 +299,19 @@ export default function InventoryValueReportClient({ onBack }: Props) {
 		});
 	};
 
-	const handleExportXlsx = async () => {
+	const handleExportCsv = () => {
 		if (!data) return;
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("รายงานมูลค่าสต็อก");
-		const COLS = 7;
-
-		ws.columns = [
-			{ width: 20 }, { width: 16 }, { width: 14 },
-			{ width: 36 }, { width: 12 }, { width: 16 }, { width: 18 },
-		];
-
-		const title = isHistorical ? `รายงานมูลค่าสต็อก ณ ${asOfLabel}` : "รายงานมูลค่าสต็อกรวม (ปัจจุบัน)";
-		const r1 = ws.addRow([title]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF0D47A1" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r3 = ws.addRow([`สร้างวันที่: ${new Date().toLocaleDateString("th-TH")}    |    มูลค่ารวม: ฿${fmtBaht(filteredGrandTotal)}    |    ${filteredTotalItems} รายการ`]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
-		const hr = ws.addRow(["หมวดหมู่", "คลัง", "รหัสรายการ", "ชื่อพัสดุ", "สต็อก", "ราคา/หน่วย (฿)", "มูลค่ารวม (฿)"]);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF37474F" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top: { style: "thin", color: { argb: "FF546E7A" } }, left: { style: "thin", color: { argb: "FF546E7A" } },
-					bottom: { style: "thin", color: { argb: "FF546E7A" } }, right: { style: "thin", color: { argb: "FF546E7A" } },
-				},
-			};
-		});
-
-		let rowIdx = 0;
+		const rows: (string | number)[][] = [];
 		filteredGroups.forEach((group) => {
 			group.items.forEach((it) => {
-				const dr = ws.addRow([group.category, group.warehouse, it.code, it.name, it.currentStock, it.sellPrice, it.value]);
-				dr.height = 18;
-				const rowBg = rowIdx % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-				dr.eachCell({ includeEmpty: true }, (cell, col) => {
-					cell.font = { name: "TH Sarabun New", size: 11 };
-					cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-					cell.border = {
-						top: { style: "thin", color: { argb: "FFB0BEC5" } }, left: { style: "thin", color: { argb: "FFB0BEC5" } },
-						bottom: { style: "thin", color: { argb: "FFB0BEC5" } }, right: { style: "thin", color: { argb: "FFB0BEC5" } },
-					};
-					if (col === 5 || col === 6 || col === 7) {
-						cell.alignment = { horizontal: "right" };
-						cell.numFmt = col === 5 ? "#,##0" : "#,##0.00";
-					}
-					if (col === 7) {
-						cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: "FF0D47A1" } };
-					}
-				});
-				rowIdx++;
-			});
-			const subRow = ws.addRow(["", "", "", `รวม ${group.category} (${group.warehouse})`, group.totalStock, "", group.totalValue]);
-			subRow.height = 18;
-			subRow.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font = { name: "TH Sarabun New", size: 11, bold: true };
-				cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5E9" } };
-				cell.border = {
-					top: { style: "thin", color: { argb: "FF81C784" } }, left: { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FF81C784" } }, right: { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-				if (col === 5 || col === 7) {
-					cell.alignment = { horizontal: "right" };
-					cell.numFmt = col === 5 ? "#,##0" : "#,##0.00";
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: "FF1B5E20" } };
-				}
+				rows.push([group.category, group.warehouse, it.code, it.name, it.currentStock, it.sellPrice, it.value]);
 			});
 		});
-
-		ws.addRow([]);
-		const totalRow = ws.addRow(["", "", "", "มูลค่าสต็อกรวมทั้งหมด", "", "", filteredGrandTotal]);
-		totalRow.height = 24;
-		ws.mergeCells(totalRow.number, 1, totalRow.number, 6);
-		totalRow.eachCell({ includeEmpty: true }, (cell, col) => {
-			cell.font = { name: "TH Sarabun New", size: 13, bold: true, color: { argb: "FFFFFFFF" } };
-			cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D47A1" } };
-			cell.alignment = { horizontal: "right" };
-			if (col === 7) cell.numFmt = "#,##0.00";
+		downloadCsv({
+			headers: ["หมวดหมู่", "คลัง", "รหัสรายการ", "ชื่อพัสดุ", "สต็อก", "ราคา/หน่วย (บาท)", "มูลค่ารวม (บาท)"],
+			rows,
+			filename: `รายงานมูลค่าสต็อก_${asOfDate || "ปัจจุบัน"}.csv`,
 		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานมูลค่าสต็อก_${asOfDate || "ปัจจุบัน"}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
 	};
 
 	return (
@@ -581,9 +474,9 @@ export default function InventoryValueReportClient({ onBack }: Props) {
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm disabled:opacity-40">
 								<PdfIcon />
 							</button>
-							<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleExportXlsx()} disabled={!data}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm disabled:opacity-40">
-								<XlsxIcon />
+							<button type="button" title="Export CSV (.csv)" onClick={handleExportCsv} disabled={!data}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm disabled:opacity-40">
+								<CsvIcon />
 							</button>
 						</div>
 					</div>

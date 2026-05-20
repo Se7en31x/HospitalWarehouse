@@ -12,15 +12,17 @@ import {
 import { apiClient } from "@/lib/apiClient";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { formatReportPeriod } from "@/utils/dateUtils";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { useUser } from "@/context/UserContext";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -207,86 +209,12 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 		[selectedWarehouse, selectedCategory, selectedUnit, selectedStockLevel],
 	);
 
-	const handleExportXlsx = async () => {
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("รายงานคงคลังรายคลัง");
-		const COLS = 9;
-
-		ws.columns = [
-			{ width: 6 },
-			{ width: 22 },
-			{ width: 14 },
-			{ width: 36 },
-			{ width: 20 },
-			{ width: 12 },
-			{ width: 12 },
-			{ width: 14 },
-			{ width: 18 },
-		];
-
-		const r1 = ws.addRow(["รายงานคงคลังรายคลัง"]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF0D47A1" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const metaParts = [
-			`วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
-			selectedWarehouse ? `คลัง: ${selectedWarehouse}` : "คลัง: ทุกคลัง",
-			selectedCategory ? `หมวด: ${selectedCategory}` : null,
-			selectedUnit ? `หน่วย: ${selectedUnit}` : null,
-			selectedStockLevel ? `ระดับสต็อก: ${selectedStockLevel}` : null,
-			`รวม ${allItemsFlattened.length} รายการ`,
-		].filter(Boolean).join("    |    ");
-
-		const r3 = ws.addRow([metaParts]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
-		const headers = ["#", "คลัง", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "หน่วย", "คงเหลือ", "ขั้นต่ำ", "ระดับสต็อก"];
-		const hr = ws.addRow(headers);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF37474F" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top:    { style: "thin", color: { argb: "FF546E7A" } },
-					left:   { style: "thin", color: { argb: "FF546E7A" } },
-					bottom: { style: "thin", color: { argb: "FF546E7A" } },
-					right:  { style: "thin", color: { argb: "FF546E7A" } },
-				},
-			};
-		});
-
+	const handleExportCsv = () => {
+		const rows: (string | number)[][] = [];
 		let i = 0;
 		filteredWarehouses.forEach((g) => {
 			g.items.forEach((item) => {
-				const dr = ws.addRow([
+				rows.push([
 					++i,
 					g.warehouse,
 					item.code,
@@ -297,41 +225,13 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 					item.minStock > 0 ? item.minStock : "-",
 					getStockLevel(item).label,
 				]);
-				dr.height = 18;
-				const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-				dr.eachCell({ includeEmpty: true }, (cell, col) => {
-					cell.font = { name: "TH Sarabun New", size: 11 };
-					cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-					cell.border = {
-						top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-						left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-						bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-						right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-					};
-					if (col === 7 || col === 8) {
-						cell.alignment = { horizontal: "right" };
-						cell.font = { name: "TH Sarabun New", size: 11, bold: true };
-					}
-				});
 			});
 		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานคงคลังรายคลัง_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
+		downloadCsv({
+			headers: ["#", "คลัง", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "หน่วย", "คงเหลือ", "ขั้นต่ำ", "ระดับสต็อก"],
+			rows,
+			filename: `รายงานคงคลังรายคลัง_${new Date().toISOString().slice(0, 10)}.csv`,
+		});
 	};
 
 	const handleExportPdf = () => {
@@ -365,6 +265,7 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 		});
 		printWarehouseReport({
 			reportTitle:   "รายงานคงคลังรายคลัง",
+			period:        formatReportPeriod(),
 			filterSummary: pdfSubtitle,
 			columns,
 			rows: pdfRows,
@@ -569,11 +470,11 @@ const InventoryBalanceReportClient: React.FC<InventoryBalanceReportClientProps> 
 							</button>
 							<button
 								type="button"
-								title="Export Excel (.xlsx)"
-								onClick={(e) => { e.stopPropagation(); void handleExportXlsx(); }}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm"
+								title="Export CSV (.csv)"
+								onClick={(e) => { e.stopPropagation(); handleExportCsv(); }}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm"
 							>
-								<XlsxIcon />
+								<CsvIcon />
 							</button>
 						</div>
 					</div>

@@ -39,6 +39,13 @@ export interface SignerBox {
   date?: string | null;
 }
 
+export interface PrintReportSection {
+  title?: string;
+  subtitle?: string;
+  columns: PrintColumn[];
+  rows: Record<string, string | number | undefined | null>[];
+}
+
 export interface PrintWarehouseReportOptions {
   reportTitle: string;
   period?: string;
@@ -46,6 +53,8 @@ export interface PrintWarehouseReportOptions {
   docNo?: string;
   columns: PrintColumn[];
   rows: Record<string, string | number | undefined | null>[];
+  /** Optional extra tables rendered below the main table (e.g. detail breakdown). */
+  additionalSections?: PrintReportSection[];
   printedBy?: PrintedBy;
   signers?: SignerBox[];
   signatureRoles?: string[];
@@ -69,6 +78,7 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     docNo,
     columns,
     rows,
+    additionalSections,
     printedBy,
     signers,
     signatureRoles = ["ผู้ออกรายงาน", "ผู้ตรวจสอบ"],
@@ -109,18 +119,36 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
         date: i === 0 && printedByName ? todayShort : null,
       }));
 
-  // ── Table cells ───────────────────────────────────────────────────────────
-  const thCells = columns
-    .map((c) => `<th class="align-${c.align ?? "left"}">${esc(c.header)}</th>`)
-    .join("");
+  // ── Table builder (shared by main + additional sections) ──────────────────
+  const buildTable = (
+    cols: PrintColumn[],
+    bodyRows: Record<string, string | number | undefined | null>[],
+  ): string => {
+    const thCells = cols
+      .map((c) => `<th class="align-${c.align ?? "left"}">${esc(c.header)}</th>`)
+      .join("");
+    const trRows = bodyRows
+      .map((row) => {
+        const cells = cols
+          .map((c) => `<td class="align-${c.align ?? "left"}">${esc(row[c.key])}</td>`)
+          .join("");
+        return `<tr>${cells}</tr>`;
+      })
+      .join("");
+    return `<table><thead><tr>${thCells}</tr></thead><tbody>${trRows}</tbody></table>`;
+  };
 
-  const trRows = rows
-    .map((row) => {
-      const cells = columns
-        .map((c) => `<td class="align-${c.align ?? "left"}">${esc(row[c.key])}</td>`)
-        .join("");
-      return `<tr>${cells}</tr>`;
-    })
+  const mainTableHtml = buildTable(columns, rows);
+
+  const additionalHtml = (additionalSections ?? [])
+    .map(
+      (sec) => `
+      <div class="section-block">
+        ${sec.title ? `<h2 class="section-title">${esc(sec.title)}</h2>` : ""}
+        ${sec.subtitle ? `<div class="section-subtitle">${esc(sec.subtitle)}</div>` : ""}
+        ${buildTable(sec.columns, sec.rows)}
+      </div>`,
+    )
     .join("");
 
   // ── Signature boxes ───────────────────────────────────────────────────────
@@ -207,6 +235,11 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     .align-right  { text-align: right; }
     .align-center { text-align: center; }
     .align-left   { text-align: left; }
+
+    /* ── ADDITIONAL SECTIONS ─────────────────────────────── */
+    .section-block { margin-top: 18px; page-break-inside: auto; }
+    .section-title { font-size: 15px; font-weight: 700; color: #111827; margin: 14px 0 4px; letter-spacing: 0.02em; }
+    .section-subtitle { font-size: 11px; color: #6b7280; margin-bottom: 6px; }
 
     /* ── SIGNATURE + หมายเหตุท้าย (บนจอ: flow; ตอนพิมพ์: fixed ซ้ำทุกหน้า) ── */
     .print-footer-block {
@@ -298,10 +331,8 @@ export function printWarehouseReport(options: PrintWarehouseReportOptions): void
     ${period ? `<div class="report-period">ช่วงเวลา: ${esc(period)}</div>` : ""}
     ${filterSummary ? `<div class="report-filter">${esc(filterSummary)}</div>` : ""}
 
-    <table>
-      <thead><tr>${thCells}</tr></thead>
-      <tbody>${trRows}</tbody>
-    </table>
+    ${mainTableHtml}
+    ${additionalHtml}
   </div>
 
   <!-- ลายเซ็น + หมายเหตุ: พิมพ์ซ้ำทุกหน้า -->

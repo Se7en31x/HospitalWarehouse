@@ -2,21 +2,22 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Inbox, Search, X } from "lucide-react";
-import { fmtDateLong } from "@/utils/dateUtils";
+import { fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { apiClient } from "@/lib/apiClient";
 import { useUser } from "@/context/UserContext";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { getDepartmentOptions, type DepartmentOption } from "@/services/departmentService";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -60,7 +61,7 @@ interface ReusableItemsReportClientProps {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 const STATUS_LABEL: Record<string, string> = {
 	AVAILABLE:   "พร้อมใช้งาน",
@@ -245,6 +246,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 
 		printWarehouseReport({
 			reportTitle:   "รายงานอุปกรณ์ทางการแพทย์",
+			period:        formatReportPeriod(),
 			filterSummary: filterParts.length ? filterParts.join(" | ") : undefined,
 			columns,
 			rows: pdfRows,
@@ -262,84 +264,23 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 		});
 	};
 
-	// ── XLSX export ───────────────────────────────────────────────────────────
-	const handleExportXlsx = async () => {
+	// ── CSV export ────────────────────────────────────────────────────────────
+	const handleExportCsv = () => {
 		if (filtered.length === 0) return;
-		const ExcelJS  = (await import("exceljs")).default;
-		const wb       = new ExcelJS.Workbook();
-		wb.creator     = "HPK WMS";
-		wb.created     = new Date();
-
-		const FONT      = "TH Sarabun New";
-		const HEADER_BG = "FF37474F";
-		const COLS      = 8;
-
-		const ws = wb.addWorksheet("อุปกรณ์ทางการแพทย์");
-		ws.columns = [
-			{ width: 6  }, { width: 18 }, { width: 18 }, { width: 34 },
-			{ width: 18 }, { width: 22 }, { width: 16 }, { width: 14 },
-		];
-
-		const r1 = ws.addRow(["รายงานอุปกรณ์ทางการแพทย์"]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = { font: { name: FONT, size: 16, bold: true, color: { argb: "FF0D47A1" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } }, alignment: { horizontal: "center", vertical: "middle" } };
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = { font: { name: FONT, size: 11, color: { argb: "FF546E7A" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } }, alignment: { horizontal: "center", vertical: "middle" } };
-
-		const r3 = ws.addRow([`รวม ${filtered.length.toLocaleString()} รายการ    |    วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = { font: { name: FONT, size: 10, color: { argb: "FF546E7A" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } }, alignment: { horizontal: "center", vertical: "middle" } };
-
-		ws.addRow([]);
-
-		const hr = ws.addRow(["#", "Unit Code", "เลขซีเรียล", "ชื่อพัสดุ", "หมวดหมู่", "แผนก", "สถานะ", "สภาพ"]);
-		hr.height = 22;
-		hr.eachCell(cell => {
-			cell.style = { font: { name: FONT, size: 12, bold: true, color: { argb: "FFFFFFFF" } }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_BG } }, alignment: { horizontal: "center", vertical: "middle" }, border: { top: { style: "thin", color: { argb: "FF546E7A" } }, left: { style: "thin", color: { argb: "FF546E7A" } }, bottom: { style: "thin", color: { argb: "FF546E7A" } }, right: { style: "thin", color: { argb: "FF546E7A" } } } };
+		downloadCsv({
+			headers: ["#", "Unit Code", "เลขซีเรียล", "ชื่อพัสดุ", "หมวดหมู่", "แผนก", "สถานะ", "สภาพ"],
+			rows: filtered.map((r, i) => [
+				i + 1,
+				r.unitCode,
+				r.serialNo || "-",
+				r.itemName,
+				r.category,
+				r.department || "ไม่ระบุ",
+				STATUS_LABEL[r.status] ?? r.status,
+				CONDITION_LABEL[r.condition] ?? r.condition,
+			]),
+			filename: `รายงานอุปกรณ์ทางการแพทย์_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		const condBg: Record<string, string> = { GOOD: "FFD1FAE5", FAIR: "FFFEF3C7", POOR: "FFFED7AA", DAMAGED: "FFFEE2E2" };
-		filtered.forEach((r, i) => {
-			const bg  = i % 2 === 0 ? "FFFFFFFF" : "FFF8FAFC";
-			const cBg = condBg[r.condition] ?? bg;
-			const dr  = ws.addRow([i + 1, r.unitCode, r.serialNo || "-", r.itemName, r.category, r.department || "ไม่ระบุ", STATUS_LABEL[r.status] ?? r.status, CONDITION_LABEL[r.condition] ?? r.condition]);
-			dr.height = 18;
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font   = { name: FONT, size: 11 };
-				cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: col === 8 ? cBg : bg } };
-				cell.border = { top: { style: "thin", color: { argb: "FFB0BEC5" } }, left: { style: "thin", color: { argb: "FFB0BEC5" } }, bottom: { style: "thin", color: { argb: "FFB0BEC5" } }, right: { style: "thin", color: { argb: "FFB0BEC5" } } };
-				if ([1, 7, 8].includes(col)) cell.alignment = { horizontal: "center" };
-			});
-		});
-
-		// Summary block
-		ws.addRow([]);
-		ws.addRow([]);
-		const sb = ws.addRow(["สรุปสภาพ"]);
-		ws.mergeCells(sb.number, 1, sb.number, COLS);
-		sb.getCell(1).style = { font: { name: FONT, size: 12, bold: true }, fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F4F8" } } };
-
-		Object.entries(CONDITION_LABEL).forEach(([k, label]) => {
-			const cnt = summaryByCondition[k as keyof typeof summaryByCondition] ?? 0;
-			const sr = ws.addRow([`${label}:`, cnt, "รายการ"]);
-			sr.getCell(1).font = { name: FONT, size: 11, bold: true };
-			sr.getCell(2).font = { name: FONT, size: 11, bold: true, color: { argb: "FF1565C0" } };
-			sr.getCell(3).font = { name: FONT, size: 11 };
-		});
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href     = url;
-		a.download = `รายงานอุปกรณ์ทางการแพทย์_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
 	};
 
 	// ── Render ────────────────────────────────────────────────────────────────
@@ -350,7 +291,7 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 				reportPage="reusable-items"
 				title="รายงานอุปกรณ์ทางการแพทย์"
 				subtitle={
-					<>สรุปหน่วยอุปกรณ์ทางการแพทย์ทุกชิ้น กรองตามสถานะ สภาพ และแผนก · ส่งออก PDF/XLSX หรือพิมพ์รายงาน · พิมพ์วันที่ {printDate}</>
+					<>สรุปหน่วยอุปกรณ์ทางการแพทย์ทุกชิ้น กรองตามสถานะ สภาพ และแผนก · ส่งออก PDF/CSV หรือพิมพ์รายงาน · พิมพ์วันที่ {printDate}</>
 				}
 				onBack={onBack}
 			/>
@@ -377,9 +318,9 @@ const ReusableItemsReportClient: React.FC<ReusableItemsReportClientProps> = ({ o
 							</button>
 						)}
 						<div className="ml-auto flex items-center gap-2">
-							<button type="button" title="Export XLSX" onClick={handleExportXlsx}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
+							<button type="button" title="Export CSV (.csv)" onClick={handleExportCsv}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm">
+								<CsvIcon />
 							</button>
 							<button type="button" title="Export PDF" onClick={handleExportPdf}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">

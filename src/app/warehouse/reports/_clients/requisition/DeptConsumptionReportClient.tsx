@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Inbox, X } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useUser } from "@/context/UserContext";
-import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
+import { fmtDate, fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
@@ -20,12 +21,12 @@ const PdfIcon = () => (
 	</svg>
 );
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -153,6 +154,12 @@ export default function DeptConsumptionReportClient({ onBack }: Props) {
 		? `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`
 		: `${PERIOD_PRESETS.find(p => p.months === selectedPreset)?.label ?? ""} ย้อนหลัง`;
 
+	const reportPeriod = useCustom
+		? formatReportPeriod(dateFrom, dateTo)
+		: formatReportPeriod(undefined, undefined, {
+				note: `${PERIOD_PRESETS.find(p => p.months === selectedPreset)?.label ?? ""} ย้อนหลัง`,
+			});
+
 	const handlePdf = () => {
 		if (!data) return;
 		const columns: PrintColumn[] = [
@@ -171,12 +178,43 @@ export default function DeptConsumptionReportClient({ onBack }: Props) {
 		const printedByName = [profile?.title?.name, profile?.firstname_th, profile?.lastname_th]
 			.filter(Boolean).join("") || undefined;
 
+		const topItemsColumns: PrintColumn[] = [
+			{ header: "แผนก",        key: "department",  align: "left"  },
+			{ header: "รหัสรายการ",  key: "itemCode",    align: "left"  },
+			{ header: "ชื่อพัสดุ",    key: "itemName",    align: "left"  },
+			{ header: "หมวดหมู่",     key: "category",    align: "left"  },
+			{ header: "จำนวนเบิก",   key: "issuedQty",   align: "right" },
+			{ header: "หน่วย",        key: "unit",        align: "left"  },
+			{ header: "มูลค่า (฿)",  key: "value",       align: "right" },
+		];
+		const topItemsRows = data.groups.flatMap(g =>
+			g.topItems.map(it => ({
+				department: g.departmentName,
+				itemCode:   it.itemCode,
+				itemName:   it.itemName,
+				category:   it.category,
+				issuedQty:  it.issuedQty.toLocaleString(),
+				unit:       it.unit,
+				value:      it.value > 0 ? fmtBaht(it.value) : "-",
+			})),
+		);
+
 		printWarehouseReport({
 			reportTitle:   "รายงานการเบิกพัสดุรายแผนก",
-			period:        periodLabel,
+			period:        reportPeriod,
 			filterSummary: `${data.groups.length} แผนก · รวม ${totalReqs.toLocaleString()} ครั้งที่เบิก`,
 			columns,
 			rows,
+			additionalSections: topItemsRows.length
+				? [
+					{
+						title: "พัสดุยอดนิยมต่อแผนก (Top Items)",
+						subtitle: `รวม ${topItemsRows.length.toLocaleString()} รายการ`,
+						columns: topItemsColumns,
+						rows: topItemsRows,
+					},
+				]
+				: undefined,
 			printedBy: {
 				title:      profile?.title?.name,
 				firstName:  profile?.firstname_th,
@@ -195,194 +233,55 @@ export default function DeptConsumptionReportClient({ onBack }: Props) {
 		});
 	};
 
-	const handleExportXlsx = async () => {
+	const handleExportCsv = () => {
 		if (!data || data.groups.length === 0) return;
 
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ACCENT  = "FF0786F5";
-		const HEADER_BG = "FF37474F";
-		const FONT    = "TH Sarabun New";
-
-		const metaLine = [
-			`ช่วงเวลา: ${periodLabel}`,
-			`รวม ${data.totalDepts} แผนก`,
-			`${totalReqs.toLocaleString()} ครั้งที่เบิก`,
-			`วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
-		].join("    |    ");
-
-		const addTitleBlock = (ws: import("exceljs").Worksheet, title: string, cols: number) => {
-			const r1 = ws.addRow([title]);
-			ws.mergeCells(r1.number, 1, r1.number, cols);
-			r1.height = 28;
-			r1.getCell(1).style = {
-				font:      { name: FONT, size: 16, bold: true, color: { argb: `FF${ACCENT.slice(2)}` } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-			};
-			const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-			ws.mergeCells(r2.number, 1, r2.number, cols);
-			r2.height = 18;
-			r2.getCell(1).style = {
-				font:      { name: FONT, size: 11, color: { argb: "FF546E7A" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-			};
-			const r3 = ws.addRow([metaLine]);
-			ws.mergeCells(r3.number, 1, r3.number, cols);
-			r3.height = 16;
-			r3.getCell(1).style = {
-				font:      { name: FONT, size: 10, color: { argb: "FF546E7A" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-			};
-			ws.addRow([]);
-		};
-
-		const styleHeaderRow = (row: import("exceljs").Row) => {
-			row.height = 22;
-			row.eachCell(cell => {
-				cell.style = {
-					font:      { name: FONT, size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-					fill:      { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_BG } },
-					alignment: { horizontal: "center", vertical: "middle" },
-					border: {
-						top:    { style: "thin", color: { argb: "FF546E7A" } },
-						left:   { style: "thin", color: { argb: "FF546E7A" } },
-						bottom: { style: "thin", color: { argb: "FF546E7A" } },
-						right:  { style: "thin", color: { argb: "FF546E7A" } },
-					},
-				};
-			});
-		};
-
-		const styleDataRow = (row: import("exceljs").Row, idx: number) => {
-			const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-			row.height = 18;
-			row.eachCell({ includeEmpty: true }, cell => {
-				cell.font   = { name: FONT, size: 11 };
-				cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-				cell.border = {
-					top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-					left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-			});
-		};
-
-		// ── Sheet 1: สรุปรายแผนก ──────────────────────────────────────────────────
-		const ws1 = wb.addWorksheet("สรุปรายแผนก");
-		ws1.columns = [
-			{ width: 6  },   // #
-			{ width: 32 },   // แผนก
-			{ width: 14 },   // ครั้งที่เบิก
-			{ width: 16 },   // จำนวนรวม (ชิ้น)
-			{ width: 18 },   // มูลค่ารวม (฿)
-		];
-		addTitleBlock(ws1, "รายงานการเบิกพัสดุรายแผนก — สรุป", 5);
-
-		const h1 = ws1.addRow(["#", "แผนก", "ครั้งที่เบิก", "จำนวนรวม (ชิ้น)", "มูลค่ารวม (฿)"]);
-		styleHeaderRow(h1);
-
-		data.groups.forEach((g, i) => {
-			const row = ws1.addRow([
-				i + 1,
-				g.departmentName,
-				g.requestCount,
-				g.totalIssuedQty,
-				g.totalValue > 0 ? g.totalValue : "-",
-			]);
-			styleDataRow(row, i);
-			row.getCell(3).alignment = { horizontal: "center" };
-			row.getCell(4).alignment = { horizontal: "right" };
-			row.getCell(5).alignment = { horizontal: "right" };
-			if (g.totalValue > 0) {
-				row.getCell(5).numFmt = "#,##0.00";
-				row.getCell(5).font  = { name: FONT, size: 11, bold: true };
-			}
-		});
-
-		// Grand total row
-		ws1.addRow([]);
-		const totalRow = ws1.addRow([
-			"",
-			"รวมทั้งหมด",
-			totalReqs,
-			totalIssuedQty,
-			grandTotal > 0 ? grandTotal : "-",
-		]);
-		totalRow.height = 20;
-		totalRow.eachCell({ includeEmpty: true }, (cell, col) => {
-			cell.font = { name: FONT, size: 12, bold: true, color: { argb: "FF0D47A1" } };
-			cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
-			if (col >= 3) cell.alignment = { horizontal: col === 2 ? "left" : "right" };
-		});
-		if (grandTotal > 0) totalRow.getCell(5).numFmt = "#,##0.00";
-
-		ws1.addRow([]);
-		const f1 = ws1.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws1.mergeCells(f1.number, 1, f1.number, 5);
-		f1.getCell(1).style = {
-			font:      { name: FONT, size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		// ── Sheet 2: รายละเอียด Top Items ────────────────────────────────────────
-		const ws2 = wb.addWorksheet("รายละเอียดพัสดุ");
-		ws2.columns = [
-			{ width: 32 },   // แผนก
-			{ width: 14 },   // รหัสรายการ
-			{ width: 40 },   // ชื่อพัสดุ
-			{ width: 22 },   // หมวดหมู่
-			{ width: 14 },   // จำนวนเบิก (ชิ้น)
-			{ width: 10 },   // หน่วย
-			{ width: 18 },   // มูลค่า (฿)
-		];
-		addTitleBlock(ws2, "รายงานการเบิกพัสดุรายแผนก — Top Items", 7);
-
-		const h2 = ws2.addRow(["แผนก", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "จำนวนเบิก (ชิ้น)", "หน่วย", "มูลค่า (฿)"]);
-		styleHeaderRow(h2);
-
-		let rowIdx = 0;
-		data.groups.forEach(g => {
-			g.topItems.forEach(it => {
-				const row = ws2.addRow([
+		// Flatten ทั้ง 2 sheets เดิม → 1 CSV
+		// แต่ละ row = 1 top item พร้อม dept summary ซ้ำในคอลัมน์ซ้าย (ทำให้ pivot ใน Excel ได้ง่าย)
+		const rows: (string | number)[][] = [];
+		data.groups.forEach((g) => {
+			if (g.topItems.length === 0) {
+				rows.push([
 					g.departmentName,
+					g.requestCount,
+					g.totalIssuedQty,
+					g.totalValue,
+					"", "", "", "", "", "", "",
+				]);
+				return;
+			}
+			g.topItems.forEach((it) => {
+				rows.push([
+					g.departmentName,
+					g.requestCount,
+					g.totalIssuedQty,
+					g.totalValue,
 					it.itemCode,
 					it.itemName,
 					it.category,
 					it.issuedQty,
 					it.unit,
-					it.value > 0 ? it.value : "-",
+					it.value,
 				]);
-				styleDataRow(row, rowIdx++);
-				row.getCell(5).alignment = { horizontal: "right" };
-				row.getCell(7).alignment = { horizontal: "right" };
-				if (it.value > 0) row.getCell(7).numFmt = "#,##0.00";
 			});
 		});
 
-		ws2.addRow([]);
-		const f2 = ws2.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws2.mergeCells(f2.number, 1, f2.number, 7);
-		f2.getCell(1).style = {
-			font:      { name: FONT, size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		// ── Download ──────────────────────────────────────────────────────────────
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href     = url;
-		a.download = `รายงานการเบิกพัสดุรายแผนก_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
+		downloadCsv({
+			headers: [
+				"แผนก",
+				"ครั้งเบิกของแผนก",
+				"จำนวนรวมของแผนก",
+				"มูลค่ารวมของแผนก (บาท)",
+				"รหัสรายการ",
+				"ชื่อพัสดุ",
+				"หมวดหมู่",
+				"จำนวนเบิก",
+				"หน่วย",
+				"มูลค่า (บาท)",
+			],
+			rows,
+			filename: `รายงานการเบิกพัสดุรายแผนก_${new Date().toISOString().slice(0, 10)}.csv`,
+		});
 	};
 
 	return (
@@ -446,9 +345,9 @@ export default function DeptConsumptionReportClient({ onBack }: Props) {
 
 						{/* Export buttons */}
 						<div className="ml-auto flex items-center gap-2">
-							<button type="button" title="Export XLSX (2 sheets)" onClick={handleExportXlsx}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
+							<button type="button" title="Export CSV (.csv)" onClick={handleExportCsv}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm">
+								<CsvIcon />
 							</button>
 							<button type="button" title="Export PDF" onClick={handlePdf}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">

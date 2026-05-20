@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Warehouse,
-  RotateCcw,
   PackagePlus,
   TrendingUp,
   Package,
@@ -11,7 +10,6 @@ import {
   DollarSign,
   ClipboardCheck,
   BarChart3,
-  AlarmClock,
   Stethoscope,
   Cpu,
 } from "lucide-react";
@@ -92,8 +90,6 @@ export const REPORT_HEADER: Record<ReportHeaderPage, { section: SectionTheme; Ic
   "receive-report":    { section: "inbound", Icon: PackagePlus },
   "requisition":       { section: "flow",    Icon: ClipboardCheck },
   "dept-consumption":  { section: "flow",    Icon: BarChart3 },
-  "return-condition":  { section: "flow",    Icon: RotateCcw },
-  "overdue-borrow":    { section: "flow",    Icon: AlarmClock },
   "assets":            { section: "assets",  Icon: Cpu },
   "reusable-items":    { section: "assets",  Icon: Stethoscope },
 };

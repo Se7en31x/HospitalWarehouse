@@ -165,7 +165,7 @@ const reportGroups: ReportGroup[] = [
     reports: [
       {
         id: "assets",
-        label: "รายงานครุภัณฑ์ภายในองค์กรณ์",
+        label: "รายงานครุภัณฑ์ภายในองค์กร",
         description: "ตรวจสอบสถานะและที่ตั้งของครุภัณฑ์แยกตามแผนก",
         icon: Cpu,
         countKey: null,

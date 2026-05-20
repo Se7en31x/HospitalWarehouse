@@ -16,9 +16,7 @@ export type ReportPage =
 	| "item-ranking"
 	| "inventory-value"
 	| "expired-lots"
-	| "dept-consumption"
-	| "return-condition"
-	| "overdue-borrow";
+	| "dept-consumption";
 
 interface ReportTypeSelectorProps {
 	onSelectType: (type: ReportPage) => void;
@@ -89,7 +87,7 @@ const reportTypeOptions: {
 	},
 	{
 		id: "assets",
-		label: "รายงานครุภัณฑ์ภายในองค์กรณ์",
+		label: "รายงานครุภัณฑ์ภายในองค์กร",
 		description: "ตรวจสอบสถานะและที่ตั้งของครุภัณฑ์แยกตามแผนก",
 		countBg: "bg-purple-50",
 		countText: "text-purple-700",

@@ -7,19 +7,20 @@ import { getcategoriesOptions } from "@/services/itemsService";
 import type * as Item from "@/types/items_type";
 import { useUser } from "@/context/UserContext";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
-import { fmtDateLong } from "@/utils/dateUtils";
+import { fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 import { REPORT_HEADER, SECTION_TAB_ACTIVE } from "../../_components/reportHeaderTheme";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -63,7 +64,7 @@ interface Props {
 
 type Mode = "issued" | "stock";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 function today(): string {
 	return new Date().toISOString().split("T")[0];
@@ -136,13 +137,16 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 			{ header: isIssued ? "จำนวนเบิก" : "สต็อกคงเหลือ",
 				key: isIssued ? "issuedQty" : "currentStock", align: "right" },
 			{ header: "หน่วย",     key: "unit",         align: "left"   },
+			...(isIssued ? [{ header: "จำนวนครั้งที่เบิก", key: "requestCount", align: "right" as const }] : []),
 		];
 		const title = isIssued
 			? "รายงานอันดับพัสดุที่เบิกใช้มากสุด"
 			: "รายงานอันดับพัสดุที่มีสต็อกคงเหลือมากสุด";
 		printWarehouseReport({
 			reportTitle: title,
-			period: isIssued ? `${dateFrom} – ${dateTo}` : undefined,
+			period: isIssued
+				? formatReportPeriod(dateFrom, dateTo)
+				: formatReportPeriod(),
 			filterSummary: categoryId
 				? `หมวดหมู่: ${categories.find((c) => c.id === categoryId)?.name ?? categoryId}`
 				: undefined,
@@ -157,10 +161,9 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 		});
 	};
 
-	const handleExportXlsx = async () => {
+	const handleExportCsv = async () => {
 		const isIssued = mode === "issued";
 
-		// Fetch all rows for export
 		let allRows: RankingItem[] = rows;
 		try {
 			const params = new URLSearchParams({
@@ -172,111 +175,21 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 			allRows = res.data?.items ?? rows;
 		} catch { /* fallback to current page */ }
 
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("รายงานอันดับสินค้า");
-		const COLS = isIssued ? 8 : 7;
-
-		ws.columns = isIssued
-			? [{ width: 8 }, { width: 14 }, { width: 32 }, { width: 18 }, { width: 18 }, { width: 10 }, { width: 14 }, { width: 10 }, { width: 10 }]
-			: [{ width: 8 }, { width: 14 }, { width: 32 }, { width: 18 }, { width: 18 }, { width: 10 }, { width: 14 }, { width: 10 }];
-
-		const title = isIssued ? "รายงานอันดับพัสดุที่เบิกใช้มากสุด" : "รายงานอันดับพัสดุที่มีสต็อกคงเหลือมากสุด";
-
-		const r1 = ws.addRow([title]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF0D47A1" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const metaParts = [
-			`วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
-			isIssued ? `ช่วงเวลา: ${dateFrom} ถึง ${dateTo}` : null,
-			categoryId ? `หมวดหมู่: ${categories.find((c) => c.id === categoryId)?.name ?? ""}` : null,
-			`รวม ${allRows.length} รายการ`,
-		].filter(Boolean).join("    |    ");
-
-		const r3 = ws.addRow([metaParts]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
 		const headers = isIssued
 			? ["อันดับ", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "Lot", "จำนวนเบิก", "ครั้ง"]
 			: ["อันดับ", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "Lot", "สต็อก"];
-		const hr = ws.addRow(headers);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF37474F" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top:    { style: "thin", color: { argb: "FF546E7A" } },
-					left:   { style: "thin", color: { argb: "FF546E7A" } },
-					bottom: { style: "thin", color: { argb: "FF546E7A" } },
-					right:  { style: "thin", color: { argb: "FF546E7A" } },
-				},
-			};
+
+		const rowsOut: (string | number)[][] = allRows.map((row) => (
+			isIssued
+				? [row.rank, row.code, row.name, row.category, row.warehouse, row.unit, row.lotCount, row.issuedQty ?? 0, row.requestCount ?? 0]
+				: [row.rank, row.code, row.name, row.category, row.warehouse, row.unit, row.lotCount, row.currentStock]
+		));
+
+		downloadCsv({
+			headers,
+			rows: rowsOut,
+			filename: `รายงานอันดับสินค้า_${mode}_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		allRows.forEach((row, i) => {
-			const dr = isIssued
-				? ws.addRow([row.rank, row.code, row.name, row.category, row.warehouse, row.unit, row.lotCount, row.issuedQty ?? 0, row.requestCount ?? 0])
-				: ws.addRow([row.rank, row.code, row.name, row.category, row.warehouse, row.unit, row.lotCount, row.currentStock]);
-			dr.height = 18;
-			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font = { name: "TH Sarabun New", size: 11 };
-				cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-				cell.border = {
-					top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-					left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-				if (col === 1) cell.alignment = { horizontal: "center" };
-				if (col >= 8) { cell.alignment = { horizontal: "right" }; cell.font = { name: "TH Sarabun New", size: 11, bold: true }; }
-			});
-		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานอันดับสินค้า_${mode}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
 	};
 
 	const isIssued = mode === "issued";
@@ -354,9 +267,9 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
 								<PdfIcon />
 							</button>
-							<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleExportXlsx()}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
+							<button type="button" title="Export CSV (.csv)" onClick={() => void handleExportCsv()}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm">
+								<CsvIcon />
 							</button>
 						</div>
 					</div>
@@ -383,14 +296,15 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 								<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
-					<table className="w-full table-fixed text-sm text-left min-w-[880px]">
+					<table className="w-full table-fixed text-sm text-left min-w-[980px]">
 						<colgroup>
 							{isIssued ? (
 								<>
 									<col className="w-14" />
 									<col className="w-[7.5rem]" />
-									<col className="w-[26%]" />
-									<col className="w-[18%]" />
+									<col className="w-[24%]" />
+									<col className="w-[14%]" />
+									<col className="w-[10%]" />
 									<col className="w-14" />
 									<col className="w-[5.5rem]" />
 									<col className="w-[4.5rem]" />
@@ -400,8 +314,9 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 								<>
 									<col className="w-14" />
 									<col className="w-[7.5rem]" />
-									<col className="w-[30%]" />
-									<col className="w-[20%]" />
+									<col className="w-[26%]" />
+									<col className="w-[16%]" />
+									<col className="w-[12%]" />
 									<col className="w-14" />
 									<col className="w-[6rem]" />
 									<col className="w-[5.5rem]" />
@@ -414,6 +329,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 								<th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">รหัสรายการ</th>
 								<th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ชื่อพัสดุ</th>
 								<th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">หมวดหมู่</th>
+								<th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">คลัง</th>
 								<th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Lot</th>
 								{isIssued ? (
 									<>
@@ -429,7 +345,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 						<tbody className="text-slate-600 divide-y divide-slate-100">
 							{!loading && rows.length === 0 ? (
 								<tr>
-									<td colSpan={isIssued ? 8 : 7} className="text-center py-16">
+									<td colSpan={isIssued ? 9 : 8} className="text-center py-16">
 										<TrendingUp className="w-10 h-10 text-slate-200 mx-auto mb-2" />
 										<p className="text-sm text-slate-400">ไม่พบข้อมูล</p>
 									</td>
@@ -452,6 +368,7 @@ export default function ItemRankingReportClient({ onBack }: Props) {
 										<span className="block truncate">{row.name}</span>
 									</td>
 									<td className="px-3 py-3 text-xs text-slate-500 truncate min-w-0" title={row.category}>{row.category}</td>
+									<td className="px-3 py-3 text-xs text-slate-500 truncate min-w-0" title={row.warehouse}>{row.warehouse || "-"}</td>
 									<td className="px-3 py-3 text-center text-slate-600">{row.lotCount}</td>
 									{isIssued ? (
 										<>

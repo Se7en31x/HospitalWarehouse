@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, FlaskConical, Search, X } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useUser } from "@/context/UserContext";
-import { fmtDate } from "@/utils/dateUtils";
+import { fmtDate, formatReportPeriod } from "@/utils/dateUtils";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
@@ -19,12 +20,12 @@ const PdfIcon = () => (
 	</svg>
 );
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -53,7 +54,7 @@ interface Props {
 	onBack?: () => void;
 }
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 function daysExpired(dateStr: string | null): number {
 	if (!dateStr) return 0;
@@ -125,6 +126,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 			{ header: "รหัสล็อต",      key: "lotCode",     align: "left" },
 			{ header: "รหัสรายการ",    key: "itemCode",    align: "left" },
 			{ header: "ชื่อพัสดุ",     key: "itemName",    align: "left" },
+			{ header: "คลัง",          key: "warehouse",   align: "left" },
 			{ header: "วันหมดอายุ",   key: "expiredAt",   align: "center" },
 			{ header: "เกินมา (วัน)", key: "daysExpired", align: "center" },
 			{ header: "จำนวน",        key: "quantity",    align: "right" },
@@ -133,18 +135,35 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 
 		const allForPrint = await fetchAllForExport();
 
+		const buckets = { recent: 0, week: 0, month: 0, longer: 0 };
+		for (const r of allForPrint) {
+			const d = daysExpired(r.expiredAt);
+			if (d <= 7) buckets.recent++;
+			else if (d <= 30) buckets.week++;
+			else if (d <= 90) buckets.month++;
+			else buckets.longer++;
+		}
+
 		const filterParts = [
 			search.trim() ? `คำค้น: ${search.trim()}` : null,
-			dateFrom ? `หมดอายุตั้งแต่: ${dateFrom}` : null,
-			dateTo   ? `ถึง: ${dateTo}` : null,
 			`รวม ${allForPrint.length.toLocaleString()} LOT`,
+			`เกิน ≤7 วัน: ${buckets.recent.toLocaleString()}`,
+			`8–30 วัน: ${buckets.week.toLocaleString()}`,
+			`31–90 วัน: ${buckets.month.toLocaleString()}`,
+			`>90 วัน: ${buckets.longer.toLocaleString()}`,
 		].filter(Boolean);
+
+		const hasDateFilter = Boolean(dateFrom || dateTo);
+		const periodLabel = hasDateFilter
+			? formatReportPeriod(dateFrom, dateTo, { subjectLabel: "วันหมดอายุ" })
+			: formatReportPeriod();
 
 		const pdfRows = allForPrint.map((r, i) => ({
 			_no:         String(i + 1),
 			lotCode:     r.lotCode,
 			itemCode:    r.itemCode,
 			itemName:    r.itemName,
+			warehouse:   r.warehouse || "-",
 			quantity:    r.quantity.toLocaleString(),
 			unit:        r.unit,
 			expiredAt:   r.expiredAt ? fmtDate(r.expiredAt) : "-",
@@ -153,6 +172,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 
 		printWarehouseReport({
 			reportTitle: "รายงานล็อตพัสดุหมดอายุ",
+			period:      periodLabel,
 			filterSummary: filterParts.length ? filterParts.join(" | ") : `ทั้งหมด ${total.toLocaleString()} LOT`,
 			columns,
 			rows: pdfRows,
@@ -165,127 +185,23 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 		});
 	};
 
-	const handleExportXlsx = async () => {
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("ล็อตหมดอายุ");
-		const COLS = 8;
-
-		ws.columns = [
-			{ width: 6 },
-			{ width: 18 },
-			{ width: 14 },
-			{ width: 36 },
-			{ width: 16 },
-			{ width: 14 },
-			{ width: 12 },
-			{ width: 10 },
-		];
-
+	const handleExportCsv = async () => {
 		const allRows = await fetchAllForExport();
-
-		const r1 = ws.addRow(["รายงานล็อตพัสดุหมดอายุ"]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF0D47A1" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const metaParts = [
-			`วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
-			search.trim() ? `คำค้น: ${search.trim()}` : null,
-			dateFrom ? `หมดอายุตั้งแต่: ${dateFrom}` : null,
-			dateTo ? `ถึง: ${dateTo}` : null,
-			`รวม ${allRows.length.toLocaleString()} LOT`,
-		].filter(Boolean).join("    |    ");
-
-		const r3 = ws.addRow([metaParts]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
-		const headers = ["#", "รหัสล็อต", "รหัสรายการ", "ชื่อพัสดุ", "วันหมดอายุ", "เกินมา (วัน)", "จำนวน", "หน่วย"];
-		const hr = ws.addRow(headers);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF37474F" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top:    { style: "thin", color: { argb: "FF546E7A" } },
-					left:   { style: "thin", color: { argb: "FF546E7A" } },
-					bottom: { style: "thin", color: { argb: "FF546E7A" } },
-					right:  { style: "thin", color: { argb: "FF546E7A" } },
-				},
-			};
-		});
-
-		allRows.forEach((r, i) => {
-			const dr = ws.addRow([
+		downloadCsv({
+			headers: ["#", "รหัสล็อต", "รหัสรายการ", "ชื่อพัสดุ", "คลัง", "วันหมดอายุ", "เกินมา (วัน)", "จำนวน", "หน่วย"],
+			rows: allRows.map((r, i) => [
 				i + 1,
 				r.lotCode,
 				r.itemCode,
 				r.itemName,
+				r.warehouse || "-",
 				r.expiredAt ? fmtDate(r.expiredAt) : "-",
 				daysExpired(r.expiredAt),
 				r.quantity,
 				r.unit,
-			]);
-			dr.height = 18;
-			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font = { name: "TH Sarabun New", size: 11 };
-				cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-				cell.border = {
-					top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-					left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-				if (col === 7) {
-					cell.alignment = { horizontal: "right" };
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true };
-				}
-			});
+			]),
+			filename: `รายงานล็อตหมดอายุ_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานล็อตหมดอายุ_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
 	};
 
 	return (
@@ -348,19 +264,38 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 							</button>
 							<button
 								type="button"
-								title="Export Excel (.xlsx)"
-								onClick={() => void handleExportXlsx()}
-								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm"
+								title="Export CSV (.csv)"
+								onClick={() => void handleExportCsv()}
+								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm"
 							>
-								<XlsxIcon />
+								<CsvIcon />
 							</button>
 						</div>
 					</div>
 
-					<div className="flex items-center gap-6 px-5 py-3 bg-white border-b border-slate-100 text-sm">
+					<div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm">
 						<span className="text-slate-500">
 							พบ <span className="font-semibold text-red-600">{total.toLocaleString()}</span> LOT
 						</span>
+						{(() => {
+							const buckets = { recent: 0, week: 0, month: 0, longer: 0 };
+							for (const r of rows) {
+								const d = daysExpired(r.expiredAt);
+								if (d <= 7) buckets.recent++;
+								else if (d <= 30) buckets.week++;
+								else if (d <= 90) buckets.month++;
+								else buckets.longer++;
+							}
+							return (
+								<>
+									<span className="text-slate-300">·</span>
+									<span className="text-red-700">เกิน ≤7 วัน <span className="font-semibold">{buckets.recent.toLocaleString()}</span></span>
+									<span className="text-orange-700">8–30 วัน <span className="font-semibold">{buckets.week.toLocaleString()}</span></span>
+									<span className="text-amber-700">31–90 วัน <span className="font-semibold">{buckets.month.toLocaleString()}</span></span>
+									<span className="text-slate-600">{">"}90 วัน <span className="font-semibold">{buckets.longer.toLocaleString()}</span></span>
+								</>
+							);
+						})()}
 					</div>
 
 					<div className="relative w-full overflow-x-auto">
@@ -369,13 +304,14 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 								<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
-						<table className="w-full table-fixed text-sm text-left min-w-[1040px]">
+						<table className="w-full table-fixed text-sm text-left min-w-[1160px]">
 							<thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 								<tr>
 									<th className="px-4 py-4 w-[48px] text-center whitespace-nowrap">#</th>
 									<th className="px-3 py-4 w-[140px] whitespace-nowrap">รหัสล็อต</th>
 									<th className="px-3 py-4 w-[120px] whitespace-nowrap">รหัสรายการ</th>
 									<th className="px-3 py-4 w-[200px] whitespace-nowrap">ชื่อพัสดุ</th>
+									<th className="px-3 py-4 w-[120px] whitespace-nowrap">คลัง</th>
 									<th className="px-6 py-4 w-[120px] whitespace-nowrap text-center">วันหมดอายุ</th>
 									<th className="px-6 py-4 w-[110px] whitespace-nowrap text-center">เกินมา (วัน)</th>
 									<th className="px-6 py-4 w-[100px] whitespace-nowrap text-right">จำนวน</th>
@@ -385,7 +321,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 							<tbody className="text-slate-600">
 								{!loading && rows.length === 0 ? (
 									<tr>
-										<td colSpan={8}>
+										<td colSpan={9}>
 											<div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
 												<FlaskConical className="w-12 h-12 text-slate-300" />
 												<p className="text-sm font-medium">ไม่พบข้อมูลล็อตหมดอายุ</p>
@@ -403,6 +339,7 @@ export default function ExpiredLotsReportClient({ onBack }: Props) {
 												<td className="px-3 py-3">
 													<span className="block truncate min-w-0 font-medium text-slate-900" title={row.itemName}>{row.itemName}</span>
 												</td>
+												<td className="px-3 py-3 truncate text-slate-600" title={row.warehouse}>{row.warehouse || "-"}</td>
 												<td className="px-6 py-3 text-center whitespace-nowrap text-slate-600">{row.expiredAt ? fmtDate(row.expiredAt) : "-"}</td>
 												<td className="px-6 py-3 text-center">
 													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">

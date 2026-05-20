@@ -9,20 +9,21 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { fmtDateTime } from "@/utils/dateUtils";
+import { fmtDateTime, formatReportPeriod } from "@/utils/dateUtils";
 import { apiClient } from "@/lib/apiClient";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { useUser } from "@/context/UserContext";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -139,6 +140,18 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 	}, [allRows, searchTerm]);
 
 	const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+
+	const movementSummary = useMemo(() => {
+		let inQty = 0;
+		let outQty = 0;
+		let inCount = 0;
+		let outCount = 0;
+		for (const r of filtered) {
+			if (IN_TYPES.has(r.type)) { inQty += r.quantity; inCount++; }
+			else { outQty += r.quantity; outCount++; }
+		}
+		return { inQty, outQty, net: inQty - outQty, inCount, outCount };
+	}, [filtered]);
 	const paginated  = useMemo(() => {
 		const start = (currentPage - 1) * ITEMS_PER_PAGE;
 		return filtered.slice(start, start + ITEMS_PER_PAGE);
@@ -146,129 +159,25 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 
 	useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedType]);
 
-	const handleExportXlsx = async () => {
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("รายงานความเคลื่อนไหวสต็อก");
-		const COLS = 9;
-
-		ws.columns = [
-			{ width: 6 },
-			{ width: 22 },
-			{ width: 14 },
-			{ width: 14 },
-			{ width: 36 },
-			{ width: 12 },
-			{ width: 10 },
-			{ width: 22 },
-			{ width: 28 },
-		];
-
-		const r1 = ws.addRow(["รายงานความเคลื่อนไหวสต็อก"]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF0D47A1" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 18;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const metaParts = [
-			`วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
-			selectedType ? `ประเภท: ${TYPE_LABEL[selectedType] ?? selectedType}` : "ประเภท: ทุกประเภท",
-			startDate ? `ตั้งแต่: ${startDate}` : null,
-			endDate ? `ถึง: ${endDate}` : null,
-			`รวม ${filtered.length} รายการ`,
-			allRows.length >= 500 ? "(ข้อมูลจากเซิร์ฟเวอร์สูงสุด 500 รายการล่าสุด)" : null,
-		].filter(Boolean).join("    |    ");
-
-		const r3 = ws.addRow([metaParts]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 16;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
-		const headers = ["#", "วันที่/เวลา", "ประเภท", "รหัสรายการ", "ชื่อพัสดุ", "จำนวน", "หน่วย", "ผู้ดำเนินการ", "หมายเหตุ"];
-		const hr = ws.addRow(headers);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF37474F" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top:    { style: "thin", color: { argb: "FF546E7A" } },
-					left:   { style: "thin", color: { argb: "FF546E7A" } },
-					bottom: { style: "thin", color: { argb: "FF546E7A" } },
-					right:  { style: "thin", color: { argb: "FF546E7A" } },
-				},
-			};
+	const handleExportCsv = () => {
+		downloadCsv({
+			headers: ["#", "วันที่/เวลา", "ประเภท", "รหัสรายการ", "ชื่อพัสดุ", "จำนวน", "หน่วย", "ผู้ดำเนินการ", "หมายเหตุ"],
+			rows: filtered.map((r, i) => {
+				const signedQty = IN_TYPES.has(r.type) ? r.quantity : -r.quantity;
+				return [
+					i + 1,
+					fmtDateTime(r.date),
+					TYPE_LABEL[r.type] ?? r.type,
+					r.itemCode,
+					r.itemName,
+					signedQty,
+					r.unit,
+					r.operatorName ?? "",
+					r.note ?? "",
+				];
+			}),
+			filename: `รายงานความเคลื่อนไหวสต็อก_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		filtered.forEach((r, i) => {
-			const signedQty = IN_TYPES.has(r.type) ? r.quantity : -r.quantity;
-			const dr = ws.addRow([
-				i + 1,
-				fmtDateTime(r.date),
-				TYPE_LABEL[r.type] ?? r.type,
-				r.itemCode,
-				r.itemName,
-				signedQty,
-				r.unit,
-				r.operatorName ?? "",
-				r.note ?? "",
-			]);
-			dr.height = 18;
-			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font = { name: "TH Sarabun New", size: 11 };
-				cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-				cell.border = {
-					top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-					left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-				if (col === 6) {
-					cell.alignment = { horizontal: "right" };
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true };
-				}
-			});
-		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf  = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานความเคลื่อนไหวสต็อก_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click();
-		URL.revokeObjectURL(url);
 	};
 
 	const handleExportPdf = () => {
@@ -280,6 +189,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 			{ header: "ชื่อพัสดุ",    key: "itemName" },
 			{ header: "จำนวน",         key: "qtyFmt",      align: "right" },
 			{ header: "ผู้ดำเนินการ",   key: "operatorName" },
+			{ header: "หมายเหตุ",      key: "note" },
 		];
 		const pdfRows = filtered.map((r, i) => ({
 			_no:            String(i + 1),
@@ -289,11 +199,9 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 			itemName:       r.itemName,
 			qtyFmt:         (IN_TYPES.has(r.type) ? "+" : "-") + r.quantity.toLocaleString() + " " + r.unit,
 			operatorName:   r.operatorName,
+			note:           r.note || "-",
 		}));
-		const period = [
-			startDate ? `ตั้งแต่: ${startDate}` : null,
-			endDate   ? `ถึง: ${endDate}`        : null,
-		].filter(Boolean).join(" – ") || undefined;
+		const period = formatReportPeriod(startDate, endDate);
 		printWarehouseReport({
 			reportTitle:   "รายงานความเคลื่อนไหวสต็อก",
 			period,
@@ -400,23 +308,30 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 					</button>
 					<button
 						type="button"
-						title="Export Excel (.xlsx)"
-						onClick={() => void handleExportXlsx()}
-						className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm"
+						title="Export CSV (.csv)"
+						onClick={handleExportCsv}
+						className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm"
 					>
-						<XlsxIcon />
+						<CsvIcon />
 					</button>
 				</div>
 			</div>
 
 				{/* Summary strip — same rhythm as ItemsReportClient */}
-				<div className="flex items-center gap-6 px-5 py-3 bg-white border-b border-slate-100 text-sm">
+				<div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm">
 					<span className="text-slate-500">
 						พบ <span className="font-semibold text-slate-800">{filtered.length.toLocaleString()}</span> รายการ
-						{allRows.length >= 500 && (
-							<span className="ml-2 text-amber-600 text-xs font-normal">(จากข้อมูลสูงสุด 500 รายการล่าสุด)</span>
-						)}
 					</span>
+					<span className="text-slate-300">·</span>
+					<span className="text-emerald-700">เข้า <span className="font-semibold">{movementSummary.inCount.toLocaleString()}</span> รายการ ({movementSummary.inQty.toLocaleString()} หน่วย)</span>
+					<span className="text-rose-700">ออก <span className="font-semibold">{movementSummary.outCount.toLocaleString()}</span> รายการ ({movementSummary.outQty.toLocaleString()} หน่วย)</span>
+					<span className="text-slate-300">·</span>
+					<span className={`font-semibold ${movementSummary.net >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+						สุทธิ {movementSummary.net >= 0 ? "+" : ""}{movementSummary.net.toLocaleString()} หน่วย
+					</span>
+					{allRows.length >= 500 && (
+						<span className="ml-2 text-amber-600 text-xs">(จากข้อมูลสูงสุด 500 รายการล่าสุด)</span>
+					)}
 				</div>
 
 		{/* Table — สูงตามเนื้อหา ไม่ล็อคความสูง; เลื่อนแนวนอนเมื่อตารางกว้าง */}
@@ -426,7 +341,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 					<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 				</div>
 			)}
-					<table className="w-full table-fixed text-sm text-left min-w-[860px]">
+					<table className="w-full table-fixed text-sm text-left min-w-[1020px]">
 					<thead className="bg-slate-50 text-slate-700 text-base font-semibold uppercase shadow-[inset_0_-1px_0_0_#e2e8f0] sticky top-0 z-10">
 						<tr>
 							<th className="px-4 py-4 w-[50px] text-center">#</th>
@@ -437,6 +352,7 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 							<th className="px-6 py-4 w-[100px] whitespace-nowrap">จำนวน</th>
 							<th className="px-6 py-4 w-[76px] whitespace-nowrap">หน่วย</th>
 							<th className="px-6 py-4 w-[168px] whitespace-nowrap">ผู้ดำเนินการ</th>
+							<th className="px-6 py-4 w-[200px] whitespace-nowrap">หมายเหตุ</th>
 						</tr>
 					</thead>
 					<tbody className="text-slate-600">
@@ -467,12 +383,15 @@ const StockBalanceReportClient: React.FC<StockBalanceReportClientProps> = ({ onB
 										<td className="px-6 py-3 truncate" title={r.operatorName || "-"}>
 											{r.operatorName || "-"}
 										</td>
+										<td className="px-6 py-3 truncate text-xs text-slate-500" title={r.note || ""}>
+											{r.note || "-"}
+										</td>
 									</tr>
 								);
 							})
 						) : (
 							<tr>
-								<td colSpan={8} className="text-center py-16">
+								<td colSpan={9} className="text-center py-16">
 									<ArrowDownUp className="w-10 h-10 text-slate-200 mx-auto mb-2" />
 									<p className="text-sm text-slate-400">ไม่พบรายการความเคลื่อนไหวสต็อก</p>
 								</td>

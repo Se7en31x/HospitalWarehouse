@@ -4,22 +4,23 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	ChevronDown, ChevronLeft, ChevronRight, Inbox, Search, X,
 } from "lucide-react";
-import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
+import { fmtDate, fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { apiClient } from "@/lib/apiClient";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { useUser } from "@/context/UserContext";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -73,7 +74,7 @@ interface ReceiveReportClientProps {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 const TYPE_LABEL: Record<string, string> = {
 	PURCHASE:       "จัดซื้อ",
@@ -183,32 +184,38 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 		setSearch(""); setSupplier(""); setDateFrom(""); setDateTo(""); setTypeFilter(""); setPage(1);
 	};
 
+	const receiveSummary = useMemo(() => {
+		const grandTotal = filtered.reduce((s, r) => s + r.qty * r.costPrice, 0);
+		const purchaseTotal = filtered.filter(r => r.type === "PURCHASE" || r.type === "PURCHASE_ASSET").reduce((s, r) => s + r.qty * r.costPrice, 0);
+		const donationTotal = filtered.filter(r => r.type === "DONATION").reduce((s, r) => s + r.qty * r.costPrice, 0);
+		const typeCount = {
+			PURCHASE:       filtered.filter(r => r.type === "PURCHASE").length,
+			DONATION:       filtered.filter(r => r.type === "DONATION").length,
+			PURCHASE_ASSET: filtered.filter(r => r.type === "PURCHASE_ASSET").length,
+			REUSABLE_UNIT:  filtered.filter(r => r.type === "REUSABLE_UNIT").length,
+		};
+		return { grandTotal, purchaseTotal, donationTotal, typeCount };
+	}, [filtered]);
+
 	const handleExportCsv = () => {
-		const headers = ["วันที่รับเข้า", "Batch No", "เลขที่เอกสาร", "ประเภท", "ผู้จำหน่าย/ผู้บริจาค", "รหัสรายการ", "ชื่อพัสดุ", "หน่วย", "จำนวนในใบกำกับ", "จำนวนรับจริง", "ราคาต่อหน่วย", "ยอดรวม"];
-		const csvRows = [
-			headers.join(","),
-			...filtered.map(r => [
+		downloadCsv({
+			headers: ["วันที่รับเข้า", "Batch No", "เลขที่เอกสาร", "ประเภท", "ผู้จำหน่าย/ผู้บริจาค", "รหัสรายการ", "ชื่อพัสดุ", "หน่วย", "จำนวนในใบกำกับ", "จำนวนรับจริง", "ราคาต่อหน่วย", "ยอดรวม"],
+			rows: filtered.map(r => [
 				fmtDate(r.receiveDate),
 				r.batchNo,
 				r.docNo,
 				TYPE_LABEL[r.type] ?? r.type,
-				`"${r.supplier}"`,
+				r.supplier,
 				r.itemCode,
-				`"${r.itemName}"`,
+				r.itemName,
 				r.unit,
 				r.expectedQty,
 				r.qty,
 				r.costPrice,
 				r.qty * r.costPrice,
-			].join(",")),
-		].join("\n");
-		const blob = new Blob(["\uFEFF" + csvRows], { type: "text/csv;charset=utf-8;" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานการรับเข้า_${new Date().toISOString().slice(0, 10)}.csv`;
-		a.click();
-		URL.revokeObjectURL(url);
+			]),
+			filename: `รายงานการรับเข้า_${new Date().toISOString().slice(0, 10)}.csv`,
+		});
 	};
 
 	const handleExportPdf = () => {
@@ -218,7 +225,9 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 			{ header: "เลขที่เอกสาร",    key: "docNo" },
 			{ header: "ประเภท",           key: "typeLabel" },
 			{ header: "ผู้จำหน่าย/ผู้บริจาค", key: "supplier" },
+			{ header: "รหัสรายการ",      key: "itemCode" },
 			{ header: "ชื่อพัสดุ",       key: "itemName" },
+			{ header: "รหัสล็อต",         key: "lotCode" },
 			{ header: "ใบกำกับ",          key: "expectedQty", align: "center" },
 			{ header: "รับจริง",          key: "qty",         align: "center" },
 			{ header: "ราคา/หน่วย",      key: "costPriceFmt", align: "right" },
@@ -230,16 +239,30 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 			docNo:          r.docNo,
 			typeLabel:      TYPE_LABEL[r.type] ?? r.type,
 			supplier:       r.supplier,
+			itemCode:       r.itemCode || "-",
 			itemName:       r.itemName,
+			lotCode:        r.lotCode || "-",
 			expectedQty:    String(r.expectedQty),
 			qty:            String(r.qty),
 			costPriceFmt:   fmtCurrency(r.costPrice),
 			subtotalFmt:    fmtCurrency(r.qty * r.costPrice),
 		}));
-		const period = `${dateFrom ? `จาก ${fmtDate(dateFrom)} ` : ""}${dateTo ? `ถึง ${fmtDate(dateTo)}` : ""}`.trim() || undefined;
+		const period = formatReportPeriod(dateFrom, dateTo);
+		const grandTotal = filtered.reduce((s, r) => s + r.qty * r.costPrice, 0);
+		const typeCounts: Record<string, number> = {};
+		for (const r of filtered) {
+			typeCounts[r.type] = (typeCounts[r.type] ?? 0) + 1;
+		}
+		const typeBreak = Object.entries(typeCounts)
+			.map(([k, v]) => `${TYPE_LABEL[k] ?? k}: ${v.toLocaleString()}`)
+			.join(" · ");
 		printWarehouseReport({
 			reportTitle: "รายงานการรับสินค้าเข้าคลัง",
 			period,
+			filterSummary: [
+				`มูลค่ารวม ฿${fmtCurrency(grandTotal)}`,
+				typeBreak,
+			].filter(Boolean).join(" | ") || undefined,
 			columns,
 			rows: pdfRows,
 			printedBy: {
@@ -337,7 +360,7 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 						<div className="ml-auto flex items-center gap-2">
 							<button type="button" title="Export CSV (.csv)" onClick={handleExportCsv}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
+								<CsvIcon />
 							</button>
 							<button type="button" title="Export PDF" onClick={handleExportPdf}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
@@ -347,12 +370,21 @@ const ReceiveReportClient: React.FC<ReceiveReportClientProps> = ({ onBack }) => 
 					</div>
 
 					{/* ── Row count strip ────────────────────────────────────────── */}
-					<div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-slate-100 text-sm text-slate-600">
+					<div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm text-slate-600">
 						<span>
 							พบ <span className="font-semibold text-slate-800">{total.toLocaleString()}</span> รายการ
 							&nbsp;·&nbsp;
 							<span className="font-semibold text-slate-800">{groups.length}</span> กลุ่ม Batch
 						</span>
+						<span className="text-slate-300">·</span>
+						<span className="text-emerald-700">มูลค่ารวม <span className="font-semibold">฿{fmtCurrency(receiveSummary.grandTotal)}</span></span>
+						<span className="text-blue-700">จัดซื้อ <span className="font-semibold">฿{fmtCurrency(receiveSummary.purchaseTotal)}</span></span>
+						<span className="text-purple-700">บริจาค <span className="font-semibold">฿{fmtCurrency(receiveSummary.donationTotal)}</span></span>
+						<span className="text-slate-300">·</span>
+						<span className="text-slate-600">จัดซื้อ <span className="font-semibold">{receiveSummary.typeCount.PURCHASE.toLocaleString()}</span></span>
+						<span className="text-slate-600">บริจาค <span className="font-semibold">{receiveSummary.typeCount.DONATION.toLocaleString()}</span></span>
+						<span className="text-slate-600">ครุภัณฑ์ <span className="font-semibold">{receiveSummary.typeCount.PURCHASE_ASSET.toLocaleString()}</span></span>
+						<span className="text-slate-600">ของใช้ซ้ำ <span className="font-semibold">{receiveSummary.typeCount.REUSABLE_UNIT.toLocaleString()}</span></span>
 					</div>
 
 					{/* ── Table ─────────────────────────────────────────────────── */}

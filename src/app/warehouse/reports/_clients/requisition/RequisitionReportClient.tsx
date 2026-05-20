@@ -9,9 +9,10 @@ import {
 	X,
 	Inbox,
 } from "lucide-react";
-import { fmtDate, fmtDateTime, fmtDateLong } from "@/utils/dateUtils";
+import { fmtDate, fmtDateTime, fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { useUser } from "@/context/UserContext";
 import { getAllRequisitionsPages } from "@/services/requisitionService";
 import { getDepartmentOptions } from "@/services/departmentService";
@@ -20,12 +21,12 @@ import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -147,7 +148,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 		setIsLoading(true);
 		try {
 			const [recordsData, departmentOptions] = await Promise.all([
-				getAllRequisitionsPages({ limit: 10 }),
+				getAllRequisitionsPages(),
 				getDepartmentOptions().catch(() => []),
 			]);
 			const lookup: Record<string, string> = {};
@@ -237,15 +238,30 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 		[searchTerm, selectedType, selectedStatus, selectedDepartment, dateFrom, dateTo]);
 
 	const hasFilter = !!(searchTerm || selectedType || selectedStatus || selectedDepartment || dateFrom || dateTo);
+
+	const summaryStats = useMemo(() => {
+		const totalLines = filteredReports.reduce((s, r) => s + (r.item_count ?? r.items?.length ?? 0), 0);
+		const avgLines = filteredReports.length > 0 ? totalLines / filteredReports.length : 0;
+		const statusCount: Record<string, number> = {};
+		for (const r of filteredReports) {
+			const s = String(r.status);
+			statusCount[s] = (statusCount[s] ?? 0) + 1;
+		}
+		const typeCount = {
+			WITHDRAW: filteredReports.filter(r => r.type === "WITHDRAW").length,
+			BORROW:   filteredReports.filter(r => r.type === "BORROW").length,
+		};
+		return { totalLines, avgLines, statusCount, typeCount };
+	}, [filteredReports]);
 	const clearFilters = () => {
 		setSearchTerm(""); setSelectedType(""); setSelectedStatus("");
 		setSelectedDepartment(""); setDateFrom(""); setDateTo(""); setCurrentPage(1);
 	};
 
 	const handleExportCsv = () => {
-		const rows = [
-			["เลขที่คำขอ", "วันที่", "ประเภท", "ผู้ทำรายการ", "แผนก", "จำนวนรายการ", "สถานะ", "หมายเหตุ"].join(","),
-			...filteredReports.map(r => [
+		downloadCsv({
+			headers: ["เลขที่คำขอ", "วันที่", "ประเภท", "ผู้ทำรายการ", "แผนก", "จำนวนรายการ", "สถานะ", "หมายเหตุ"],
+			rows: filteredReports.map(r => [
 				r.doc_no,
 				r.request_date,
 				TYPE_LABEL[r.type] ?? r.type,
@@ -254,16 +270,9 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 				r.item_count ?? r.items.length,
 				STATUS_LABEL[r.status] ?? r.status,
 				r.note || "",
-			].join(",")),
-		].join("\n");
-
-		const blob = new Blob(["\uFEFF" + rows], { type: "text/csv;charset=utf-8;" });
-		const url  = URL.createObjectURL(blob);
-		const a    = document.createElement("a");
-		a.href = url;
-		a.download = `รายงานคำขอเบิกยืม_${new Date().toISOString().slice(0, 10)}.csv`;
-		a.click();
-		URL.revokeObjectURL(url);
+			]),
+			filename: `รายงานคำขอเบิกยืม_${new Date().toISOString().slice(0, 10)}.csv`,
+		});
 	};
 
 	const handleExportPdf = () => {
@@ -286,7 +295,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 			statusLabel: STATUS_LABEL[r.status] ?? r.status,
 		}));
 
-		const period = `${dateFrom ? `จาก ${fmtDate(dateFrom)} ` : ""}${dateTo ? `ถึง ${fmtDate(dateTo)}` : ""}`.trim() || undefined;
+		const period = formatReportPeriod(dateFrom, dateTo);
 
 		const filterParts: string[] = [];
 		if (selectedType)       filterParts.push(`ประเภท: ${TYPE_LABEL[selectedType] ?? selectedType}`);
@@ -405,7 +414,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 						<div className="ml-auto flex items-center gap-2">
 							<button type="button" title="Export CSV (.csv)" onClick={handleExportCsv}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-								<XlsxIcon />
+								<CsvIcon />
 							</button>
 							<button type="button" title="Export PDF" onClick={handleExportPdf}
 								className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
@@ -415,12 +424,22 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 					</div>
 
 					{/* ── Row count strip ────────────────────────────────────────── */}
-					<div className="flex items-center gap-4 px-5 py-2.5 bg-white border-b border-slate-100">
-						<span className="text-xs text-slate-500">
+					<div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm">
+						<span className="text-slate-500">
 							พบ <span className="font-semibold text-slate-700">{filteredReports.length.toLocaleString()}</span> รายการ
 						</span>
+						<span className="text-slate-300">·</span>
+						<span className="text-blue-700">เบิก <span className="font-semibold">{summaryStats.typeCount.WITHDRAW.toLocaleString()}</span></span>
+						<span className="text-indigo-700">ยืม <span className="font-semibold">{summaryStats.typeCount.BORROW.toLocaleString()}</span></span>
+						<span className="text-slate-300">·</span>
+						<span className="text-emerald-700">เสร็จสิ้น <span className="font-semibold">{(summaryStats.statusCount.COMPLETED ?? 0).toLocaleString()}</span></span>
+						<span className="text-amber-700">รออนุมัติ <span className="font-semibold">{(summaryStats.statusCount.PENDING ?? 0).toLocaleString()}</span></span>
+						<span className="text-red-700">ปฏิเสธ/ยกเลิก <span className="font-semibold">{((summaryStats.statusCount.REJECTED ?? 0) + (summaryStats.statusCount.CANCELLED ?? 0)).toLocaleString()}</span></span>
+						<span className="text-slate-300">·</span>
+						<span className="text-slate-600">รายการรวม <span className="font-semibold">{summaryStats.totalLines.toLocaleString()}</span></span>
+						<span className="text-slate-600">เฉลี่ย <span className="font-semibold">{summaryStats.avgLines.toFixed(1)}</span> ราย/ใบ</span>
 						{hasFilter && (
-							<span className="text-xs text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+							<span className="ml-2 text-xs text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
 								กำลังกรองข้อมูล
 							</span>
 						)}
@@ -433,7 +452,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 								<div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
 							</div>
 						)}
-						<table className="w-full text-sm text-left min-w-[820px]">
+						<table className="w-full text-sm text-left min-w-[880px]">
 							<colgroup>
 								<col className="w-[48px]" />
 								<col className="w-[140px]" />
@@ -441,6 +460,7 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 								<col className="w-[200px]" />
 								<col className="w-[170px]" />
 								<col className="w-[88px]" />
+								<col className="w-[80px]" />
 								<col className="w-[140px]" />
 							</colgroup>
 							<thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
@@ -451,13 +471,14 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ผู้ทำรายการ</th>
 									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">แผนก</th>
 									<th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">ประเภท</th>
+									<th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">รายการ</th>
 									<th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">สถานะ</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-slate-100">
 								{paginatedReports.length === 0 && !isLoading ? (
 									<tr>
-										<td colSpan={7}>
+										<td colSpan={8}>
 											<div className="flex flex-col items-center justify-center py-16 gap-2">
 												<Inbox className="w-12 h-12 text-slate-200" />
 												<p className="text-sm text-slate-400">ไม่พบรายการคำขอเบิก/ยืม</p>
@@ -486,6 +507,9 @@ const RequisitionReportClient: React.FC<RequisitionReportClientProps> = ({ onBac
 												<span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${TYPE_BADGE[record.type] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>
 													{TYPE_LABEL[record.type] ?? record.type}
 												</span>
+											</td>
+											<td className="px-4 py-3 text-center text-sm text-slate-700 tabular-nums">
+												{(record.item_count ?? record.items?.length ?? 0).toLocaleString()}
 											</td>
 											<td className="px-4 py-3">
 												<span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_BADGE[record.status] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>

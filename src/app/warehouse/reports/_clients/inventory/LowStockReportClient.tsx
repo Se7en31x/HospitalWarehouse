@@ -16,20 +16,21 @@ import { apiClient } from "@/lib/apiClient";
 import { getcategoriesOptions, getWarehousesOptions } from "@/services/itemsService";
 import { SweetAlertUtils } from "@/utils/sweetAlert";
 import { printWarehouseReport, type PrintColumn } from "@/utils/printWarehouseReport";
+import { downloadCsv } from "@/utils/downloadCsv";
 import { useUser } from "@/context/UserContext";
-import { fmtDate, fmtDateLong } from "@/utils/dateUtils";
+import { fmtDate, fmtDateLong, formatReportPeriod } from "@/utils/dateUtils";
 import { OutlinedDateField } from "../../_components/OutlinedDateField";
 import { ReportDetailPageHeader } from "../../_components/ReportDetailPageHeader";
 import { REPORT_HEADER, SECTION_TAB_ACTIVE } from "../../_components/reportHeaderTheme";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const XlsxIcon = () => (
+const CsvIcon = () => (
 	<svg viewBox="0 0 56 64" width="32" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<path d="M6 0 H38 L50 12 V60 Q50 64 46 64 H6 Q2 64 2 60 V4 Q2 0 6 0Z" fill="#e8eaed"/>
 		<path d="M38 0 L50 12 H42 Q38 12 38 8 Z" fill="#c5c9d0"/>
-		<rect x="4" y="36" width="48" height="20" rx="4" fill="#16a34a"/>
-		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">XLSX</text>
+		<rect x="4" y="36" width="48" height="20" rx="4" fill="#0ea5e9"/>
+		<text x="28" y="50" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="Arial,sans-serif" letterSpacing="0.5">CSV</text>
 	</svg>
 );
 
@@ -278,154 +279,36 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 
 	// ── Exports ────────────────────────────────────────────────────────────────
 
-	const periodLabel = useMemo(() => {
-		if (dateFrom && dateTo) return `${dateFrom} ถึง ${dateTo}`;
-		if (dateFrom) return `ตั้งแต่ ${dateFrom}`;
-		if (dateTo) return `ถึง ${dateTo}`;
-		return "ทุกช่วงเวลา";
-	}, [dateFrom, dateTo]);
+	const periodLabel = useMemo(() => formatReportPeriod(dateFrom, dateTo), [dateFrom, dateTo]);
 
 	const nePeriodLabel = useMemo(() => {
-		const bits: string[] = [`ภายใน ${neDays} วัน`];
-		if (neDateFrom && neDateTo) bits.push(`วันหมดอายุ ${neDateFrom} ถึง ${neDateTo}`);
-		else if (neDateFrom) bits.push(`วันหมดอายุ ตั้งแต่ ${neDateFrom}`);
-		else if (neDateTo) bits.push(`วันหมดอายุ ถึง ${neDateTo}`);
-		return bits.join(" · ");
+		const hasFilter = Boolean(neDateFrom || neDateTo);
+		return hasFilter
+			? formatReportPeriod(neDateFrom, neDateTo, {
+					subjectLabel: "วันหมดอายุ",
+					note: `ภายใน ${neDays} วัน`,
+				})
+			: formatReportPeriod(undefined, undefined, { note: `ภายใน ${neDays} วัน` });
 	}, [neDays, neDateFrom, neDateTo]);
 
-	const handleLsExportXlsx = async () => {
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("รายงานสต็อกต่ำ");
-		const generatedAt = fmtDateLong(new Date());
-		const COLS = 11;
-
-		ws.columns = [
-			{ width: 6 },
-			{ width: 14 },
-			{ width: 32 },
-			{ width: 18 },
-			{ width: 18 },
-			{ width: 10 },
-			{ width: 14 },
-			{ width: 14 },
-			{ width: 12 },
-			{ width: 12 },
-			{ width: 14 },
-		];
-
-		type ExRow = ReturnType<typeof ws.addRow>;
-		const applyBorder = (row: ExRow) => {
-			row.eachCell({ includeEmpty: true }, (cell) => {
-				cell.border = {
-					top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-					left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-			});
-		};
-
-		const r1 = ws.addRow([periodLabel]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF1B5E20" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFC8E6C9" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow(["รายงานสินค้าต่ำกว่ากำหนด"]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 22;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 14, bold: true, color: { argb: "FF0D47A1" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r3 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 18;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r4 = ws.addRow([`วันที่สร้างรายงาน: ${generatedAt}    |    หมวดหมู่: ${lsCategory}    |    คลัง: ${lsWarehouse}`]);
-		ws.mergeCells(r4.number, 1, r4.number, COLS);
-		r4.height = 16;
-		r4.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
-		const headers = ["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "ขั้นต่ำที่กำหนด", "จำนวนที่ขาด", "สถานะ"];
-		const hr = ws.addRow(headers);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF37474F" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top:    { style: "thin", color: { argb: "FF546E7A" } },
-					left:   { style: "thin", color: { argb: "FF546E7A" } },
-					bottom: { style: "thin", color: { argb: "FF546E7A" } },
-					right:  { style: "thin", color: { argb: "FF546E7A" } },
-				},
-			};
+	const handleLsExportCsv = () => {
+		downloadCsv({
+			headers: ["#", "รหัสรายการ", "ชื่อพัสดุ", "หมวดหมู่", "คลัง", "หน่วย", "สต็อกที่ใช้ได้", "คงเหลือ (DB)", "ขั้นต่ำที่กำหนด", "จำนวนที่ขาด", "สถานะ"],
+			rows: lsFiltered.map((item, i) => [
+				i + 1,
+				item.code,
+				item.name,
+				item.category,
+				item.warehouse,
+				item.unit,
+				item.availableStock,
+				item.currentStock,
+				item.minStock,
+				item.shortfall,
+				item.availableStock === 0 ? "หมดสต็อก" : "ต่ำกว่ากำหนด",
+			]),
+			filename: `รายงานสต็อกต่ำ_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		lsFiltered.forEach((item, i) => {
-			const isOut = item.availableStock === 0;
-			const dr = ws.addRow([
-				i + 1, item.code, item.name, item.category, item.warehouse, item.unit,
-				item.availableStock, item.currentStock, item.minStock, item.shortfall,
-				isOut ? "หมดสต็อก" : "ต่ำกว่ากำหนด",
-			]);
-			dr.height = 18;
-			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font = { name: "TH Sarabun New", size: 11 };
-				cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-				if (col === 7) {
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: isOut ? "FFEF5350" : "FFFB8C00" } };
-				}
-				if (col === 10) {
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: "FF1565C0" } };
-					cell.alignment = { horizontal: "right" };
-				}
-				if (col === 11) {
-					cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isOut ? "FFFFEBEE" : "FFFFF3E0" } };
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: isOut ? "FFEF5350" : "FFFB8C00" } };
-					cell.alignment = { horizontal: "center" };
-				}
-				applyBorder(dr);
-			});
-		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a"); a.href = url;
-		a.download = `รายงานสต็อกต่ำ_${periodLabel.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click(); URL.revokeObjectURL(url);
 	};
 
 	const handleLsExportPdf = () => {
@@ -466,131 +349,26 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 		});
 	};
 
-	const handleNeExportXlsx = async () => {
-		const ExcelJS = (await import("exceljs")).default;
-		const wb = new ExcelJS.Workbook();
-		wb.creator = "HPK WMS";
-		wb.created = new Date();
-
-		const ws = wb.addWorksheet("รายงานใกล้หมดอายุ");
-		const generatedAt = fmtDateLong(new Date());
-		const COLS = 10;
-
-		ws.columns = [
-			{ width: 6 },
-			{ width: 16 },
-			{ width: 14 },
-			{ width: 32 },
-			{ width: 18 },
-			{ width: 10 },
-			{ width: 8 },
-			{ width: 16 },
-			{ width: 14 },
-			{ width: 16 },
-		];
-
-		const r1 = ws.addRow([nePeriodLabel]);
-		ws.mergeCells(r1.number, 1, r1.number, COLS);
-		r1.height = 28;
-		r1.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 16, bold: true, color: { argb: "FF1B5E20" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFC8E6C9" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r2 = ws.addRow([`รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`]);
-		ws.mergeCells(r2.number, 1, r2.number, COLS);
-		r2.height = 22;
-		r2.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 14, bold: true, color: { argb: "FF880E4F" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFCE4EC" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r3 = ws.addRow(["ระบบบริหารคลังสินค้า HPK"]);
-		ws.mergeCells(r3.number, 1, r3.number, COLS);
-		r3.height = 18;
-		r3.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 11, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		const r4 = ws.addRow([`วันที่สร้างรายงาน: ${generatedAt}    |    คลัง: ${neWarehouse}    |    ช่วงเวลา: ภายใน ${neDays} วัน`]);
-		ws.mergeCells(r4.number, 1, r4.number, COLS);
-		r4.height = 16;
-		r4.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, color: { argb: "FF546E7A" } },
-			fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FFFAFAFA" } },
-			alignment: { horizontal: "center", vertical: "middle" },
-		};
-
-		ws.addRow([]);
-
-		const headers = ["#", "รหัส LOT", "รหัสรายการ", "ชื่อพัสดุ", "วันหมดอายุ", "คงเหลือ (วัน)", "ระดับความเร่งด่วน", "คลัง", "จำนวน", "หน่วย"];
-		const hr = ws.addRow(headers);
-		hr.height = 22;
-		hr.eachCell((cell) => {
-			cell.style = {
-				font:      { name: "TH Sarabun New", size: 12, bold: true, color: { argb: "FFFFFFFF" } },
-				fill:      { type: "pattern", pattern: "solid", fgColor: { argb: "FF4A148C" } },
-				alignment: { horizontal: "center", vertical: "middle" },
-				border: {
-					top:    { style: "thin", color: { argb: "FF6A1B9A" } },
-					left:   { style: "thin", color: { argb: "FF6A1B9A" } },
-					bottom: { style: "thin", color: { argb: "FF6A1B9A" } },
-					right:  { style: "thin", color: { argb: "FF6A1B9A" } },
-				},
-			};
+	const handleNeExportCsv = () => {
+		downloadCsv({
+			headers: ["#", "รหัส LOT", "รหัสรายการ", "ชื่อพัสดุ", "วันหมดอายุ", "คงเหลือ (วัน)", "ระดับความเร่งด่วน", "คลัง", "จำนวน", "หน่วย"],
+			rows: neFiltered.map((r, i) => {
+				const urgency = (r.daysLeft ?? 999) <= 30 ? "วิกฤต" : (r.daysLeft ?? 999) <= 60 ? "เฝ้าระวัง" : "ปานกลาง";
+				return [
+					i + 1,
+					r.lotCode,
+					r.itemCode,
+					r.itemName,
+					fmtDate(r.expiredAt),
+					r.daysLeft ?? "-",
+					urgency,
+					r.warehouse,
+					r.quantity,
+					r.unit,
+				];
+			}),
+			filename: `รายงานใกล้หมดอายุ_${neDays}วัน_${new Date().toISOString().slice(0, 10)}.csv`,
 		});
-
-		const urgencyConfig: Record<string, { bg: string; fg: string }> = {
-			"วิกฤต":      { bg: "FFFFEBEE", fg: "FFEF5350" },
-			"เฝ้าระวัง":  { bg: "FFFFF3E0", fg: "FFFB8C00" },
-			"ปานกลาง":    { bg: "FFFFFDE7", fg: "FFF9A825" },
-		};
-
-		neFiltered.forEach((r, i) => {
-			const urgency = (r.daysLeft ?? 999) <= 30 ? "วิกฤต" : (r.daysLeft ?? 999) <= 60 ? "เฝ้าระวัง" : "ปานกลาง";
-			const dr = ws.addRow([
-				i + 1, r.lotCode, r.itemCode, r.itemName,
-				fmtDate(r.expiredAt), r.daysLeft ?? "-", urgency, r.warehouse,
-				r.quantity, r.unit,
-			]);
-			dr.height = 18;
-			const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF5F5F5";
-			dr.eachCell({ includeEmpty: true }, (cell, col) => {
-				cell.font = { name: "TH Sarabun New", size: 11 };
-				cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
-				cell.border = {
-					top:    { style: "thin", color: { argb: "FFB0BEC5" } },
-					left:   { style: "thin", color: { argb: "FFB0BEC5" } },
-					bottom: { style: "thin", color: { argb: "FFB0BEC5" } },
-					right:  { style: "thin", color: { argb: "FFB0BEC5" } },
-				};
-				if (col === 7) {
-					const cfg = urgencyConfig[urgency];
-					cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: cfg.bg } };
-					cell.font = { name: "TH Sarabun New", size: 11, bold: true, color: { argb: cfg.fg } };
-					cell.alignment = { horizontal: "center" };
-				}
-			});
-		});
-
-		ws.addRow([]);
-		const fr = ws.addRow(["** รายงานนี้สร้างโดยระบบ HPK WMS อัตโนมัติ **"]);
-		ws.mergeCells(fr.number, 1, fr.number, COLS);
-		fr.getCell(1).style = {
-			font:      { name: "TH Sarabun New", size: 10, italic: true, color: { argb: "FF9E9E9E" } },
-			alignment: { horizontal: "right" },
-		};
-
-		const buf = await wb.xlsx.writeBuffer();
-		const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a"); a.href = url;
-		a.download = `รายงานใกล้หมดอายุ_${nePeriodLabel.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		a.click(); URL.revokeObjectURL(url);
 	};
 
 	const handleNeExportPdf = () => {
@@ -600,14 +378,18 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 			{ header: "รหัสรายการ", key: "itemCode" },
 			{ header: "ชื่อพัสดุ", key: "itemName" },
 			{ header: "วันหมดอายุ", key: "dateFmt",   align: "center" },
-			{ header: "คงเหลือ",    key: "daysLabel", align: "center" },
+			{ header: "ความเร่งด่วน", key: "urgency", align: "center" },
 			{ header: "คลัง",       key: "warehouse" },
 			{ header: "จำนวน",      key: "qty",       align: "right" },
+			{ header: "หน่วย",      key: "unit",      align: "left" },
 		];
 		const pdfRows = neFiltered.map((r, i) => ({
 			_no: String(i + 1), lotCode: r.lotCode, itemCode: r.itemCode, itemName: r.itemName,
-			warehouse: r.warehouse, qty: r.quantity.toLocaleString() + " " + r.unit,
-			dateFmt: fmtDate(r.expiredAt), daysLabel: getUrgencyLabel(r.daysLeft),
+			warehouse: r.warehouse,
+			qty: r.quantity.toLocaleString(),
+			unit: r.unit,
+			dateFmt: fmtDate(r.expiredAt),
+			urgency: getUrgencyLabel(r.daysLeft),
 		}));
 		printWarehouseReport({
 			reportTitle:   `รายงานสินค้าใกล้หมดอายุ (ภายใน ${neDays} วัน)`,
@@ -747,9 +529,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
 									<PdfIcon />
 								</button>
-								<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleLsExportXlsx()}
-									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-									<XlsxIcon />
+								<button type="button" title="Export CSV (.csv)" onClick={handleLsExportCsv}
+									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm">
+									<CsvIcon />
 								</button>
 							</div>
 						</div>
@@ -896,9 +678,9 @@ const LowStockReportClient: React.FC<LowStockReportClientProps> = ({ onBack }) =
 									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-red-50 transition-all shadow-sm">
 									<PdfIcon />
 								</button>
-								<button type="button" title="Export Excel (.xlsx)" onClick={() => void handleNeExportXlsx()}
-									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-green-50 transition-all shadow-sm">
-									<XlsxIcon />
+								<button type="button" title="Export CSV (.csv)" onClick={handleNeExportCsv}
+									className="flex items-center p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-sky-50 transition-all shadow-sm">
+									<CsvIcon />
 								</button>
 							</div>
 						</div>
