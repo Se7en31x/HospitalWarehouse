@@ -11,13 +11,13 @@ export const LIST_TABLE_TH = "px-5 py-3.5 whitespace-nowrap";
 /** หัวคอลัมน์ลำดับ # */
 export const LIST_TABLE_TH_NUM = "px-4 py-3.5 text-center whitespace-nowrap";
 
-/** แถวข้อมูล — ตัวอักษรเล็กกว่าหัว */
-export const LIST_TABLE_TBODY = "text-sm text-slate-600";
+/** แถวข้อมูล — ตัวอักษรเล็กกว่าหัว (ใช้คลาสสีที่เข้มขึ้น) */
+export const LIST_TABLE_TBODY = "text-sm text-slate-700";
 
 export const LIST_TABLE_TD = "px-5 py-3";
 
 export const LIST_TABLE_TD_NUM =
-  "px-4 py-3 text-center text-sm text-slate-500 tabular-nums";
+  "px-4 py-3 text-center text-sm text-slate-600 tabular-nums";
 
 /** ตารางคลังที่คอลัมน์กว้าง (เดิมใช้ px-6) */
 export const LIST_TABLE_TH_WIDE = "px-6 py-3.5 whitespace-nowrap";

@@ -492,7 +492,7 @@ export default function AssetRegistryClient({
                                             />
                                         </th>
                                         <th className={LIST_TABLE_TH_WIDE}>รหัสครุภัณฑ์</th>
-                                        <th className={LIST_TABLE_TH_WIDE}>Serial Number</th>
+                                        <th className={`${LIST_TABLE_TH_WIDE} text-center`}>Serial Number</th>
                                         <th className={LIST_TABLE_TH_WIDE}>แผนกประจำการ</th>
                                         <th className={LIST_TABLE_TH_WIDE}>เลขที่เอกสารรับเข้า</th>
                                         <th className={LIST_TABLE_TH_WIDE}>วันหมดอายุประกัน</th>
@@ -514,7 +514,7 @@ export default function AssetRegistryClient({
                                                     />
                                                 </td>
                                                 <td className="px-6 py-2.5">{rec.asset_code}</td>
-                                                <td className="px-6 py-2.5 font-mono text-slate-600">{rec.serial_no || <span className="text-slate-300 italic text-xs">N/A</span>}</td>
+                                                <td className="px-6 py-2.5 font-mono text-slate-600 text-center">{rec.serial_no || <span className="text-slate-500 text-xs">N/A</span>}</td>
                                                 <td className="px-6 py-2.5 text-slate-600">{rec.department_name || "ส่วนกลาง"}</td>
                                                 <td className="px-6 py-2.5 text-slate-600 text-xs">{rec.receive_doc_no || "---"}</td>
                                                 <td className="px-6 py-2.5">

@@ -130,7 +130,7 @@ function NavContent({
               {collapsed ? (
                 <div className="ml-3 w-6 h-px bg-black/10" />
               ) : (
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
                   {group.title}
                 </span>
               )}
@@ -159,7 +159,7 @@ function NavContent({
                     >
                       <Icon className="w-[22px] h-[22px] shrink-0" />
                       {!collapsed && (
-                        <span className={`text-[15px] whitespace-nowrap ${
+                        <span className={`text-[17px] whitespace-nowrap ${
                           isActive ? 'font-semibold' : 'font-medium'
                         }`}>
                           {item.name}
@@ -179,7 +179,7 @@ function NavContent({
                   >
                     <Icon className="w-[22px] h-[22px] shrink-0" />
                     {!collapsed && (
-                      <span className={`text-[15px] whitespace-nowrap ${
+                      <span className={`text-[17px] whitespace-nowrap ${
                         isActive ? 'font-semibold' : 'font-medium'
                       }`}>
                         {item.name}
@@ -226,7 +226,7 @@ export default function WarehouseSidebar() {
         className={`
           hidden lg:flex flex-col shrink-0 h-full overflow-hidden
           bg-white border-r border-slate-200 transition-all duration-300 ease-in-out
-          ${isCollapsed ? 'w-[72px]' : 'w-64'}
+          ${isCollapsed ? 'w-[72px]' : 'w-[260px]'}
         `}
       >
         <NavContent collapsed={isCollapsed} toggleSidebar={toggleSidebar} />

@@ -62,9 +62,9 @@ const PAGE_LIMIT = 10;
 /** หน่วยนับ: แสดง 6 รายการต่อหน้า */
 const PAGE_LIMIT_UNITS = 6;
 
-/** หัวตารางตั้งค่า — ไม่ใช้ตัวพิมพ์ใหญ่ทั้งแถว (อ่านภาษาไทยได้สบายกว่า) */
+/** หัวตารางตั้งค่า — ใช้สไตล์และขนาดมาตรฐานตัวอักษร 18px (text-base) และสีเข้ม */
 const SETTINGS_TABLE_HEAD =
-  "bg-slate-50 text-slate-600 text-sm font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0]";
+  "bg-slate-50 text-slate-700 text-base font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-[inset_0_-1px_0_0_#e2e8f0]";
 
 const TAB_BAR: { id: TabType; label: string; icon: ReactNode }[] = [
   { id: "categories", label: "หมวดหมู่พัสดุ", icon: <Package className="w-4 h-4 shrink-0" /> },
@@ -635,7 +635,7 @@ export default function SettingsClient({
                   <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-500">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedCategories.length > 0 ? (
                   pagedCategories.map((cat, idx) => (
                     <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
@@ -720,7 +720,7 @@ export default function SettingsClient({
                   <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-500">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedUnits.length > 0 ? (
                   pagedUnits.map((unit, idx) => (
                     <tr key={unit.id} className="hover:bg-slate-50 transition-colors">
@@ -790,7 +790,7 @@ export default function SettingsClient({
                   <th className="px-6 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-500">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedWarehouses.length > 0 ? (
                   pagedWarehouses.map((wh, idx) => (
                     <tr key={wh.id} className="hover:bg-slate-50 transition-colors">
@@ -864,7 +864,7 @@ export default function SettingsClient({
                   <th className="px-2 py-3.5 w-[100px] text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-500">
+              <tbody className="divide-y divide-slate-100 text-slate-700">
                 {pagedSuppliers.length > 0 ? (
                   pagedSuppliers.map((sup, idx) => (
                     <tr key={sup.id} className="hover:bg-slate-50 transition-colors">
